@@ -1,0 +1,12 @@
+{
+  "name": "ask when writing .env.local file",
+  "stdin": {
+    "tool_input": {
+      "file_path": "/app/.env.local"
+    }
+  },
+  "expect_exit": 0,
+  "expect_stdout_contains": [
+    "ask"
+  ]
+}

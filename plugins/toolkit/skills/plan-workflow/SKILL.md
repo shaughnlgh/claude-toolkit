@@ -158,6 +158,10 @@ If writing is skipped, state exactly why.
 
 The plan must be written before implementation begins.
 
+Writing style for the plan note follows the vault rules (same as topic notes): plain
+sentences. Never use em dashes or semicolons to split text. Use separate sentences,
+commas, or parentheses instead.
+
 ### Required plan frontmatter
 
 ```yaml
@@ -309,9 +313,10 @@ For non-trivial tasks, follow these steps before writing the plan note:
 2. Read relevant code, config, docs, and existing patterns (see Docs-First Discipline
    in the toolkit's CLAUDE.md doctrine).
 3. Invoke the `/testing-gate` skill to determine the required testing level.
-4. Use the `planner` subagent for repo/doc scan or evidence gathering, scoped to
-   the gaps from step 1, unless the task is obviously too small for delegation.
-   If no worker is used, say why.
+4. AFTER topic recall, use the planner agent (the toolkit's `planner`, not
+   `explorer`) for repo/doc scan or evidence gathering, scoped to the gaps from
+   step 1 so it does not re-derive what recall already found. Skip only when the
+   task is obviously too small for delegation, and say why.
 5. Write the plan note (`plan - <plan-name>.md`) to the Obsidian plan directory.
    Create the plan directory per the canonical layout, or fill in a pre-scaffolded
    note where one exists.
@@ -348,9 +353,12 @@ tooling can surface state:
 
 ### Record the session on the plan
 
-Record the session id UP FRONT, not at the end: as one of the first actions of any
-planning or execution session tied to a plan, append an entry to the plan note's
-`sessions:` list (date, a short "in progress" summary, and your session id). Update
+Record the session id UP FRONT, not at the end. If the plan note does not exist yet
+(no scaffold), derive the plan name and create the note skeleton (frontmatter with a
+`sessions:` entry carrying your session id, empty sections) as one of the FIRST
+actions of the session, before deep exploration, then fill the body in as planning
+proceeds. If the note already exists, append an entry to its `sessions:` list (date,
+a short "in progress" summary, and your session id) immediately. Update
 that entry's summary to the real one-line outcome before stopping. Rationale
 (2026-07-13): a session that dies mid-run (API stall, crash) otherwise leaves no id
 on the plan and has to be hunted down by grepping transcripts. You have your current

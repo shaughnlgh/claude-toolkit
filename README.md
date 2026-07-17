@@ -20,6 +20,22 @@ everything below, guides you through the vault config, and prints a readiness re
   creates `~/.claude/obsidian-sync.json` from the shipped template; all docs and
   scripts resolve your vault location and root folder from that file.
 
+## Hooks (transparency)
+
+This plugin ships hooks — scripts that run automatically once installed. Exactly what
+runs, and when:
+
+| Event | Script | What it does |
+|---|---|---|
+| Before Edit/Write | `protect-files.sh` | Hard-blocks writes to keys/certs/lockfiles/generated files; asks for confirmation on `.env*` and `settings.json` |
+| Before Edit/Write | `scan-secrets.sh` | Blocks writes that embed credentials (API keys, tokens, private keys, connection-string passwords) |
+| Before Bash | `block-dangerous-commands.sh` | Blocks destructive commands (`rm -rf /`, force-push to main, `chmod 777`, unguarded SQL DELETE, curl-pipe-sudo, …) |
+| Session start | `session-start.sh` | Injects a one-line git briefing (branch, dirty state; verbose mode via `TOOLKIT_SESSION_VERBOSE=1`). ~5–10 tokens |
+| Notification | `notify.sh` | Native OS notification when Claude needs input (macOS/Linux/WSL, silent elsewhere) |
+
+All hooks fail safe (never block a session on their own errors), read no network, and
+are covered by the test suite in `hooks/tests/` (`bash run-all.sh`).
+
 ## Install
 
 ```
