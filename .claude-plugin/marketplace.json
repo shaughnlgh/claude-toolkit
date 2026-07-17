@@ -1,0 +1,14 @@
+{
+  "name": "shaughn-toolkit",
+  "description": "Shaughn's Claude Code toolkit: agents, skills, and working doctrine",
+  "owner": {
+    "name": "Shaughn"
+  },
+  "plugins": [
+    {
+      "name": "toolkit",
+      "source": "./plugins/toolkit",
+      "description": "Agents, skills, and working doctrine. Components land one at a time."
+    }
+  ]
+}
