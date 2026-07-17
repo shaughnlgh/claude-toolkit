@@ -1,0 +1,7 @@
+{
+  "name": "injects toolkit rules from plugin root",
+  "stdin": {},
+  "env": { "CLAUDE_PLUGIN_ROOT": "../.." },
+  "expect_exit": 0,
+  "expect_stdout_contains": ["Verify behavior, not implementation", "Never modify an existing migration", "frontend-designer"]
+}

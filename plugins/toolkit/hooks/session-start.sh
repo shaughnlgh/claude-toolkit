@@ -6,11 +6,28 @@
 # staged status, stash count, and active PR info. ~30-90 tokens, plus
 # a network round-trip if `gh` is installed.
 
-# Bail early if not in a git repo (nothing useful to inject).
-git rev-parse --git-dir >/dev/null 2>&1 || exit 0
-
 VERBOSE="${TOOLKIT_SESSION_VERBOSE:-0}"
 CONTEXT=""
+
+# Toolkit write-time rules, injected live from the plugin (always current with the
+# installed version; no local copies to manage). Frontend rules stay on-demand: the
+# frontend-designer agent embodies them, the pointer below covers non-agent edits.
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; then
+  RULES=""
+  for r in testing security error-handling database; do
+    f="${CLAUDE_PLUGIN_ROOT}/rules/${r}.md"
+    [ -f "$f" ] && RULES="${RULES}$(awk 'f{print} /^---$/{c++; if(c==2)f=1}' "$f")
+"
+  done
+  if [ -n "$RULES" ]; then
+    echo "Toolkit write-time rules:"
+    printf '%s' "$RULES"
+    echo "Frontend work: use the frontend-designer agent, or read rules/frontend.md in this plugin."
+  fi
+fi
+
+# Git briefing only applies inside a repo.
+git rev-parse --git-dir >/dev/null 2>&1 || exit 0
 
 # Branch (essential, cheap).
 BRANCH=$(git branch --show-current 2>/dev/null)
