@@ -7,6 +7,19 @@ anyone with access to use.
 Under construction: components land one at a time, each tested through the plugin
 before its source-of-truth moves here.
 
+## Setup
+
+After installing, run `/toolkit-setup` in any Claude Code session — it checks
+everything below, guides you through the vault config, and prints a readiness report.
+
+- **glab** (GitLab CLI) — required by gitlab-mr-review for API auth.
+  Install and authenticate once: `brew install glab && glab auth login`
+- **jq** — optional; some scripts degrade gracefully without it.
+- **Planning workflow** (optional; required only for plan-workflow / obsidian-topic):
+  plan and topic notes are written into an Obsidian vault you control. `/toolkit-setup`
+  creates `~/.claude/obsidian-sync.json` from the shipped template; all docs and
+  scripts resolve your vault location and root folder from that file.
+
 ## Install
 
 ```
