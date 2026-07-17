@@ -1,0 +1,13 @@
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Python bytecode (skill scripts)
+__pycache__/
+*.pyc
+
+# local scratch
+*.tmp
