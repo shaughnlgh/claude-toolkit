@@ -1,0 +1,12 @@
+{
+  "name": "ask when writing deep/.env",
+  "stdin": {
+    "tool_input": {
+      "file_path": "apps/web/.env"
+    }
+  },
+  "expect_exit": 0,
+  "expect_stdout_contains": [
+    "ask"
+  ]
+}
