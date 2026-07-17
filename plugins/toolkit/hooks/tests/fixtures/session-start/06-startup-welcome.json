@@ -1,0 +1,7 @@
+{
+  "name": "startup source emits user-visible systemMessage",
+  "stdin": { "source": "startup" },
+  "env": { "CLAUDE_PLUGIN_ROOT": "../.." },
+  "expect_exit": 0,
+  "expect_stdout_contains": ["systemMessage", "toolkit", "agents"]
+}
