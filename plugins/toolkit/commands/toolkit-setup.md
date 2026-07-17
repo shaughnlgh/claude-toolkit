@@ -71,7 +71,7 @@ them).
 
       ## Toolkit Scripts
       Invoke via the CURRENT installed plugin root: resolve it first, e.g.
-      `ls -dt ~/.claude/plugins/cache/shaughn-toolkit/toolkit/*/ | head -1`,
+      `jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json`,
       then invoke with that literal absolute path (matches the allowlist rule).
       - `bash <plugin-root>/scripts/vault-fs.sh rm|mv ...` - vault file ops with
         guardrails; atomic writes: Write tool to a `.tmp` file, then vault-fs.sh mv.
