@@ -47,7 +47,39 @@ Check `~/.claude/obsidian-sync.json`:
 
 - `jq` present? (Some scripts prefer it and degrade without it.)
 
-### 5. Local copies that conflict with the plugin (migration check)
+### 5. Permissions and environment (optional, consent-gated)
+
+Two optional additions to the user's `~/.claude/settings.json`. Show each verbatim,
+explain it in one line, apply only on an explicit yes, and always leave the file
+valid JSON (merge into existing `permissions.allow` / `env` objects, never replace
+them).
+
+- **Prompt-free toolkit scripts.** The plugin's vault and git scripts are invoked by
+  its skills from the plugin cache. Offer these allow rules, written with the user's
+  absolute home path (mid-path wildcards are supported and make the rules survive
+  plugin updates):
+
+      Bash(bash <home>/.claude/plugins/cache/shaughn-toolkit/toolkit/*/scripts/vault-fs.sh *)
+      Bash(bash <home>/.claude/plugins/cache/shaughn-toolkit/toolkit/*/scripts/git-ro.sh *)
+
+  Explain the trade honestly: without them, the first vault write per repo prompts
+  once ("always allow" works but embeds the version hash, so it re-prompts after
+  updates). Both scripts are guard-railed (relative-path-only vault ops; read-only
+  git) and reviewable in the plugin.
+- **Orchestration environment.** The toolkit's orchestration doctrine routes every
+  worker question or blocker to the conductor; the built-in advisor tool is a
+  side-channel around that. Offer:
+
+      "env": { "CLAUDE_CODE_DISABLE_ADVISOR_TOOL": "1" }
+
+  If the key is already set to "1", report it as current. If set to something else,
+  report the conflict and let the user decide — do not overwrite silently.
+
+If both are declined, note the practical effects (occasional permission prompts;
+advisor available to workers) and move on. Never re-nag on later runs: report
+current state, offer only what is absent.
+
+### 6. Local copies that conflict with the plugin (migration check)
 
 If this machine previously ran a copy-pasted version of this setup, local copies now
 conflict with the plugin. Detect each class and explain its exact effect:
@@ -93,7 +125,8 @@ End with a table:
 | gitlab-mr-review | ready / not ready | glab auth |
 | Planning workflow (plan-workflow, obsidian-topic) | ready / not ready | vault config |
 | Write-time rules | injected at session start | — |
-| Local conflicts | none / N found | migration (check 5) |
+| Prompt-free scripts + orchestration env | configured / offered / declined | check 5 |
+| Local conflicts | none / N found | migration (check 6) |
 
 One line of verdict at the end: fully ready, or the single next action to get there.
 
