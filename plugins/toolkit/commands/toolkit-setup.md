@@ -22,8 +22,8 @@ available; otherwise "unknown").
 Check `~/.claude/obsidian-sync.json`:
 
 - Missing entirely: tell the user the planning workflow is unconfigured. Offer to
-  create the config from the shipped template (`../scripts/obsidian-sync.json.template`
-  relative to this command's base directory). If they accept: ask for their vault
+  create the config from (the shipped template `scripts/obsidian-sync.json.template`
+  at the plugin root). If they accept: ask for their vault
   path, verify that directory exists on disk, write the config with their values,
   then re-run this check.
 - Present: validate it —
@@ -65,7 +65,19 @@ them).
   Explain the trade honestly: without them, the first vault write per repo prompts
   once ("always allow" works but embeds the version hash, so it re-prompts after
   updates). Both scripts are guard-railed (relative-path-only vault ops; read-only
-  git) and reviewable in the plugin.
+  git) and reviewable in the plugin. When the rules are accepted, ALSO offer to
+  append this usage block to the user's global `~/.claude/CLAUDE.md` (they are one
+  unit — the rules only match invocations written this way):
+
+      ## Toolkit Scripts
+      Invoke via the CURRENT installed plugin root: resolve it first, e.g.
+      `ls -dt ~/.claude/plugins/cache/shaughn-toolkit/toolkit/*/ | head -1`,
+      then invoke with that literal absolute path (matches the allowlist rule).
+      - `bash <plugin-root>/scripts/vault-fs.sh rm|mv ...` - vault file ops with
+        guardrails; atomic writes: Write tool to a `.tmp` file, then vault-fs.sh mv.
+        Vault root resolves from `~/.claude/obsidian-sync.json`.
+      - `bash <plugin-root>/scripts/git-ro.sh <dir> <status|diff|log|show>` -
+        read-only git anywhere; mutation subcommands refused.
 - **Orchestration environment.** The toolkit's orchestration doctrine routes every
   worker question or blocker to the conductor; the built-in advisor tool is a
   side-channel around that. Offer:
@@ -75,9 +87,22 @@ them).
   If the key is already set to "1", report it as current. If set to something else,
   report the conflict and let the user decide — do not overwrite silently.
 
-If both are declined, note the practical effects (occasional permission prompts;
-advisor available to workers) and move on. Never re-nag on later runs: report
-current state, offer only what is absent.
+- **Doctrine pointer.** The toolkit's working doctrine ships at the plugin root
+  (`CLAUDE.md` index + `doctrine/` files + design `README.md`), but sessions and
+  especially subagents only find it via the user's global `~/.claude/CLAUDE.md`.
+  Check that file contains a pointer to the plugin's CLAUDE.md and README.md. If
+  absent, offer to append this block (or create a minimal global CLAUDE.md holding
+  just it, if none exists):
+
+      ## Toolkit Doctrine
+      The binding doctrine lives in the toolkit plugin — read its index at
+      ~/.claude/plugins/cache/shaughn-toolkit/toolkit/*/CLAUDE.md (glob resolves the
+      current version). Design rationale: README.md at the same plugin root.
+      Personal overrides: state which doctrine file you override, below.
+
+If any offer is declined, note the practical effects (occasional permission prompts;
+advisor available to workers; doctrine unreachable by subagents) and move on. Never
+re-nag on later runs: report current state, offer only what is absent.
 
 ### 6. Local copies that conflict with the plugin (migration check)
 
@@ -121,7 +146,7 @@ End with a table:
 | Capability | Status | Needs |
 |---|---|---|
 | Agents (12) | always ready | — |
-| Review skills (code review, testing gate) | always ready | — |
+| Review capability (reviewer agents, testing-gate skill) | always ready | — |
 | gitlab-mr-review | ready / not ready | glab auth |
 | Planning workflow (plan-workflow, obsidian-topic) | ready / not ready | vault config |
 | Write-time rules | injected at session start | — |

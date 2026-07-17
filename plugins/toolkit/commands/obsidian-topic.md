@@ -181,7 +181,7 @@ and from which projects.
 - `source_refs`: repo-relative module roots and doc URLs only.
 - Set `created` on create, bump `updated` always.
 - Use atomic writes: Write to a `.tmp` file in the target directory, then
-  the toolkit's `scripts/vault-fs.sh mv` (resolve `../../scripts/` from this command's base directory).
+  the toolkit's `vault-fs.sh mv`, in the `scripts/` directory at the plugin root (locate the plugin root via the installed cache path shown by /toolkit-setup, or ../scripts relative to this commands/ directory).
 
 ### 5. Maintain the link graph
 

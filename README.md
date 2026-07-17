@@ -28,9 +28,9 @@ runs, and when:
 | Event | Script | What it does |
 |---|---|---|
 | Before Edit/Write | `protect-files.sh` | Hard-blocks writes to keys/certs/lockfiles/generated files; asks for confirmation on `.env*` and `settings.json` |
-| Before Edit/Write | `scan-secrets.sh` | Blocks writes that embed credentials (API keys, tokens, private keys, connection-string passwords) |
+| Before Edit/Write | `scan-secrets.sh` | Asks for confirmation on writes that embed credentials (API keys, tokens, private keys, connection-string passwords) — overridable, not a hard block |
 | Before Bash | `block-dangerous-commands.sh` | Blocks destructive commands (`rm -rf /`, force-push to main, `chmod 777`, unguarded SQL DELETE, curl-pipe-sudo, …) |
-| Session start | `session-start.sh` | Injects a one-line git briefing (branch, dirty state; verbose mode via `TOOLKIT_SESSION_VERBOSE=1`). ~5–10 tokens |
+| Session start | `session-start.sh` | Injects the plugin's write-time rules verbatim (testing, security, error-handling, database; ~680 tokens), a doctrine pointer, plus a one-line git briefing (branch, dirty state; verbose mode via `TOOLKIT_SESSION_VERBOSE=1`) |
 | Notification | `notify.sh` | Native OS notification when Claude needs input (macOS/Linux/WSL, silent elsewhere) |
 
 All hooks fail safe (never block a session on their own errors), read no network, and
