@@ -24,6 +24,9 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
     printf '%s' "$RULES"
     echo "Frontend work: use the frontend-designer agent, or read rules/frontend.md in this plugin."
   fi
+  if [ -f "${CLAUDE_PLUGIN_ROOT}/CLAUDE.md" ]; then
+    echo "Toolkit doctrine: read the index at ${CLAUDE_PLUGIN_ROOT}/CLAUDE.md before multi-agent or planned work (binding essences plus per-section files; design rationale in README.md alongside). Subagents do not see this line: pass doctrine constraints down in delegation prompts, or add the pointer to your global CLAUDE.md via /toolkit-setup."
+  fi
 fi
 
 # Git briefing only applies inside a repo.
