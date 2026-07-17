@@ -15,6 +15,11 @@ Every target below ships in this toolkit:
 | Debugging runtime/integration issues; finishing implementation (doc pass) | `execute-workflow` skill |
 | Creating or updating a topic note or stub | `obsidian-topic` command |
 | Reviewing a GitLab MR | `gitlab-mr-review` skill |
+| (opt-in, not blocking) User asks to grill / elicit requirements for a fuzzy feature, before planning | `grill` skill |
+
+The `grill` row is guidance, not a blocking requirement like the rows above it. It
+fires only on an explicit user request, never on task fuzziness the model detects
+on its own.
 
 Never write or edit a plan note without `plan-workflow` loaded — its frontmatter and
 naming rules are a contract that plan-tracking tooling parses, and improvising them
