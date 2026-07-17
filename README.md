@@ -30,7 +30,7 @@ runs, and when:
 | Before Edit/Write | `protect-files.sh` | Hard-blocks writes to keys/certs/lockfiles/generated files; asks for confirmation on `.env*` and `settings.json` |
 | Before Edit/Write | `scan-secrets.sh` | Asks for confirmation on writes that embed credentials (API keys, tokens, private keys, connection-string passwords) — overridable, not a hard block |
 | Before Bash | `block-dangerous-commands.sh` | Blocks destructive commands (`rm -rf /`, force-push to main, `chmod 777`, unguarded SQL DELETE, curl-pipe-sudo, …) |
-| Session start | `session-start.sh` | Injects the plugin's write-time rules verbatim (testing, security, error-handling, database; ~680 tokens), a doctrine pointer, plus a one-line git briefing (branch, dirty state; verbose mode via `TOOLKIT_SESSION_VERBOSE=1`) |
+| Session start | `session-start.sh` | Into context: the write-time rules verbatim (testing, security, error-handling, database; ~680 tokens), a doctrine pointer, and a one-line git briefing (verbose via `TOOLKIT_SESSION_VERBOSE=1`). To the user (startup only): a one-line "toolkit active" status via `systemMessage`. Emits JSON when `jq` is present; falls back to plain-stdout context otherwise |
 | Notification | `notify.sh` | Native OS notification when Claude needs input (macOS/Linux/WSL, silent elsewhere) |
 
 All hooks fail safe (never block a session on their own errors), read no network, and
@@ -43,8 +43,37 @@ claude plugin marketplace add git@github.com:shaughnlgh/claude-toolkit.git
 claude plugin install toolkit@shaughn-toolkit
 ```
 
-SSH is required for background auto-update on private repos (HTTPS credential
-helpers are disabled for background pulls).
+Use the SSH URL as shown. HTTPS works for the initial install, but Claude Code's
+background auto-update disables git credential helpers, so auto-update cannot
+authenticate to a private repo over HTTPS — only SSH (with a loaded `ssh-agent` key)
+survives the background pull.
+
+### Staying current
+
+New commits are new versions (there is no version field, by design). To pick them
+up automatically, enable auto-update on the marketplace so each session start
+background-pulls and prompts you to `/reload-plugins` when a new version arrives —
+either via `/plugin` → Marketplaces → enable auto-update, or in settings:
+
+```json
+"extraKnownMarketplaces": {
+  "shaughn-toolkit": {
+    "source": { "source": "git", "url": "git@github.com:shaughnlgh/claude-toolkit.git" },
+    "autoUpdate": true
+  }
+}
+```
+
+Without it, update by hand when you want the latest: `claude plugin update
+toolkit@shaughn-toolkit`. Either way, `/toolkit-setup` always reports the installed
+commit so you can see whether you are current.
+
+## Verifying
+
+`bash verify.sh` runs the mechanical acceptance battery (structure, manifest, hook
+fixtures, script guardrails, resolver, leakage). `VERIFY.md` adds the live-session
+checklist for behavior that can't be scripted (agent spawns, skill prompts, doctrine
+adherence, in-session hook enforcement).
 
 ## Uninstall
 

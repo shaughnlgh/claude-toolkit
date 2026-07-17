@@ -1,17 +1,23 @@
 #!/bin/bash
-# Injects dynamic project context at session start.
-#
-# Default (minimal): branch + dirty/clean indicator. ~5-10 tokens.
-# Set TOOLKIT_SESSION_VERBOSE=1 to also emit last commit, file count,
-# staged status, stash count, and active PR info. ~30-90 tokens, plus
-# a network round-trip if `gh` is installed.
+# SessionStart hook. Two outputs:
+#  - additionalContext (model-visible): write-time rules + doctrine pointer + git briefing.
+#  - systemMessage (user-visible, startup only): a one-line "toolkit active" status.
+# Emits JSON when jq is available; falls back to plain-stdout context (proven path)
+# when it is not, so the rules pipeline never depends on jq to function.
+# Verbose git extras via TOOLKIT_SESSION_VERBOSE=1.
 
+INPUT=$(cat 2>/dev/null)
+SOURCE=""
+if command -v jq >/dev/null 2>&1 && [ -n "$INPUT" ]; then
+  SOURCE=$(printf '%s' "$INPUT" | jq -r '.source // empty' 2>/dev/null)
+fi
 VERBOSE="${TOOLKIT_SESSION_VERBOSE:-0}"
-CONTEXT=""
+CTX=""
+add() { [ -n "$CTX" ] && CTX="${CTX}
+$1" || CTX="$1"; }
 
-# Toolkit write-time rules, injected live from the plugin (always current with the
-# installed version; no local copies to manage). Frontend rules stay on-demand: the
-# frontend-designer agent embodies them, the pointer below covers non-agent edits.
+# Write-time rules + doctrine pointer, live from the plugin (always current; no local
+# copies). Frontend rules stay on-demand via the frontend-designer agent.
 if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; then
   RULES=""
   for r in testing security error-handling database; do
@@ -20,52 +26,51 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
 "
   done
   if [ -n "$RULES" ]; then
-    echo "Toolkit write-time rules:"
-    printf '%s' "$RULES"
-    echo "Frontend work: use the frontend-designer agent, or read rules/frontend.md in this plugin."
+    add "Toolkit write-time rules:"
+    add "$RULES"
+    add "Frontend work: use the frontend-designer agent, or read rules/frontend.md in this plugin."
   fi
-  if [ -f "${CLAUDE_PLUGIN_ROOT}/CLAUDE.md" ]; then
-    echo "Toolkit doctrine: read the index at ${CLAUDE_PLUGIN_ROOT}/CLAUDE.md before multi-agent or planned work (binding essences plus per-section files; design rationale in README.md alongside). Subagents do not see this line: pass doctrine constraints down in delegation prompts, or add the pointer to your global CLAUDE.md via /toolkit-setup."
+  [ -f "${CLAUDE_PLUGIN_ROOT}/CLAUDE.md" ] && add "Toolkit doctrine: read the index at ${CLAUDE_PLUGIN_ROOT}/CLAUDE.md before multi-agent or planned work (binding essences plus per-section files; design rationale in README.md alongside). Subagents do not see this line: pass doctrine constraints down in delegation prompts, or add the pointer to your global CLAUDE.md via /toolkit-setup."
+fi
+
+# Git briefing (only inside a repo).
+if git rev-parse --git-dir >/dev/null 2>&1; then
+  BRANCH=$(git branch --show-current 2>/dev/null)
+  if [ -n "$BRANCH" ]; then G="Branch: $BRANCH"; else
+    SS=$(git rev-parse --short HEAD 2>/dev/null); [ -n "$SS" ] && G="HEAD: detached at $SS"; fi
+  git diff-index --quiet HEAD -- 2>/dev/null || G="$G | dirty"
+  if [ "$VERBOSE" = "1" ]; then
+    LC=$(git log --oneline -1 2>/dev/null); [ -n "$LC" ] && G="$G | Last: $LC"
+    CH=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' '); [ "$CH" -gt 0 ] 2>/dev/null && G="$G | $CH files changed"
+    git diff --cached --quiet 2>/dev/null || G="$G | staged"
+    ST=$(git stash list 2>/dev/null | wc -l | tr -d ' '); [ "$ST" -gt 0 ] 2>/dev/null && G="$G | $ST stash(es)"
+    if command -v gh >/dev/null 2>&1; then
+      PR=$(gh pr view --json number,title,state --jq '"PR #\(.number): \(.title) (\(.state))"' 2>/dev/null)
+      [ -n "$PR" ] && G="$G | $PR"; fi
+  fi
+  [ -n "${G:-}" ] && add "$G"
+fi
+
+# User-visible status line, startup only (skip on resume/clear so it doesn't nag).
+STATUS=""
+if [ "$SOURCE" = "startup" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+  VER=$(basename "$CLAUDE_PLUGIN_ROOT")
+  case "$VER" in toolkit) VER="";; *) VER=" $VER";; esac  # dev checkout has no version segment
+  NA=$(ls "$CLAUDE_PLUGIN_ROOT"/agents/*.md 2>/dev/null | wc -l | tr -d ' ')
+  NS=$(ls -d "$CLAUDE_PLUGIN_ROOT"/skills/*/ 2>/dev/null | wc -l | tr -d ' ')
+  if [ -f "$HOME/.claude/obsidian-sync.json" ]; then
+    STATUS="toolkit${VER} active — ${NA} agents, ${NS} skills, planning ready"
+  else
+    STATUS="toolkit${VER} active — ${NA} agents, ${NS} skills · planning not configured: run /toolkit-setup"
   fi
 fi
 
-# Git briefing only applies inside a repo.
-git rev-parse --git-dir >/dev/null 2>&1 || exit 0
-
-# Branch (essential, cheap).
-BRANCH=$(git branch --show-current 2>/dev/null)
-if [ -n "$BRANCH" ]; then
-  CONTEXT="Branch: $BRANCH"
+# Emit. JSON (with systemMessage) when jq is present; plain-stdout context otherwise.
+if command -v jq >/dev/null 2>&1; then
+  jq -n --arg ctx "$CTX" --arg sm "$STATUS" \
+    'def base: {hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$ctx}};
+     if $sm=="" then base else base + {systemMessage:$sm} end'
 else
-  SHORT_SHA=$(git rev-parse --short HEAD 2>/dev/null)
-  [ -n "$SHORT_SHA" ] && CONTEXT="HEAD: detached at $SHORT_SHA"
+  [ -n "$CTX" ] && printf '%s\n' "$CTX"
 fi
-
-# Dirty indicator (binary, ~free, very useful).
-if ! git diff-index --quiet HEAD -- 2>/dev/null; then
-  CONTEXT="$CONTEXT | dirty"
-fi
-
-# Verbose extras (opt-in via TOOLKIT_SESSION_VERBOSE=1).
-if [ "$VERBOSE" = "1" ]; then
-  LAST_COMMIT=$(git log --oneline -1 2>/dev/null)
-  [ -n "$LAST_COMMIT" ] && CONTEXT="$CONTEXT | Last: $LAST_COMMIT"
-
-  CHANGES=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
-  [ "$CHANGES" -gt 0 ] 2>/dev/null && CONTEXT="$CONTEXT | $CHANGES files changed"
-
-  if ! git diff --cached --quiet 2>/dev/null; then
-    CONTEXT="$CONTEXT | staged"
-  fi
-
-  STASH_COUNT=$(git stash list 2>/dev/null | wc -l | tr -d ' ')
-  [ "$STASH_COUNT" -gt 0 ] 2>/dev/null && CONTEXT="$CONTEXT | $STASH_COUNT stash(es)"
-
-  if command -v gh >/dev/null 2>&1; then
-    PR_INFO=$(gh pr view --json number,title,state --jq '"PR #\(.number): \(.title) (\(.state))"' 2>/dev/null)
-    [ -n "$PR_INFO" ] && CONTEXT="$CONTEXT | $PR_INFO"
-  fi
-fi
-
-[ -n "$CONTEXT" ] && echo "$CONTEXT"
 exit 0
