@@ -7,6 +7,8 @@ anyone with access to use.
 Under construction: components land one at a time, each tested through the plugin
 before its source-of-truth moves here.
 
+See [`docs/skills.md`](docs/skills.md) for the skill set and short demos.
+
 ## Setup
 
 After installing, run `/toolkit-setup` in any Claude Code session — it checks
