@@ -241,6 +241,30 @@ sessions:
   The only sibling artifact is the MR description; link `[[mr-description - <plan-name>]]`
   once it has been created, and not before.
 
+### Implementation Steps must show the code, not just describe it
+
+A plan a reader cannot see the code off is not finished. In Implementation Steps, include
+the concrete artifacts that make the change buildable and reviewable:
+
+- Representative code snippets for the load-bearing or novel changes — the key function,
+  the signature, the tricky bit — not whole files.
+- A directory-tree layout for any new files, modules, or moved structure.
+- Signatures, schemas, or an example input to output for new contracts and APIs.
+- The exact commands, config keys, migrations, or env vars the change adds or changes.
+
+Show enough that plan-critic and the human can judge the approach from the plan, and the
+implementer builds from it without re-deriving the design. Prose alone is not enough for
+non-trivial work.
+
+### Reuse check (minimalism)
+
+Before the plan proposes new code, apply the reuse ladder from the toolkit's minimalism
+doctrine (`../../doctrine/minimalism.md` from this skill's base directory): does it need
+to exist, does the codebase or the standard library or an already-installed dependency
+already do it. Record the result in a line or two (in Current Context or Implementation
+Steps) so a reviewer can see why each new file, abstraction, or dependency earns its
+place. Reach for the shortest change that satisfies the objective, not the most elaborate.
+
 Stop after writing the plan and wait for explicit approval before changing implementation files.
 
 ### The plan note as a living document

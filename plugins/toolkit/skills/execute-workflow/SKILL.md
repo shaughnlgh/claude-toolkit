@@ -34,6 +34,16 @@ After plan approval and explicit user instruction to execute:
    report it.
 10. Report progress and residual risk.
 
+### Build minimal
+
+The plan says what to build; build the least that satisfies it. Workers do not see the
+toolkit doctrine on their own, so pass the `minimalism` constraints down in every
+implementation delegation: shortest working diff, no unrequested abstractions, reuse
+before adding, and trace and grep the callers before changing a shared function. Prefer
+deleting code to adding it. Mark any deliberate shortcut with a greppable `TODO(author):`
+comment naming the ceiling and the upgrade path. See `../../doctrine/minimalism.md` from
+this skill's base directory.
+
 ### Progress format
 
 ```
@@ -98,7 +108,8 @@ before fixing.
 2. Instrument minimally (2-6 logs at decision points).
 3. Gather one clean reproduction where possible.
 4. Classify hypotheses as confirmed, rejected, or inconclusive.
-5. Fix only what the evidence supports.
+5. Fix only what the evidence supports, at the root cause rather than per-caller symptom
+   (see the toolkit's minimalism doctrine).
 6. Verify the fix with runtime evidence.
 7. Remove temporary instrumentation after confirmation.
 
