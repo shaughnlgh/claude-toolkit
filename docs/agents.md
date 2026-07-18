@@ -46,7 +46,36 @@ verbose output mode and an internal ≥80-confidence filter on findings.
 
 | Agent | What it does | When to use |
 |---|---|---|
-| `toolkit:frontend-designer` | Designs tokens-first UI with a deliberate design principle, avoids generic AI aesthetics, enforces accessibility. States its plan before writing files. | Building or restyling any web UI — pages, dashboards, components. |
+| `toolkit:frontend-designer` | Designs tokens-first UI with a deliberate design principle, avoids generic AI aesthetics, enforces accessibility, and self-checks its output with the design detector before delivering. States its plan before writing files. | Building or restyling any web UI — pages, dashboards, components. |
+
+## Example invocations
+
+Most of these you never invoke by hand — the conductor spawns them for you. The
+plan-then-build pipeline (`explorer` → `planner` → `plan-critic` → `implementer` →
+`verifier`) runs through `plan-workflow` / `execute-workflow`, and the review agents
+fire when there is a diff to check. You can also call any of them directly by scoped
+name:
+
+- **Build or restyle UI** (the one you will reach for most):
+
+      Use the frontend-designer agent to build a pricing card component.
+
+  It states a plan, builds tokens-first, then runs the design detector on its own
+  output and delivers either a clean pass or a justified exception (see
+  [`scripts.md`](scripts.md) for the detector).
+
+- **Review a change before committing:**
+
+      Use the toolkit:code-reviewer on my staged diff.
+      Use the toolkit:security-reviewer on the auth changes.
+
+- **Explore without touching anything:**
+
+      Use the toolkit:explorer to find every place we resolve the vault path.
+
+The workflow agents (`planner`, `implementer`, `verifier`, `plan-critic`) are normally
+driven by the plan/execute workflow rather than invoked by hand — start a planning or
+execution session and they spawn at the right step.
 
 ## Why leaf-only
 

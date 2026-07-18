@@ -30,6 +30,9 @@ sections (git-safety, security) should be tightened, not loosened.
   single-line comments, flag-and-ask before deviating.
 - **`doctrine/design.md`** — deep modules with narrow interfaces, seams where change
   is isolated, no abstraction that doesn't earn its keep.
+- **`doctrine/minimalism.md`** — thorough on the problem, minimal on the solution;
+  reuse before adding, shortest working diff, no speculative abstraction, root-cause
+  fixes, mark deliberate shortcuts.
 - **`doctrine/communication.md`** — plain language first, honest over agreeable.
 - **`doctrine/build-memory.md`** — corrections become durable memories after mutual
   confirmation; route by layer.
