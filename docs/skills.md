@@ -28,6 +28,51 @@ All of the request-triggered skills (`grill`, `handoff`, `resolving-merge-confli
 `wayfinder`) fire only on an explicit ask, never on something the model infers on its
 own.
 
+## Example prompts
+
+How to trigger each skill. Some you invoke directly, some fire automatically inside the
+plan-then-build flow.
+
+**Invoke directly:**
+
+- `plan-workflow` — plan a non-trivial change:
+
+      Let's plan adding rate limiting to the login endpoint.
+
+- `grill` — pin down a fuzzy feature before planning:
+
+      Grill me on the new notifications feature before we plan it.
+
+- `wayfinder` — break a large, fuzzy effort into a plan tree:
+
+      Map out migrating the legacy monolith to a modular service before we plan each piece.
+
+- `resolving-merge-conflicts` — a conflicted merge or rebase:
+
+      Help me resolve these merge conflicts.
+
+- `handoff` — snapshot the session for whoever picks it up next:
+
+      Write a handoff note for this session.
+
+- `gitlab-mr-review` — review a merge request:
+
+      Review this GitLab MR: https://gitlab.example.com/group/repo/-/merge_requests/123
+
+**Fire automatically inside a flow** (you don't prompt them by name):
+
+- `testing-gate` — fires when you start any feature, bugfix, or refactor, and asks once
+  whether tests are required. Triggered by, for example:
+
+      Add a CSV export to the reports page.
+
+- `test-first` — takes over once `testing-gate` decides tests are required, running the
+  red-green-refactor loop as the code is written. No separate prompt.
+
+- `execute-workflow` — loads when you start executing an approved plan:
+
+      The plan is approved, go ahead and implement it.
+
 ## In action
 
 ### test-first
@@ -63,15 +108,13 @@ Point it at a large, fuzzy effort (a migration, an incident) and it investigates
 builds an issue register, then emits a parent umbrella plan plus a child plan stub per
 task, each ready to flow through `plan-workflow` on its own.
 
-<!-- demo: drop the recording at docs/media/wayfinder-demo.gif and swap the line below for:
-![decomposing a large effort into a plan tree](media/wayfinder-demo.gif) -->
+![decomposing a large effort into a plan tree](media/wayfinder-demo.gif)
 
-_Demo coming soon._
+### grill
 
-## Not a skill: the design doctrine
+An explicit request to grill starts a requirements interview: one question at a time,
+each with a recommended answer, self-answering from the code whatever the code can
+settle. After a single consent gate it writes a canonical glossary (`CONTEXT.md`) and
+any ADRs into the repo, then hands off to `plan-workflow`.
 
-The same batch added `doctrine/design.md` — structural design judgment (deep modules,
-clean seams, abstractions that earn their keep). It is not a skill and has no demo,
-because it is always-on write-time law rather than a moment-triggered step. It sits
-beside `doctrine/conventions.md`: conventions is how code should look, design is how it
-should be shaped.
+![grilling requirements before a plan](media/grill-demo.gif)

@@ -19,7 +19,7 @@ echo "== Structure =="
 n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
 [ "$(ls $P/agents/*.md 2>/dev/null | wc -l)" -eq 12 ] && ok "12 agents" || no "12 agents"
 [ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 9 ] && ok "9 skills" || no "9 skills"
-[ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 2 ] && ok "2 commands" || no "2 commands"
+[ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 7 ] && ok "7 commands" || no "7 commands"
 [ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 5 ] && ok "5 rules" || no "5 rules"
 [ "$(ls $P/doctrine/*.md 2>/dev/null | wc -l)" -eq 11 ] && ok "11 doctrine files" || no "11 doctrine files"
 [ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 5 ] && ok "5 hook scripts" || no "5 hook scripts"
@@ -70,6 +70,31 @@ print("BAD",",".join(bad),"NONE",",".join(none),"HAIKU",",".join(hk))
 PY
 )"
 case "$inv" in *"BAD  NONE  HAIKU"*) ok "no agent can spawn sub-agents (leaf), none omits allowlist, none on Haiku";; *) no "orchestration invariant broken: $inv";; esac
+
+echo "== Docs coverage (every shipped component is documented) =="
+cov="$(python3 - "$P" "$ROOT" <<'PY'
+import os,sys,glob
+P,ROOT=sys.argv[1],sys.argv[2]
+def doc(rel):
+    p=os.path.join(ROOT,rel)
+    return open(p).read().lower() if os.path.exists(p) else ""
+missing=[]
+def check(items,rel,label):
+    t=doc(rel)
+    for it in items:
+        if it.lower() not in t: missing.append(f"{label} '{it}' not in {rel}")
+check([os.path.basename(d.rstrip('/')) for d in glob.glob(P+"/skills/*/")],"docs/skills.md","skill")
+check([os.path.basename(f)[:-3] for f in glob.glob(P+"/agents/*.md")],"docs/agents.md","agent")
+check([os.path.basename(f)[:-3] for f in glob.glob(P+"/commands/*.md")],"docs/commands.md","command")
+check([os.path.basename(f)[:-3] for f in glob.glob(P+"/hooks/*.sh")],"docs/hooks.md","hook")
+check([os.path.basename(f)[:-3] for f in glob.glob(P+"/rules/*.md")],"docs/rules.md","rule")
+check([os.path.basename(f) for f in glob.glob(P+"/doctrine/*.md")],"plugins/toolkit/CLAUDE.md","doctrine")
+check([os.path.basename(f) for f in glob.glob(P+"/scripts/*") if os.path.isfile(f) and not f.endswith(".pyc")],"docs/scripts.md","script")
+check([os.path.basename(f) for f in glob.glob(P+"/workflows/*") if os.path.isfile(f)],"docs/workflows.md","workflow")
+print("MISSING:"+("; ".join(missing) if missing else "NONE"))
+PY
+)"
+case "$cov" in *"MISSING:NONE"*) ok "docs reference every shipped skill/agent/command/hook/rule/doctrine/script/workflow";; *) no "undocumented -> ${cov#*MISSING:}";; esac
 
 echo
 echo "RESULT: $pass passed, $fail failed"
