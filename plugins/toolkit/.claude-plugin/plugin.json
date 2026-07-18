@@ -1,7 +1,22 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "toolkit",
-  "description": "Shaughn's Claude Code toolkit: agents, skills, and working doctrine",
+  "displayName": "Shaughn's Claude Code Toolkit",
+  "description": "Shaughn's Claude Code toolkit: agents, skills, hooks, write-time rules, and working doctrine",
   "author": {
-    "name": "Shaughn"
-  }
+    "name": "Shaughn",
+    "url": "https://me.shaughn.pro"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/shaughnlgh/claude-toolkit",
+  "keywords": [
+    "claude-code",
+    "plugin",
+    "agents",
+    "skills",
+    "doctrine",
+    "planning-workflow",
+    "code-review",
+    "orchestration"
+  ]
 }

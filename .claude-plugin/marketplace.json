@@ -8,7 +8,16 @@
     {
       "name": "toolkit",
       "source": "./plugins/toolkit",
-      "description": "Agents, skills, and working doctrine. Components land one at a time."
+      "description": "Agents, skills, hooks, write-time rules, and a planning, execution, and review workflow, plus the working doctrine behind them.",
+      "category": "development",
+      "tags": [
+        "agents",
+        "skills",
+        "doctrine",
+        "planning",
+        "code-review",
+        "orchestration"
+      ]
     }
   ]
 }
