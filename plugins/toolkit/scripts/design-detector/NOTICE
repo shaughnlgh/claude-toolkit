@@ -1,0 +1,42 @@
+design-detector — vendored third-party code
+=============================================
+
+This directory contains code vendored from Impeccable:
+
+  Upstream:  https://github.com/pbakaus/impeccable
+  Commit:    8967edc988ee146823bca3c51fcf51296e9dec18
+  Author:    Paul Bakaus
+  License:   Apache License, Version 2.0 (see LICENSE in this directory)
+
+Vendored files (copied verbatim from the upstream commit's `cli/engine/` tree,
+directory structure preserved so relative imports keep resolving):
+
+  vendor/engines/static-html/detect-html.mjs   <- cli/engine/engines/static-html/detect-html.mjs
+  vendor/engines/static-html/css-cascade.mjs   <- cli/engine/engines/static-html/css-cascade.mjs
+  vendor/engines/regex/detect-text.mjs         <- cli/engine/engines/regex/detect-text.mjs
+  vendor/rules/checks.mjs                      <- cli/engine/rules/checks.mjs
+  vendor/registry/antipatterns.mjs             <- cli/engine/registry/antipatterns.mjs
+  vendor/findings.mjs                          <- cli/engine/findings.mjs
+  vendor/design-system.mjs                     <- cli/engine/design-system.mjs
+  vendor/profile/profiler.mjs                  <- cli/engine/profile/profiler.mjs
+  vendor/shared/constants.mjs                  <- cli/engine/shared/constants.mjs
+  vendor/shared/color.mjs                      <- cli/engine/shared/color.mjs
+  vendor/shared/fonts.mjs                      <- cli/engine/shared/fonts.mjs
+  vendor/shared/page.mjs                       <- cli/engine/shared/page.mjs
+  vendor/shared/inline-ignores.mjs             <- cli/engine/shared/inline-ignores.mjs
+
+Modifications from upstream (Apache License 2.0 section 4 notice):
+
+  Each of the 13 files above had a source-attribution comment line and a blank
+  separator line prepended (see the top of each file). Nothing else was added,
+  removed, or reformatted — the code below that header is byte-identical to the
+  upstream commit. No functional, logic, or formatting changes were made.
+
+Not vendored from upstream, and not covered by the Apache-2.0 license above:
+
+  detect.mjs, package.json, README.md, this NOTICE file — original toolkit
+  code/docs, MIT licensed under this repo's root LICENSE, written to invoke
+  the vendored engine standalone (outside Impeccable's own CLI, config-file
+  loader, and provider-detection runtime).
+
+The full Apache License, Version 2.0 text is at LICENSE in this same directory.

@@ -1,0 +1,15 @@
+{
+  "name": "@shaughn-toolkit/design-detector",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deterministic, no-LLM static design anti-pattern detector, vendored from Impeccable (Apache-2.0). See README.md and NOTICE.",
+  "type": "module",
+  "license": "SEE NOTICE",
+  "optionalDependencies": {
+    "htmlparser2": "^12.0.0",
+    "css-select": "^7.0.0",
+    "css-tree": "^3.2.1",
+    "domutils": "^4.0.2"
+  },
+  "_optionalDependenciesNote": "These four packages enable HTML-aware detection mode (element/page-level rules with real DOM + cascade resolution). Without them, detect.mjs still works in zero-dependency regex mode. Audit before installing (see README.md)."
+}
