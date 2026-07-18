@@ -3,7 +3,7 @@
 # and asserts on output. Complements verify.sh (which only checks wiring).
 #
 #   bash functional-test.sh rules     # rules + doctrine reach a session (fast, 1 call)
-#   bash functional-test.sh skills    # each skill loads its content (5 calls)
+#   bash functional-test.sh skills    # each skill loads its content (9 calls)
 #   bash functional-test.sh agents    # each of the 12 agents spawns and returns (slow)
 #   bash functional-test.sh all       # everything (slowest)
 #
@@ -49,6 +49,18 @@ if [ "$mode" = skills ] || [ "$mode" = all ]; then
   probe "grill states its first question and targets" \
     "Invoke the grill skill for a fuzzy feature request. Do not write any files and do not wait for my answer. State only the first question it would ask, then name the two artifact paths it writes to." \
     "docs/adr"
+  probe "test-first states when it engages" \
+    "Load the test-first skill. Without writing any code, state in one line when it engages and the loop it runs." \
+    "red-green"
+  probe "handoff states what it does and where it writes" \
+    "Load the handoff skill. Without writing anything, state in one line what it does and where it writes." \
+    "vault"
+  probe "resolving-merge-conflicts states its scope limitation" \
+    "Load the resolving-merge-conflicts skill. Without running it, state in one line what it does and the one honest scope limitation it declares." \
+    "GUI"
+  probe "wayfinder states what it produces" \
+    "Load the wayfinder skill. Without writing anything, state in one line what it produces." \
+    "umbrella"
 fi
 
 if [ "$mode" = agents ] || [ "$mode" = all ]; then
