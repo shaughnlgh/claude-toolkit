@@ -7,7 +7,29 @@ anyone with access to use.
 Under construction: components land one at a time, each tested through the plugin
 before its source-of-truth moves here.
 
-See [`docs/skills.md`](docs/skills.md) for the skill set and short demos.
+## Docs
+
+Full transparency — what ships, what runs automatically, and why.
+
+**The components**
+
+- [`docs/skills.md`](docs/skills.md) — the skills, with short demos of each in action.
+- [`docs/agents.md`](docs/agents.md) — the 12 worker agents and the conductor/leaf-worker model.
+- [`docs/commands.md`](docs/commands.md) — the slash commands (`/toolkit-setup`, `/obsidian-topic`).
+- [`docs/hooks.md`](docs/hooks.md) — the hooks that run automatically, in full: what each
+  blocks, what it only asks, env vars, and fail-safe behavior.
+- [`docs/rules.md`](docs/rules.md) — the write-time rules injected into every session.
+- [`docs/scripts.md`](docs/scripts.md) — the shipped scripts and their safety guardrails.
+- [`docs/workflows.md`](docs/workflows.md) — the multi-agent workflows (the MR-review engine).
+
+**How it works**
+
+- [`plugins/toolkit/README.md`](plugins/toolkit/README.md) — the conductor-and-workers
+  model and the design decisions behind it.
+- [`plugins/toolkit/CLAUDE.md`](plugins/toolkit/CLAUDE.md) — the working doctrine index,
+  one concern per file under [`doctrine/`](plugins/toolkit/doctrine).
+- [`VERIFY.md`](VERIFY.md) — the live-session verification checklist (the mechanical
+  battery is `verify.sh`).
 
 ## Setup
 
