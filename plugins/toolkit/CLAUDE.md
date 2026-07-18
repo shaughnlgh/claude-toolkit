@@ -28,6 +28,8 @@ sections (git-safety, security) should be tightened, not loosened.
   triggers. Read before planning or executing planned work.
 - **`doctrine/conventions.md`** — match the codebase's patterns, docs-first, sparse
   single-line comments, flag-and-ask before deviating.
+- **`doctrine/design.md`** — deep modules with narrow interfaces, seams where change
+  is isolated, no abstraction that doesn't earn its keep.
 - **`doctrine/communication.md`** — plain language first, honest over agreeable.
 - **`doctrine/build-memory.md`** — corrections become durable memories after mutual
   confirmation; route by layer.

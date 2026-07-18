@@ -49,6 +49,13 @@ probe; the expected result is in parentheses.
   naming the artifacts for `plan-workflow`. Confirm nothing is written to the vault,
   and confirm abandoning mid-interview leaves no files on disk.
 
+### test-first, handoff, resolving-merge-conflicts, wayfinder (opt-in, manual-only)
+Each fires only on explicit request. Manual check: `test-first` runs the red-green
+loop only when `testing-gate` determined tests were required. `handoff` writes a
+continuation note to the vault. `resolving-merge-conflicts` gives an overview plus
+side-by-side and resolves by intent with confirmation, not a write-back GUI.
+`wayfinder` emits a parent umbrella plan plus child plan stubs.
+
 ### Commands
 - `/toolkit-setup` (reports readiness; changes nothing without a yes).
 - `/company-rules` if a company rules plugin is also installed (a separate plugin, if your org ships one).

@@ -18,10 +18,10 @@ code() { if [ "$2" -eq "$3" ]; then ok "$1"; else no "$1 (exit $2, wanted $3)"; 
 echo "== Structure =="
 n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
 [ "$(ls $P/agents/*.md 2>/dev/null | wc -l)" -eq 12 ] && ok "12 agents" || no "12 agents"
-[ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 5 ] && ok "5 skills" || no "5 skills"
+[ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 9 ] && ok "9 skills" || no "9 skills"
 [ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 2 ] && ok "2 commands" || no "2 commands"
 [ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 5 ] && ok "5 rules" || no "5 rules"
-[ "$(ls $P/doctrine/*.md 2>/dev/null | wc -l)" -eq 10 ] && ok "10 doctrine files" || no "10 doctrine files"
+[ "$(ls $P/doctrine/*.md 2>/dev/null | wc -l)" -eq 11 ] && ok "11 doctrine files" || no "11 doctrine files"
 [ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 5 ] && ok "5 hook scripts" || no "5 hook scripts"
 for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js \
          skills/gitlab-mr-review/scripts/post_mr_comments.py \
