@@ -42,6 +42,22 @@ Pick one primary principle. Don't mix randomly.
 | **Material Elevation** | Data-heavy apps, enterprise |
 | **Editorial** | Blogs, long-form content |
 
+## AI-Slop Reflex-Reject
+
+Ban these by default — the recognizable tells of AI-generated UI. (Adapted from Impeccable's anti-pattern catalog, Apache-2.0 — see THIRD-PARTY-NOTICES.md.)
+
+- No side-tab accent borders (thick colored border on one side of a card).
+- No gradient text on headings or metrics — solid color only.
+- No cream/beige as the default "tasteful" surface — pick the background deliberately.
+- No AI color palette (purple/violet gradients, cyan-on-dark).
+- No dark-mode glow (colored box-shadow halos on dark surfaces).
+- No icon-tile-stack feature cards (rounded-square icon container above every heading).
+- No hero eyebrow/pill chips (tiny uppercase tracked label above the hero headline).
+- No numbered section markers (01 / 02 / 03) as section scaffolding.
+- No bounce or elastic easing — use exponential ease-out instead.
+- No em-dash overuse in copy (more than two per passage).
+- No marketing buzzwords (streamline, empower, supercharge, world-class, next-generation, enterprise-grade).
+
 ## Component Framework
 
 Use whatever the project already has. Don't mix competing libraries.

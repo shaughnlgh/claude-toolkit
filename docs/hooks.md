@@ -3,9 +3,9 @@
 The toolkit ships five hook scripts that run automatically once the plugin is
 installed — no opt-in, no separate config. This page is the full accounting, in the
 spirit of transparency: exactly what each one checks, what it hard-blocks versus merely
-asks you to confirm, and every environment variable it honors. The README's
-`## Hooks (transparency)` table is the short version; this is the one to read before
-trusting the toolkit with a repo.
+asks you to confirm, and every environment variable it honors. The README's Docs list
+links here in one line; this is the full version — the one to read before trusting the
+toolkit with a repo.
 
 Two properties hold across all five:
 

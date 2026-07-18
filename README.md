@@ -2,7 +2,8 @@
 
 Shaughn's Claude Code toolkit — agents, skills, and working doctrine — distributed
 as a Claude Code plugin. Personally owned and maintained (see LICENSE), free for
-anyone with access to use.
+anyone with access to use. Third-party components it vendors (currently the
+design-detector, Apache-2.0) are attributed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
 
 Under construction: components land one at a time, each tested through the plugin
 before its source-of-truth moves here.
@@ -16,8 +17,9 @@ Full transparency — what ships, what runs automatically, and why.
 - [`docs/skills.md`](docs/skills.md) — the skills, with short demos of each in action.
 - [`docs/agents.md`](docs/agents.md) — the 12 worker agents and the conductor/leaf-worker model.
 - [`docs/commands.md`](docs/commands.md) — the slash commands (`/toolkit-setup`, `/obsidian-topic`).
-- [`docs/hooks.md`](docs/hooks.md) — the hooks that run automatically, in full: what each
-  blocks, what it only asks, env vars, and fail-safe behavior.
+- [`docs/hooks.md`](docs/hooks.md) — the five hooks that run automatically once installed,
+  with no opt-in, in full: what each blocks, what it only asks, env vars, and fail-safe
+  behavior. Read it before trusting the toolkit with a repo.
 - [`docs/rules.md`](docs/rules.md) — the write-time rules injected into every session.
 - [`docs/scripts.md`](docs/scripts.md) — the shipped scripts and their safety guardrails.
 - [`docs/workflows.md`](docs/workflows.md) — the multi-agent workflows (the MR-review engine).
@@ -30,6 +32,18 @@ Full transparency — what ships, what runs automatically, and why.
   one concern per file under [`doctrine/`](plugins/toolkit/doctrine).
 - [`VERIFY.md`](VERIFY.md) — the live-session verification checklist (the mechanical
   battery is `verify.sh`).
+
+## Install
+
+```
+claude plugin marketplace add git@github.com:shaughnlgh/claude-toolkit.git
+claude plugin install toolkit@shaughn-toolkit
+```
+
+Use the SSH URL as shown. HTTPS works for the initial install, but Claude Code's
+background auto-update disables git credential helpers, so auto-update cannot
+authenticate to a private repo over HTTPS — only SSH (with a loaded `ssh-agent` key)
+survives the background pull.
 
 ## Setup
 
@@ -44,40 +58,16 @@ everything below, guides you through the vault config, and prints a readiness re
   creates `~/.claude/obsidian-sync.json` from the shipped template; all docs and
   scripts resolve your vault location and root folder from that file.
 
-## Hooks (transparency)
+## Updating
 
-This plugin ships hooks — scripts that run automatically once installed. Exactly what
-runs, and when:
+New commits are new versions (there is no version field, by design). Pick them up
+one of two ways.
 
-| Event | Script | What it does |
-|---|---|---|
-| Before Edit/Write | `protect-files.sh` | Hard-blocks writes to keys/certs/lockfiles/generated files; asks for confirmation on `.env*` and `settings.json` |
-| Before Edit/Write | `scan-secrets.sh` | Asks for confirmation on writes that embed credentials (API keys, tokens, private keys, connection-string passwords) — overridable, not a hard block |
-| Before Bash | `block-dangerous-commands.sh` | Blocks destructive commands (`rm -rf /`, force-push to main, `chmod 777`, unguarded SQL DELETE, curl-pipe-sudo, …) |
-| Session start | `session-start.sh` | Into context: the write-time rules verbatim (testing, security, error-handling, database; ~680 tokens), a doctrine pointer, and a one-line git briefing (verbose via `TOOLKIT_SESSION_VERBOSE=1`). To the user (startup only): a one-line "toolkit active" status via `systemMessage`. Emits JSON when `jq` is present; falls back to plain-stdout context otherwise |
-| Notification | `notify.sh` | Native OS notification when Claude needs input (macOS/Linux/WSL, silent elsewhere) |
+### Auto-update
 
-All hooks fail safe (never block a session on their own errors), read no network, and
-are covered by the test suite in `hooks/tests/` (`bash run-all.sh`).
-
-## Install
-
-```
-claude plugin marketplace add git@github.com:shaughnlgh/claude-toolkit.git
-claude plugin install toolkit@shaughn-toolkit
-```
-
-Use the SSH URL as shown. HTTPS works for the initial install, but Claude Code's
-background auto-update disables git credential helpers, so auto-update cannot
-authenticate to a private repo over HTTPS — only SSH (with a loaded `ssh-agent` key)
-survives the background pull.
-
-### Staying current
-
-New commits are new versions (there is no version field, by design). To pick them
-up automatically, enable auto-update on the marketplace so each session start
-background-pulls and prompts you to `/reload-plugins` when a new version arrives —
-either via `/plugin` → Marketplaces → enable auto-update, or in settings:
+Enable auto-update on the marketplace so each session start background-pulls and
+prompts you to `/reload-plugins` when a new version arrives — either via `/plugin` →
+Marketplaces → enable auto-update, or in settings:
 
 ```json
 "extraKnownMarketplaces": {
@@ -88,9 +78,16 @@ either via `/plugin` → Marketplaces → enable auto-update, or in settings:
 }
 ```
 
-Without it, update by hand when you want the latest: `claude plugin update
-toolkit@shaughn-toolkit`. Either way, `/toolkit-setup` always reports the installed
-commit so you can see whether you are current.
+### Manual update
+
+Without auto-update, pull the latest when you want it:
+
+```
+claude plugin update toolkit@shaughn-toolkit
+```
+
+Either way, `/toolkit-setup` always reports the installed commit so you can see
+whether you are current.
 
 ## Verifying
 
