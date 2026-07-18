@@ -1,9 +1,12 @@
 # Commands
 
-The toolkit ships two slash commands: `/toolkit-setup` and `/obsidian-topic`. This
-page is the reference for what each one does, when to run it, and what it changes.
+The toolkit ships seven slash commands in two groups: **setup and vault** helpers, and
+on-demand **thinking tools**. This page is the reference for what each does, when to run
+it, and what it changes.
 
-## `/toolkit-setup`
+## Setup & vault
+
+### `/toolkit-setup`
 
 Checks this machine's toolkit setup and guides the user through anything missing.
 Safe to re-run anytime — it changes nothing without asking first.
@@ -47,7 +50,11 @@ offer above is consent-gated, and declined offers are never re-nagged on later r
 (only current state is reported, and only what is still absent is offered). It never
 modifies the plugin's own files.
 
-## `/obsidian-topic`
+**Example**
+
+    /toolkit-setup
+
+### `/obsidian-topic`
 
 Creates or updates a single topic note in the Obsidian vault — the vault's distilled,
 cross-plan knowledge layer for stable concepts (a payment provider, a subsystem, a
@@ -78,3 +85,130 @@ silently trusted.
 **What it changes** — only files under `<root_folder>/` in the vault (writes go
 through an atomic Write-then-`vault-fs.sh mv`). It never touches project source code
 or git state, and never invents facts, ticket references, or test data.
+
+**Examples**
+
+    /obsidian-topic "Payment Gateway" my-repo
+    /obsidian-topic "Caching Strategy"
+
+## Thinking tools
+
+On-demand reflection and red-team commands. Each leans into the communication doctrine
+(honest over agreeable), and none of them take an action — they audit, reframe, or
+question, they do not change files or git state. `/mentor` is a persistent mode; the
+rest are one-shot.
+
+### `/glass-box`
+
+An on-demand provenance audit of the last answer, or the one about to be given. It is
+the deep, explicit version of the `claim-provenance` doctrine (see the doctrine index):
+rather than narrating reasoning, it surfaces only what can actually be checked.
+
+**When to run it** — when an answer feels too confident, an action is hard to undo, or
+you want the load-bearing assumption surfaced before you act.
+
+**Usage** — `/glass-box [what to audit]`. With no arguments it audits the most recent
+substantive answer in the session; an argument names the specific answer or decision.
+
+**What it surfaces** — exactly three things, nothing more:
+
+1. the load-bearing fact the answer rests on, tagged verified or derived;
+2. the unchecked assumption, naming the specific place not looked;
+3. the offer to verify a derived fact now, or the answer restated with the assumption
+   stated inline.
+
+No confidence scores, no reasoning tableau. If the load-bearing fact is already verified
+and nothing rides on an unchecked assumption, it says so in one line and stops.
+
+**What it changes** — nothing. It audits an answer, it does not take an action.
+
+**Examples**
+
+    /glass-box
+    /glass-box the migration estimate you just gave
+
+### `/mentor`
+
+Switches on a Socratic learning mode: after each answer it asks one question that pushes
+you to think deeper, and keeps going until you understand a concept rather than memorize
+it. Unlike the one-shot tools here, this is a persistent mode for the rest of the session.
+
+**When to run it** — when you want to genuinely learn a concept, not just get the answer,
+or to work something through with a junior who is missing large parts of the picture.
+
+**Usage** — `/mentor [topic]`. With no argument it applies to the current thread; an
+argument names the topic to learn.
+
+**How it behaves** — explains plainly first, then after each step asks one deeper question
+(apply it, why it works, what breaks if a condition changes, never bare recall). It will
+not advance until you explain it back in your own words, drops to simpler terms when you
+are stuck, and asks one question at a time. It runs until you say stop.
+
+**What it changes** — nothing. It is a conversation mode, not an action.
+
+**Example**
+
+    /mentor
+    /mentor how database indexes actually work
+
+### `/cold-read`
+
+Reads back the unstated assumptions behind how you have been talking in the conversation
+— the blind-spot check. It works only from what you actually said, and surfaces the
+premise you are treating as fact, the frame that is hiding options, and the tell you
+would not endorse out loud.
+
+**When to run it** — when a direction feels obvious, or before committing to one, to
+catch the premises you never examined.
+
+**Usage** — `/cold-read [decision or thread]`. With no argument it reads the whole
+conversation so far.
+
+**What it changes** — nothing.
+
+**Example**
+
+    /cold-read
+    /cold-read the way I've scoped this migration
+
+### `/mirror-test`
+
+Reads your last message back the way a stranger would hear it, honest not kind — no
+benefit of the doubt. Surfaces how it lands, where intent and wording come apart, and the
+one change that closes the gap.
+
+**When to run it** — before sending something that matters (a review comment, a message
+to a colleague, a ticket) to hear how it actually reads.
+
+**Usage** — `/mirror-test [message or text]`. With no argument it reads your most recent
+message.
+
+**What it changes** — nothing.
+
+**Example**
+
+    /mirror-test
+    /mirror-test the PR review I just drafted
+
+### `/inversion`
+
+A pre-mortem: assume the plan already failed completely and lay out every way it got
+there, unsoftened and worst-case, so the real problems surface while they can still be
+fixed. Ranks the failure modes, names the load-bearing risk, and points each top risk at
+a concrete fix.
+
+**When to run it** — on a plan or decision before committing to it.
+
+**Usage** — `/inversion [plan or decision]`. With no argument it uses the plan under
+discussion.
+
+**Related** — inside the plan-workflow, the `plan-critic` agent red-teams a written plan
+as part of planning; `/inversion` is the on-demand version for any plan or idea in
+conversation.
+
+**What it changes** — nothing.
+
+**Example**
+
+    /inversion
+    /inversion rolling this migration out in one deploy

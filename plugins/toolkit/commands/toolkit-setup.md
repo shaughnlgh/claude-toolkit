@@ -49,10 +49,10 @@ Check `~/.claude/obsidian-sync.json`:
 
 ### 5. Permissions and environment (optional, consent-gated)
 
-Two optional additions to the user's `~/.claude/settings.json`. Show each verbatim,
-explain it in one line, apply only on an explicit yes, and always leave the file
-valid JSON (merge into existing `permissions.allow` / `env` objects, never replace
-them).
+Three optional additions, shown verbatim, explained in one line, and applied only on an
+explicit yes. They span the user's `~/.claude/settings.json` (merge into the existing
+`permissions.allow` / `env` objects, never replacing them, always leaving valid JSON)
+and the global `~/.claude/CLAUDE.md`.
 
 - **Prompt-free toolkit scripts.** The plugin's vault and git scripts are invoked by
   its skills from the plugin cache. Offer these allow rules, written with the user's
