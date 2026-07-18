@@ -1,0 +1,57 @@
+# Agents
+
+The toolkit ships 12 agents. The main chat is the **conductor**: it plans, delegates,
+and accepts. Agents are **leaf workers** — each carries an explicit tool allowlist and
+none of them get the Agent tool, so none can spawn sub-agents. A worker that hits a
+blocker, a question, or an ambiguity reports it back to the conductor instead of
+delegating around it; the conductor decides how to proceed and remains the only role
+that decides "done". No agent runs on Haiku. Returns are distilled — file paths and
+one-line findings, never pasted file contents.
+
+Tools and model are set in each agent's own frontmatter. `verify.sh`
+statically proves the leaf property for all 12: no agent's tool allowlist includes
+`Agent` or `Task`, none omits an allowlist, and none is routed to Haiku.
+
+Invoke by scoped name (`toolkit:<name>`) so the plugin copy resolves rather than a
+same-named project-local agent. Projects may override with local agents at
+`<repo>/.claude/agents/`; project-local agents win when they exist.
+
+## Workflow agents
+
+The plan-then-build pipeline: explore, plan, red-team the plan, implement, verify.
+
+| Agent | What it does | When to use |
+|---|---|---|
+| `toolkit:explorer` | Read-only exploration: codebase search, file discovery, pattern analysis, evidence gathering. Never edits. | Proactively, for codebase search or evidence gathering without touching files. |
+| `toolkit:planner` | Scans repo and docs, gathers evidence, produces a reviewable implementation plan. Never edits or implements. | Proactively for non-trivial tasks, before any code changes. |
+| `toolkit:implementer` | Bounded file changes and focused command runs from an approved plan. | After plan approval, for minimal-scope execution. |
+| `toolkit:verifier` | Validates claimed work against real checks and real data (not fixtures alone), reports gaps. Never edits. | Proactively after implementation, to validate before a task is marked complete. |
+| `toolkit:plan-critic` | Adversarially red-teams the plan itself — flawed assumptions, missing risks, scope creep, unconsidered alternatives, untestable validation. Reviews the plan, not code. Conductor-gated. | After the planner drafts a plan and before human approval, on non-trivial plans. |
+
+## Review agents
+
+Post-hoc quality review of a diff, each via `git diff --name-only`, each with a terse/
+verbose output mode and an internal ≥80-confidence filter on findings.
+
+| Agent | What it does | When to use |
+|---|---|---|
+| `toolkit:code-reviewer` | Catches real bugs — off-by-ones, null derefs, logic inversions, race conditions, swallowed errors, complexity. Skips style nitpicks. | After any code change, before committing, or when a PR/diff needs review. |
+| `toolkit:security-reviewer` | OWASP-style static analysis — injection, authz flaws, data exposure, weak crypto. Severity-ranked with attack vector and fix. | After changes to auth, input handling, queries, file paths, tokens, or crypto — before deploying any of those. |
+| `toolkit:performance-reviewer` | Finds measurable bottlenecks — N+1 queries, memory leaks, blocking I/O, re-renders — not theoretical micro-optimizations. | After changes to hot paths, API endpoints, DB queries, loops over collections, or rendering code. |
+| `toolkit:doc-reviewer` | Cross-references docs against actual source: stale references, wrong signatures, missing params, broken examples. | After `.md`, docstring, JSDoc, or API-doc changes — or when code changes may have invalidated existing docs. |
+| `toolkit:silent-failure-hunter` | Finds code that fails silently — swallowed errors, failures masked as success, fallbacks that hide breakage. | After any change touching error handling, catch blocks, fallbacks, retries, or async flows — and on every PR review. |
+| `toolkit:pr-test-analyzer` | Judges whether tests actually verify the change — assertion-free tests, mock theater, tests that can't fail, weakened or deleted tests. | When a diff adds or changes tests, or changes behavior without touching tests. |
+
+## Design
+
+| Agent | What it does | When to use |
+|---|---|---|
+| `toolkit:frontend-designer` | Designs tokens-first UI with a deliberate design principle, avoids generic AI aesthetics, enforces accessibility. States its plan before writing files. | Building or restyling any web UI — pages, dashboards, components. |
+
+## Why leaf-only
+
+The toolkit's own history is the argument: recursive agent trees (workers spawning
+workers) burned tokens until they died. Capping workers as leaf nodes — no Agent tool,
+blockers bubble up — closed that failure mode. See `plugins/toolkit/README.md` for the
+full design rationale and `plugins/toolkit/doctrine/orchestration.md` for the binding
+model.
