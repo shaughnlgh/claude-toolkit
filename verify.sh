@@ -46,6 +46,20 @@ want "vault-fs refuses traversal"  "$(bash "$P/scripts/vault-fs.sh" rm '../x.md'
 want "git-ro refuses mutation"     "$(bash "$P/scripts/git-ro.sh" "$ROOT" commit 2>&1)" "refused"
 bash "$P/scripts/git-ro.sh" "$ROOT" status >/dev/null 2>&1; code "git-ro allows status" "$?" 0
 
+echo "== Design detector (vendored, Apache-2.0) =="
+DD="$P/scripts/design-detector"
+[ -f "$DD/LICENSE" ] && ok "detector Apache LICENSE present" || no "detector LICENSE missing"
+[ -f "$DD/NOTICE" ] && ok "detector NOTICE present" || no "detector NOTICE missing"
+[ "$(grep -rl 'Vendored from pbakaus/impeccable' "$DD/vendor" 2>/dev/null | wc -l | tr -d ' ')" -eq 13 ] && ok "13 vendored files carry source headers" || no "vendored source headers (attribution)"
+[ -d "$DD/node_modules" ] && no "detector node_modules committed" || ok "no detector node_modules"
+if command -v node >/dev/null 2>&1; then
+  ddt="/tmp/dd-verify-$$.css"; printf 'h1{font-family:Inter}\n' > "$ddt"
+  ddout="$(node "$DD/detect.mjs" "$ddt" 2>/dev/null)"; rm -f "$ddt"
+  want "detector runs zero-dep and flags overused-font" "$ddout" "overused-font"
+else
+  printf '  - node not found; skipped detector smoke test\n'
+fi
+
 echo "== Resolver (installed copy) =="
 IP="$(jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json 2>/dev/null)"
 if [ -n "$IP" ] && [ -d "$IP" ]; then ok "installed_plugins.json resolves to a real dir"; else no "resolver ($IP)"; fi

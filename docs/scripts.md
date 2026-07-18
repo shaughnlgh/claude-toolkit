@@ -1,8 +1,10 @@
 # Scripts
 
-The toolkit ships a small set of scripts under `plugins/toolkit/scripts/` — plain
-bash and stdlib-only Python, no external dependencies. Skills and the user invoke them
-directly rather than reimplementing the logic inline.
+The toolkit ships a small set of scripts under `plugins/toolkit/scripts/`. Most are
+plain bash and stdlib-only Python with no dependencies. One is a vendored Node
+design-detector under `scripts/design-detector/` (the one piece of third-party code
+here — see below). Skills and the user invoke them directly rather than
+reimplementing the logic inline.
 
 All of them are called through the installed plugin root, resolved once and reused:
 
@@ -21,6 +23,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved this way.
 | `git-ro.sh` | Read-only git in any directory — `status`, `diff`, `log`, `show` | Refuses any subcommand not on that allowlist |
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
 | `obsidian-sync.json.template` | Vault config template `toolkit-setup` instantiates to `~/.claude/obsidian-sync.json` | n/a — config, not an executable |
+| `design-detector/` | Deterministic, no-LLM detector for AI-generated frontend anti-patterns (most of 46 rules) | Vendored from Impeccable (Apache-2.0, attributed); read-only; zero-dep by default |
 
 ## vault-fs.sh
 
@@ -98,3 +101,28 @@ root.
 Fields: `vault_path` (per-machine, set during setup), `vault_name`, `root_folder`,
 `mode`, `plan_folder_template`, `artifact_name_template`, `allowed_artifacts`, and a
 `safety` block (`atomic_writes`, `icloud_safe`, `dry_run_default`).
+
+## design-detector/
+
+A deterministic, no-LLM detector for AI-generated frontend anti-patterns — most of
+Impeccable's 46 rules, covering AI-slop tells, accessibility, and quality. It complements the `frontend-designer` agent: build with the agent, then run
+the detector over the output to catch what slipped through, no API call required.
+
+Invoke it with `node` (not `bash`):
+
+```bash
+node "$PLUGIN_ROOT/scripts/design-detector/detect.mjs" <file ...>
+```
+
+- **Zero-dependency by default.** Source files (CSS / JS / TSX / Vue / Svelte /
+  HTML-as-text) are scanned in regex mode with nothing to install.
+- **Optional HTML-aware mode.** Passing `.html` files uses a fuller CSS-cascade tier if
+  four optional packages (`htmlparser2`, `css-select`, `css-tree`, `domutils`) are
+  installed in `scripts/design-detector/`; without them it falls back to regex mode.
+  Audit those before installing, per the dependency rule.
+- **Third-party.** This engine is vendored from Impeccable (Paul Bakaus, Apache-2.0) and
+  attributed — see `scripts/design-detector/LICENSE`, its `NOTICE`, and the repo-root
+  `THIRD-PARTY-NOTICES.md`. It is the one script here that is not first-party toolkit code.
+- **Static limits.** It reads authored HTML/CSS, not a rendered page, so it cannot see
+  JS/SPA-injected content, and a few layout rules (`text-overflow`, `line-length`,
+  `body-text-viewport-edge`) need a real browser and do not fire in this static engine.
