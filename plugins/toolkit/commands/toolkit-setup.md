@@ -102,11 +102,11 @@ and the global `~/.claude/CLAUDE.md`.
       Personal overrides: state one inline below, or drop a same-named file in
       ~/.claude/doctrine/ (auto-detected each session, no pointer needed).
 
-Also offer to create the `~/.claude/doctrine/` directory (empty) so per-file overrides
-have a home. Dropping a same-named copy of a plugin doctrine file there (e.g.
-`conventions.md`) overrides the plugin's version for that concern. The session-start
-hook detects it and announces it every session, so there is no pointer to write. Safety
-sections (git-safety, security) may be tightened, not loosened.
+Do not offer to pre-create override directories — `/override` creates whatever it
+needs when a doctrine, rule, agent, or skill override is actually made, and an empty
+directory has no effect. In the readiness report, mention once that overrides for
+all four types are available via `/override` (see `docs/overrides.md`; safety
+sections may be tightened, not loosened).
 
 If any offer is declined, note the practical effects (occasional permission prompts;
 advisor available to workers; doctrine unreachable by subagents) and move on. Never
