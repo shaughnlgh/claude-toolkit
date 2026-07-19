@@ -21,7 +21,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved this way.
 |---|---|---|
 | `vault-fs.sh` | Atomic vault file ops — `rm`, `mv` | Refuses absolute paths, `..` traversal, non-regular-file targets, missing sources, unknown subcommands |
 | `git-ro.sh` | Read-only git in any directory — `status`, `diff`, `log`, `show` | Refuses any subcommand not on that allowlist |
-| `doctrine-override.sh` | Copy a plugin doctrine file into `~/.claude/doctrine/` to override it (drives `/override`) | Name only (no paths); refuses unknown names; won't clobber an existing override |
+| `override.sh` | Copy a plugin doctrine, rule, agent, or skill into `~/.claude/` to override it (drives `/override`) | Name only (no paths); refuses unknown/ambiguous names; won't clobber an existing override |
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
 | `obsidian-sync.json.template` | Vault config template `toolkit-setup` instantiates to `~/.claude/obsidian-sync.json` | n/a — config, not an executable |
 | `design-detector/` | Deterministic, no-LLM detector for AI-generated frontend anti-patterns (most of 46 rules) | Vendored from Impeccable (Apache-2.0, attributed); read-only; zero-dep by default |
@@ -67,23 +67,25 @@ Guardrails — this is the point of the script: only `status`, `diff`, `log`, an
 passed straight to `git -C`, so it works against any repo on disk, not just the
 current project.
 
-## doctrine-override.sh
+## override.sh
 
-Backs the `/override` command. Copies a plugin doctrine file into
-`~/.claude/doctrine/<name>.md` so your copy overrides the plugin's for that concern (the
-session-start hook detects it and announces it each session).
+Backs the `/override` command. Copies a plugin **doctrine, rule, agent, or skill** into
+`~/.claude/` so your copy overrides the plugin's for that concern.
 
 Invoke:
 
 ```bash
-bash "$PLUGIN_ROOT/scripts/doctrine-override.sh" [name]
+bash "$PLUGIN_ROOT/scripts/override.sh" [type] [name]
 ```
 
-With no name it lists the doctrine files available to override. With a name it copies
-that one. Guardrails: the name is a bare doctrine name (no paths or `..`), it refuses a
-name that is not a real plugin doctrine file, and it will not clobber an existing
-override (edit that directly instead). It is self-locating (finds the plugin doctrine dir
-relative to itself), so it needs no config.
+With no arguments it lists everything overridable, grouped by type. With a name it
+auto-detects the type and copies it (doctrine/rules/agents as a single `.md`, a skill as
+its whole directory); with a `<type> <name>` pair it forces the type for an ambiguous
+name (`security` is both a doctrine and a rule). How each takes effect: doctrine and
+rules are picked up by the session-start hook (doctrine announced, a rule's body injected
+in place of the plugin's); agents and skills are resolved natively by Claude Code for the
+bare name. Guardrails: name only (no paths or `..`), refuses unknown or ambiguous names,
+and never clobbers an existing override. Self-locating, so it needs no config.
 
 ## merge-conflict-overview.py
 
