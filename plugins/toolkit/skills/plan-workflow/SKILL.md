@@ -156,6 +156,28 @@ issue), stop and report the failure. Do not write repo-local workflow artifacts.
 
 If writing is skipped, state exactly why.
 
+### Validate the plan note
+
+The toolkit's `scripts/validate-plan.py` (same directory as vault-fs.sh; resolve
+the plugin root the same way) mechanically checks a plan note against this
+contract: filename and slug, required frontmatter keys, status lifecycle values,
+parent/child directory shape, session-entry structure and id uniqueness, required
+headings, and no retired-artifact links. Read-only, zero dependencies beyond
+python3:
+
+    python3 <plugin-root>/scripts/validate-plan.py "<plan note path>"
+
+Run it and require exit 0:
+
+- after creating or changing a plan note, before treating the write as successful;
+- before presenting a completed plan for approval (setting `status: review`);
+- before beginning execution of an approved plan;
+- before declaring session closure complete.
+
+A failure is corrected or reported to the user — never silently ignored. The
+validator proves the mechanical contract only; whether the content is a good
+plan remains human and model judgment.
+
 ## Plan note (`plan - <plan-name>.md`)
 
 The plan must be written before implementation begins.
