@@ -51,11 +51,26 @@ vault path below is relative to `<root_folder>` unless stated otherwise.
 type: topic
 created:
 updated:
+verified:
 repos:
 source_refs:
 tags:
 ---
 ```
+
+Freshness fields, exact semantics:
+
+- `created`: the original creation date. Immutable.
+- `updated`: the last content edit of any kind (fact added or removed, Tasks row,
+  reformat, migration). Bumped on every write. Makes no claim about truth.
+- `verified`: the last date the note's claims were checked against `source_refs`
+  (spot-check at minimum, deep-dive at best). Blank means no recorded
+  verification. Blank is honest, never an error to paper over.
+
+`updated` later than `verified` means the note changed after its last recorded
+verification. Equal date-only values do not prove which happened first. These
+fields support triage; they never remove the spot-check-before-relying rule for
+consequential claims.
 
 - `repos`: the repos this topic applies to.
 - `source_refs`: repo-relative module/system roots (e.g.
@@ -111,13 +126,18 @@ fact list is enough — do not pad to fill the structure.
 
 ## Freshness and validation
 
-A topic note is a claim about the world at its `updated` time. Before relying
-on one during planning:
+A topic note is a claim about the world at its `verified` time. A blank
+`verified` means unverified. `updated` records edit recency only and is never
+a truth timestamp. Before relying on a topic note during planning:
 
 - Spot-check at least one `source_refs` entry: the file still exists and still
-  matches the claim.
-- If reality disagrees, trust the code, correct the topic note, and bump
-  `updated`.
+  matches the claim. Code and source evidence always outrank the note.
+- A clean check (facts hold, nothing to correct) is recordable: set `verified`
+  to today. That is the whole point of the field.
+- If reality disagrees, trust the code, correct the note from the checked
+  evidence, and set both `updated` and `verified` to today.
+- An edit that did not re-check the rest of the note (new fact folded in, a
+  Tasks row, a mechanical change) bumps `updated` only.
 - A topic note that fails validation must be corrected or flagged in the plan,
   never silently trusted.
 
@@ -186,7 +206,10 @@ and from which projects.
 - Follow the Structure, Content rules, and writing style above (plain sentences,
   no em dashes or semicolons as splitters, no version pins, distilled facts).
 - `source_refs`: repo-relative module roots and doc URLs only.
-- Set `created` on create, bump `updated` always.
+- On create, set `created`, `updated`, and `verified` to the creation date (the
+  evidence-gathering process above is a verification). On update, bump `updated`
+  always; set `verified` only when the note's facts were actually checked this
+  session (see Freshness and validation).
 - Use atomic writes: Write to a `.tmp` file in the target directory, then
   the toolkit's `vault-fs.sh mv`, in the `scripts/` directory at the plugin root (locate the plugin root via the installed cache path shown by /toolkit-setup, or ../scripts relative to this commands/ directory).
 
