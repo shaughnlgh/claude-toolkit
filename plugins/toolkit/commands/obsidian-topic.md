@@ -73,12 +73,15 @@ been done to it, and how to test it. For module/system topics use these
 sections (omit any that do not apply):
 
 - Overview — what it is and what features it offers (one short paragraph)
-- Where it lives — composer package / git repo or registry, installed repos and
-  versions, module root path, key classes or entry points
+- Where it lives — composer package / git repo or registry, the repos it is
+  installed in, module root path, key classes or entry points. No versions:
+  package manifests and repo configuration are the authority for version pins.
 - Depends on / associates with — related modules and why they are coupled
 - Flows — how the important paths actually behave
-- Tasks — past and planned work: task (wiki-link the plan note), repo, status,
-  what changed and whether it affected flows
+- Tasks — historical work context only: task (wiki-link the plan note), repo,
+  what changed or is planned, and the flow impact or durable outcome. No status
+  column. Plan frontmatter is authoritative for workflow status and the ticket
+  for external state, so the linked plan note is where status lives.
 - Gotchas — known issues, surprises, and hard-won lessons
 - Testing — test mode config, test cards/accounts, how to exercise the flows
 - Related Topics — `[[wiki links]]` to related topic notes
@@ -94,13 +97,17 @@ fact list is enough — do not pad to fill the structure.
 - Distilled facts and pointers, not knowledge dumps. Never dump code or
   duplicate documentation that lives in the repo.
 - Never record version pins or other fast-changing values (e.g.
-  `my-shop-repo: 4.0.3`). composer.json and the repo are the authority; topic notes
-  state what depends on what and why, not which version.
+  `my-shop-repo: 4.0.3`). Package manifests and repo configuration
+  (composer.json, package.json, lock files) are the authority. Topic notes may
+  describe where a module is installed and why, never which version.
+- Never mirror mutable workflow state. Plan frontmatter is authoritative for
+  plan status, and Jira/GitLab/GitHub for ticket and MR state. Topic notes link
+  to plans; they do not carry a current status for them.
 - Update in place; do not append forever. Remove facts that are no longer true.
 - Do not invent facts (especially test data such as test cards). A stub with
   frontmatter and 2-3 known facts is better than a padded page.
-- Keep Tasks entries current: when a plan completes or lands, update its row
-  (status, what changed, flow impact).
+- When work lands, update the durable facts: the Tasks row's what-changed and
+  flow impact, plus any affected Flows or Gotchas.
 
 ## Freshness and validation
 
