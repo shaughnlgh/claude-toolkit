@@ -212,7 +212,7 @@ repos:
     mr:
 ```
 
-- `sessions`: the Claude Code work session(s) tied to this plan, oldest first. A plan can span many sessions; most have just one for now. Each entry has `date`, a one-line `summary`, and optionally `id` (the session id / transcript file). Append an entry as each work session completes (planning and execution alike), so the plan carries its full session history. The `id` is the reference point back into the actual transcript if the blow-by-blow is ever needed. Example:
+- `sessions`: the Claude Code work session(s) tied to this plan, oldest first — at most one entry per session id. A plan can span many sessions; most have just one for now. Each entry has `date`, a one-line `summary`, and optionally `id` (the session id / transcript file). The entry is created when a work session starts (planning and execution alike) and its summary is updated to the real outcome as the session ends (see Record the session on the plan), so the plan carries its full session history. The `id` is the reference point back into the actual transcript if the blow-by-blow is ever needed. Example:
 
 ```yaml
 sessions:
@@ -377,18 +377,27 @@ tooling can surface state:
 
 ### Record the session on the plan
 
-Record the session id UP FRONT, not at the end. If the plan note does not exist yet
-(no scaffold), derive the plan name and create the note skeleton (frontmatter with a
-`sessions:` entry carrying your session id, empty sections) as one of the FIRST
-actions of the session, before deep exploration, then fill the body in as planning
-proceeds. If the note already exists, append an entry to its `sessions:` list (date,
-a short "in progress" summary, and your session id) immediately. Update
-that entry's summary to the real one-line outcome before stopping. Rationale
-(2026-07-13): a session that dies mid-run (API stall, crash) otherwise leaves no id
-on the plan and has to be hunted down by grepping transcripts. You have your current
-session id available, so always fill it in. (Record it yourself — do not rely on tooling to backfill it.) This is
-the plan's session history, and each id is the reference point back into that
-transcript.
+Record the session id UP FRONT, not at the end. The list holds at most one entry per
+session id: create your entry once at session start, then only ever update that same
+entry — never add a second entry for the same session.
+
+At session start:
+- If your current session id is already on the list (a resumed conversation that kept
+  its id), update that entry — do not append.
+- Otherwise append one new entry (date, a short "in progress" summary, your session
+  id). If the plan note does not exist yet (no scaffold), derive the plan name and
+  create the note skeleton (frontmatter with that `sessions:` entry, empty sections)
+  as one of the FIRST actions of the session, before deep exploration, then fill the
+  body in as planning proceeds.
+- If resumption minted a genuinely new session id (a new transcript), that is a new
+  session: append a new entry for it.
+- If no session id is available, leave `id:` blank — never invent a placeholder value.
+
+During the session and before stopping, update that same entry's summary to the real
+one-line outcome. For a blank-id entry, update the entry you created this session; if
+it cannot be identified unambiguously (say, two blank-id entries on the same date),
+stop and report the ambiguity rather than guessing or adding a probable duplicate.
+Record the id yourself — do not rely on tooling to backfill it.
 
 ## Session Closure
 
@@ -401,7 +410,8 @@ branch diff, and the squashed commit after merge), and the session ids on the pl
    "Plan Changes During Execution"; Validation, Risks, and Open Questions up to date.
 2. Make sure touched topic notes reflect any durable facts surfaced (see the toolkit's
    obsidian-topic command).
-3. Append a `sessions:` entry to the plan (date, one-line summary, your session id).
+3. Update this session's `sessions:` entry with the real one-line outcome (append one
+   only if it is somehow missing — never a second entry for the same session id).
 4. Report that execution is complete.
 
 ### Finalize
