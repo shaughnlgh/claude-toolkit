@@ -119,9 +119,14 @@ first setup. It is config, not an executable — this is what `vault-fs.sh` (and
 vault-writing skills) read `vault_path` and `root_folder` from to resolve the vault
 root.
 
-Fields: `vault_path` (per-machine, set during setup), `vault_name`, `root_folder`,
-`mode`, `plan_folder_template`, `artifact_name_template`, and a
-`safety` block (`atomic_writes`, `icloud_safe`, `dry_run_default`).
+Fields, by what each observably does: `vault_path` (per-machine, set during
+setup — the physical vault root), `root_folder` (the toolkit-owned subtree
+inside the vault; everything the toolkit writes lives under it),
+`plan_folder_template` (the canonical plan-directory layout the planning
+workflow creates and consumers like mc-catchup enumerate), and `_readme`
+(human guidance only, read by nothing). A live config may carry additional
+legacy or external-consumer fields; the toolkit ignores them and never
+rewrites the file.
 
 ## design-detector/
 
