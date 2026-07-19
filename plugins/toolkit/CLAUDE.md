@@ -4,10 +4,13 @@ This is the toolkit's working doctrine, one concern per file under `doctrine/`. 
 line below carries the section's binding essence; read the file for the full detail
 (paths relative to this file). The design rationale lives in `README.md` beside this file.
 
-**Override rule:** your personal global scope (`~/.claude/CLAUDE.md`) overrides any
-section — state which doctrine file you are overriding and what replaces it. Project
-rules override doctrine for project-specific matters. Most specific wins; safety
-sections (git-safety, security) should be tightened, not loosened.
+**Override rule:** your personal global scope overrides any section. Two ways: state an
+override inline in `~/.claude/CLAUDE.md`, or — to replace a whole doctrine file — drop a
+same-named copy in `~/.claude/doctrine/` (e.g. `~/.claude/doctrine/conventions.md`) and
+edit it. The session-start hook detects it and announces it every session, so your copy
+wins for that concern with no pointer to write or maintain. Project rules override
+doctrine for project-specific matters. Most specific wins; safety sections (git-safety,
+security) may be tightened, not loosened.
 
 ## Sections
 
