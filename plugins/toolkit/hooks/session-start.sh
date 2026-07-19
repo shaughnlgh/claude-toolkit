@@ -31,6 +31,15 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
     add "Frontend work: use the frontend-designer agent, or read rules/frontend.md in this plugin."
   fi
   [ -f "${CLAUDE_PLUGIN_ROOT}/CLAUDE.md" ] && add "Toolkit doctrine: read the index at ${CLAUDE_PLUGIN_ROOT}/CLAUDE.md before multi-agent or planned work (binding essences plus per-section files; design rationale in README.md alongside). Subagents do not see this line: pass doctrine constraints down in delegation prompts, or add the pointer to your global CLAUDE.md via /toolkit-setup."
+  # Per-file doctrine overrides: a same-named file in ~/.claude/doctrine/ replaces the
+  # plugin's copy for that concern. Detected here so it needs no pointer written anywhere.
+  if [ -d "$HOME/.claude/doctrine" ]; then
+    OVR=""
+    for o in "$HOME"/.claude/doctrine/*.md; do
+      [ -f "$o" ] && OVR="${OVR} $(basename "$o" .md)"
+    done
+    [ -n "$OVR" ] && add "Doctrine overrides active. For these concerns read your global ~/.claude/doctrine/<name>.md and follow it INSTEAD of the plugin's doctrine/<name>.md (your copy wins; safety sections may be tightened, not loosened):${OVR}."
+  fi
 fi
 
 # Git briefing (only inside a repo).

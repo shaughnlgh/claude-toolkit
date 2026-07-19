@@ -98,7 +98,14 @@ and the global `~/.claude/CLAUDE.md`.
       The binding doctrine lives in the toolkit plugin — read its index at
       ~/.claude/plugins/cache/shaughn-toolkit/toolkit/*/CLAUDE.md (glob resolves the
       current version). Design rationale: README.md at the same plugin root.
-      Personal overrides: state which doctrine file you override, below.
+      Personal overrides: state one inline below, or drop a same-named file in
+      ~/.claude/doctrine/ (auto-detected each session, no pointer needed).
+
+Also offer to create the `~/.claude/doctrine/` directory (empty) so per-file overrides
+have a home. Dropping a same-named copy of a plugin doctrine file there (e.g.
+`conventions.md`) overrides the plugin's version for that concern. The session-start
+hook detects it and announces it every session, so there is no pointer to write. Safety
+sections (git-safety, security) may be tightened, not loosened.
 
 If any offer is declined, note the practical effects (occasional permission prompts;
 advisor available to workers; doctrine unreachable by subagents) and move on. Never
