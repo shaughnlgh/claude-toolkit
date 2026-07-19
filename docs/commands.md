@@ -93,25 +93,29 @@ or git state, and never invents facts, ticket references, or test data.
 
 ### `/override`
 
-Copies a toolkit doctrine file into your global `~/.claude/doctrine/` so your version
-wins for that concern, without editing the plugin.
+Copies a toolkit component — doctrine, rule, agent, or skill — into your global
+`~/.claude/` so your version wins for that concern, without editing the plugin.
 
-**Usage** — `/override [name]`. With a name (e.g. `/override conventions`) it copies that
-doctrine file; with no name it lists the doctrine files available and asks which.
+**Usage** — `/override [type] [name]`. With a name (e.g. `/override conventions`,
+`/override code-reviewer`) it auto-detects the type and copies it; with no argument it
+lists everything overridable and asks which; with `<type> <name>` (e.g. `/override rules
+security`) it forces the type for an ambiguous name.
 
-**What it does** — copies the named plugin doctrine file to `~/.claude/doctrine/<name>.md`
-(refusing unknown names, never clobbering an existing override), then you edit your copy.
-The session-start hook detects it and announces it every session, so your copy wins with
-no pointer to maintain. Safety sections (git-safety, security) may be tightened, not
-loosened.
+**What it does** — copies the plugin's version into `~/.claude/<type>/` (a skill is copied
+as its whole directory), refusing unknown or ambiguous names and never clobbering an
+existing override, then you edit your copy. Doctrine and rules are picked up by the
+session-start hook (doctrine announced, a rule's body injected in place of the plugin's);
+agents and skills are resolved natively by Claude Code for the bare name (invoke bare, not
+`toolkit:<name>`). Safety sections (git-safety, security) may be tightened, not loosened.
 
-**What it changes** — writes one file into `~/.claude/doctrine/`. Nothing in the plugin,
-nothing in git.
+**What it changes** — writes into `~/.claude/`. Nothing in the plugin, nothing in git.
 
 **Examples**
 
     /override
     /override conventions
+    /override rules security
+    /override code-reviewer
 
 ## Thinking tools
 

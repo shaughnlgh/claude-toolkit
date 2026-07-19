@@ -1,0 +1,5 @@
+{
+  "name": "block editing an installed plugin hook script",
+  "stdin": { "tool_input": { "file_path": "/Users/x/.claude/plugins/cache/shaughn-toolkit/toolkit/abc123/hooks/block-dangerous-commands.sh" } },
+  "expect_exit": 2
+}
