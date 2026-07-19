@@ -1,0 +1,1 @@
+{"name":"literal credential flagged even beside an env reference","stdin":{"tool_name":"Write","tool_input":{"file_path":"src/cfg.js","content":"const apiToken = process.env.API_TOKEN;\nconst password = \"fakefakefake123\";"}},"expect_exit":0,"expect_stdout_contains":["hardcoded credential","ask"]}
