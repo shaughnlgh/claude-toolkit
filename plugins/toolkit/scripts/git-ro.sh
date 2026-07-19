@@ -8,14 +8,15 @@ case "$sub" in
   *) echo "refused: read-only subcommands only" >&2; exit 1 ;;
 esac
 shift 2
-# Refuse the options that actually WRITE or EXECUTE via these subcommands: `--output`/`-o`
-# (writes the diff/log to a file) and `--ext-diff` (runs an external diff command). NOT
-# `-c` (git's exec-capable `-c key=val` is only valid BEFORE the subcommand, unreachable
-# here; `git log -c` / `git show -c` is a read-only combined-diff flag) and NOT `-O`
-# (diff order-file, a read).
+# Refuse the options that WRITE or EXECUTE via these subcommands: `--output`/`-o`
+# (writes the diff/log to a file), `--ext-diff` (runs an external diff command), and
+# `--textconv` (runs a textconv driver — and refusing it is also how a caller is
+# prevented from overriding our forced `--no-textconv`). NOT `-c` (git's exec-capable
+# `-c key=val` is only valid BEFORE the subcommand, unreachable here; `git log -c` /
+# `git show -c` is a read-only combined-diff flag) and NOT `-O` (diff order-file, a read).
 for arg in "$@"; do
   case "$arg" in
-    --output|--output=*|-o|--ext-diff)
+    --output|--output=*|-o|--ext-diff|--textconv)
       echo "refused: option '$arg' can write files or execute commands (read-only tool)" >&2; exit 1 ;;
   esac
 done
@@ -26,5 +27,5 @@ done
 noext=()
 case "$sub" in diff|log|show) noext=(--no-ext-diff --no-textconv) ;; esac
 GIT_PAGER=cat PAGER=cat git -C "$dir" \
-  -c core.pager=cat -c core.fsmonitor= -c core.hooksPath=/dev/null \
+  -c core.pager=cat -c core.fsmonitor=false -c core.hooksPath=/dev/null \
   "$sub" ${noext[@]+"${noext[@]}"} "$@"

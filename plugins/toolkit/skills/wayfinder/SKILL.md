@@ -127,7 +127,7 @@ becomes `stubbed`, slug filled in).
 
 Once the parent and every child stub exist, stop and hand off. Tell the user each
 child now flows through `plan-workflow` on its own: its own topic recall, its own
-`planner`/`explorer` delegation if needed, its own `plan-critic` pass, its own
+`planner` delegation if needed, its own `plan-critic` pass, its own
 approval, its own execution. Wayfinder does not pick which child gets planned first,
 that is the user's or conductor's call.
 

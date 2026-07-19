@@ -1,0 +1,9 @@
+{
+  "name": "block recursive force delete through a /../ traversal",
+  "stdin": {
+    "tool_input": {
+      "command": "rm -rf /tmp/../"
+    }
+  },
+  "expect_exit": 2
+}

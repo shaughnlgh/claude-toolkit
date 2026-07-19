@@ -1,0 +1,9 @@
+{
+  "name": "allow recursive force delete of build/cache",
+  "stdin": {
+    "tool_input": {
+      "command": "rm -rf build/cache"
+    }
+  },
+  "expect_exit": 0
+}

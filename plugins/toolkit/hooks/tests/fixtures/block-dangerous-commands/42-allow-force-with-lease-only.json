@@ -1,0 +1,9 @@
+{
+  "name": "allow --force-with-lease alone to a feature branch",
+  "stdin": {
+    "tool_input": {
+      "command": "git push --force-with-lease origin feature-x"
+    }
+  },
+  "expect_exit": 0
+}

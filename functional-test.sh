@@ -31,6 +31,11 @@ only_agent="${2:-}"
 [ -n "$mode" ] || { sed -n '2,20p' "${BASH_SOURCE[0]}"; exit 2; }
 
 MODEL="sonnet"
+# Agent subagents default to BACKGROUND (the Agent tool runs them detached), which
+# lets the headless -p session end before the subagent finishes — its finding then
+# never lands in the stream. Every agent probe appends this so the conductor runs the
+# subagent synchronously and its result is a foreground tool_result we can assert on.
+SYNC_HINT="Spawn it synchronously with run_in_background set to false, and wait for its full result before you reply; do NOT run it as a background agent."
 PROBE_TIMEOUT="${FT_TIMEOUT:-300}"
 pass=0; fail=0
 PRESERVED=()
@@ -52,10 +57,21 @@ cleanup_ws() {
 
 preserve_ws() { PRESERVED+=("$1"); echo "  workspace preserved for diagnosis: $1"; }
 
-fixture_repo() { # $1 = workspace; creates a minimal disposable git repo
-  git -C "$1" init -q
-  git -C "$1" config user.email "fixture@test.invalid"
-  git -C "$1" config user.name "Fixture"
+fixture_repo() { # $1 = workspace; init a disposable repo. Returns nonzero on failure.
+  git -C "$1" init -q || return 1
+  git -C "$1" config user.email "fixture@test.invalid" || return 1
+  git -C "$1" config user.name "Fixture" || return 1
+  # Disable commit signing so fixture commits never depend on (or hang on) the
+  # machine's gpg/signing config.
+  git -C "$1" config commit.gpgsign false || return 1
+}
+
+# fixture_commit <workspace>: stage everything and commit, checked. Returns nonzero
+# (without aborting the whole run) if add or commit fails, so the caller fails the
+# probe closed instead of launching a Claude call against an unbuilt fixture.
+fixture_commit() {
+  git -C "$1" add -A >/dev/null 2>&1 || return 1
+  git -C "$1" commit -qm fixture >/dev/null 2>&1 || return 1
 }
 
 snapshot_checkout() { git -C "$SELF_ROOT" status --porcelain 2>/dev/null; }
@@ -119,25 +135,31 @@ print(v if isinstance(v, str) else json.dumps(v))
 PY
 }
 
-# agent_result <stream-events-file> <subagent-name>: prints the text of the matched
-# agent's NON-ERROR returned tool_result(s) to stdout and exits 0 only when the
-# stream shows an Agent/Task tool_use whose subagent_type mentions the agent AND a
-# non-error tool_result came back for it. An error tool_result (missing agent, crash)
-# does NOT count as "ran" — otherwise a broken plugin whose Task errors, with the
-# conductor then doing the work itself, would false-pass. Printing only the agent's
-# own returned result (not the whole stream) keeps fact-greps off echoed fixture
-# content and delegation prompts.
+# agent_result <stream-events-file> <subagent-name>: prints the matched agent's real
+# RETURNED finding and exits 0 only if one is found. Handles both spawn modes:
+#   * foreground: the Agent/Task tool_use's own non-error tool_result IS the finding.
+#   * background: that tool_result is only an "Async agent launched successfully" ack
+#     carrying `agentId: <hex>`; the real finding arrives later in a separate
+#     tool_result whose content includes `<task_id><hex></task_id>` (the retrieval /
+#     task-notification). We match on that id.
+# The launch-ack itself is NEVER treated as the finding (else a backgrounded agent
+# false-passes), an error tool_result is never a finding (H2: a missing-agent Task must
+# not count as ran), and echoed fixture-file Reads are excluded because we only take the
+# launched-id result or the agentId-matched retrieval — not arbitrary stream text.
 agent_result() {
   python3 - "$1" "$2" <<'PY'
-import json, sys
+import json, re, sys
 path, want = sys.argv[1], sys.argv[2]
-launched, texts = set(), []
+launched = set()          # Agent/Task tool_use ids for the wanted subagent
+ack_agent_ids = set()     # background agent ids harvested from launch-ack results
+fg, results_by_task = [], []
+pending = []              # all (tool_use_id, is_error, text) to scan for task-id match
 
-def text_of(content):
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return "\n".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in content)
+def text_of(c):
+    if isinstance(c, str):
+        return c
+    if isinstance(c, list):
+        return "\n".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in c)
     return ""
 
 for line in open(path, encoding="utf-8", errors="replace"):
@@ -148,20 +170,35 @@ for line in open(path, encoding="utf-8", errors="replace"):
         ev = json.loads(line)
     except Exception:
         continue
-    msg = ev.get("message") or {}
-    for block in (msg.get("content") or []):
-        if not isinstance(block, dict):
+    for b in ((ev.get("message") or {}).get("content") or []):
+        if not isinstance(b, dict):
             continue
-        if block.get("type") == "tool_use" and block.get("name") in ("Agent", "Task"):
-            st = str((block.get("input") or {}).get("subagent_type", ""))
-            if want in st:
-                launched.add(block.get("id"))
-        if (block.get("type") == "tool_result"
-                and block.get("tool_use_id") in launched
-                and not block.get("is_error")):
-            texts.append(text_of(block.get("content")))
-if texts:
-    sys.stdout.write("\n".join(texts))
+        if b.get("type") == "tool_use" and b.get("name") in ("Agent", "Task"):
+            if want in str((b.get("input") or {}).get("subagent_type", "")):
+                launched.add(b.get("id"))
+        if b.get("type") == "tool_result":
+            txt = text_of(b.get("content"))
+            err = bool(b.get("is_error"))
+            if b.get("tool_use_id") in launched and not err:
+                if "Async agent launched successfully" in txt:
+                    # background launch-ack — never a finding; harvest the agent id if present
+                    m = re.search(r"agentId:\s*(\S+)", txt)
+                    if m:
+                        ack_agent_ids.add(m.group(1).rstrip(".,)"))
+                else:
+                    fg.append(txt)                  # foreground: the real finding
+            if not err:
+                pending.append(txt)
+
+# background: the finding is the retrieval/notification tool_result carrying the agent id
+for txt in pending:
+    if any(("<task_id>%s</task_id>" % aid) in txt or ("task_id: %s" % aid) in txt
+           for aid in ack_agent_ids):
+        results_by_task.append(txt)
+
+out = fg + results_by_task
+if out:
+    sys.stdout.write("\n".join(out))
     sys.exit(0)
 sys.exit(1)
 PY
@@ -277,13 +314,13 @@ agent_events_flags() { printf -- "--output-format\nstream-json\n--verbose\n"; }
 probe_agent_explorer() {
   local ws cap
   ws="$(mkws)"; cap="$(mkws)"
-  fixture_repo "$ws"
+  if ! fixture_repo "$ws"; then no "explorer: fixture repo init failed (setup)"; preserve_ws "$ws"; return; fi
   mkdir -p "$ws/src/deep/nested"
   printf '<?php\nclass Cfg {\n  const MAGIC_TIMEOUT = 4711;\n}\n' > "$ws/src/deep/nested/config.php"
   printf 'decoy\n' > "$ws/src/readme.txt"
-  git -C "$ws" add -A >/dev/null; git -C "$ws" commit -qm fixture
+  if ! fixture_commit "$ws"; then no "explorer: fixture commit failed (setup) — no Claude call made"; preserve_ws "$ws"; return; fi
   run_probe "$ws" "$cap" \
-    "Spawn the toolkit:explorer subagent to find the numeric value of the MAGIC_TIMEOUT constant somewhere in this repository and report just that number back. Then state the number it found." \
+    "Spawn the toolkit:explorer subagent to find the numeric value of the MAGIC_TIMEOUT constant somewhere in this repository and report just that number back. Then state the number it found. $SYNC_HINT" \
     --output-format stream-json --verbose --disallowedTools "Write" "Edit" "NotebookEdit"
   if [ "$(probe_rc "$cap")" != "0" ]; then no "explorer probe (rc=$(probe_rc "$cap"))"; preserve_ws "$cap"; preserve_ws "$ws"; return; fi
   local res okev=1; res="$(agent_result "$cap/out" "explorer")" && okev=0
@@ -303,11 +340,11 @@ probe_agent_explorer() {
 probe_agent_implementer() {
   local ws cap
   ws="$(mkws)"; cap="$(mkws)"
-  fixture_repo "$ws"
+  if ! fixture_repo "$ws"; then no "implementer: fixture repo init failed (setup)"; preserve_ws "$ws"; return; fi
   printf 'seed\n' > "$ws/README.md"
-  git -C "$ws" add -A >/dev/null; git -C "$ws" commit -qm fixture
+  if ! fixture_commit "$ws"; then no "implementer: fixture commit failed (setup) — no Claude call made"; preserve_ws "$ws"; return; fi
   run_probe "$ws" "$cap" \
-    "Spawn the toolkit:implementer subagent with this exact bounded task: create a file named greeting.txt in the repository root whose entire content is the single line: hello from fixture 4711" \
+    "Spawn the toolkit:implementer subagent with this exact bounded task: create a file named greeting.txt in the repository root whose entire content is the single line: hello from fixture 4711. $SYNC_HINT" \
     --output-format stream-json --verbose --permission-mode acceptEdits
   if [ "$(probe_rc "$cap")" != "0" ]; then no "implementer probe (rc=$(probe_rc "$cap"))"; preserve_ws "$cap"; preserve_ws "$ws"; return; fi
   local okev=1; agent_ran "$cap/out" "implementer" && okev=0
@@ -327,19 +364,21 @@ probe_agent_implementer() {
 probe_agent_generic() { # $1 agent  $2 fixture-fn  $3 prompt  $4 grep-fact  $5 writes(yes/no)
   local agent="$1" fixfn="$2" prompt="$3" fact="$4" writes="$5" ws cap
   ws="$(mkws)"; cap="$(mkws)"
-  fixture_repo "$ws"; "$fixfn" "$ws"
-  git -C "$ws" add -A >/dev/null; git -C "$ws" commit -qm fixture
+  if ! fixture_repo "$ws"; then no "$agent: fixture repo init failed (setup)"; preserve_ws "$ws"; return; fi
+  "$fixfn" "$ws"
+  if ! fixture_commit "$ws"; then no "$agent: fixture commit failed (setup) — no Claude call made"; preserve_ws "$ws"; return; fi
   local -a flags=(--output-format stream-json --verbose)
   [ "$writes" = yes ] && flags+=(--permission-mode acceptEdits) || flags+=(--disallowedTools "Write" "Edit" "NotebookEdit")
-  run_probe "$ws" "$cap" "$prompt" "${flags[@]}"
+  run_probe "$ws" "$cap" "$prompt $SYNC_HINT" "${flags[@]}"
   if [ "$(probe_rc "$cap")" != "0" ]; then no "$agent probe (rc=$(probe_rc "$cap"))"; preserve_ws "$cap"; preserve_ws "$ws"; return; fi
   # Grep the agent's RETURNED result, not the whole event stream (which echoes the
-  # fixture the agent Read and the delegation prompt).
+  # fixture the agent Read and the delegation prompt). Fact is an ERE (may be an
+  # alternation of defect concepts).
   local res okev=1; res="$(agent_result "$cap/out" "$agent")" && okev=0
-  if [ $okev -eq 0 ] && printf '%s' "$res" | grep -qi -- "$fact"; then
+  if [ $okev -eq 0 ] && printf '%s' "$res" | grep -qiE -- "$fact"; then
     ok "$agent: event-verified spawn+return, fixture fact in its result"
   else
-    no "$agent: event=$okev fact-in-result=$(printf '%s' "$res" | grep -qi -- "$fact" && echo yes || echo no)"
+    no "$agent: event=$okev fact-in-result=$(printf '%s' "$res" | grep -qiE -- "$fact" && echo yes || echo no)"
     preserve_ws "$cap"; preserve_ws "$ws"; return
   fi
   cleanup_ws "$ws"; cleanup_ws "$cap"
@@ -350,17 +389,28 @@ probe_agent_generic() { # $1 agent  $2 fixture-fn  $3 prompt  $4 grep-fact  $5 w
 probe_agent_frontend() {
   local ws cap
   ws="$(mkws)"; cap="$(mkws)"
-  fixture_repo "$ws"; printf 'seed\n' > "$ws/README.md"
-  git -C "$ws" add -A >/dev/null; git -C "$ws" commit -qm fixture
+  if ! fixture_repo "$ws"; then no "frontend-designer: fixture repo init failed (setup)"; preserve_ws "$ws"; return; fi
+  printf 'seed\n' > "$ws/README.md"
+  if ! fixture_commit "$ws"; then no "frontend-designer: fixture commit failed (setup) — no Claude call made"; preserve_ws "$ws"; return; fi
   run_probe "$ws" "$cap" \
-    "Spawn the toolkit:frontend-designer subagent with this exact bounded task: create a single self-contained page.html in the repository root with a heading that reads Fixture Dashboard and one styled button. No other files." \
+    "Spawn the toolkit:frontend-designer subagent with this exact bounded task: create a single self-contained page.html in the repository root with a heading that reads Fixture Dashboard and one styled button. No other files. $SYNC_HINT" \
     --output-format stream-json --verbose --permission-mode acceptEdits
   if [ "$(probe_rc "$cap")" != "0" ]; then no "frontend-designer probe (rc=$(probe_rc "$cap"))"; preserve_ws "$cap"; preserve_ws "$ws"; return; fi
   local okev=1; agent_ran "$cap/out" "frontend-designer" && okev=0
-  if [ $okev -eq 0 ] && [ -f "$ws/page.html" ] && grep -q "Fixture Dashboard" "$ws/page.html"; then
-    ok "frontend-designer: event-verified spawn+return, page.html artifact written with the heading"
+  # Level-1 evidence on the produced artifact: the requested heading, a <button>, and
+  # styling (inline style=, a <style> block, or a class), AND that the only new/changed
+  # path in the workspace is page.html.
+  local haveheading havebutton havestyle changedok=0
+  haveheading=$([ -f "$ws/page.html" ] && grep -q "Fixture Dashboard" "$ws/page.html" && echo 1 || echo 0)
+  havebutton=$([ -f "$ws/page.html" ] && grep -qiE '<button' "$ws/page.html" && echo 1 || echo 0)
+  havestyle=$([ -f "$ws/page.html" ] && grep -qiE '<style|style=|class=' "$ws/page.html" && echo 1 || echo 0)
+  # extract the porcelain PATH field (2 status chars + space + path) and require the
+  # only changed path to be page.html
+  [ "$(git -C "$ws" status --porcelain | awk '{print $2}' | grep -vc '^page\.html$')" = "0" ] && changedok=1
+  if [ $okev -eq 0 ] && [ "$haveheading" = 1 ] && [ "$havebutton" = 1 ] && [ "$havestyle" = 1 ] && [ "$changedok" = 1 ]; then
+    ok "frontend-designer: event-verified, page.html has heading+button+styling, only page.html changed"
   else
-    no "frontend-designer: event=$okev file=$([ -f "$ws/page.html" ] && echo yes || echo no)"
+    no "frontend-designer: event=$okev heading=$haveheading button=$havebutton style=$havestyle only-page=$changedok"
     preserve_ws "$cap"; preserve_ws "$ws"; return
   fi
   cleanup_ws "$ws"; cleanup_ws "$cap"
@@ -385,8 +435,8 @@ probe_agents() {
     "Spawn the toolkit:planner subagent to produce a short bounded implementation plan for the request in REQUEST.md against this repository. Have it name the exact function it would modify. Report its plan." \
     "main" no
   run_one verifier && probe_agent_generic verifier fx_data \
-    "Spawn the toolkit:verifier subagent to verify this claim about the repository: data.csv contains exactly three data rows plus a header. Have it check for real and report the actual row count it measured." \
-    "3" no
+    "Spawn the toolkit:verifier subagent to open data.csv in this repository, count the data rows excluding the header line, and report the number it measured." \
+    "(^|[^0-9])3([^0-9]|\$)" no
   run_one code-reviewer && probe_agent_generic code-reviewer fx_offbyone \
     "Spawn the toolkit:code-reviewer subagent to review src/util.js in this repository. Report the defects it finds, naming the function." \
     "lastItem" no
@@ -394,8 +444,8 @@ probe_agents() {
     "Spawn the toolkit:security-reviewer subagent to review src/repo.php in this repository. Report what it finds, naming the vulnerability class." \
     "injection" no
   run_one silent-failure-hunter && probe_agent_generic silent-failure-hunter fx_swallow \
-    "Spawn the toolkit:silent-failure-hunter subagent to review src/save.js in this repository. Report what it finds, naming the function." \
-    "save" no
+    "Spawn the toolkit:silent-failure-hunter subagent to review src/save.js in this repository. Report the error-handling defect it finds and what happens to a failure at runtime." \
+    "swallow|silent|ignored|discard|suppress" no
   run_one pr-test-analyzer && probe_agent_generic pr-test-analyzer fx_mocktest \
     "Spawn the toolkit:pr-test-analyzer subagent to judge test/save.test.js in this repository. Report its verdict on what the test actually verifies." \
     "mock" no
@@ -451,6 +501,21 @@ EOF
 EOF
   agent_ran "$cap/events_err" "explorer" && no "error tool_result false-passed as ran" || ok "error tool_result rejected (not counted as ran)"
 
+  # BACKGROUND agent: the launched tool_result is only a launch-ack; the finding
+  # arrives in a later tool_result carrying <task_id> matching the ack's agentId.
+  cat > "$cap/events_bg" <<'EOF'
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"tu_bg","name":"Task","input":{"subagent_type":"toolkit:explorer","prompt":"x"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"tu_bg","content":"Async agent launched successfully. agentId: abc123def0"}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"tu_poll","content":"<task_id>abc123def0</task_id>\nthe agent found 4711 in config"}]}}
+EOF
+  printf '%s' "$(agent_result "$cap/events_bg" explorer)" | grep -q 4711 && ok "background finding extracted via task-id-matched retrieval" || no "background finding not extracted"
+
+  # a background launch-ack with NO matching completion must NOT count (can't prove it)
+  printf '%s\n%s\n' \
+    '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"tu_b2","name":"Task","input":{"subagent_type":"toolkit:explorer"}}]}}' \
+    '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"tu_b2","content":"Async agent launched successfully. agentId: zzz999"}]}}' > "$cap/events_ackonly"
+  agent_ran "$cap/events_ackonly" "explorer" && no "launch-ack alone false-passed" || ok "background launch-ack alone rejected (no completion)"
+
   # a refusal that merely ECHOES the marker must not pass: no tool_use event at all
   printf '{"type":"assistant","message":{"content":[{"type":"text","text":"I cannot spawn agents, but RAN:explorer 4711"}]}}\n' > "$cap/events3"
   agent_ran "$cap/events3" "explorer" && no "echo-refusal false-passed event check" || ok "echo-refusal cannot pass the event check"
@@ -462,6 +527,16 @@ EOF
   # nonzero rc short-circuits
   echo 1 > "$cap/rc"
   [ "$(probe_rc "$cap")" = "1" ] && ok "exit-code capture readable" || no "exit-code capture"
+
+  # fixture setup fails closed: force a failing commit signer (deterministic, does
+  # not depend on the machine's git config) and confirm fixture_commit reports failure
+  # rather than returning success while git printed a fatal error.
+  local fs; fs="$(mkws)"
+  fixture_repo "$fs" >/dev/null 2>&1
+  git -C "$fs" config commit.gpgsign true; git -C "$fs" config gpg.program /bin/false
+  echo x > "$fs/f.txt"
+  if fixture_commit "$fs"; then no "fixture_commit did NOT fail closed on a failing signer"; else ok "fixture setup fails closed (commit failure detected, no false success)"; fi
+  cleanup_ws "$fs"
 
   # checkout drift detection
   local fake; fake="$(mkws)"

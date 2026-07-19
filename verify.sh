@@ -56,7 +56,7 @@ if claude plugin validate "$ROOT" >/dev/null 2>&1; then ok "plugin validate"; el
 
 echo "== Hook behavior (fixture suite is authoritative) =="
 out="$(cd "$P/hooks/tests" && bash run-all.sh 2>/dev/null | tail -1)"
-suite_ok "hook fixture suite" "$out" 78
+suite_ok "hook fixture suite" "$out" 96
 # spot-confirm session-start's two injections directly (no fixture asserts the pair)
 ss="$(echo '{}' | bash "$P/hooks/session-start.sh" 2>/dev/null)"
 want "session-start injects a write-time rule" "$ss" "Verify behavior, not implementation"
@@ -86,11 +86,15 @@ doh="$(mktemp -d)"; HOME="$doh" bash "$P/scripts/override.sh" conventions >/dev/
 
 echo "== Plan validator =="
 out="$(bash "$P/scripts/tests/validate-plan/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "plan-validator fixture suite" "$out" 22
+suite_ok "plan-validator fixture suite" "$out" 24
 
 echo "== vault-fs containment =="
 out="$(bash "$P/scripts/tests/vault-fs/run-tests.sh" 2>/dev/null | tail -1)"
 suite_ok "vault-fs behavior suite" "$out" 15
+
+echo "== git-ro execution boundary =="
+out="$(bash "$P/scripts/tests/git-ro/run-tests.sh" 2>/dev/null | tail -1)"
+suite_ok "git-ro behavior suite" "$out" 12
 python3 "$P/scripts/validate-plan.py" "$P/scripts/tests/validate-plan/fixtures/2026-01-01-example-feature/plan - example-feature.md" >/dev/null 2>&1
 code "validate-plan accepts a canonical plan" "$?" 0
 

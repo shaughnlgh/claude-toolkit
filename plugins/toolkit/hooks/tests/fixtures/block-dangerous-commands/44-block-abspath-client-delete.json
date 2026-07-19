@@ -1,0 +1,9 @@
+{
+  "name": "block /usr/bin/psql delete without WHERE",
+  "stdin": {
+    "tool_input": {
+      "command": "/usr/bin/psql -c \"delete from users\""
+    }
+  },
+  "expect_exit": 2
+}

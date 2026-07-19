@@ -139,6 +139,31 @@ def parse_frontmatter(lines):
     return data
 
 
+def strip_fences(body):
+    """Drop fenced code blocks with a small stateful scan (not a regex), so example
+    headings inside a fence don't satisfy the required-section check. A fence opens on
+    a line that is only ``` or ~~~ (3+, optionally indented, optional info string) and
+    closes on a later line of the SAME fence char that is at least as long, with nothing
+    but the fence. An unclosed fence consumes the rest of the body. Not a Markdown parser
+    beyond this."""
+    out, fence_char, fence_len = [], None, 0
+    for line in body.split("\n"):
+        m = re.match(r"^[ \t]*(`{3,}|~{3,})[ \t]*(\S*)[ \t]*$", line)
+        if m:
+            ch, ln = m.group(1)[0], len(m.group(1))
+            if fence_char is None:
+                fence_char, fence_len = ch, ln  # open (drop this line)
+                continue
+            if ch == fence_char and ln >= fence_len and m.group(2) == "":
+                fence_char = None  # close (drop this line)
+                continue
+            # a fence-looking line inside a different/nonclosing fence: it's content, drop
+            continue
+        if fence_char is None:
+            out.append(line)
+    return "\n".join(out)
+
+
 def main():
     if len(sys.argv) != 2:
         print("usage: validate-plan.py <path to 'plan - <slug>.md'>", file=sys.stderr)
@@ -238,12 +263,9 @@ def main():
                 violations.append(f"repos entry {idx}: missing repo")
 
     # -- required headings (presence only; prose quality is out of scope) --
-    # Strip fenced code blocks first, so headings shown as examples inside a ``` block
-    # don't satisfy the real-section check.
-    # Strip fenced blocks of either fence type (``` or ~~~), including indented
-    # fences, matching a closing fence of the same char. A leftover unbalanced fence
-    # is harmless (nothing after it to falsely satisfy a heading).
-    body_nocode = re.sub(r"(?ms)^[ \t]*(`{3,}|~{3,}).*?^[ \t]*\1[ \t]*$", "", body)
+    # Fenced code blocks are removed first (stateful scan) so example headings inside a
+    # fence don't satisfy the real-section check.
+    body_nocode = strip_fences(body)
     for h in REQUIRED_HEADINGS:
         if not re.search(rf"^##\s+{re.escape(h)}\s*$", body_nocode, re.M):
             violations.append(f"missing required heading: ## {h}")

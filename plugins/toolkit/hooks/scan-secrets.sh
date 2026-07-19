@@ -73,8 +73,10 @@ fi
 # are caught by those rules above regardless of quoting.
 # Excludes env references. A double-quoted `"$VAR"` is a shell expansion (excluded); a
 # single-quoted '$literal' is a real literal (NOT excluded — the old `["']?$` over-excluded it).
-# Evaluated per line so an env reference on one line can't suppress a literal on another.
-if echo "$CONTENT" | grep -iE '(password|passwd|secret|secret_key|token|access_token|api_key|apikey|api_secret|client_secret|credential|creds|bearer|auth_token|private_key|db_pass[a-z]*)[[:space:]]*[=:][[:space:]]*["'\''][^"'\'']{8,}["'\'']' | \
+# Statements are split on ';' (and newlines) BEFORE the exclusion, so an env-backed
+# assignment on the same physical line can't suppress a separate literal assignment
+# beside it (e.g. `password="$DB_PASSWORD"; token="hardcodedsecretvalue"`).
+if echo "$CONTENT" | tr ';' '\n' | grep -iE '(password|passwd|secret|secret_key|token|access_token|api_key|apikey|api_secret|client_secret|credential|creds|bearer|auth_token|private_key|db_pass[a-z]*)[[:space:]]*[=:][[:space:]]*["'\''][^"'\'']{8,}["'\'']' | \
    grep -qivE '[=:][[:space:]]*(["'\'']?(process\.env|os\.environ|getenv|ENV\[|env\(|import\.meta)|"\$\{?[A-Za-z_])'; then
   MATCHES="$MATCHES hardcoded credential;"
 fi

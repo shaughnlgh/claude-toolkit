@@ -43,6 +43,8 @@ run "18 headings only inside a code fence do not count" "$FX/2026-01-01-codefenc
 run "19 status as a list is rejected" "$FX/2026-01-01-statuslist/plan - statuslist.md" 1 "status: must be a single lifecycle value, not a list"
 run "20 retired mr-description link with double space caught" "$FX/2026-01-01-mrdash/plan - mrdash.md" 1 "retired mr-description artifact"
 run "21 distinct mr-description-notes artifact is allowed" "$FX/2026-01-01-mrnotes/plan - mrnotes.md" 0 "OK:"
+run "22 headings in a fence with a LONGER closing fence do not count" "$FX/2026-01-01-longfence/plan - longfence.md" 1 "missing required heading"
+run "23 headings after an UNCLOSED fence do not count" "$FX/2026-01-01-unclosedfence/plan - unclosedfence.md" 1 "missing required heading"
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"

@@ -1,0 +1,9 @@
+{
+  "name": "block recursive force delete of ${HOME}",
+  "stdin": {
+    "tool_input": {
+      "command": "rm -rf ${HOME}"
+    }
+  },
+  "expect_exit": 2
+}

@@ -1,0 +1,14 @@
+{
+  "name": "same-line env-ref + separate literal: the literal is flagged",
+  "stdin": {
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "a.sh",
+      "content": "password=\"$DB_PASSWORD\"; token=\"hardcodedsecretvalue\""
+    }
+  },
+  "expect_exit": 0,
+  "expect_stdout_contains": [
+    "hardcoded credential"
+  ]
+}
