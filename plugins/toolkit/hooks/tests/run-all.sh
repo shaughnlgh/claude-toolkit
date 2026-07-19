@@ -20,6 +20,11 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FIXTURES="$ROOT/tests/fixtures"
 
+# Anchor the cwd to tests/ so fixture-relative env values (e.g.
+# CLAUDE_PLUGIN_ROOT="../.." resolving to plugins/toolkit) mean the same thing
+# no matter where the runner is invoked from.
+cd "$ROOT/tests" || { echo "FATAL: cannot cd to $ROOT/tests" >&2; exit 2; }
+
 if ! command -v jq >/dev/null 2>&1; then
   echo "FATAL: jq required" >&2
   exit 2
