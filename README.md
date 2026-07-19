@@ -97,9 +97,14 @@ whether you are current.
 ## Verifying
 
 `bash verify.sh` runs the mechanical acceptance battery (structure, manifest, hook
-fixtures, script guardrails, resolver, leakage). `VERIFY.md` adds the live-session
-checklist for behavior that can't be scripted (agent spawns, skill prompts, doctrine
-adherence, in-session hook enforcement).
+fixtures, script guardrails, plan validator, resolver, leakage) — free and fast.
+`bash functional-test.sh <mode>` adds live hermetic probes (real Claude calls,
+each in a throwaway workspace; `self-test` mode tests the harness itself for
+free) that prove rules injection, skill contract facts, and event-verified agent
+spawns against seeded fixtures. `VERIFY.md` documents what each layer proves and
+keeps the checklist for what only a real interactive session can show
+(interview loops, consent gates, live leaf-worker behavior, doctrine adherence,
+in-session hook enforcement).
 
 ## Uninstall
 

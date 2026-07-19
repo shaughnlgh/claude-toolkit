@@ -13,6 +13,31 @@ touched them: `bash plugins/toolkit/hooks/tests/run-all.sh` for hooks,
 `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` for the plan
 validator, `bash plugins/toolkit/scripts/tests/vault-fs/run-tests.sh` for vault-fs.
 
+## 1b. Live hermetic probes (functional-test.sh — costs real Claude calls)
+
+`bash functional-test.sh <mode>` runs headless probes, each in a fresh throwaway
+workspace (own git repo where needed) — never against this checkout, whose exact
+`git status --porcelain` is snapshotted before and compared after every battery.
+Failed probes preserve their workspace path for diagnosis. Modes and cost:
+`self-test` (harness tests, NO Claude calls), `rules` (1 call, low),
+`skills` (9 calls, medium), `agents` (12 calls, high — implementer and
+frontend-designer write inside their disposable repos), `all` (22 calls, high).
+It is deliberately NOT run by verify.sh.
+
+What the probes prove: rules/doctrine injection via schema-validated structured
+output; each skill's contract facts via answers whose expected content never
+appears in the prompt; each agent via stream-json tool events showing the scoped
+agent actually spawned AND returned, plus a fixture-derived observable result
+(a planted constant found, an exact file created, a seeded defect named).
+Refusals, errors, and marker-echoes cannot pass: every probe checks the CLI exit
+code, structural evidence outranks text, and no success marker exists verbatim
+in any prompt.
+
+What they deliberately do not prove: interactive behavior (interview loops,
+consent gates, approval stops) and the live leaf-worker property — a conductor
+transcript cannot prove a nested spawn did not happen inside a subagent, so that
+stays with verify.sh's static allowlist check plus the manual probe below.
+
 ## 2. Live-behavioral (a real interactive session — cannot be scripted)
 
 Start a FRESH session (updates and injection only apply to new sessions). Run each
@@ -33,16 +58,21 @@ probe; the expected result is in parentheses.
 - *"use the explorer agent to find X"* (spawns `toolkit:explorer` on Sonnet, does the
   search itself, returns the distilled format, spawns no sub-agents). Bare name works
   because plugin agents fall through; scoped form is `toolkit:explorer`.
+- Live leaf check (manual, replaces the old LEAF-OK probe): in an interactive
+  session, ask a worker task that tempts delegation and watch the transcript —
+  the worker must do the work itself. The mechanical half (no worker allowlist
+  contains Agent/Task) is asserted by verify.sh on every run.
 
 ### Skills load at their moment
 - Start a small feature task. (`testing-gate` asks its one question; `plan-workflow`
   loads before any plan note is written — the routing table firing.)
 
 ### grill (opt-in, manual-only for the interactive parts)
-- `bash functional-test.sh skills` covers only what a headless probe can prove: the
-  skill loads, states its first question, and names its artifact targets (`CONTEXT.md`,
-  `docs/adr/`). It does not and cannot assert the interview loop, the stop signal, the
-  consent gate, or no-writes-until-confirmed — those require a real interactive session.
+- `bash functional-test.sh skills` covers only what a headless probe can prove:
+  the skill's contract facts (artifact targets `CONTEXT.md`, `docs/adr/`) surface
+  in schema-validated output. It does not and cannot assert the interview loop, the
+  stop signal, the consent gate, or no-writes-until-confirmed — those require a real
+  interactive session.
 - Manual check, in a throwaway git repo: explicitly ask to grill/elicit requirements
   for a genuinely fuzzy task. Confirm it asks one question at a time with a
   recommended answer, self-answers at least one question from the code, writes
