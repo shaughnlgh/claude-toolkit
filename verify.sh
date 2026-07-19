@@ -64,6 +64,10 @@ doh="$(mktemp -d)"; HOME="$doh" bash "$P/scripts/override.sh" conventions >/dev/
 echo "== Plan validator =="
 out="$(bash "$P/scripts/tests/validate-plan/run-tests.sh" 2>/dev/null | tail -1)"
 want "plan-validator fixture suite" "$out" "0 failed"
+
+echo "== vault-fs containment =="
+out="$(bash "$P/scripts/tests/vault-fs/run-tests.sh" 2>/dev/null | tail -1)"
+want "vault-fs behavior suite" "$out" "0 failed"
 python3 "$P/scripts/validate-plan.py" "$P/scripts/tests/validate-plan/fixtures/2026-01-01-example-feature/plan - example-feature.md" >/dev/null 2>&1
 code "validate-plan accepts a canonical plan" "$?" 0
 

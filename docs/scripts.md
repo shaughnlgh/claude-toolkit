@@ -19,7 +19,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved this way.
 
 | Script | What it does | Guardrails |
 |---|---|---|
-| `vault-fs.sh` | Atomic vault file ops — `rm`, `mv` | Refuses absolute paths, `..` traversal, non-regular-file targets, missing sources, unknown subcommands |
+| `vault-fs.sh` | Atomic vault file ops — `rm`, `mv` | Refuses absolute paths, `..` traversal, symlink escape from the vault (canonical containment), non-regular-file targets, missing sources, unknown subcommands |
 | `git-ro.sh` | Read-only git in any directory — `status`, `diff`, `log`, `show` | Refuses any subcommand not on that allowlist |
 | `override.sh` | Copy a plugin doctrine, rule, agent, or skill into `~/.claude/` to override it (drives `/override`) | Name only (no paths); refuses unknown/ambiguous names; won't clobber an existing override |
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
@@ -44,12 +44,28 @@ The vault root is resolved from `~/.claude/obsidian-sync.json` (`vault_path` +
 root doesn't exist as a directory, the script refuses outright.
 
 Guardrails — this is the point of the script:
-- **Refuses absolute paths and traversal.** Any path starting with `/` or containing
-  `..` is rejected before it's joined to the vault root — relative vault paths only.
-- **`rm` only removes regular files.** Directories are rejected. The check is `[ -f ]`,
-  which follows a symlink to a regular file, so it is not itself a symlink guard.
-- **`mv` refuses a missing source.**
+- **Refuses absolute paths and traversal lexically.** Any path starting with `/` or
+  containing `..` is rejected before it's joined to the vault root — relative vault
+  paths only.
+- **Canonical containment, symlinks included.** Every effective source and
+  destination is resolved to its canonical path (a not-yet-existing destination via
+  its existing parent) and must remain inside the canonical vault root, compared
+  path-aware (`/vault-other` does not count as inside `/vault`). A symlinked
+  directory inside the vault pointing outside it is refused; a symlink resolving to
+  another location inside the vault is allowed. Fails closed with a `refused:`
+  reason when containment cannot be established.
+- **Regular files only.** Directory sources and destinations, non-regular files,
+  dangling symlink destinations, and a missing source are all refused.
+- **`mv` replaces an existing destination file by design.** Write-to-`.tmp` then
+  `mv` is the toolkit's atomic-write mechanism — do not expect a no-clobber guard.
 - **Unknown subcommands are refused**, not silently ignored.
+
+What it does NOT provide, deliberately: directory creation, locking or concurrency
+control, content/frontmatter validation, or a general filesystem sandbox beyond
+these two operations.
+
+Tests: `bash plugins/toolkit/scripts/tests/vault-fs/run-tests.sh` (15 behavior
+cases in a temporary vault; also run by `verify.sh`).
 
 ## git-ro.sh
 
