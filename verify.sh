@@ -40,6 +40,10 @@ want "hook fixture suite" "$out" "0 failed"
 ss="$(echo '{}' | bash "$P/hooks/session-start.sh" 2>/dev/null)"
 want "session-start injects a write-time rule" "$ss" "Verify behavior, not implementation"
 want "session-start injects doctrine pointer"  "$ss" "Toolkit doctrine: read the index"
+# doctrine override: a file in ~/.claude/doctrine/ makes the hook announce it (isolated temp HOME)
+ovh="$(mktemp -d)"; mkdir -p "$ovh/.claude/doctrine"; : > "$ovh/.claude/doctrine/conventions.md"
+ovout="$(echo '{}' | HOME="$ovh" bash "$P/hooks/session-start.sh" 2>/dev/null)"; rm -rf "$ovh"
+want "session-start announces a doctrine override when present" "$ovout" "Doctrine overrides active"
 
 echo "== Scripts (guardrails) =="
 want "vault-fs refuses traversal"  "$(bash "$P/scripts/vault-fs.sh" rm '../x.md' 2>&1)" "refused"
