@@ -20,7 +20,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved this way.
 | Script | What it does | Guardrails |
 |---|---|---|
 | `vault-fs.sh` | Atomic vault file ops — `rm`, `mv` | Refuses absolute paths, `..` traversal, symlink escape from the vault (canonical containment), non-regular-file targets, missing sources, unknown subcommands |
-| `git-ro.sh` | Read-only git in any directory — `status`, `diff`, `log`, `show` | Refuses any subcommand not on that allowlist |
+| `git-ro.sh` | Read-only git in any directory — `status`, `diff`, `log`, `show` | Subcommand allowlist; refuses write options (`--output`/`-o`/`--ext-diff`); neutralizes pager, fsmonitor, ext-diff and textconv (the execute-on-read vectors) |
 | `override.sh` | Copy a plugin doctrine, rule, agent, or skill into `~/.claude/` to override it (drives `/override`) | Name only (no paths); refuses unknown/ambiguous names; won't clobber an existing override |
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
 | `validate-plan.py` | Validates a plan note against the plan-workflow contract | Read-only — never edits the note; no network, no config, stdlib only |
@@ -80,9 +80,16 @@ bash "$PLUGIN_ROOT/scripts/git-ro.sh" <dir> status|diff|log|show [args]
 
 Guardrails — this is the point of the script: only `status`, `diff`, `log`, and
 `show` are accepted as the subcommand. Anything else (`commit`, `push`, `reset`,
-`checkout`, etc.) is refused before it ever reaches `git`. The target directory is
-passed straight to `git -C`, so it works against any repo on disk, not just the
-current project.
+`checkout`, etc.) is refused before it ever reaches `git`. Within those subcommands
+the write options `--output`/`-o` (write a file) and `--ext-diff` (run an external
+command) are refused. And because a target repo's own config can execute on a
+"read", the call forces `core.pager=cat`, `core.fsmonitor=` (empty), a null
+`core.hooksPath`, and `--no-ext-diff --no-textconv` on the diff-capable subcommands —
+so `git status`/`diff`/`log`/`show` cannot run a pager, fsmonitor, external-diff, or
+textconv command from the target repo. The target directory is passed straight to
+`git -C`, so it works against any repo on disk. Note: this makes the wrapper safe
+against a repo you do not fully trust for these four read operations — it is not a
+general git sandbox.
 
 ## override.sh
 
@@ -141,7 +148,7 @@ Exit codes: `0` valid, `1` contract violation(s) (each printed as
 `VIOLATION: ...`), `2` usage error, unreadable path, or malformed frontmatter.
 
 **What it proves (mechanical contract only):** filename matches
-`plan - <slug>.md` with a kebab-case slug; `plan:` matches the filename;
+`plan - <slug>.md` with a kebab-case slug; a non-blank `plan:` matches the filename;
 `type: plan`; all 18 required frontmatter keys are present (`modules`/`repos`
 are validly blank for single-repo plans, but the keys must exist);
 `status` is a lifecycle value (`planning`, `review`, `approved`, `in-progress`,
@@ -167,7 +174,7 @@ every plan-note write, before presenting a plan for approval, before starting
 execution, and at session closure.
 
 Tests: `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh`
-(18 behavior fixtures; also run by `verify.sh`).
+(22 behavior cases over 21 fixtures plus a direct nonexistent-path case; also run by `verify.sh`).
 
 ## obsidian-sync.json.template
 

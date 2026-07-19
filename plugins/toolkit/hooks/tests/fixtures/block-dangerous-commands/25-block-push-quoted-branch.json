@@ -1,0 +1,9 @@
+{
+  "name": "block push to quoted protected branch",
+  "stdin": {
+    "tool_input": {
+      "command": "git push origin \"main\""
+    }
+  },
+  "expect_exit": 2
+}

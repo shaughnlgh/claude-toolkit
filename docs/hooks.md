@@ -68,7 +68,7 @@ writes are governed by the permission system, see the boundary model above):**
 - Lockfiles: `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`
 - Generated/minified output: `*.gen.ts`, `*.generated.*`, `*.min.js`, `*.min.css`
 - Anything under `.git/` or `secrets/`
-- Any hook script under `.claude/hooks/`
+- Any hook script under `.claude/hooks/` or an installed plugin's `.claude/plugins/*/hooks/`
 
 **Confirm-prompts (exit 0 with an `ask` decision — you can proceed):**
 - `.env` / `.env.*`
@@ -96,10 +96,16 @@ override rather than blocking outright.
 - PEM/OpenSSH private-key blocks (`-----BEGIN ... PRIVATE KEY-----`)
 - Connection strings with embedded credentials (`mongodb://`, `postgres://`, `mysql://`,
   `redis://`, `amqp://`, `smtp://` with a `user:pass@`)
-- Generic hardcoded `password`/`secret`/`token`/`api_key`/`apikey`/`api_secret`
-  assignments — this one explicitly excludes values that reference `process.env`,
-  `os.environ`, `getenv(...)`, `env(...)`, `${...}`, or `ENV[...]`, so env-var references don't
-  false-positive
+- Generic hardcoded credential assignments with a **quoted** literal value, over a
+  broadened name set (`password`, `passwd`, `secret`, `secret_key`, `token`,
+  `access_token`, `api_key`, `api_secret`, `client_secret`, `credential`, `creds`,
+  `bearer`, `auth_token`, `private_key`, `db_pass*`) — excluding env references
+  (`process.env`, `os.environ`, `getenv`, `env(...)`, `ENV[...]`, and a double-quoted
+  `"$VAR"`). Unquoted values are deliberately not flagged here (too low-signal for an
+  advisory hook); unquoted secrets with distinctive shapes are caught by the rules above.
+
+Content is read for `Write`, `Edit`, `MultiEdit` (all `edits[]`), and `NotebookEdit`
+(`new_source`).
 
 **Env vars:** none.
 
@@ -112,22 +118,31 @@ override rather than blocking outright.
 
 Greps the raw shell command string against a fixed set of destructive patterns before
 the command runs. Every match is a hard block (exit 2) — this script has no "ask" path.
-It blocks exactly the patterns listed below and nothing else; it is not a general
-guard on what Bash may write (see the boundary model above).
+It targets the **common, likely-accidental** forms below; it is not a general guard on
+what Bash may write, and a deliberately evasive spelling (unusual quoting, obscure
+flags, a command built at runtime) can get past it — the permission system, not this
+hook, is the boundary (see the boundary model above).
 
 **Hard blocks:**
-- `git push` (bare, or with an explicit refspec) to a protected branch, or with
-  `--force`/`-f` (`--force-with-lease` is explicitly allowed)
-- `rm -rf` (or any `-r...f...` flag combination) targeting `/`, `~`, `$HOME`, any
-  unresolved `$VAR`, `../..`, or a system directory (`/usr`, `/etc`, `/var`, `/bin`,
-  `/sbin`, `/lib`, `/opt`, `/root`, `/boot`)
-- `DROP TABLE|DATABASE|SCHEMA`, `TRUNCATE TABLE`, and `DELETE FROM ...` without a
-  `WHERE` on the same statement (checked per `;`-delimited statement, so multi-statement
-  input is inspected one statement at a time)
-- `chmod 777` / `chmod a+rwx`
+- `git push` affecting a protected branch — the branch named bare (`origin main`), as a
+  refspec target (`:main`, `HEAD:refs/heads/main`, `+main`), or a bare/`-u` push while
+  the current branch is protected; and any force push (`--force`/`-f`, but
+  `--force-with-lease` is allowed). The clause is token-parsed, so `git push main <br>`
+  (main as the remote) and `feature/main` (a branch merely named so) are not blocked.
+- `rm` with BOTH recursive (`-r`/`-R`/`--recursive`) and force (`-f`/`--force`), in any
+  flag arrangement, targeting `/`, `~`, an unresolved `$VAR`, `.`, `..`, `*`, or a
+  system directory (`/usr`, `/etc`, `/var`, `/bin`, `/sbin`, `/lib`, `/opt`, `/root`,
+  `/boot`). Quotes are stripped and `/bin/rm`/`\rm` prefixes are inspected.
+- SQL run through a database **client** (`mysql`, `psql`, `sqlite3`, `mongosh`, …):
+  `DROP TABLE|DATABASE|SCHEMA`, `TRUNCATE` (with or without `TABLE`), and `DELETE FROM`
+  without a `WHERE` (per `;`-delimited statement, case-insensitive, SQL comments
+  stripped). Gated on a client so `git grep "delete from"` is not blocked.
+- `chmod` granting world/broad write: a numeric mode whose world digit has the write
+  bit (`777`, `666`, `1777`, `0666`, …) or a symbolic `o`/`a` write (`o+w`, `a+rwx`, `ugo+w`)
 - `curl`/`wget` piped to a shell (`| bash`, `| sh`, etc.), with or without `sudo`
-- Shell redirection into a raw `/dev/*` device (excludes the harmless
-  `/dev/null|stdout|stderr|tty|zero|random|urandom`)
+- Shell redirection into a raw `/dev/*` device — including with a leading fd
+  (`1>/dev/sda`, `&>/dev/sdb`); excludes the harmless
+  `/dev/null|stdout|stderr|tty|zero|random|urandom`
 - `mkfs*` and `dd if=/of=/dev/*`
 - `git reset --hard` and `git clean -f`
 - Package publish commands (`npm|yarn|pnpm|bun publish`, `cargo publish`, `gem push`,

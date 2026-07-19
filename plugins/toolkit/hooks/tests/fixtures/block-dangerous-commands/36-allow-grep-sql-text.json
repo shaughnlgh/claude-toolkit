@@ -1,0 +1,9 @@
+{
+  "name": "allow git grep of sql text (no db client)",
+  "stdin": {
+    "tool_input": {
+      "command": "git grep -i \"delete from\" src/"
+    }
+  },
+  "expect_exit": 0
+}

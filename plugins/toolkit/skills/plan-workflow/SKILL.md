@@ -248,7 +248,7 @@ sessions:
 - `related_topics`: plain strings, not wiki links. Use wiki links only in the body.
 - Do not invent ticket values. Do not invent tags or topics — use obvious project/task topics only.
 
-### Required plan sections
+### Required plan sections (each as a `##` heading)
 
 - Objective
 - Current Context
@@ -340,7 +340,7 @@ For non-trivial tasks, follow these steps before writing the plan note:
 8. No implementation code changes in this mode.
 9. Stop and wait for explicit user approval before execution.
 
-On non-trivial plans, after drafting the plan note and before stopping for approval, run the `plan-critic` subagent (model: opus) to adversarially red-team the draft. Fold its material objections into the plan's Risks / Assumptions / Open Questions, then present for approval. This step is conductor-gated: skip it for trivial plans. It augments, and does not replace, the human approval gate or the ad-hoc `advisor` tool.
+On non-trivial plans, after drafting the plan note and before stopping for approval, run the `plan-critic` subagent (model: opus) to adversarially red-team the draft. Fold its material objections into the plan's Risks / Assumptions / Open Questions, then present for approval. This step is conductor-gated: skip it for trivial plans. It augments, and does not replace, the human approval gate.
 
 ### Pre-scaffolded plans
 
@@ -376,7 +376,10 @@ At session start:
   its id), update that entry — do not append.
 - Otherwise append one new entry (date, a short "in progress" summary, your session
   id). If the plan note does not exist yet (no scaffold), derive the plan name and
-  create the note skeleton (frontmatter with that `sessions:` entry, empty sections)
+  create the note skeleton (the full 18-key frontmatter — blank values except
+  `type: plan` and `status: planning`, which the validator requires non-blank —
+  carrying that `sessions:` entry, and all 12 required `##` headings present but
+  empty, so it passes the validation gate)
   as one of the FIRST actions of the session, before deep exploration, then fill the
   body in as planning proceeds.
 - If resumption minted a genuinely new session id (a new transcript), that is a new

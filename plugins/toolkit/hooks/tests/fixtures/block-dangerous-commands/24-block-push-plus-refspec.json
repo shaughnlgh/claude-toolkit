@@ -1,0 +1,9 @@
+{
+  "name": "block force push via +main refspec",
+  "stdin": {
+    "tool_input": {
+      "command": "git push origin +main"
+    }
+  },
+  "expect_exit": 2
+}

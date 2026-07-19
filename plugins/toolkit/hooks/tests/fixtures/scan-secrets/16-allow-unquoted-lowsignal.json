@@ -1,0 +1,14 @@
+{
+  "name": "unquoted low-signal value not flagged",
+  "stdin": {
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "schema.yml",
+      "content": "password: required"
+    }
+  },
+  "expect_exit": 0,
+  "expect_stdout_not_contains": [
+    "hardcoded credential"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "allow push of a branch named feature/main",
+  "stdin": {
+    "tool_input": {
+      "command": "git push origin feature/main"
+    }
+  },
+  "expect_exit": 0
+}

@@ -1,0 +1,14 @@
+{
+  "name": "double-quoted \"$VAR\" is an expansion, not flagged",
+  "stdin": {
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "a.sh",
+      "content": "password=\"$DB_PASSWORD\""
+    }
+  },
+  "expect_exit": 0,
+  "expect_stdout_not_contains": [
+    "hardcoded credential"
+  ]
+}

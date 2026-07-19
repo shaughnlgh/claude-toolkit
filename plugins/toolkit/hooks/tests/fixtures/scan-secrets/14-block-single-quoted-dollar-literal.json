@@ -1,0 +1,14 @@
+{
+  "name": "single-quoted $literal is a real credential",
+  "stdin": {
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "a.py",
+      "content": "password = '$ecretLiteralValue'"
+    }
+  },
+  "expect_exit": 0,
+  "expect_stdout_contains": [
+    "hardcoded credential"
+  ]
+}

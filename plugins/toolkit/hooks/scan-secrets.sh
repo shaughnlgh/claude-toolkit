@@ -11,14 +11,16 @@ fi
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
 
-# Extract the content being written
-if [ "$TOOL_NAME" = "Write" ]; then
-  CONTENT=$(echo "$INPUT" | jq -r '.tool_input.content // empty')
-elif [ "$TOOL_NAME" = "Edit" ]; then
-  CONTENT=$(echo "$INPUT" | jq -r '.tool_input.new_string // empty')
-else
-  exit 0
-fi
+# Extract the content being written. The Edit|Write matcher also routes MultiEdit
+# (its name contains "Edit"); NotebookEdit uses new_source — both were previously
+# unscanned, so a secret written via either slipped past.
+case "$TOOL_NAME" in
+  Write)        CONTENT=$(echo "$INPUT" | jq -r '.tool_input.content // empty') ;;
+  Edit)         CONTENT=$(echo "$INPUT" | jq -r '.tool_input.new_string // empty') ;;
+  MultiEdit)    CONTENT=$(echo "$INPUT" | jq -r '[.tool_input.edits[]?.new_string] | join("\n")') ;;
+  NotebookEdit) CONTENT=$(echo "$INPUT" | jq -r '.tool_input.new_source // empty') ;;
+  *) exit 0 ;;
+esac
 
 if [ -z "$CONTENT" ]; then
   exit 0
@@ -63,13 +65,17 @@ if echo "$CONTENT" | grep -qE '(mongodb|postgres|mysql|redis|amqp|smtp)(\+[a-z]+
   MATCHES="$MATCHES connection string with credentials;"
 fi
 
-# Generic password/secret/token assignments with literal string values
-# Matches: password = "actual_value", SECRET_KEY: 'actual_value', api_token="actual_value"
-# Excludes: env var references like process.env.*, os.environ.*, ${...}, getenv(...)
-# Evaluated per line: the exclusion filters only the lines that matched, so an env-var
-# reference on one line cannot suppress a literal credential on another.
-if echo "$CONTENT" | grep -iE '(password|secret|token|api_key|apikey|api_secret)[[:space:]]*[=:][[:space:]]*["'\''"][^"'\''"]{8,}["'\''"]' | \
-   grep -qivE '(password|secret|token|api_key|apikey|api_secret)[[:space:]]*[=:][[:space:]]*["'\''"]?(process\.env|os\.environ|getenv|\$\{|ENV\[|env\()'; then
+# Generic credential assignments with a QUOTED literal value. Broadened name set
+# (passwd, db_pass, creds, bearer, private_key, ... — not just the original six).
+# Deliberately quoted-only: unquoted values (`password: required`, `token: application/json`)
+# are too low-signal for an advisory hook and train prompt-fatigue; genuinely dangerous
+# UNQUOTED secrets have distinctive shapes (AWS/GitHub/sk-/PEM/connection-string) and
+# are caught by those rules above regardless of quoting.
+# Excludes env references. A double-quoted `"$VAR"` is a shell expansion (excluded); a
+# single-quoted '$literal' is a real literal (NOT excluded — the old `["']?$` over-excluded it).
+# Evaluated per line so an env reference on one line can't suppress a literal on another.
+if echo "$CONTENT" | grep -iE '(password|passwd|secret|secret_key|token|access_token|api_key|apikey|api_secret|client_secret|credential|creds|bearer|auth_token|private_key|db_pass[a-z]*)[[:space:]]*[=:][[:space:]]*["'\''][^"'\'']{8,}["'\'']' | \
+   grep -qivE '[=:][[:space:]]*(["'\'']?(process\.env|os\.environ|getenv|ENV\[|env\(|import\.meta)|"\$\{?[A-Za-z_])'; then
   MATCHES="$MATCHES hardcoded credential;"
 fi
 
