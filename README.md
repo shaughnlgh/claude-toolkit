@@ -55,6 +55,9 @@ everything below, guides you through the vault config, and prints a readiness re
 - **glab** (GitLab CLI) — required by gitlab-mr-review for API auth.
   Install and authenticate once: `brew install glab && glab auth login`
 - **jq** — optional; some scripts degrade gracefully without it.
+- **python3** — required by the planning workflow's scripts (`vault-fs.sh` resolves
+  the vault config with it; `validate-plan.py` and `merge-conflict-overview.py` are
+  Python). Requires Python 3; no third-party packages are required.
 - **Planning workflow** (optional; required only for plan-workflow / obsidian-topic):
   plan and topic notes are written into an Obsidian vault you control. `/toolkit-setup`
   creates `~/.claude/obsidian-sync.json` from the shipped template; all docs and

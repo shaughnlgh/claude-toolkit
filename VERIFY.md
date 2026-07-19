@@ -7,8 +7,10 @@ Two layers. Run both after any significant change, and when onboarding a new mac
     bash verify.sh
 
 Deterministic: structure, manifest, hook fixtures (55), hook injection, script
-guardrails, resolver, leakage. Expect `RESULT: N passed, 0 failed`. Also run the
-hook fixture suite directly if you touched a hook: `bash plugins/toolkit/hooks/tests/run-all.sh`.
+guardrails, plan-validator fixtures (18), resolver, leakage. Expect
+`RESULT: N passed, 0 failed`. Also run the suites directly if you touched them:
+`bash plugins/toolkit/hooks/tests/run-all.sh` for hooks,
+`bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` for the plan validator.
 
 ## 2. Live-behavioral (a real interactive session — cannot be scripted)
 

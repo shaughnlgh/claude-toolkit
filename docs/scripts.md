@@ -23,6 +23,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved this way.
 | `git-ro.sh` | Read-only git in any directory — `status`, `diff`, `log`, `show` | Refuses any subcommand not on that allowlist |
 | `override.sh` | Copy a plugin doctrine, rule, agent, or skill into `~/.claude/` to override it (drives `/override`) | Name only (no paths); refuses unknown/ambiguous names; won't clobber an existing override |
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
+| `validate-plan.py` | Validates a plan note against the plan-workflow contract | Read-only — never edits the note; no network, no config, stdlib only |
 | `obsidian-sync.json.template` | Vault config template `toolkit-setup` instantiates to `~/.claude/obsidian-sync.json` | n/a — config, not an executable |
 | `design-detector/` | Deterministic, no-LLM detector for AI-generated frontend anti-patterns (most of 46 rules) | Vendored from Impeccable (Apache-2.0, attributed); read-only; zero-dep by default |
 
@@ -111,6 +112,46 @@ Notes:
   commits. Resolution and confirmation stay with the skill and the human.
 - Binary or unreadable files are skipped with a note on stderr; files with no
   conflict markers are skipped the same way.
+
+## validate-plan.py
+
+Read-only validator for the canonical plan-note contract defined by the
+`plan-workflow` skill. Takes exactly one plan-note path; never writes; needs no
+network, vault config, or packages (python3 standard library only).
+
+    python3 <plugin-root>/scripts/validate-plan.py "<vault>/.../plan - my-slug.md"
+
+Exit codes: `0` valid, `1` contract violation(s) (each printed as
+`VIOLATION: ...`), `2` usage error, unreadable path, or malformed frontmatter.
+
+**What it proves (mechanical contract only):** filename matches
+`plan - <slug>.md` with a kebab-case slug; `plan:` matches the filename;
+`type: plan`; all 18 required frontmatter keys are present (`modules`/`repos`
+are validly blank for single-repo plans, but the keys must exist);
+`status` is a lifecycle value (`planning`, `review`, `approved`, `in-progress`,
+`completed`, `blocked`, `abandoned`); a `parent:` child sits in its parent's
+directory beside the parent note; session entries carry a date and summary with
+unique non-blank ids (blank ids allowed, never counted as duplicates); the
+twelve required headings exist; and nothing links the retired `mr-description`
+artifact. Unknown frontmatter keys (Mission Control's `worklogs`, `tracking`,
+`mockups`, …) are tolerated whatever their shape.
+
+**What it deliberately does not judge:** prose quality, whether Implementation
+Steps show real code, plan completeness, topic-link resolution, or
+status-transition ordering — those remain human and model judgment (plan-critic
+and the approval gate).
+
+**Parser note:** the frontmatter parser is deliberately narrow — the exact
+subset the toolkit and Mission Control produce (top-level scalars, lists of
+scalars, lists of flat mappings). Unsupported structure under a *validated* key
+fails loudly with exit 2 instead of being silently misparsed.
+
+When it runs: the `plan-workflow` skill requires a passing validation after
+every plan-note write, before presenting a plan for approval, before starting
+execution, and at session closure.
+
+Tests: `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh`
+(18 behavior fixtures; also run by `verify.sh`).
 
 ## obsidian-sync.json.template
 
