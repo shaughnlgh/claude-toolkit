@@ -26,11 +26,33 @@ Two properties hold across all five:
 
 | Script | Event | What it does |
 |---|---|---|
-| `protect-files.sh` | PreToolUse (`Edit\|Write`) | Hard-blocks writes to keys/certs/lockfiles/generated files, `.git/`, `secrets/`, and hook scripts; asks for confirmation on `.env*` and `.claude/settings*.json` |
+| `protect-files.sh` | PreToolUse (`Edit\|Write`) | Hard-blocks `Edit`/`Write` calls to keys/certs/lockfiles/generated files, `.git/`, `secrets/`, and hook scripts; asks for confirmation on `.env*` and `.claude/settings*.json` |
 | `scan-secrets.sh` | PreToolUse (`Edit\|Write`) | Asks for confirmation when written content looks like a credential — never a hard block |
-| `block-dangerous-commands.sh` | PreToolUse (`Bash`) | Hard-blocks destructive commands — no "ask" path in this script at all |
+| `block-dangerous-commands.sh` | PreToolUse (`Bash`) | Hard-blocks a fixed list of destructive command patterns — no "ask" path in this script at all |
 | `session-start.sh` | SessionStart (`startup\|resume\|clear`) | Injects write-time rules, a doctrine pointer, and a git briefing into context; prints a user-visible status line on startup only |
 | `notify.sh` | Notification (every notification) | Fires a native OS notification when Claude needs input |
+
+## The boundary model — what enforces what
+
+Three distinct layers, in decreasing strength:
+
+1. **Permission-system enforcement.** Claude Code's own permission prompts govern
+   every tool call, including every `Bash` command. That is the actual outer boundary
+   for arbitrary subprocess activity — not these hooks.
+2. **Matcher-scoped hard pattern blocks.** `protect-files.sh` hard-denies within its
+   `Edit|Write` matcher, and `block-dangerous-commands.sh` hard-denies the specific
+   command patterns listed below within its `Bash` matcher. Within those scopes the
+   deny is absolute (exit 2, no override). Outside them the hook is never consulted.
+3. **Advisory warnings.** `scan-secrets.sh` only ever asks, never denies.
+
+The honest consequence of layer 2's scoping: a subprocess started through `Bash` —
+`echo > file`, `sed -i`, a Python one-liner, a package manager's postinstall script —
+can write a file that `protect-files.sh` would have denied, unless the permission
+system stops the Bash call or the command happens to match a
+`block-dangerous-commands.sh` pattern. Detecting every possible Bash-based write
+would be an incomplete pattern-matching arms race (there are unbounded ways to spell
+"write a file" in shell), so it is intentionally out of scope. These hooks are
+defense-in-depth against the common, likely mistakes — they are not a sandbox.
 
 ## protect-files.sh
 
@@ -39,7 +61,8 @@ Two properties hold across all five:
 Reads the tool call's `file_path`, compares its basename and full path
 (case-insensitively) against a fixed list, and decides before the write happens.
 
-**Hard blocks (exit 2, no override):**
+**Hard blocks (exit 2, no override — within the `Edit|Write` matcher; Bash-based
+writes are governed by the permission system, see the boundary model above):**
 - Key/cert material: `*.pem`, `*.key`, `*.crt`, `*.p12`, `*.pfx`, `id_rsa`, `id_ed25519`
 - `credentials.json`, `.npmrc`, `.pypirc`
 - Lockfiles: `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`
@@ -89,6 +112,8 @@ override rather than blocking outright.
 
 Greps the raw shell command string against a fixed set of destructive patterns before
 the command runs. Every match is a hard block (exit 2) — this script has no "ask" path.
+It blocks exactly the patterns listed below and nothing else; it is not a general
+guard on what Bash may write (see the boundary model above).
 
 **Hard blocks:**
 - `git push` (bare, or with an explicit refspec) to a protected branch, or with
@@ -114,7 +139,8 @@ init.defaultBranch` if any) rather than adding to it. Note the naming: unlike th
 two configurable hooks, this variable is `CLAUDE_*`, not `TOOLKIT_*`.
 
 **Failure mode:** requires `jq`; if missing, it hard-blocks the command (fails closed,
-consistent with its role as a security boundary).
+consistent with its role as a matcher-scoped hard pattern block: a command it cannot
+inspect must not pass).
 
 ## session-start.sh
 
