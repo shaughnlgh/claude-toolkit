@@ -19,7 +19,7 @@ echo "== Structure =="
 n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
 [ "$(ls $P/agents/*.md 2>/dev/null | wc -l)" -eq 12 ] && ok "12 agents" || no "12 agents"
 [ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 9 ] && ok "9 skills" || no "9 skills"
-[ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 7 ] && ok "7 commands" || no "7 commands"
+[ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 8 ] && ok "8 commands" || no "8 commands"
 [ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 5 ] && ok "5 rules" || no "5 rules"
 [ "$(ls $P/doctrine/*.md 2>/dev/null | wc -l)" -eq 12 ] && ok "12 doctrine files" || no "12 doctrine files"
 [ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 5 ] && ok "5 hook scripts" || no "5 hook scripts"
@@ -49,6 +49,9 @@ echo "== Scripts (guardrails) =="
 want "vault-fs refuses traversal"  "$(bash "$P/scripts/vault-fs.sh" rm '../x.md' 2>&1)" "refused"
 want "git-ro refuses mutation"     "$(bash "$P/scripts/git-ro.sh" "$ROOT" commit 2>&1)" "refused"
 bash "$P/scripts/git-ro.sh" "$ROOT" status >/dev/null 2>&1; code "git-ro allows status" "$?" 0
+want "doctrine-override lists available (no arg)" "$(bash "$P/scripts/doctrine-override.sh" 2>&1)" "conventions"
+want "doctrine-override refuses unknown name"     "$(bash "$P/scripts/doctrine-override.sh" nonesuch 2>&1)" "refused"
+doh="$(mktemp -d)"; HOME="$doh" bash "$P/scripts/doctrine-override.sh" conventions >/dev/null 2>&1; [ -f "$doh/.claude/doctrine/conventions.md" ] && ok "doctrine-override copies into ~/.claude/doctrine" || no "doctrine-override copy"; rm -rf "$doh"
 
 echo "== Design detector (vendored, Apache-2.0) =="
 DD="$P/scripts/design-detector"
