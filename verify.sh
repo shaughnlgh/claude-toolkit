@@ -61,6 +61,12 @@ want "override refuses ambiguous name"    "$(bash "$P/scripts/override.sh" secur
 doh="$(mktemp -d)"; HOME="$doh" bash "$P/scripts/override.sh" conventions >/dev/null 2>&1; HOME="$doh" bash "$P/scripts/override.sh" testing >/dev/null 2>&1
 { [ -f "$doh/.claude/doctrine/conventions.md" ] && [ -f "$doh/.claude/rules/testing.md" ]; } && ok "override copies doctrine + rule into ~/.claude" || no "override copy"; rm -rf "$doh"
 
+echo "== Plan validator =="
+out="$(bash "$P/scripts/tests/validate-plan/run-tests.sh" 2>/dev/null | tail -1)"
+want "plan-validator fixture suite" "$out" "0 failed"
+python3 "$P/scripts/validate-plan.py" "$P/scripts/tests/validate-plan/fixtures/2026-01-01-example-feature/plan - example-feature.md" >/dev/null 2>&1
+code "validate-plan accepts a canonical plan" "$?" 0
+
 echo "== Design detector (vendored, Apache-2.0) =="
 DD="$P/scripts/design-detector"
 [ -f "$DD/LICENSE" ] && ok "detector Apache LICENSE present" || no "detector LICENSE missing"
