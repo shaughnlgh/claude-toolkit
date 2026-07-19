@@ -19,9 +19,9 @@ whenever something in the toolkit seems misconfigured.
 1. **Plugin state** — install location and content version.
 2. **Vault config** (needed by `plan-workflow` and `/obsidian-topic`) — validates
    `~/.claude/obsidian-sync.json`: parses as JSON, `vault_path` exists on disk,
-   `root_folder` is set, and `plan_folder_template` /
-   `project_discovery.target_folder_template` are internally consistent with
-   `root_folder`. If the file is missing, offers to create it from the shipped
+   `root_folder` is set, and `plan_folder_template` is set and internally
+   consistent with `root_folder`. Unknown or legacy fields are tolerated, never
+   rewritten. If the file is missing, offers to create it from the shipped
    template.
 3. **GitLab tooling** (needed by `gitlab-mr-review` only) — whether `glab` is
    installed and, if so, its per-host auth status. Never prints a token value.

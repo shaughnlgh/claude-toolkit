@@ -30,10 +30,11 @@ Check `~/.claude/obsidian-sync.json`:
   - parses as JSON,
   - `vault_path` points at a directory that exists,
   - `root_folder` is set,
-  - internal consistency: `plan_folder_template` and
-    `project_discovery.target_folder_template` (when present) start with
-    `root_folder`. Mismatched templates are a common hand-edit error; report the
-    exact fields that disagree and offer the fix.
+  - internal consistency: `plan_folder_template` is set and starts with
+    `root_folder`. A mismatched template is a common hand-edit error; report the
+    disagreement and offer the fix.
+  - Tolerate unknown or legacy fields (a live config may carry extra fields for
+    external consumers). Never rewrite or "clean" an existing config.
 - Note: `<root_folder>/Projects/` does not need to pre-exist; it is created on
   first plan write.
 
