@@ -6,11 +6,6 @@
   "mode": "canonical",
   "plan_folder_template": "AI/Claude-Code/Projects/{repo_name}/{date}-{plan_name}",
   "artifact_name_template": "{artifact} - {plan_name}.{ext}",
-  "allowed_artifacts": [
-    "plan - {plan_name}.md",
-    "mr-description - {plan_name}.md",
-    "{topic} - {plan_name}.md"
-  ],
   "safety": {
     "atomic_writes": true,
     "icloud_safe": true,
