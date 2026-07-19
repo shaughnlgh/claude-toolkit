@@ -1,0 +1,9 @@
+{
+  "name": "block git push -u origin main (flag before branch)",
+  "stdin": {
+    "tool_input": {
+      "command": "git push -u origin main"
+    }
+  },
+  "expect_exit": 2
+}

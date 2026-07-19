@@ -6,9 +6,9 @@ Two layers. Run both after any significant change, and when onboarding a new mac
 
     bash verify.sh
 
-Deterministic: structure, manifest, hook fixtures (55), hook injection, script
-guardrails, plan-validator fixtures (18), vault-fs containment (15), resolver,
-leakage. Expect `RESULT: N passed, 0 failed`. Also run the suites directly if you
+Deterministic: structure, manifest, hook fixtures (78), hook injection, script
+guardrails, plan-validator cases (22), vault-fs containment (15), resolver,
+docs coverage. Expect `RESULT: N passed, 0 failed`. Also run the suites directly if you
 touched them: `bash plugins/toolkit/hooks/tests/run-all.sh` for hooks,
 `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` for the plan
 validator, `bash plugins/toolkit/scripts/tests/vault-fs/run-tests.sh` for vault-fs.
@@ -21,8 +21,9 @@ workspace (own git repo where needed) — never against this checkout, whose exa
 Failed probes preserve their workspace path for diagnosis. Modes and cost:
 `self-test` (harness tests, NO Claude calls), `rules` (1 call, low),
 `skills` (9 calls, medium), `agents` (12 calls, high — implementer and
-frontend-designer write inside their disposable repos), `all` (22 calls, high).
-It is deliberately NOT run by verify.sh.
+frontend-designer write inside their disposable repos; append an agent name for a
+single probe), `orchestration` (no live calls — static note + manual pointer),
+`all` (22 calls, high). It is deliberately NOT run by verify.sh.
 
 What the probes prove: rules/doctrine injection via schema-validated structured
 output; each skill's contract facts via answers whose expected content never

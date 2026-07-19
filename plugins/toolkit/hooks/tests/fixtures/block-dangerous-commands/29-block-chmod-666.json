@@ -1,0 +1,9 @@
+{
+  "name": "block chmod 666 (world-writable)",
+  "stdin": {
+    "tool_input": {
+      "command": "chmod 666 secrets.env"
+    }
+  },
+  "expect_exit": 2
+}

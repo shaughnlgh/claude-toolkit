@@ -1,0 +1,9 @@
+{
+  "name": "block rm recursive+force split flags on root",
+  "stdin": {
+    "tool_input": {
+      "command": "rm -r -f /"
+    }
+  },
+  "expect_exit": 2
+}

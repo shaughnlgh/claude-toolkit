@@ -16,7 +16,7 @@ Full transparency — what ships, what runs automatically, and why.
 
 - [`docs/skills.md`](docs/skills.md) — the skills, with short demos of each in action.
 - [`docs/agents.md`](docs/agents.md) — the 12 worker agents and the conductor/leaf-worker model.
-- [`docs/commands.md`](docs/commands.md) — the slash commands (`/toolkit-setup`, `/obsidian-topic`).
+- [`docs/commands.md`](docs/commands.md) — all eight slash commands (`/toolkit-setup`, `/obsidian-topic`, `/override`, and the thinking tools).
 - [`docs/hooks.md`](docs/hooks.md) — the five hooks that run automatically once installed,
   with no opt-in, in full: what each blocks, what it only asks, env vars, and fail-safe
   behavior. Read it before trusting the toolkit with a repo.
@@ -97,7 +97,8 @@ whether you are current.
 ## Verifying
 
 `bash verify.sh` runs the mechanical acceptance battery (structure, manifest, hook
-fixtures, script guardrails, plan validator, resolver, leakage) — free and fast.
+fixtures, script guardrails, plan validator, vault-fs containment, resolver, docs
+coverage) — free and fast.
 `bash functional-test.sh <mode>` adds live hermetic probes (real Claude calls,
 each in a throwaway workspace; `self-test` mode tests the harness itself for
 free) that prove rules injection, skill contract facts, and event-verified agent

@@ -119,14 +119,27 @@ print(v if isinstance(v, str) else json.dumps(v))
 PY
 }
 
-# agent_ran <stream-events-file> <subagent-name>: exits 0 only when the stream
-# shows an Agent/Task tool_use whose subagent_type mentions the agent AND a
-# matching tool_result came back.
-agent_ran() {
+# agent_result <stream-events-file> <subagent-name>: prints the text of the matched
+# agent's NON-ERROR returned tool_result(s) to stdout and exits 0 only when the
+# stream shows an Agent/Task tool_use whose subagent_type mentions the agent AND a
+# non-error tool_result came back for it. An error tool_result (missing agent, crash)
+# does NOT count as "ran" — otherwise a broken plugin whose Task errors, with the
+# conductor then doing the work itself, would false-pass. Printing only the agent's
+# own returned result (not the whole stream) keeps fact-greps off echoed fixture
+# content and delegation prompts.
+agent_result() {
   python3 - "$1" "$2" <<'PY'
 import json, sys
 path, want = sys.argv[1], sys.argv[2]
-launched, returned = set(), set()
+launched, texts = set(), []
+
+def text_of(content):
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in content)
+    return ""
+
 for line in open(path, encoding="utf-8", errors="replace"):
     line = line.strip()
     if not line:
@@ -143,11 +156,19 @@ for line in open(path, encoding="utf-8", errors="replace"):
             st = str((block.get("input") or {}).get("subagent_type", ""))
             if want in st:
                 launched.add(block.get("id"))
-        if block.get("type") == "tool_result" and block.get("tool_use_id") in launched:
-            returned.add(block.get("tool_use_id"))
-sys.exit(0 if launched and returned else 1)
+        if (block.get("type") == "tool_result"
+                and block.get("tool_use_id") in launched
+                and not block.get("is_error")):
+            texts.append(text_of(block.get("content")))
+if texts:
+    sys.stdout.write("\n".join(texts))
+    sys.exit(0)
+sys.exit(1)
 PY
 }
+
+# agent_ran <file> <name>: boolean form of agent_result (spawn + non-error return).
+agent_ran() { agent_result "$1" "$2" >/dev/null; }
 
 # refusal_guard <text>: exits 1 (i.e. "looks like a refusal") when the text reads
 # as a refusal/apology rather than an answer. Belt-and-braces on top of the
@@ -265,13 +286,14 @@ probe_agent_explorer() {
     "Spawn the toolkit:explorer subagent to find the numeric value of the MAGIC_TIMEOUT constant somewhere in this repository and report just that number back. Then state the number it found." \
     --output-format stream-json --verbose --disallowedTools "Write" "Edit" "NotebookEdit"
   if [ "$(probe_rc "$cap")" != "0" ]; then no "explorer probe (rc=$(probe_rc "$cap"))"; preserve_ws "$cap"; preserve_ws "$ws"; return; fi
-  local okev=1; agent_ran "$cap/out" "explorer" && okev=0
+  local res okev=1; res="$(agent_result "$cap/out" "explorer")" && okev=0
   local dirty; dirty="$(git -C "$ws" status --porcelain)"
-  # 4711 comes from the fixture file, never from this prompt's assertion side.
-  if [ $okev -eq 0 ] && grep -q "4711" "$cap/out" && [ -z "$dirty" ]; then
-    ok "explorer: event-verified spawn+return, planted fact found, workspace untouched"
+  # 4711 comes from the fixture file; grep the agent's RETURNED result, not the whole
+  # stream (which echoes the fixture it Read). Never in this prompt's assertion side.
+  if [ $okev -eq 0 ] && printf '%s' "$res" | grep -q "4711" && [ -z "$dirty" ]; then
+    ok "explorer: event-verified spawn+return, planted fact in its result, workspace untouched"
   else
-    no "explorer: event=$okev fact=$(grep -c 4711 "$cap/out" || true) dirty='${dirty}'"
+    no "explorer: event=$okev fact-in-result=$(printf '%s' "$res" | grep -c 4711) dirty='${dirty}'"
     preserve_ws "$cap"; preserve_ws "$ws"; return
   fi
   cleanup_ws "$ws"; cleanup_ws "$cap"
@@ -311,11 +333,34 @@ probe_agent_generic() { # $1 agent  $2 fixture-fn  $3 prompt  $4 grep-fact  $5 w
   [ "$writes" = yes ] && flags+=(--permission-mode acceptEdits) || flags+=(--disallowedTools "Write" "Edit" "NotebookEdit")
   run_probe "$ws" "$cap" "$prompt" "${flags[@]}"
   if [ "$(probe_rc "$cap")" != "0" ]; then no "$agent probe (rc=$(probe_rc "$cap"))"; preserve_ws "$cap"; preserve_ws "$ws"; return; fi
-  local okev=1; agent_ran "$cap/out" "$agent" && okev=0
-  if [ $okev -eq 0 ] && grep -qi -- "$fact" "$cap/out"; then
-    ok "$agent: event-verified spawn+return, fixture fact surfaced"
+  # Grep the agent's RETURNED result, not the whole event stream (which echoes the
+  # fixture the agent Read and the delegation prompt).
+  local res okev=1; res="$(agent_result "$cap/out" "$agent")" && okev=0
+  if [ $okev -eq 0 ] && printf '%s' "$res" | grep -qi -- "$fact"; then
+    ok "$agent: event-verified spawn+return, fixture fact in its result"
   else
-    no "$agent: event=$okev fact-found=$(grep -qi -- "$fact" "$cap/out" && echo yes || echo no)"
+    no "$agent: event=$okev fact-in-result=$(printf '%s' "$res" | grep -qi -- "$fact" && echo yes || echo no)"
+    preserve_ws "$cap"; preserve_ws "$ws"; return
+  fi
+  cleanup_ws "$ws"; cleanup_ws "$cap"
+}
+
+# Writing agent probe: frontend-designer must produce the exact artifact. The marker
+# is allowed in the prompt because the assertion is on the FILE it wrote, not stream text.
+probe_agent_frontend() {
+  local ws cap
+  ws="$(mkws)"; cap="$(mkws)"
+  fixture_repo "$ws"; printf 'seed\n' > "$ws/README.md"
+  git -C "$ws" add -A >/dev/null; git -C "$ws" commit -qm fixture
+  run_probe "$ws" "$cap" \
+    "Spawn the toolkit:frontend-designer subagent with this exact bounded task: create a single self-contained page.html in the repository root with a heading that reads Fixture Dashboard and one styled button. No other files." \
+    --output-format stream-json --verbose --permission-mode acceptEdits
+  if [ "$(probe_rc "$cap")" != "0" ]; then no "frontend-designer probe (rc=$(probe_rc "$cap"))"; preserve_ws "$cap"; preserve_ws "$ws"; return; fi
+  local okev=1; agent_ran "$cap/out" "frontend-designer" && okev=0
+  if [ $okev -eq 0 ] && [ -f "$ws/page.html" ] && grep -q "Fixture Dashboard" "$ws/page.html"; then
+    ok "frontend-designer: event-verified spawn+return, page.html artifact written with the heading"
+  else
+    no "frontend-designer: event=$okev file=$([ -f "$ws/page.html" ] && echo yes || echo no)"
     preserve_ws "$cap"; preserve_ws "$ws"; return
   fi
   cleanup_ws "$ws"; cleanup_ws "$cap"
@@ -363,9 +408,7 @@ probe_agents() {
   run_one plan-critic && probe_agent_generic plan-critic fx_badplan \
     "Spawn the toolkit:plan-critic subagent to red-team the plan note in this directory. Report its material objections." \
     "rollback" no
-  run_one frontend-designer && probe_agent_generic frontend-designer fx_data \
-    "Spawn the toolkit:frontend-designer subagent with this exact bounded task: create a single self-contained page.html in the repository root with a heading that reads Fixture Dashboard and one styled button. No other files." \
-    "Fixture Dashboard" yes
+  run_one frontend-designer && probe_agent_frontend
 }
 
 # ---------- self-test (no network, no Claude) ----------
@@ -394,9 +437,19 @@ self_test() {
 EOF
   agent_ran "$cap/events" "explorer" && ok "agent spawn+return detected in events" || no "agent event detection"
 
+  # agent_result returns ONLY the matched agent's result text (not echoed stream content)
+  [ "$(agent_result "$cap/events" "explorer")" = "found 4711" ] && ok "agent_result returns the agent's result text" || no "agent_result text extraction"
+
   # launch without return must NOT pass
   head -1 "$cap/events" > "$cap/events2"
   agent_ran "$cap/events2" "explorer" && no "missing tool_result not caught" || ok "launch-without-return rejected"
+
+  # an ERROR tool_result must NOT count as "ran" (broken/missing agent → error result)
+  cat > "$cap/events_err" <<'EOF'
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"tu_9","name":"Task","input":{"subagent_type":"toolkit:explorer","prompt":"x"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"tu_9","is_error":true,"content":"Agent type 'toolkit:explorer' not found"}]}}
+EOF
+  agent_ran "$cap/events_err" "explorer" && no "error tool_result false-passed as ran" || ok "error tool_result rejected (not counted as ran)"
 
   # a refusal that merely ECHOES the marker must not pass: no tool_use event at all
   printf '{"type":"assistant","message":{"content":[{"type":"text","text":"I cannot spawn agents, but RAN:explorer 4711"}]}}\n' > "$cap/events3"

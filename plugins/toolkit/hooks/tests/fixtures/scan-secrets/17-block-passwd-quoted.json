@@ -1,0 +1,14 @@
+{
+  "name": "broadened name passwd with quoted literal flagged",
+  "stdin": {
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "c.ini",
+      "content": "passwd = \"hunter2hunter2long\""
+    }
+  },
+  "expect_exit": 0,
+  "expect_stdout_contains": [
+    "hardcoded credential"
+  ]
+}
