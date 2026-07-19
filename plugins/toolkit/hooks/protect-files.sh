@@ -67,7 +67,7 @@ case "$PATH_LC" in
   .env|.env.*|*/.env|*/.env.*)
     emit ask "Editing a .env file (these usually hold secrets). Confirm this write." ;;
   .claude/hooks/*|*/.claude/hooks/*|*/.claude/plugins/*/hooks/*)
-    emit deny "Cannot edit hook scripts. These enforce security boundaries." ;;
+    emit deny "Cannot edit hook scripts. They carry the toolkit's write-time protections." ;;
   .claude/settings.json|*/.claude/settings.json|.claude/settings.local.json|*/.claude/settings.local.json)
     emit ask "Editing settings.json. This controls permissions and hooks. Confirm this change." ;;
 esac
