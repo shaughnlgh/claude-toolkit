@@ -1,0 +1,9 @@
+{
+  "name": "block /bin/rm recursive force on root (path prefix)",
+  "stdin": {
+    "tool_input": {
+      "command": "/bin/rm -rf /"
+    }
+  },
+  "expect_exit": 2
+}

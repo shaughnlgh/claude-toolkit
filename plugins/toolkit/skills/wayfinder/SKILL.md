@@ -112,11 +112,13 @@ Children never inherit the parent's ticket. If a child has its own ticket, link 
 If it does not, leave `ticket` blank, the same as `plan-workflow` does for any plan
 without one.
 
-Fill the stub body only as far as scope is known: Objective (what this task closes),
+Emit all 12 required plan-workflow headings (so each stub passes the validator gate),
+filling the body only as far as scope is known: Objective (what this task closes),
 Current Context (the issue codes it addresses, and a pointer back to the parent), and
-Assumptions if any are obvious from the investigation. Leave Implementation Steps,
-Validation Steps, Risks, Rollback Notes, and Open Questions as empty placeholders.
-That detail belongs to the child's own planning session, not to wayfinder.
+Assumptions if any are obvious from the investigation. Leave the remaining required
+sections (Affected Files, Implementation Steps, Validation Steps, Risks, Rollback
+Notes, Open Questions, Plan Changes During Execution, Related Topics, Linked Artifacts)
+present but empty. That detail belongs to the child's own planning session, not to wayfinder.
 
 Update the parent's Task Roadmap row for each child once its stub exists (status
 becomes `stubbed`, slug filled in).

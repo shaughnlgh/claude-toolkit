@@ -186,11 +186,14 @@ def main():
 
     # -- status enum --
     status = fm.get("status")
-    if isinstance(status, str) and status and status not in STATUSES:
-        violations.append(
-            f"status {status!r} is not a lifecycle value ({', '.join(sorted(STATUSES))})")
-    elif "status" in fm and status == "":
-        violations.append("status: must not be blank")
+    if "status" in fm:
+        if not isinstance(status, str):
+            violations.append("status: must be a single lifecycle value, not a list")
+        elif status == "":
+            violations.append("status: must not be blank")
+        elif status not in STATUSES:
+            violations.append(
+                f"status {status!r} is not a lifecycle value ({', '.join(sorted(STATUSES))})")
 
     # -- parent/child directory relationship (only when parent: is present) --
     parent = fm.get("parent")
@@ -235,12 +238,19 @@ def main():
                 violations.append(f"repos entry {idx}: missing repo")
 
     # -- required headings (presence only; prose quality is out of scope) --
+    # Strip fenced code blocks first, so headings shown as examples inside a ``` block
+    # don't satisfy the real-section check.
+    # Strip fenced blocks of either fence type (``` or ~~~), including indented
+    # fences, matching a closing fence of the same char. A leftover unbalanced fence
+    # is harmless (nothing after it to falsely satisfy a heading).
+    body_nocode = re.sub(r"(?ms)^[ \t]*(`{3,}|~{3,}).*?^[ \t]*\1[ \t]*$", "", body)
     for h in REQUIRED_HEADINGS:
-        if not re.search(rf"^##\s+{re.escape(h)}\s*$", body, re.M):
+        if not re.search(rf"^##\s+{re.escape(h)}\s*$", body_nocode, re.M):
             violations.append(f"missing required heading: ## {h}")
 
-    # -- retired artifacts --
-    if "[[mr-description - " in body:
+    # -- retired artifacts -- (tolerate whitespace; require a link-close/alias/space
+    # boundary so a distinct artifact like `mr-description-notes` is not caught).
+    if re.search(r"\[\[\s*mr-description(\s|\]|\|)", body):
         violations.append("links the retired mr-description artifact (removed from the contract)")
 
     if violations:

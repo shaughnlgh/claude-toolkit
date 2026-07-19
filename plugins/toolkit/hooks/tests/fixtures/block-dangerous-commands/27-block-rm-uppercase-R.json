@@ -1,0 +1,9 @@
+{
+  "name": "block rm -Rf on root (uppercase R)",
+  "stdin": {
+    "tool_input": {
+      "command": "rm -Rf /"
+    }
+  },
+  "expect_exit": 2
+}

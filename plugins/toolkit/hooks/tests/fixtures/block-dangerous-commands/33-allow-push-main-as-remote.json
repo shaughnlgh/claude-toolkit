@@ -1,0 +1,9 @@
+{
+  "name": "allow push where main is the remote",
+  "stdin": {
+    "tool_input": {
+      "command": "git push main feature-x"
+    }
+  },
+  "expect_exit": 0
+}

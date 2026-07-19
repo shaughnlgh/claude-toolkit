@@ -14,6 +14,27 @@ no() { printf '  \033[31m✗\033[0m %s\n' "$1"; fail=$((fail+1)); }
 want() { case "$2" in *"$3"*) ok "$1";; *) no "$1 (got: ${2:0:60})";; esac; }
 # report on exit code
 code() { if [ "$2" -eq "$3" ]; then ok "$1"; else no "$1 (exit $2, wanted $3)"; fi; }
+# suite_pass: pure predicate (no printing). "RESULT: N passed, M failed" line +
+# minimum-expected-passed -> exit 0 iff 0 failed AND at least <min> passed. An empty
+# suite ("0 passed, 0 failed", e.g. a fixtures dir that globbed nothing) FAILS here,
+# instead of green-passing the old `, 0 failed` substring match.
+suite_pass() {
+  local p f
+  p=$(printf '%s' "$1" | sed -nE 's/.*RESULT: ([0-9]+) passed.*/\1/p')
+  f=$(printf '%s' "$1" | sed -nE 's/.* ([0-9]+) failed.*/\1/p')
+  [ "${f:-1}" = "0" ] && [ "${p:-0}" -ge "$2" ]
+}
+# suite_ok: name, RESULT line, min-passed -> report via ok/no.
+suite_ok() { if suite_pass "$2" "$3"; then ok "$1"; else no "$1 (got: ${2:0:60})"; fi; }
+# Self-check the reporting helpers (the meta-verifier must fail closed — this is the
+# class of bug that let a failing/empty suite read as green).
+_sc=0
+case "match" in *"nope"*) _sc=1;; esac                                  # want must not match a mismatch
+suite_pass "RESULT: 0 passed, 0 failed" 1 && _sc=1                       # empty suite must NOT pass
+suite_pass "RESULT: 40 passed, 3 failed" 1 && _sc=1                      # any failures must NOT pass
+suite_pass "RESULT: 55 passed, 0 failed" 55 || _sc=1                     # a real green must pass
+[ "$_sc" = "0" ] && ok "verify helpers fail closed (reject mismatch, empty suite, and failures)" \
+                 || no "verify helpers do NOT fail closed"
 
 echo "== Structure =="
 n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
@@ -35,7 +56,7 @@ if claude plugin validate "$ROOT" >/dev/null 2>&1; then ok "plugin validate"; el
 
 echo "== Hook behavior (fixture suite is authoritative) =="
 out="$(cd "$P/hooks/tests" && bash run-all.sh 2>/dev/null | tail -1)"
-want "hook fixture suite" "$out" "0 failed"
+suite_ok "hook fixture suite" "$out" 78
 # spot-confirm session-start's two injections directly (no fixture asserts the pair)
 ss="$(echo '{}' | bash "$P/hooks/session-start.sh" 2>/dev/null)"
 want "session-start injects a write-time rule" "$ss" "Verify behavior, not implementation"
@@ -44,9 +65,11 @@ want "session-start injects doctrine pointer"  "$ss" "Toolkit doctrine: read the
 ovh="$(mktemp -d)"; mkdir -p "$ovh/.claude/doctrine"; : > "$ovh/.claude/doctrine/conventions.md"
 ovout="$(echo '{}' | HOME="$ovh" bash "$P/hooks/session-start.sh" 2>/dev/null)"; rm -rf "$ovh"
 want "session-start announces a doctrine override when present" "$ovout" "Doctrine overrides active"
-rvh="$(mktemp -d)"; mkdir -p "$rvh/.claude/rules"; printf -- '---\nx: 1\n---\nOVERRIDE\n' > "$rvh/.claude/rules/testing.md"
+# rule override: assert the override BODY is injected (sentinel), not just the banner.
+rvh="$(mktemp -d)"; mkdir -p "$rvh/.claude/rules"; printf -- '---\nx: 1\n---\nRULE_OVERRIDE_SENTINEL_XYZ\n' > "$rvh/.claude/rules/testing.md"
 rvout="$(echo '{}' | HOME="$rvh" bash "$P/hooks/session-start.sh" 2>/dev/null)"; rm -rf "$rvh"
 want "session-start announces a rule override" "$rvout" "Rule overrides active"
+want "session-start injects the override rule body (not just the banner)" "$rvout" "RULE_OVERRIDE_SENTINEL_XYZ"
 avh="$(mktemp -d)"; mkdir -p "$avh/.claude/agents"; : > "$avh/.claude/agents/code-reviewer.md"
 avout="$(echo '{}' | HOME="$avh" bash "$P/hooks/session-start.sh" 2>/dev/null)"; rm -rf "$avh"
 want "session-start announces an agent override" "$avout" "Agent/skill overrides active"
@@ -63,11 +86,11 @@ doh="$(mktemp -d)"; HOME="$doh" bash "$P/scripts/override.sh" conventions >/dev/
 
 echo "== Plan validator =="
 out="$(bash "$P/scripts/tests/validate-plan/run-tests.sh" 2>/dev/null | tail -1)"
-want "plan-validator fixture suite" "$out" "0 failed"
+suite_ok "plan-validator fixture suite" "$out" 22
 
 echo "== vault-fs containment =="
 out="$(bash "$P/scripts/tests/vault-fs/run-tests.sh" 2>/dev/null | tail -1)"
-want "vault-fs behavior suite" "$out" "0 failed"
+suite_ok "vault-fs behavior suite" "$out" 15
 python3 "$P/scripts/validate-plan.py" "$P/scripts/tests/validate-plan/fixtures/2026-01-01-example-feature/plan - example-feature.md" >/dev/null 2>&1
 code "validate-plan accepts a canonical plan" "$?" 0
 
@@ -112,16 +135,24 @@ case "$inv" in *"BAD  NONE  HAIKU"*) ok "no agent can spawn sub-agents (leaf), n
 
 echo "== Docs coverage (every shipped component is documented) =="
 cov="$(python3 - "$P" "$ROOT" <<'PY'
-import os,sys,glob
+import os,sys,glob,re
 P,ROOT=sys.argv[1],sys.argv[2]
 def doc(rel):
     p=os.path.join(ROOT,rel)
     return open(p).read().lower() if os.path.exists(p) else ""
 missing=[]
+def anchored(t,it):
+    # Documented = the name appears in a heading, a backtick code-span, or a table
+    # cell — not merely as a substring somewhere in prose (which "security" in a
+    # sentence would falsely satisfy).
+    e=re.escape(it)
+    return (re.search(rf'(?m)^#{{1,6}}\s.*{e}', t)
+            or re.search(rf'`[^`\n]*{e}[^`\n]*`', t)
+            or re.search(rf'(?m)^\|.*{e}.*\|', t))
 def check(items,rel,label):
     t=doc(rel)
     for it in items:
-        if it.lower() not in t: missing.append(f"{label} '{it}' not in {rel}")
+        if not anchored(t,it.lower()): missing.append(f"{label} '{it}' not documented (heading/code/table) in {rel}")
 check([os.path.basename(d.rstrip('/')) for d in glob.glob(P+"/skills/*/")],"docs/skills.md","skill")
 check([os.path.basename(f)[:-3] for f in glob.glob(P+"/agents/*.md")],"docs/agents.md","agent")
 check([os.path.basename(f)[:-3] for f in glob.glob(P+"/commands/*.md")],"docs/commands.md","command")

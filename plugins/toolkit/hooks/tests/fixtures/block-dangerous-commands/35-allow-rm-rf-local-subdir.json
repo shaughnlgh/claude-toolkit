@@ -1,0 +1,9 @@
+{
+  "name": "allow recursive force delete of a local subdir",
+  "stdin": {
+    "tool_input": {
+      "command": "rm -rf ./node_modules"
+    }
+  },
+  "expect_exit": 0
+}

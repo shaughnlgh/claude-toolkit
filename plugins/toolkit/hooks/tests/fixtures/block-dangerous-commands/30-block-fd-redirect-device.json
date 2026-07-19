@@ -1,0 +1,9 @@
+{
+  "name": "block fd-prefixed redirect to raw device",
+  "stdin": {
+    "tool_input": {
+      "command": "echo x 1>/dev/sda"
+    }
+  },
+  "expect_exit": 2
+}

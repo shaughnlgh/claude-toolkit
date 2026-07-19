@@ -39,6 +39,10 @@ run "14 unknown extra frontmatter keys accepted" "$FX/2026-01-14-extrakeys/plan 
 run "15 unknown key with block scalar tolerated (MC worklogs)" "$FX/2026-01-15-worklogs/plan - worklogs.md" 0 "OK:"
 run "16 missing modules key is a violation" "$FX/2026-01-16-nomodules/plan - nomodules.md" 1 "missing required frontmatter key: modules"
 run "17 missing repos key is a violation" "$FX/2026-01-17-norepos/plan - norepos.md" 1 "missing required frontmatter key: repos"
+run "18 headings only inside a code fence do not count" "$FX/2026-01-01-codefence/plan - codefence.md" 1 "missing required heading"
+run "19 status as a list is rejected" "$FX/2026-01-01-statuslist/plan - statuslist.md" 1 "status: must be a single lifecycle value, not a list"
+run "20 retired mr-description link with double space caught" "$FX/2026-01-01-mrdash/plan - mrdash.md" 1 "retired mr-description artifact"
+run "21 distinct mr-description-notes artifact is allowed" "$FX/2026-01-01-mrnotes/plan - mrnotes.md" 0 "OK:"
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"

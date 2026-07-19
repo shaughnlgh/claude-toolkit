@@ -1,0 +1,9 @@
+{
+  "name": "block bare TRUNCATE via psql",
+  "stdin": {
+    "tool_input": {
+      "command": "psql -c \"TRUNCATE users\""
+    }
+  },
+  "expect_exit": 2
+}
