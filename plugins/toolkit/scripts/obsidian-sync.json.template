@@ -1,14 +1,6 @@
 {
   "_readme": "Copy to ~/.claude/obsidian-sync.json and set vault_path for your machine. The planning workflow writes plan notes and topic notes under <vault_path>/<root_folder>/.",
   "vault_path": "/Users/YOU/path/to/your/Obsidian/vault",
-  "vault_name": "",
   "root_folder": "AI/Claude-Code",
-  "mode": "canonical",
-  "plan_folder_template": "AI/Claude-Code/Projects/{repo_name}/{date}-{plan_name}",
-  "artifact_name_template": "{artifact} - {plan_name}.{ext}",
-  "safety": {
-    "atomic_writes": true,
-    "icloud_safe": true,
-    "dry_run_default": true
-  }
+  "plan_folder_template": "AI/Claude-Code/Projects/{repo_name}/{date}-{plan_name}"
 }
