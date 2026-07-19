@@ -6,7 +6,7 @@ description: >-
   pre-scaffolded plan notes — and at the start and end of any planning or
   execution session tied to a plan. Contains the canonical artifact locations, naming
   rules, plan frontmatter and sections, planning steps, status lifecycle, session
-  recording, MR description template, and session closure rules. Do not write or edit
+  recording, and session closure rules. Do not write or edit
   a plan note without this loaded.
 ---
 
@@ -43,18 +43,18 @@ and wiki links resolve unambiguously:
 
     {artifact} - {plan_name}.{ext}
 
-Canonical artifacts:
+Canonical artifact:
 
 - `plan - <plan-name>.md`
-- `mr-description - <plan-name>.md`
 
-Supporting notes created inside a plan directory follow the same pattern:
-`{topic} - <plan-name>.md` (e.g. `security-review - admin-google-sso.md`,
-`flow-diagrams - fm-3927-payment-recovery.md`). The topic part is
+Optional sibling artifacts created by other skills (e.g. `handoff - <plan-name>.md`
+from the handoff skill) and supporting notes created inside a plan directory follow
+the same pattern: `{artifact} - <plan-name>.md` (e.g. `security-review - example-sso-login.md`,
+`flow-diagrams - abc-123-example-feature.md`). The artifact part is
 short kebab-case.
 
-Never create generically named artifacts (`plan.md`, `session.md`,
-`mr-description.md`, `diff.patch`) in the vault. Generic names collapse into
+Never create generically named artifacts (`plan.md`, `handoff.md`,
+`security-review.md`) in the vault. Generic names collapse into
 indistinguishable graph nodes and make wiki links ambiguous across plans.
 
 Because filenames derive from the plan name, plan names must be unique across
@@ -119,15 +119,17 @@ of this workflow.
 
 ## Required Artifacts
 
-For each planned implementation, produce these artifacts where applicable.
-All artifacts are written to the Obsidian plan directory.
+The one required artifact, written to the Obsidian plan directory:
 
 - `plan - <plan-name>.md` — the single source of truth. A living document: kept current
   during execution (decisions, gaps, deviations) so it records both what was intended
   and what actually happened. Carries its own session history and worklogs in frontmatter.
-- `mr-description - <plan-name>.md` — ready-to-copy MR description, generated from the plan note and branch diff (see MR Description).
 
-These two are the only artifacts. The plan note plus git (the branch diff and, after
+Other skills may create optional sibling artifacts in the same directory (e.g.
+`handoff - <plan-name>.md`); each is linked from the plan's Linked Artifacts section
+when — and only when — it is actually created.
+
+The plan note plus git (the branch diff and, after
 a squash-merge, the squashed commit) plus the session ids recorded on the plan are the
 complete record of what was done. Execution details belong in the plan note under
 "Plan Changes During Execution". Topic notes (the cross-plan knowledge layer) are
@@ -238,8 +240,9 @@ sessions:
 - Plan Changes During Execution — initially empty; updated during execution if reality diverges from the plan (changed assumptions, changed affected files, deviations, validation changes)
 - Related Topics — use `[[wiki links]]` here
 - Linked Artifacts — the heading is present from creation but starts with no links.
-  The only sibling artifact is the MR description; link `[[mr-description - <plan-name>]]`
-  once it has been created, and not before.
+  It lists the sibling artifacts actually created for this plan (e.g.
+  `[[handoff - <plan-name>]]` when the handoff skill writes one). Link an artifact
+  only once it exists — never speculatively.
 
 ### Implementation Steps must show the code, not just describe it
 
@@ -285,44 +288,8 @@ skill's base directory) — Read it before creating or updating topic notes or s
 Obsidian-only plugins for basic readability.
 
 Use plain strings in the plan frontmatter `related_topics`, and Obsidian `[[wiki links]]`
-in the body Related Topics section. In the plan's Linked Artifacts section, link only the
-MR description and only once it exists: `[[mr-description - <plan-name>]]`. Never link bare
-generic names like `[[plan]]`.
-
-## MR Description
-
-The MR description is generated from the plan note and the branch diff, saved as
-`mr-description - <plan-name>.md`. Use this exact template:
-
-```
-## Summary
-<1-2 sentences: what this MR does>
-
-## Why
-<1-2 sentences: motivation, issue reference if applicable>
-
-## Scope
-<bullet list of what is and is not included>
-
-## Changes
-<bullet list of concrete changes by file or area>
-
-## Testing
-<what was verified and how, or "not yet tested" if pending>
-
-## Risks / Notes
-<anything reviewers should watch for, or "none">
-
-<optional: Closes #NNN or Closes TICKET-NNN>
-```
-
-If the task is linked to a known issue or ticket, append a closing reference
-(`Closes #123` for GitHub, `Closes FM-1234` for GitLab/Jira). Only include
-this if the issue/ticket is known. Do not invent ticket references.
-
-Derive content from the plan note and the branch diff. Do not invent test results
-or verification outcomes. If the MR is not ready (uncommitted changes, pending work),
-note that in the Summary.
+in the body Related Topics section. In the plan's Linked Artifacts section, link only
+sibling artifacts that actually exist. Never link bare generic names like `[[plan]]`.
 
 ## Planning Workflow
 

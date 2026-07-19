@@ -120,7 +120,7 @@ vault-writing skills) read `vault_path` and `root_folder` from to resolve the va
 root.
 
 Fields: `vault_path` (per-machine, set during setup), `vault_name`, `root_folder`,
-`mode`, `plan_folder_template`, `artifact_name_template`, `allowed_artifacts`, and a
+`mode`, `plan_folder_template`, `artifact_name_template`, and a
 `safety` block (`atomic_writes`, `icloud_safe`, `dry_run_default`).
 
 ## design-detector/
