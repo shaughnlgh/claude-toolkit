@@ -6,8 +6,8 @@ Two layers. Run both after any significant change, and when onboarding a new mac
 
     bash verify.sh
 
-Deterministic: structure, manifest, hook fixtures (78), hook injection, script
-guardrails, plan-validator cases (22), vault-fs containment (15), resolver,
+Deterministic: structure, manifest, hook fixtures (96), hook injection, script
+guardrails, plan-validator cases (24), vault-fs containment (15), git-ro boundary (12), resolver,
 docs coverage. Expect `RESULT: N passed, 0 failed`. Also run the suites directly if you
 touched them: `bash plugins/toolkit/hooks/tests/run-all.sh` for hooks,
 `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` for the plan

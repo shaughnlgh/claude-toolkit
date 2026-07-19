@@ -1,0 +1,9 @@
+{
+  "name": "block push --repo=origin main (ref via --repo)",
+  "stdin": {
+    "tool_input": {
+      "command": "git push --repo=origin main"
+    }
+  },
+  "expect_exit": 2
+}

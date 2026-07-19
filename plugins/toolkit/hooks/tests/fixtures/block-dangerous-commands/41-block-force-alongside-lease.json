@@ -1,0 +1,9 @@
+{
+  "name": "block raw --force even with --force-with-lease present",
+  "stdin": {
+    "tool_input": {
+      "command": "git push --force-with-lease --force origin feature-x"
+    }
+  },
+  "expect_exit": 2
+}

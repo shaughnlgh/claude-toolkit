@@ -1,0 +1,9 @@
+{
+  "name": "lone redirect to /dev/null allowed",
+  "stdin": {
+    "tool_input": {
+      "command": "cat file.txt >/dev/null 2>&1"
+    }
+  },
+  "expect_exit": 0
+}

@@ -1,0 +1,9 @@
+{
+  "name": "WHERE as part of another word does not satisfy the guard",
+  "stdin": {
+    "tool_input": {
+      "command": "psql -c \"DELETE FROM nowhere_table\""
+    }
+  },
+  "expect_exit": 2
+}
