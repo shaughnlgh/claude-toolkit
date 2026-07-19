@@ -1,0 +1,9 @@
+{
+  "name": "harmless 2>/dev/null does not suppress 1>/dev/sda",
+  "stdin": {
+    "tool_input": {
+      "command": "echo data 1>/dev/sda 2>/dev/null"
+    }
+  },
+  "expect_exit": 2
+}

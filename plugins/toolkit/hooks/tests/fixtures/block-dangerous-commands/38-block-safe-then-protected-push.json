@@ -1,0 +1,9 @@
+{
+  "name": "safe push then protected push in one command",
+  "stdin": {
+    "tool_input": {
+      "command": "git push origin feat && git push origin main"
+    }
+  },
+  "expect_exit": 2
+}

@@ -1,0 +1,9 @@
+{
+  "name": "allow SQL text in echo with no db client",
+  "stdin": {
+    "tool_input": {
+      "command": "echo \"please truncate the old log and delete from cache\""
+    }
+  },
+  "expect_exit": 0
+}

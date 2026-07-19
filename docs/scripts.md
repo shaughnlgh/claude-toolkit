@@ -81,15 +81,20 @@ bash "$PLUGIN_ROOT/scripts/git-ro.sh" <dir> status|diff|log|show [args]
 Guardrails — this is the point of the script: only `status`, `diff`, `log`, and
 `show` are accepted as the subcommand. Anything else (`commit`, `push`, `reset`,
 `checkout`, etc.) is refused before it ever reaches `git`. Within those subcommands
-the write options `--output`/`-o` (write a file) and `--ext-diff` (run an external
-command) are refused. And because a target repo's own config can execute on a
-"read", the call forces `core.pager=cat`, `core.fsmonitor=` (empty), a null
-`core.hooksPath`, and `--no-ext-diff --no-textconv` on the diff-capable subcommands —
-so `git status`/`diff`/`log`/`show` cannot run a pager, fsmonitor, external-diff, or
-textconv command from the target repo. The target directory is passed straight to
-`git -C`, so it works against any repo on disk. Note: this makes the wrapper safe
-against a repo you do not fully trust for these four read operations — it is not a
-general git sandbox.
+the write/exec options `--output`/`-o` (write a file), `--ext-diff` (external diff
+command), and `--textconv` (textconv driver — refusing it also stops a caller
+overriding the forced `--no-textconv`) are refused. And because a target repo's own
+config can execute on a "read", the call forces `core.pager=cat`,
+`core.fsmonitor=false`, a null `core.hooksPath`, and `--no-ext-diff --no-textconv` on
+the diff-capable subcommands — so `git status`/`diff`/`log`/`show` cannot run a pager,
+fsmonitor, external-diff, or textconv command from the target repo. The target
+directory is passed straight to `git -C`, so it works against any repo on disk. Note:
+this makes the wrapper safe against a repo you do not fully trust for these four read
+operations — it is not a general git sandbox.
+
+Tests: `bash plugins/toolkit/scripts/tests/git-ro/run-tests.sh` (12 behavior cases in
+a temporary repo whose config wires every execute-on-read vector to a marker script;
+also run by `verify.sh`).
 
 ## override.sh
 
@@ -174,7 +179,7 @@ every plan-note write, before presenting a plan for approval, before starting
 execution, and at session closure.
 
 Tests: `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh`
-(22 behavior cases over 21 fixtures plus a direct nonexistent-path case; also run by `verify.sh`).
+(24 behavior cases over 23 fixtures plus a direct nonexistent-path case; also run by `verify.sh`).
 
 ## obsidian-sync.json.template
 
