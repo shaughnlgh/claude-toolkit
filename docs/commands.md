@@ -77,10 +77,12 @@ promoted to `<root_folder>/Docs/` once a second project links it. Claude never w
 outside `<root_folder>/`.
 
 **Freshness validation** — a topic note is a claim about the world as of its
-`updated` timestamp. Before relying on one, at least one `source_refs` entry is
-spot-checked against current code. If reality disagrees, the code wins: the note is
-corrected and `updated` is bumped, or the disagreement is flagged in the plan — never
-silently trusted.
+`verified` timestamp (blank means unverified); `updated` records edit recency only.
+Before relying on one, at least one `source_refs` entry is spot-checked against
+current code. A clean check sets `verified`; a correction from checked evidence sets
+both `updated` and `verified`; a non-verifying edit bumps only `updated`. If reality
+disagrees, the code wins: the note is corrected or the disagreement is flagged in
+the plan — never silently trusted, whatever the dates say.
 
 **What it changes** — only files under `<root_folder>/` in the vault (writes go
 through an atomic Write-then-`vault-fs.sh mv`). It never touches project source code
