@@ -310,8 +310,9 @@ skill's base directory) — Read it before creating or updating topic notes or s
 Obsidian-only plugins for basic readability.
 
 Use plain strings in the plan frontmatter `related_topics`, and Obsidian `[[wiki links]]`
-in the body Related Topics section. In the plan's Linked Artifacts section, link only
-sibling artifacts that actually exist. Never link bare generic names like `[[plan]]`.
+in the body Related Topics section. Linked Artifacts follows its rule under Required
+plan sections (existing sibling artifacts only); never link bare generic names like
+`[[plan]]`.
 
 ## Planning Workflow
 
