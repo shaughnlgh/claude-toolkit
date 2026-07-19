@@ -1,0 +1,5 @@
+{
+  "name": "allow editing a hook in a source checkout (not under .claude/plugins)",
+  "stdin": { "tool_input": { "file_path": "/Users/x/projects/claude-toolkit/plugins/toolkit/hooks/session-start.sh" } },
+  "expect_exit": 0
+}

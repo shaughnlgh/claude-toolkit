@@ -124,10 +124,12 @@ Produces two separate outputs:
 
 - **`additionalContext`** (model-visible, every trigger): the write-time rules'
   bodies — testing, security, error-handling, database, frontmatter stripped — read
-  live from the plugin's `rules/` directory (never a stale local copy); a one-line
-  pointer to the toolkit doctrine index; and a git briefing (current branch, or the
-  short SHA if HEAD is detached, plus a `dirty` flag when the tree has uncommitted
-  changes).
+  live from the plugin's `rules/` directory, or from `~/.claude/rules/<name>.md` when
+  you have overridden one (see [overrides](overrides.md)); a one-line pointer to the
+  toolkit doctrine index; a git briefing (current branch, or the short SHA if HEAD is
+  detached, plus a `dirty` flag when the tree has uncommitted changes); and, when any are
+  present, a one-line announcement of the active doctrine / rule / agent / skill
+  overrides.
 - **`systemMessage`** (user-visible, `startup` only — suppressed on `resume`/`clear` so
   it doesn't repeat): a one-line `toolkit active — N agents, M skills, planning ready`
   status, or a `planning not configured: run /toolkit-setup` variant if

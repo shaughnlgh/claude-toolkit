@@ -6,7 +6,7 @@ Two layers. Run both after any significant change, and when onboarding a new mac
 
     bash verify.sh
 
-Deterministic: structure, manifest, hook fixtures (51), hook injection, script
+Deterministic: structure, manifest, hook fixtures (54), hook injection, script
 guardrails, resolver, leakage. Expect `RESULT: N passed, 0 failed`. Also run the
 hook fixture suite directly if you touched a hook: `bash plugins/toolkit/hooks/tests/run-all.sh`.
 

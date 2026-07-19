@@ -19,11 +19,16 @@ $1" || CTX="$1"; }
 # Write-time rules + doctrine pointer, live from the plugin (always current; no local
 # copies). Frontend rules stay on-demand via the frontend-designer agent.
 if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; then
-  RULES=""
+  RULES=""; ROVR=""
   for r in testing security error-handling database; do
     f="${CLAUDE_PLUGIN_ROOT}/rules/${r}.md"
-    [ -f "$f" ] && RULES="${RULES}$(awk 'f{print} /^---$/{c++; if(c==2)f=1}' "$f")
+    if [ -f "$HOME/.claude/rules/${r}.md" ]; then f="$HOME/.claude/rules/${r}.md"; ROVR="${ROVR} ${r}"; fi
+    if [ -f "$f" ]; then
+      body="$(awk 'f{print} /^---$/{c++; if(c==2)f=1}' "$f")"
+      [ -z "$body" ] && body="$(cat "$f")"   # override without frontmatter: use the whole file, never drop the rule
+      RULES="${RULES}${body}
 "
+    fi
   done
   if [ -n "$RULES" ]; then
     add "Toolkit write-time rules:"
@@ -40,6 +45,20 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
     done
     [ -n "$OVR" ] && add "Doctrine overrides active. For these concerns read your global ~/.claude/doctrine/<name>.md and follow it INSTEAD of the plugin's doctrine/<name>.md (your copy wins; safety sections may be tightened, not loosened):${OVR}."
   fi
+  # Rule overrides: injected above from ~/.claude/rules/ instead of the plugin defaults.
+  [ -n "$ROVR" ] && add "Rule overrides active. Your global ~/.claude/rules/ versions were injected above instead of the plugin defaults:${ROVR}."
+  # Agent/skill overrides: a same-named file/dir in ~/.claude/{agents,skills} shadows the
+  # plugin's (Claude Code resolves it natively for the bare name). Announced for visibility.
+  ASOVR=""
+  for a in "$HOME"/.claude/agents/*.md; do
+    [ -f "$a" ] || continue; n=$(basename "$a" .md)
+    [ -f "${CLAUDE_PLUGIN_ROOT}/agents/${n}.md" ] && ASOVR="${ASOVR} agent:${n}"
+  done
+  for s in "$HOME"/.claude/skills/*/; do
+    [ -d "$s" ] || continue; n=$(basename "$s")
+    [ -d "${CLAUDE_PLUGIN_ROOT}/skills/${n}" ] && ASOVR="${ASOVR} skill:${n}"
+  done
+  [ -n "$ASOVR" ] && add "Agent/skill overrides active. Claude Code resolves your global version over the plugin's for the bare name (invoke bare, not toolkit:<name>):${ASOVR}."
 fi
 
 # Git briefing (only inside a repo).
