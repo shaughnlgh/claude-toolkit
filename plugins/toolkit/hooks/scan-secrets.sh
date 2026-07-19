@@ -66,8 +66,10 @@ fi
 # Generic password/secret/token assignments with literal string values
 # Matches: password = "actual_value", SECRET_KEY: 'actual_value', api_token="actual_value"
 # Excludes: env var references like process.env.*, os.environ.*, ${...}, getenv(...)
-if echo "$CONTENT" | grep -qiE '(password|secret|token|api_key|apikey|api_secret)[[:space:]]*[=:][[:space:]]*["'\''"][^"'\''"]{8,}["'\''"]' && \
-   ! echo "$CONTENT" | grep -qiE '(password|secret|token|api_key|apikey|api_secret)[[:space:]]*[=:][[:space:]]*["'\''"]?(process\.env|os\.environ|getenv|\$\{|ENV\[|env\()'; then
+# Evaluated per line: the exclusion filters only the lines that matched, so an env-var
+# reference on one line cannot suppress a literal credential on another.
+if echo "$CONTENT" | grep -iE '(password|secret|token|api_key|apikey|api_secret)[[:space:]]*[=:][[:space:]]*["'\''"][^"'\''"]{8,}["'\''"]' | \
+   grep -qivE '(password|secret|token|api_key|apikey|api_secret)[[:space:]]*[=:][[:space:]]*["'\''"]?(process\.env|os\.environ|getenv|\$\{|ENV\[|env\()'; then
   MATCHES="$MATCHES hardcoded credential;"
 fi
 
