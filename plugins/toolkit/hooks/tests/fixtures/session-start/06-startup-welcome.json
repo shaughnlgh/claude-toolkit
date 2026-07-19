@@ -3,5 +3,5 @@
   "stdin": { "source": "startup" },
   "env": { "CLAUDE_PLUGIN_ROOT": "../.." },
   "expect_exit": 0,
-  "expect_stdout_contains": ["systemMessage", "toolkit", "agents"]
+  "expect_stdout_contains": ["systemMessage", "toolkit", "12 agents, 9 skills"]
 }
