@@ -1,6 +1,6 @@
 # Commands
 
-The toolkit ships seven slash commands in two groups: **setup and vault** helpers, and
+The toolkit ships eight slash commands in two groups: **setup and vault** helpers, and
 on-demand **thinking tools**. This page is the reference for what each does, when to run
 it, and what it changes.
 
@@ -90,6 +90,28 @@ or git state, and never invents facts, ticket references, or test data.
 
     /obsidian-topic "Payment Gateway" my-repo
     /obsidian-topic "Caching Strategy"
+
+### `/override`
+
+Copies a toolkit doctrine file into your global `~/.claude/doctrine/` so your version
+wins for that concern, without editing the plugin.
+
+**Usage** — `/override [name]`. With a name (e.g. `/override conventions`) it copies that
+doctrine file; with no name it lists the doctrine files available and asks which.
+
+**What it does** — copies the named plugin doctrine file to `~/.claude/doctrine/<name>.md`
+(refusing unknown names, never clobbering an existing override), then you edit your copy.
+The session-start hook detects it and announces it every session, so your copy wins with
+no pointer to maintain. Safety sections (git-safety, security) may be tightened, not
+loosened.
+
+**What it changes** — writes one file into `~/.claude/doctrine/`. Nothing in the plugin,
+nothing in git.
+
+**Examples**
+
+    /override
+    /override conventions
 
 ## Thinking tools
 
