@@ -47,6 +47,51 @@ background auto-update disables git credential helpers, so auto-update cannot
 authenticate to a private repo over HTTPS — only SSH (with a loaded `ssh-agent` key)
 survives the background pull.
 
+### Install troubleshooting
+
+The marketplace clone runs non-interactively, so it needs GitHub SSH access that
+works without any prompt: the host key already trusted, and a key loaded in
+`ssh-agent`. First time using SSH with GitHub on this machine? The easiest path:
+
+```
+gh auth login            # choose SSH, let it generate and upload a key
+ssh -T git@github.com    # accept the fingerprint once; expect "Hi <username>!"
+```
+
+Then the errors, in the order a fresh machine hits them:
+
+- **`Host key verification failed`** — github.com isn't in `~/.ssh/known_hosts`
+  yet. Run `ssh -T git@github.com` once and accept the fingerprint (verify it
+  against [GitHub's published fingerprints](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints)),
+  then re-run the install commands.
+- **`Permission denied (publickey)`** — no usable key reached GitHub. If
+  `ssh -T git@github.com` also fails, no key is registered: `gh ssh-key list`
+  shows what GitHub has; fix with `gh auth login` (SSH option) or
+  `gh ssh-key add ~/.ssh/id_ed25519.pub --type authentication`. If `ssh -T`
+  *works* but the install still fails, the key isn't in the agent — interactive
+  ssh can prompt for the passphrase, the clone can't. `ssh-add -l` will say
+  "The agent has no identities"; fix with
+  `ssh-add --apple-use-keychain ~/.ssh/id_ed25519` (use your key's name; plain
+  `ssh-add` on Linux), and make it survive reboots with this in `~/.ssh/config`:
+
+  ```
+  Host github.com
+    AddKeysToAgent yes
+    UseKeychain yes
+    IdentityFile ~/.ssh/id_ed25519
+  ```
+
+  `UseKeychain` is macOS-only — on Linux it makes ssh reject the whole config
+  file, so omit that line there.
+
+- **`Repository not found`** — SSH auth worked, but your GitHub account has no
+  access to this (private) repo. Ask to be added.
+- **`Plugin "toolkit" not found in marketplace "shaughn-toolkit"`** — fallout
+  from a failed `marketplace add`: there is nothing local to install from. Fix
+  the clone error above, re-run the add (or
+  `claude plugin marketplace update shaughn-toolkit` if the marketplace half-exists),
+  then install.
+
 ## Setup
 
 After installing, run `/toolkit-setup` in any Claude Code session — it checks
@@ -59,9 +104,12 @@ everything below, guides you through the vault config, and prints a readiness re
   the vault config with it; `validate-plan.py` and `merge-conflict-overview.py` are
   Python). Requires Python 3; no third-party packages are required.
 - **Planning workflow** (optional; required only for plan-workflow / obsidian-topic):
-  plan and topic notes are written into an Obsidian vault you control. `/toolkit-setup`
-  creates `~/.claude/obsidian-sync.json` from the shipped template; all docs and
-  scripts resolve your vault location and root folder from that file.
+  plan and topic notes are written into an Obsidian vault you control. If you don't
+  have Obsidian yet, download it from [obsidian.md](https://obsidian.md/), open it,
+  and follow its prompts to create a vault (any name and location work — you'll point
+  the toolkit at it next). `/toolkit-setup` then creates `~/.claude/obsidian-sync.json`
+  from the shipped template; all docs and scripts resolve your vault location and
+  root folder from that file.
 
 ## Updating
 

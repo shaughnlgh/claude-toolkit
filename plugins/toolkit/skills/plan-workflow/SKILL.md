@@ -367,7 +367,9 @@ tooling can surface state:
 
 ### Record the session on the plan
 
-Record the session id UP FRONT, not at the end. The list holds at most one entry per
+Record the session id UP FRONT, not at the end. Your session id is the UUID
+directory segment of this session's scratchpad path (shown in your system prompt) —
+derive it from there; do not wait to be told it. The list holds at most one entry per
 session id: create your entry once at session start, then only ever update that same
 entry — never add a second entry for the same session.
 
@@ -384,13 +386,18 @@ At session start:
   body in as planning proceeds.
 - If resumption minted a genuinely new session id (a new transcript), that is a new
   session: append a new entry for it.
-- If no session id is available, leave `id:` blank — never invent a placeholder value.
+- Every live session has an id — the scratchpad path is always in your context, so
+  derivation always succeeds. Never leave `id:` blank on an entry you create, and
+  never invent a placeholder value: if you truly cannot locate the scratchpad path,
+  that is an error to surface to the human, not a reason to skip the id. A blank id
+  only ever appears on a manually pre-scaffolded entry.
 
 During the session and before stopping, update that same entry's summary to the real
-one-line outcome. For a blank-id entry, update the entry you created this session; if
-it cannot be identified unambiguously (say, two blank-id entries on the same date),
-stop and report the ambiguity rather than guessing or adding a probable duplicate.
-Record the id yourself — do not rely on tooling to backfill it.
+one-line outcome. If the note carries a pre-scaffolded blank-id entry that is clearly
+this session's work, claim it — fill in your id rather than appending a duplicate; if
+ownership is ambiguous (say, two blank-id entries on the same date), stop and report
+the ambiguity rather than guessing. Record the id yourself — do not rely on tooling
+to backfill it.
 
 ## Session Closure
 
