@@ -16,5 +16,8 @@ jobs:
   verify:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      # verify.sh's manifest check shells out to `claude plugin validate` (skips
+      # if absent). Install the CLI so CI validates for real; needs no API auth.
+      - run: npm install -g @anthropic-ai/claude-code
       - run: bash verify.sh

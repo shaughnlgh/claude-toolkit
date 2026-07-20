@@ -52,7 +52,11 @@ for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js \
 done
 
 echo "== Manifest =="
-if claude plugin validate "$ROOT" >/dev/null 2>&1; then ok "plugin validate"; else no "plugin validate"; fi
+if command -v claude >/dev/null 2>&1; then
+  if claude plugin validate "$ROOT" >/dev/null 2>&1; then ok "plugin validate"; else no "plugin validate"; fi
+else
+  printf '  \033[33m-\033[0m %s\n' "skipped: claude CLI not found"
+fi
 
 echo "== Hook behavior (fixture suite is authoritative) =="
 out="$(cd "$P/hooks/tests" && bash run-all.sh 2>/dev/null | tail -1)"
