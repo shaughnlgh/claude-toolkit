@@ -1,0 +1,20 @@
+# Mechanical acceptance battery on every PR and main push. Deliberately secretless
+# and read-only: a compromised write account that edits this workflow gains nothing
+# beyond runner minutes. Runs on macOS to match the toolkit's target platform
+# (verify.sh is only exercised against BSD userland).
+name: verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - run: bash verify.sh
