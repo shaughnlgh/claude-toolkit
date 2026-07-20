@@ -1,5 +1,7 @@
 # claude-toolkit
 
+[![verify](https://github.com/shaughnlgh/claude-toolkit/actions/workflows/verify.yml/badge.svg)](https://github.com/shaughnlgh/claude-toolkit/actions/workflows/verify.yml)
+
 Shaughn's Claude Code toolkit — agents, skills, and working doctrine — distributed
 as a Claude Code plugin. Personally owned and maintained (see LICENSE), free for
 anyone with access to use. Third-party components it vendors (currently the
