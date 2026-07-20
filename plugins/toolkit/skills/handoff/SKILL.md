@@ -72,7 +72,9 @@ plan:
 ```
 
 - `date`: the local date (YYYY-MM-DD) the note is written.
-- `session`: the current session id, if known. Leave blank if not available.
+- `session`: the current session id — the UUID directory segment of this session's
+  scratchpad path (shown in your system prompt). Always present in a live session;
+  never leave blank or invent a value.
 - `repo`: the repo the work belongs to.
 - `plan`: the plan name, if an active plan exists (case 1 above). Leave blank in the
   `_handoffs/` case.
