@@ -75,7 +75,10 @@ avout="$(echo '{}' | HOME="$avh" bash "$P/hooks/session-start.sh" 2>/dev/null)";
 want "session-start announces an agent override" "$avout" "Agent/skill overrides active"
 
 echo "== Scripts (guardrails) =="
-want "vault-fs refuses traversal"  "$(bash "$P/scripts/vault-fs.sh" rm '../x.md' 2>&1)" "refused"
+vfh="$(mktemp -d)"; mkdir -p "$vfh/.claude" "$vfh/vault/notes"
+printf '{"vault_path":"%s","root_folder":"notes"}\n' "$vfh/vault" > "$vfh/.claude/obsidian-sync.json"
+want "vault-fs refuses traversal"  "$(HOME="$vfh" bash "$P/scripts/vault-fs.sh" rm '../x.md' 2>&1)" "refused"
+rm -rf "$vfh"
 want "git-ro refuses mutation"     "$(bash "$P/scripts/git-ro.sh" "$ROOT" commit 2>&1)" "refused"
 bash "$P/scripts/git-ro.sh" "$ROOT" status >/dev/null 2>&1; code "git-ro allows status" "$?" 0
 want "override lists components (no arg)" "$(bash "$P/scripts/override.sh" 2>&1)" "conventions"
@@ -113,8 +116,12 @@ else
 fi
 
 echo "== Resolver (installed copy) =="
-IP="$(jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json 2>/dev/null)"
-if [ -n "$IP" ] && [ -d "$IP" ]; then ok "installed_plugins.json resolves to a real dir"; else no "resolver ($IP)"; fi
+if [ -f ~/.claude/plugins/installed_plugins.json ]; then
+  IP="$(jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json 2>/dev/null)"
+  if [ -n "$IP" ] && [ -d "$IP" ]; then ok "installed_plugins.json resolves to a real dir"; else no "resolver ($IP)"; fi
+else
+  printf '  \033[33m-\033[0m %s\n' "skipped: no local plugin install (CI checkout)"
+fi
 
 echo "== Orchestration invariants (leaf workers, no Haiku) =="
 inv="$(python3 - "$P/agents" <<'PY'
