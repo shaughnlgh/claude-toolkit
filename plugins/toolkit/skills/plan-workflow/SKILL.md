@@ -184,7 +184,9 @@ The plan must be written before implementation begins.
 
 Writing style for the plan note follows the vault rules (same as topic notes): plain
 sentences. Never use em dashes or semicolons to split text. Use separate sentences,
-commas, or parentheses instead.
+commas, or parentheses instead. Never hard-wrap prose: write each paragraph as one
+continuous line and let the editor soft-wrap. This applies to every markdown file, not
+just plan notes.
 
 ### Required plan frontmatter
 
