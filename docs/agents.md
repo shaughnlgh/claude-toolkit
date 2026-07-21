@@ -22,8 +22,8 @@ The plan-then-build pipeline: explore, plan, red-team the plan, implement, verif
 
 | Agent | What it does | When to use |
 |---|---|---|
-| `toolkit:explorer` | Read-only exploration: codebase search, file discovery, pattern analysis, evidence gathering. Never edits. | Proactively, for codebase search or evidence gathering without touching files. |
-| `toolkit:planner` | Scans repo and docs, gathers evidence, produces a reviewable implementation plan. Never edits or implements. | Proactively for non-trivial tasks, before any code changes. |
+| `toolkit:explorer` | Read-only exploration: codebase search, file discovery, pattern analysis, investigation questions, evidence gathering — including discovery during planning. Never edits. | Proactively, for codebase search, investigation, or evidence gathering without touching files. |
+| `toolkit:planner` | Drafts a reviewable implementation plan from evidence fed to it (recall facts, explorer findings), reading further only to close gaps. Never edits or implements. | For non-trivial tasks once discovery evidence is in hand, before any code changes. Not for discovery-only investigation — that is the explorer's job. |
 | `toolkit:implementer` | Bounded file changes and focused command runs from an approved plan. | After plan approval, for minimal-scope execution. |
 | `toolkit:verifier` | Validates claimed work against real checks and real data (not fixtures alone), reports gaps. Never edits. | Proactively after implementation, to validate before a task is marked complete. |
 | `toolkit:plan-critic` | Adversarially red-teams the plan itself — flawed assumptions, missing risks, scope creep, unconsidered alternatives, untestable validation. Reviews the plan, not code. Conductor-gated. | After the planner drafts a plan and before human approval, on non-trivial plans. |

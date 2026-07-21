@@ -2,7 +2,7 @@
 name: implementer
 source: custom
 tags: [worker, implementation]
-maxTurns: 50
+maxTurns: 200
 description: Implementation specialist. Use after plan approval for bounded file changes, focused command runs, and minimal-scope execution from an approved plan.
 model: sonnet
 tools: Read, Grep, Glob, Bash, Edit, Write, WebFetch, WebSearch
