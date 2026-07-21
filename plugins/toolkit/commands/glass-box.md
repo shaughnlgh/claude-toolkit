@@ -1,3 +1,8 @@
+---
+description: Provenance audit of the last answer — the load-bearing fact (verified or derived?), the unchecked assumption, and an offer to verify
+argument-hint: [answer or decision to audit]
+---
+
 # Glass Box
 
 On-demand provenance audit of your last answer, or of the answer you are about to give.
