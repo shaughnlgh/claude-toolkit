@@ -9,14 +9,15 @@ skill.
 
 Multi-dimension MR review. It runs two phases:
 
-- **Review** — fans out the global reviewer agents (`code-reviewer`,
-  `security-reviewer`, `silent-failure-hunter`, `performance-reviewer`,
-  `pr-test-analyzer`) plus any MR-specific custom dimensions, each reading the saved
+- **Review** — fans out the toolkit reviewer agents (`toolkit:code-reviewer`,
+  `toolkit:security-reviewer`, `toolkit:silent-failure-hunter`,
+  `toolkit:performance-reviewer`,
+  `toolkit:pr-test-analyzer`) plus any MR-specific custom dimensions, each reading the saved
   diff and reporting findings against a shared schema (title, file, severity, detail,
   failure scenario). A dimension that can't answer something from the diff or repo
   returns it as an `open_questions` entry instead of guessing.
 - **Verify** — every finding from every dimension is checked again by a separate
-  `verifier` agent instructed to try to refute it: does the code path really execute,
+  `toolkit:verifier` agent instructed to try to refute it: does the code path really execute,
   is the failure scenario reachable, is it already handled elsewhere. The verifier
   defaults to refuted when a claim is unreachable or speculative.
 
@@ -45,7 +46,8 @@ args: {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?}
   (contract impact, framework wiring, conventions, data/upgrade safety) the registry
   reviewers won't cover.
 - `registryReviewers` (optional) — override the default set of five reviewer agent
-  types.
+  types. Names must be fully qualified as the harness registers them (plugin agents
+  are namespaced, e.g. `toolkit:code-reviewer`).
 
 ## post_mr_comments.py
 
