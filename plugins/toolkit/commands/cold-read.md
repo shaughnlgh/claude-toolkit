@@ -1,3 +1,8 @@
+---
+description: Surface the unstated assumptions behind how you've been framing this conversation — the blind-spot check before committing to a direction
+argument-hint: [decision or thread to focus on]
+---
+
 # Cold Read
 
 Read back the unstated assumptions behind how I have been talking to you in this

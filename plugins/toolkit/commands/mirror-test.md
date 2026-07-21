@@ -1,3 +1,8 @@
+---
+description: Hear your last message the way a stranger would — tone check before sending something that matters, honest not kind
+argument-hint: [message or text to read]
+---
+
 # Mirror Test
 
 Read my last message back to me the way a stranger would hear it, with no benefit of the

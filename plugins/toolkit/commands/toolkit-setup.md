@@ -1,3 +1,7 @@
+---
+description: Check this machine's toolkit setup and walk through anything missing — safe to re-run, changes nothing without asking
+---
+
 # Toolkit Setup
 
 Check this machine's toolkit setup and guide the user through anything missing.

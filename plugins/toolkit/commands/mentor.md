@@ -1,3 +1,8 @@
+---
+description: Socratic learning mode — one probing question per answer, no advancing until you can explain it back, until you understand rather than memorize
+argument-hint: [topic to learn]
+---
+
 # Mentor
 
 Turn on a Socratic learning mode: after each answer, ask one question that forces deeper

@@ -1,3 +1,8 @@
+---
+description: Pre-mortem a plan — assume it already failed and list every way it got there, worst first, before you commit
+argument-hint: [plan or decision]
+---
+
 # Inversion
 
 A pre-mortem: assume the plan has already failed completely, and lay out every way it got

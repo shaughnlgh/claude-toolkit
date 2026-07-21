@@ -1,3 +1,8 @@
+---
+description: Copy a toolkit doctrine, rule, agent, or skill into your global ~/.claude so your version overrides the plugin's
+argument-hint: [type] [name]
+---
+
 # Override
 
 Copy a toolkit component into your global `~/.claude/` so your copy overrides the
