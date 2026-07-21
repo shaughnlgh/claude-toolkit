@@ -1,3 +1,8 @@
+---
+description: Create or update a topic note in the Obsidian vault — the canonical spec for topic-note location, structure, and freshness
+argument-hint: <topic name> [repo hint]
+---
+
 # Obsidian Topic
 
 Create or update a single topic note in the Obsidian vault. This file is the single
