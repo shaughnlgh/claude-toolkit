@@ -329,10 +329,7 @@ For non-trivial tasks, follow these steps before writing the plan note:
 2. Read relevant code, config, docs, and existing patterns (see Docs-First Discipline
    in the toolkit's CLAUDE.md doctrine).
 3. Invoke the `/testing-gate` skill to determine the required testing level.
-4. AFTER topic recall, use the planner agent (the toolkit's `planner`, not
-   `explorer`) for repo/doc scan or evidence gathering, scoped to the gaps from
-   step 1 so it does not re-derive what recall already found. Skip only when the
-   task is obviously too small for delegation, and say why.
+4. AFTER topic recall, delegate the planning-time work by shape, scoped to the gaps from step 1. Discovery and investigation (repo/doc scan, mapping how existing code works, answering factual questions from the codebase) goes to the `explorer` agent — skip it when recall and your step-2 reads closed every gap, and say so. Escalate the explorer's model per invocation for genuinely hard tracing (orchestration model policy); evidence that needs commands run (a failing test, a repro) goes to the `verifier` agent instead, since explorer is read-only. Drafting the reviewable plan itself (proposed steps, risks, verification approach) goes to the `planner` agent, fed with the recall facts and explorer findings so it does not re-derive them — except when the main challenge is choosing architecture, which the conductor keeps per orchestration doctrine. Skip delegation entirely only when the task is obviously too small, and say why.
 5. Write the plan note (`plan - <plan-name>.md`) to the Obsidian plan directory.
    Create the plan directory per the canonical layout, or fill in a pre-scaffolded
    note where one exists.
