@@ -1,7 +1,7 @@
 ---
 name: gitlab-mr-review
 description: >-
-  Multi-dimension review of a GitLab MR using the review-mr workflow: fan out the global
+  Multi-dimension review of a GitLab MR using the review-mr workflow: fan out the toolkit
   reviewer agents plus MR-specific dimensions, adversarially verify every finding against the
   local target-branch checkout, adjudicate, and report. Use when asked to review a GitLab merge
   request URL. Posting comments to the MR is a separate, explicit step — never automatic.
@@ -10,9 +10,10 @@ description: >-
 # GitLab MR Review
 
 Review a GitLab MR with the `review-mr` workflow (shipped with this plugin at `../../workflows/review-mr.js` relative to this skill's base directory), which
-merges the global reviewer agents (`code-reviewer`, `security-reviewer`, `silent-failure-hunter`,
-`performance-reviewer`, `pr-test-analyzer`) with MR-specific custom dimensions and an adversarial
-verify pass run by the `verifier` agent. All workers run on sonnet. The main chat is the
+merges the toolkit reviewer agents (`toolkit:code-reviewer`, `toolkit:security-reviewer`,
+`toolkit:silent-failure-hunter`, `toolkit:performance-reviewer`, `toolkit:pr-test-analyzer`) with
+MR-specific custom dimensions and an adversarial
+verify pass run by the `toolkit:verifier` agent. All workers run on sonnet. The main chat is the
 conductor: it prepares inputs, launches the workflow, adjudicates, and owns the final report.
 
 ## 1. Fetch the MR

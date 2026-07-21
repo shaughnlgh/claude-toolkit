@@ -13,7 +13,10 @@ export const meta = {
 // repoRoot   (required) absolute path to the local repo holding target-branch code
 // contextBlock (required) env facts + MR summary + verification instructions, built by the conductor
 // dimensions (optional) [{key, prompt}] extra MR-specific dimensions (contract impact, conventions, domain)
-// registryReviewers (optional) agentType names to fan out; default: the global reviewer agents
+// registryReviewers (optional) agentType names to fan out; must be fully qualified as the
+//   harness registers them (plugin agents are namespaced, e.g. 'toolkit:code-reviewer') —
+//   the Workflow agentType lookup is literal, with none of the Agent tool's bare-name
+//   fall-through. Default: the toolkit's reviewer agents.
 
 // The harness may deliver args as a JSON string rather than a parsed object.
 let a = args
@@ -26,11 +29,11 @@ if (!a || !a.diffPath || !a.repoRoot || !a.contextBlock) {
 }
 
 const REVIEWERS = a.registryReviewers || [
-  'code-reviewer',
-  'security-reviewer',
-  'silent-failure-hunter',
-  'performance-reviewer',
-  'pr-test-analyzer',
+  'toolkit:code-reviewer',
+  'toolkit:security-reviewer',
+  'toolkit:silent-failure-hunter',
+  'toolkit:performance-reviewer',
+  'toolkit:pr-test-analyzer',
 ]
 
 const CUSTOM = a.dimensions || []
@@ -83,8 +86,12 @@ const VERDICT_SCHEMA = {
   required: ['isReal', 'confidence', 'reasoning'],
 }
 
+const suffix = (n) => n.split(':').pop()
+
+// Key by bare suffix for readable labels/dimension names; keep the full agentType as the
+// key when two reviewers share a suffix, so their findings stay distinguishable.
 const registryDimensions = REVIEWERS.map((name) => ({
-  key: name,
+  key: REVIEWERS.some((n) => n !== name && suffix(n) === suffix(name)) ? name : suffix(name),
   agentType: name,
   prompt: `${a.contextBlock}
 
@@ -148,7 +155,7 @@ directly in the code. Default to refuted if the scenario is unreachable or specu
           phase: 'Verify',
           schema: VERDICT_SCHEMA,
           model: 'sonnet',
-          agentType: 'verifier',
+          agentType: 'toolkit:verifier',
         }
       ).then((v) => ({ ...f, dimension: d.key, verdict: v }))
     ))
