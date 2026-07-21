@@ -47,10 +47,7 @@ Before building the issue register, establish what is actually true.
    same incident, system, or migration, the same recall `plan-workflow` runs before it
    explores. Read the hits.
 2. Read code, config, logs, and prior notes for what recall did not already settle.
-3. Delegate the gaps. Use the `planner` and `explorer` agents for evidence gathering,
-   scoped to specific gaps rather than re-deriving what recall already found.
-   `explorer` for read-only search across code, config, and logs. `planner` where the
-   evidence needs to come back with proposed steps attached.
+3. Delegate the gaps. Use the `explorer` agent for evidence gathering, scoped to specific gaps rather than re-deriving what recall already found — read-only search across code, config, and logs, with a per-invocation model escalation when a gap needs deep tracing (orchestration model policy). The `planner` agent gathers nothing here; it comes in later to draft plan material from the evidence.
 4. Split the result into known facts and gaps. State a gap as a gap, do not paper over
    it with a guess. Gaps that stay open become Open Questions on the parent plan.
 

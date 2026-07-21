@@ -5,8 +5,8 @@ the conductor: it owns scoping, planning, acceptance criteria, sequencing, integ
 and final review. Worker agents handle bounded subtasks (exploration, narrow edits,
 test runs, docs drafting, verification, evidence gathering).
 
-The worker agents ship with this toolkit: `explorer` (read-only search, sonnet),
-`planner` (planning-time repo scan, inherit), `implementer` (bounded execution, sonnet),
+The worker agents ship with this toolkit: `explorer` (read-only search and discovery, sonnet),
+`planner` (plan drafting from gathered evidence, inherit), `implementer` (bounded execution, sonnet),
 `verifier` (independent validation, sonnet), plus the reviewer set (`code-reviewer`,
 `security-reviewer`, `silent-failure-hunter`, `pr-test-analyzer`, `performance-reviewer`,
 `doc-reviewer`), `plan-critic` (adversarial plan review, opus), and `frontend-designer`.
@@ -47,7 +47,8 @@ lowest possible cost for mechanical implementation.
 Spawn workers proactively when the task splits into independent subtasks, evidence can
 be gathered in parallel with other work, a subtask is mechanical/search-oriented, or a
 long-running command can run alongside another step. During planning for any
-non-trivial task, spawn at least one worker for repo/doc scan unless the task is
+non-trivial task, spawn at least one worker for repo/doc scan (`explorer` — discovery
+is its job, not the planner's) unless the task is
 obviously too small — if no worker is used, say why. Do not spawn when the task is
 tiny and faster done directly, when multiple workers would touch the same file or
 decision surface, or when the main challenge is choosing architecture.
@@ -92,6 +93,11 @@ When the verifier reports gaps or the conductor's acceptance check finds a probl
 identify the specific gap, re-delegate with a narrow corrective scope (not the entire
 task), re-run the relevant verifier checks, and loop until the work matches the plan —
 or escalate to the user if a gap requires plan revision.
+
+A worker that stops at its turn budget (frontmatter `maxTurns`) is unfinished work,
+not a result: resume it via SendMessage, or re-delegate the remaining tail with
+narrowed scope. The conductor does not finish implementation tails itself — that
+breaks the supervisor-only rule and skips acceptance.
 
 For corrective follow-ups on work an agent just did, continue that same agent via
 SendMessage (by its agent ID or name) instead of spawning a fresh one. The continued
