@@ -24,6 +24,12 @@ jobs:
 
   gitleaks:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # gitleaks-action lists the PR's commits via the API on pull_request events;
+      # without this the job 403s before scanning anything. Read keeps the
+      # workflow's no-write posture — PR comments stay disabled below.
+      pull-requests: read
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
@@ -32,3 +38,6 @@ jobs:
       - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # commenting on PRs needs pull-requests: write; findings still fail the
+          # check and appear in the job summary without it
+          GITLEAKS_ENABLE_COMMENTS: false
