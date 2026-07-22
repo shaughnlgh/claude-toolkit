@@ -25,6 +25,7 @@ plugin cache.
 | `wayfinder` | Turns a large, fuzzy investigation or migration into a mapped set of tickets: aligns with you on outcome and success first, then an issue register, a parent umbrella plan, and one child plan stub per task (each recommended a scoped grill before its own planning). | You ask to map, scope, or break down a big multi-part effort before planning it, or crawl routes here with your confirmation. |
 | `gitlab-mr-review` | Multi-dimension MR review: fans out reviewer agents plus MR-specific dimensions and adversarially verifies every finding against the local checkout. | You ask to review a GitLab merge request. |
 | `expedition` | The ticket-to-complete pipeline for big, deliberately-committed work: sequences crawl, grill, split decision, planning, execution, and review through recommend-and-confirm gates, with the stage persisted in a vault work note so the effort survives across days. Completion is always your word, never inferred. | You explicitly invoke it, or ask to resume one. Never automatic — committing to the full workflow is your decision. |
+| `jira` | Read-only ticket-to-brief adapter: fetches a Jira issue via jira-cli and returns a verbatim brief (metadata, full description, comments, issue links) for crawl or expedition to plan from. | Crawl's ingest step meets a Jira key or ticket URL, or you ask to fetch one directly. |
 
 All of the request-triggered skills (`grill`, `handoff`, `resolving-merge-conflicts`,
 `wayfinder`, `expedition`) fire only on an explicit ask, never on something the model
@@ -76,6 +77,11 @@ plan-then-build flow.
   example:
 
       Here's the ticket: <link>. We need bulk order editing in the admin.
+
+- `jira` — fires when crawl's ingest step meets a Jira key or ticket URL, or you ask to
+  fetch one directly. Triggered by, for example:
+
+      Pull in https://<site>.atlassian.net/browse/PROJ-123, we need to plan this.
 
 - `testing-gate` — fires when you start any feature, bugfix, or refactor (after crawl
   has routed, when both match), and asks once

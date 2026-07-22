@@ -14,3 +14,5 @@ Deliverables longer than about a page (reports, audits, review verdicts, plans) 
 written to a file — scratchpad, plan directory, or wherever the workflow says — and
 summarized in chat, never streamed inline in full. An inline wall of output can hit the
 output-token ceiling and lose the work, and it buries the conclusion either way.
+
+Bounded gates (discrete options, a recommendation, yes/skip/no shapes) are presented via the AskUserQuestion tool when the harness provides it, with the recommended option first and labeled "(Recommended)", one gate per call; open-ended questions stay prose, options must never corral an answer that needs the user's own words; degrade to prose where the tool is unavailable.
