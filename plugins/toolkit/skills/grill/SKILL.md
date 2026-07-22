@@ -2,7 +2,9 @@
 name: grill
 description: >-
   Use when the user explicitly asks to grill, elicit, or interview requirements for a
-  feature or fuzzy task, before any plan exists. Interviews one question at a time with
+  feature or fuzzy task before any plan exists, to run a scoped grill on a wayfinder
+  child stub before that child's own planning, or when an expedition's grill gate fires
+  it on the user's confirmed yes. Interviews one question at a time with
   a recommended answer for each, settles from the codebase whatever the codebase can
   answer instead of asking, and once the user confirms shared understanding, writes a
   canonical glossary (CONTEXT.md) and Nygard-style ADRs (docs/adr/) into the project
@@ -23,7 +25,8 @@ that by interviewing the user up front. See Boundary below for what grill does n
 
 A skill is markdown instructions the model follows, not deterministic code. The
 behaviors below that can be made mechanical (the git precondition, the sentinel
-marker, the single end-of-interview consent gate, the explicit-request trigger) are
+marker, the single end-of-interview consent gate with its one named exception for
+deferred out-of-phase items, the explicit-request trigger) are
 stated as hard rules. The rest (one question at a time, recommending before deciding,
 keeping ADRs rare) are discipline: follow them carefully, but they are not enforced by
 tooling.
@@ -32,10 +35,14 @@ tooling.
 
 Fire only when the user explicitly asks to grill, elicit, or interview requirements
 (e.g. "grill me on this", "let's elicit the requirements for X", "interview me about Y
-before we plan it"). Do not self-fire because a task looks fuzzy or underspecified.
+before we plan it") — or when an expedition's grill gate fires it: the user's confirmed
+yes at that gate is the explicit request. A wayfinder handoff only recommends per-child
+grills; the user still invokes each one. Do not self-fire because a task looks fuzzy or underspecified.
 Fuzziness alone is not a trigger. Only an explicit grill, elicit, or interview request
 should trigger this skill. If unsure whether the user is asking for this, ask rather
 than assume.
+
+Phase-scoped grills: when the user invokes grill on a wayfinder child stub, scope the interview to that child's issue codes and objective — do not re-litigate the umbrella's agreed outcome (wayfinder's alignment step settled it; treat it as a given unless the interview surfaces evidence it is wrong, and then say so rather than silently diverging). Repeat grills across children of one family append to the same `CONTEXT.md` through the existing update mechanics; the ADR three-part gate applies unchanged, per decision, not per child.
 
 ## Preconditions, checked immediately, before the interview starts
 
@@ -56,6 +63,8 @@ discover at the end that nothing can be written.
 - One question at a time, in dependency order. Sequence questions so that an early
   answer can resolve, remove, or reshape several later ones. Do not ask a question
   whose answer depends on a question not yet asked.
+- Dependency order means the alignment layer comes first: the intended outcome, the definition of success, and the rough sequencing are the answers everything else depends on. When those settle and the evidence says the work is really several phases (multiple independent workstreams), pause at that depth and surface the split decision (in an expedition, that is the expedition's gate; standalone, recommend wayfinder) instead of grilling phase-5 detail that will be stale before phase 5 starts. A pause at alignment depth ends the interview at this altitude, so run the consent gate then for whatever glossary or ADR material the alignment layer produced, before handing off — wayfinder consumes the agreed outcome from the conversation and the umbrella plan, not from unwritten notes. If the work stays one plan, continue to full depth as normal.
+- The deferred-ideas exception (the one named exception to the consent gate): an answer that surfaces material belonging to a different phase gets recorded outside the conversation at the moment it surfaces, not held for the write gate — deferred ideas that live only in conversation get lost. The target is the wayfinder child stub that owns it (Open Questions or Current Context) when stubs exist, or the expedition work note's Parked Items section before they do. These are vault plan artifacts, so the write goes through plan-workflow's mechanics (load plan-workflow, atomic write via vault-fs.sh, validate-plan.py after a stub edit) — this exception updates existing pipeline artifacts and never touches grill's own repo artifacts, which stay behind the consent gate. Announce each such write as it happens.
 - Offer a recommended answer with every question (recommend, then confirm, never
   decide silently). State the recommendation and the reasoning in one line, then ask
   for a yes, a correction, or a different answer.
@@ -66,7 +75,8 @@ discover at the end that nothing can be written.
   running state rather than working through a fixed list.
 - Track two running lists in the conversation only, not on disk: resolved terms (for
   the glossary) and resolved decisions with their rationale and alternatives
-  considered (candidate ADR material). Nothing is written until the consent gate below.
+  considered (candidate ADR material). Nothing is written until the consent gate below,
+  except the deferred-ideas exception above.
 - The interview ends when the open questions are exhausted or the user says they are
   satisfied. Move to the consent gate next.
 
@@ -88,8 +98,10 @@ Before writing anything:
 
 4. Write only after one explicit yes to this exact list. If the user does not confirm,
    or the interview is abandoned before this point, write nothing. There is no
-   incremental or mid-interview write. Everything accumulates in conversation only,
-   until this single gate.
+   incremental or mid-interview write of grill's own artifacts. Everything accumulates
+   in conversation only, until this single gate — the sole exception is the
+   deferred-ideas rule in the interview loop, which updates existing pipeline
+   artifacts, never grill's own.
 
 ## Writing the glossary (CONTEXT.md)
 
@@ -177,8 +189,12 @@ Keep ADRs rare on purpose. A flood of them dilutes the ones that matter.
 Grill is the first toolkit skill that writes into the project repo's working
 directory instead of the vault other toolkit skills use for plan and topic notes.
 Use plain Write and Edit tools directly against the repo (these go through the normal
-permission flow). Never use the vault's atomic-write helper script. Never read or
-write the vault's sync config. Nothing grill produces goes into the vault.
+permission flow). Nothing grill produces (glossary, ADRs) goes into the vault, and
+grill never reads or writes the vault's sync config. The deferred-ideas exception is
+not a grill artifact: it updates existing pipeline notes (wayfinder stubs, an
+expedition work note) that live in the vault, and exactly those writes use
+plan-workflow's vault mechanics (atomic write via vault-fs.sh) rather than plain
+Write.
 
 ## Report step
 

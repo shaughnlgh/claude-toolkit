@@ -1,0 +1,8 @@
+{
+  "name": "compact source re-injects rules and doctrine pointer, no welcome line",
+  "stdin": { "source": "compact" },
+  "env": { "CLAUDE_PLUGIN_ROOT": "../.." },
+  "expect_exit": 0,
+  "expect_stdout_contains": ["Toolkit write-time rules", "Toolkit doctrine"],
+  "expect_stdout_not_contains": ["toolkit active"]
+}
