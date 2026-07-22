@@ -6,11 +6,11 @@
 #
 #   bash functional-test.sh self-test      # harness self-tests, NO Claude calls
 #   bash functional-test.sh rules          # rules + doctrine reach a session (1 call, low cost)
-#   bash functional-test.sh skills         # each skill's contract facts load (9 calls, medium)
+#   bash functional-test.sh skills         # each skill's contract facts load (10 calls, medium)
 #   bash functional-test.sh agents         # fixture-based agent probes (12 calls, high)
 #   bash functional-test.sh agents <name>  # a single agent probe (1 call)
 #   bash functional-test.sh orchestration  # no live calls — static + manual (see below)
-#   bash functional-test.sh all            # rules + skills + agents (22 calls, high)
+#   bash functional-test.sh all            # rules + skills + agents (23 calls, high)
 #
 # Isolation: every live probe runs inside a fresh `mktemp -d` workspace (its own
 # throwaway git repo when needed) — never against this checkout or any real
@@ -304,6 +304,9 @@ probe_skills() {
   skill_probe "wayfinder knows its outputs" \
     "Load the wayfinder skill. Report as the answer what kinds of plan notes it emits." \
     "('umbrella' in a or 'parent' in a) and ('child' in a or 'stub' in a)"
+  skill_probe "jira knows its fail-fast probe, verbatim-fetch rule, and read-only boundary" \
+    "Load the jira skill. Without fetching any real ticket, report as the answer: the exact command it runs first to fail fast on auth, which flag it uses to fetch ticket content byte-for-byte, which flag is banned as a content source, and the one word describing whether it ever writes back to Jira." \
+    "'jira me' in a and '--raw' in a and '--plain' in a and 'read-only' in a"
 }
 
 # ---------- probes: agents (fixture-based, event-verified) ----------
@@ -573,7 +576,7 @@ case "$mode" in
     probe_rules
     ;;
   skills)
-    announce 9 "none (read-only)" "medium"
+    announce 10 "none (read-only)" "medium"
     SNAP_BEFORE="$(snapshot_checkout)"
     echo "== Skills load their contract facts (schema-structured; interactive behavior stays manual) =="
     probe_skills
@@ -594,7 +597,7 @@ case "$mode" in
     exit 0
     ;;
   all)
-    announce 22 "implementer + frontend-designer write inside their disposable repos" "high"
+    announce 23 "implementer + frontend-designer write inside their disposable repos" "high"
     SNAP_BEFORE="$(snapshot_checkout)"
     echo "== Rules =="; probe_rules
     echo "== Skills =="; probe_skills
