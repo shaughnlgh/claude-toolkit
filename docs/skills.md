@@ -14,6 +14,7 @@ plugin cache.
 
 | Skill | What it does | Fires when |
 |---|---|---|
+| `crawl` | Front door for new work: ingests a brief or ticket, validates it against the codebase (recall + explorer), then recommends a route — wayfinder, plan-workflow, or no plan — which you confirm before anything is written. | A session opens with a new piece of work and no plan note exists for it yet. |
 | `plan-workflow` | Writes a plan note to your Obsidian vault and stops for approval before any implementation. The single source of truth for artifact layout, naming, frontmatter, and the status lifecycle. | Creating, filling in, or closing out a plan note; starting a planning session. |
 | `execute-workflow` | Execution mechanics after a plan is approved: delegate to worker agents, report progress in a fixed format, run the doc-update pass, debug with runtime evidence. | Starting execution of an approved plan; debugging a runtime or integration issue. |
 | `testing-gate` | Asks once, up front, whether the task needs automated tests or manual verification is enough. | Starting a feature, bugfix, or refactor. |
@@ -21,12 +22,17 @@ plugin cache.
 | `grill` | Requirements interview before a plan exists: one question at a time with a recommended answer, self-answers from the code, then writes a `CONTEXT.md` glossary and ADRs into the repo. | You explicitly ask to grill, elicit, or interview requirements. |
 | `handoff` | Compresses the session into a continuation note in the vault so a second person, or a later session, can pick the work up cold. | You explicitly ask to hand off or write a continuation note. |
 | `resolving-merge-conflicts` | Overview plus side-by-side of every conflict, resolves each hunk by intent, and waits for your confirmation before writing. | You ask for help with a git merge or rebase conflict. |
-| `wayfinder` | Turns a large, fuzzy investigation or migration into a mapped set of tickets: an issue register, a parent umbrella plan, and one child plan stub per task. | You ask to map, scope, or break down a big multi-part effort before planning it. |
+| `wayfinder` | Turns a large, fuzzy investigation or migration into a mapped set of tickets: aligns with you on outcome and success first, then an issue register, a parent umbrella plan, and one child plan stub per task (each recommended a scoped grill before its own planning). | You ask to map, scope, or break down a big multi-part effort before planning it, or crawl routes here with your confirmation. |
 | `gitlab-mr-review` | Multi-dimension MR review: fans out reviewer agents plus MR-specific dimensions and adversarially verifies every finding against the local checkout. | You ask to review a GitLab merge request. |
+| `expedition` | The ticket-to-complete pipeline for big, deliberately-committed work: sequences crawl, grill, split decision, planning, execution, and review through recommend-and-confirm gates, with the stage persisted in a vault work note so the effort survives across days. Completion is always your word, never inferred. | You explicitly invoke it, or ask to resume one. Never automatic — committing to the full workflow is your decision. |
 
 All of the request-triggered skills (`grill`, `handoff`, `resolving-merge-conflicts`,
-`wayfinder`) fire only on an explicit ask, never on something the model infers on its
-own.
+`wayfinder`, `expedition`) fire only on an explicit ask, never on something the model
+infers on its own — with two narrow carve-outs: a crawl route you confirmed counts as
+the explicit ask for wayfinder, and a confirmed yes at an expedition's grill gate
+counts as the explicit ask for grill. `crawl` is the exception in the other
+direction: it fires automatically on new work (a brief or ticket with no plan note),
+staying near-silent on trivial work.
 
 ## Example prompts
 
@@ -34,6 +40,10 @@ How to trigger each skill. Some you invoke directly, some fire automatically ins
 plan-then-build flow.
 
 **Invoke directly:**
+
+- `expedition` — commit a big scope of work to the full guided pipeline:
+
+      Run the expedition on this: <ticket link or brief>.
 
 - `plan-workflow` — plan a non-trivial change:
 
@@ -61,7 +71,14 @@ plan-then-build flow.
 
 **Fire automatically inside a flow** (you don't prompt them by name):
 
-- `testing-gate` — fires when you start any feature, bugfix, or refactor, and asks once
+- `crawl` — fires first when new work arrives with no plan note, validates the brief
+  against the repo, and routes it (near-silently for trivial work). Triggered by, for
+  example:
+
+      Here's the ticket: <link>. We need bulk order editing in the admin.
+
+- `testing-gate` — fires when you start any feature, bugfix, or refactor (after crawl
+  has routed, when both match), and asks once
   whether tests are required. Triggered by, for example:
 
       Add a CSV export to the reports page.
