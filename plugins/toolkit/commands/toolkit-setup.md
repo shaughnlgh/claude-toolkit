@@ -53,11 +53,13 @@ Check `~/.claude/obsidian-sync.json`:
 - `jira` (jira-cli) installed? If yes, run `jira me >/dev/null` and report whether the
   authenticated probe succeeds. NEVER print a token value, even partially. If it fails,
   tell the user: `brew install jira-cli` if missing, then `jira init` (one-time), and
-  ensure `JIRA_API_TOKEN` is exported from `~/.zshrc`.
+  ensure `JIRA_API_TOKEN` is exported from the user's shell rc file (`~/.zshrc`, `~/.bashrc`, or equivalent).
 
-### 5. Optional tooling
+### 5. Other tooling
 
-- `jq` present? (Some scripts prefer it and degrade without it.)
+- `gh` present? (Optional; the SSH-based install path and read-only GitHub checks use it.)
+- `jq` present? (Optional; some scripts prefer it and degrade without it.)
+- `python3` present? (Required by the planning workflow's scripts.)
 
 ### 6. Permissions and environment (optional, consent-gated)
 

@@ -25,7 +25,7 @@ whenever something in the toolkit seems misconfigured.
    template.
 3. **GitLab tooling** (needed by `gitlab-mr-review` only) — whether `glab` is
    installed and, if so, its per-host auth status. Never prints a token value.
-4. **Optional tooling** — whether `jq` is present.
+4. **Other tooling** — whether `gh`, `jq`, and `python3` are present.
 5. **Permissions and environment** (optional, consent-gated) — three separate
    offers, each applied only on an explicit yes:
    - Prompt-free allow rules for the plugin's `vault-fs.sh` and `git-ro.sh` scripts

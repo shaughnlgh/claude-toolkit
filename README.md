@@ -16,6 +16,7 @@ Full transparency — what ships, what runs automatically, and why.
 
 **The components**
 
+- [`docs/prerequisites.md`](docs/prerequisites.md) — the CLI prerequisites: what each is for, install, and auth.
 - [`docs/skills.md`](docs/skills.md) — the skills, with short demos of each in action.
 - [`docs/agents.md`](docs/agents.md) — the 12 worker agents and the conductor/leaf-worker model.
 - [`docs/commands.md`](docs/commands.md) — all eight slash commands (`/toolkit-setup`, `/obsidian-topic`, `/override`, and the thinking tools).
@@ -36,6 +37,10 @@ Full transparency — what ships, what runs automatically, and why.
   agents, skills) with your own, and how `/override` works.
 - [`VERIFY.md`](VERIFY.md) — the live-session verification checklist (the mechanical
   battery is `verify.sh`).
+
+## Prerequisites
+
+The toolkit shells out to a few CLIs rather than holding any credentials of its own: gh, glab, jira-cli, jq, and python3. What each is for, plus the install and auth commands (including the jira token flow), lives in [`docs/prerequisites.md`](docs/prerequisites.md). The Install step below needs gh's SSH setup first; after installing, `/toolkit-setup` checks every prerequisite and reports exactly what is missing.
 
 ## Install
 
@@ -99,15 +104,7 @@ Then the errors, in the order a fresh machine hits them:
 After installing, run `/toolkit-setup` in any Claude Code session — it checks
 everything below, guides you through the vault config, and prints a readiness report.
 
-- **glab** (GitLab CLI) — required by gitlab-mr-review for API auth.
-  Install and authenticate once: `brew install glab && glab auth login`
-- **gh** (GitHub CLI) — optional; the easiest path to first-time GitHub SSH setup
-  (key generation and upload — see Install troubleshooting above):
-  `brew install gh && gh auth login`
-- **jq** — optional; some scripts degrade gracefully without it.
-- **python3** — required by the planning workflow's scripts (`vault-fs.sh` resolves
-  the vault config with it; `validate-plan.py` and `merge-conflict-overview.py` are
-  Python). Requires Python 3; no third-party packages are required.
+- **CLI tooling** — gh, glab, jira, jq, python3: see [`docs/prerequisites.md`](docs/prerequisites.md) for what each is for and the install and auth commands. `/toolkit-setup` reports the readiness of each.
 - **Planning workflow** (optional; required only for plan-workflow / obsidian-topic):
   plan and topic notes are written into an Obsidian vault you control. If you don't
   have Obsidian yet, download it from [obsidian.md](https://obsidian.md/), open it,
