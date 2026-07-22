@@ -29,7 +29,7 @@ Two properties hold across all six:
 | `protect-files.sh` | PreToolUse (`Edit\|Write`) | Hard-blocks `Edit`/`Write` calls to keys/certs/lockfiles/generated files, `.git/`, `secrets/`, and hook scripts; asks for confirmation on `.env*` and `.claude/settings*.json` |
 | `scan-secrets.sh` | PreToolUse (`Edit\|Write`) | Asks for confirmation when written content looks like a credential — never a hard block |
 | `block-dangerous-commands.sh` | PreToolUse (`Bash`) | Hard-blocks a fixed list of destructive command patterns — no "ask" path in this script at all |
-| `session-start.sh` | SessionStart (`startup\|resume\|clear`) | Injects write-time rules, a doctrine pointer, and a git briefing into context; prints a user-visible status line on startup only |
+| `session-start.sh` | SessionStart (`startup\|resume\|clear\|compact`) | Injects write-time rules, a doctrine pointer, and a git briefing into context; prints a user-visible status line on startup only. Fires on compaction too, so a compacted session gets the rules and doctrine pointer re-injected instead of losing them with the summarized context |
 | `notify.sh` | Notification (every notification) | Fires a native OS notification when Claude needs input |
 | `md-wrap-check.sh` | PostToolUse (`Edit\|Write`) | Flags hard-wrapped prose in the content a `.md` write just produced and feeds the finding back to the model (doctrine: one line per paragraph) — warning only, never blocks, checks only the new content |
 
@@ -160,7 +160,7 @@ inspect must not pass).
 
 ## session-start.sh
 
-**Event:** `SessionStart`, matcher `startup|resume|clear`.
+**Event:** `SessionStart`, matcher `startup|resume|clear|compact`.
 
 Produces two separate outputs:
 
