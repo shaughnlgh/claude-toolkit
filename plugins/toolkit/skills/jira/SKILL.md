@@ -23,7 +23,7 @@ Before any other work, run one cheap authenticated call: `jira me >/dev/null`. I
 
 - `jira` not installed: `brew install jira-cli`.
 - Not configured: `jira init` (one-time; stores server and login in jira-cli's own config).
-- Token missing or revoked: export `JIRA_API_TOKEN` from `~/.zshrc` (create a token in Atlassian account settings → Security → API tokens), then start a fresh shell.
+- Token missing or revoked: export `JIRA_API_TOKEN` from the user's shell rc file (`~/.zshrc`, `~/.bashrc`, or equivalent; create a token in Atlassian account settings → Security → API tokens), then start a fresh shell.
 
 Do not retry, guess, or switch transports — a dead credential discovered mid-fetch wastes the work.
 

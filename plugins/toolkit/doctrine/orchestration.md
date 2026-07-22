@@ -26,6 +26,8 @@ agents when they exist.
   approves the plan and instructs execution.
 - Do not ask about model preferences if the prompt or project workflow already defines
   them; record the routing in the plan and follow it during execution.
+- Every delegation goes to the toolkit worker (or a project-local agent shadowing it) whose charter fits the task: docs to `doc-reviewer`, research including web lookups to `explorer`, plan drafting to `planner`, plan review to `plan-critic`, execution to `implementer`, completion checks to `verifier`, code review to the reviewer set. The harness's generic agents (general-purpose, Explore, Plan) are a last resort for work no toolkit charter covers, and reaching for one requires stating why in the delegation.
+- An agent the user has stopped is cancelled work. Never resume, re-message, or relaunch it on your own initiative; it comes back only on the user's explicit instruction.
 
 ## Model policy
 
