@@ -48,11 +48,18 @@ Check `~/.claude/obsidian-sync.json`:
   NEVER print a token value, even partially. If unauthenticated, tell the user:
   `glab auth login`.
 
-### 4. Optional tooling
+### 4. Jira tooling (needed by the jira skill only)
+
+- `jira` (jira-cli) installed? If yes, run `jira me >/dev/null` and report whether the
+  authenticated probe succeeds. NEVER print a token value, even partially. If it fails,
+  tell the user: `brew install jira-cli` if missing, then `jira init` (one-time), and
+  ensure `JIRA_API_TOKEN` is exported from `~/.zshrc`.
+
+### 5. Optional tooling
 
 - `jq` present? (Some scripts prefer it and degrade without it.)
 
-### 5. Permissions and environment (optional, consent-gated)
+### 6. Permissions and environment (optional, consent-gated)
 
 Three optional additions, shown verbatim, explained in one line, and applied only on an
 explicit yes. They span the user's `~/.claude/settings.json` (merge into the existing
@@ -83,7 +90,7 @@ and the global `~/.claude/CLAUDE.md`.
         Vault root resolves from `~/.claude/obsidian-sync.json`.
       - `bash <plugin-root>/scripts/git-ro.sh <dir> <status|diff|log|show>` -
         read-only git anywhere; mutation subcommands refused.
-- **Read-only command allowlist.** The workflows lean on read-only `gh`/`glab` calls
+- **Read-only command allowlist.** The workflows lean on read-only `gh`/`glab`/`jira` calls
   that otherwise prompt on every new machine. Offer these `permissions.allow` rules
   (all inherently read-only subcommands — never offer mutating ones like `gh api -X`,
   `gh pr merge`, or `glab mr merge`, which must keep prompting):
@@ -98,6 +105,7 @@ and the global `~/.claude/CLAUDE.md`.
       Bash(glab mr list:*)
       Bash(glab mr diff:*)
       Bash(glab auth status:*)
+      Bash(jira me:*)
 
   Skip any rule already present. Mention that `/fewer-permission-prompts` extends the
   allowlist from this machine's actual usage history when prompt fatigue persists.
@@ -135,7 +143,7 @@ If any offer is declined, note the practical effects (occasional permission prom
 advisor available to workers; doctrine unreachable by subagents) and move on. Never
 re-nag on later runs: report current state, offer only what is absent.
 
-### 6. Local copies that conflict with the plugin (migration check)
+### 7. Local copies that conflict with the plugin (migration check)
 
 If this machine previously ran a copy-pasted version of this setup, local copies now
 conflict with the plugin. Detect each class and explain its exact effect:
@@ -179,10 +187,11 @@ End with a table:
 | Agents (12) | always ready | — |
 | Review capability (reviewer agents, testing-gate skill) | always ready | — |
 | gitlab-mr-review | ready / not ready | glab auth |
+| jira skill (ticket to brief) | ready / not ready | jira-cli + JIRA_API_TOKEN |
 | Planning workflow (plan-workflow, obsidian-topic) | ready / not ready | vault config |
 | Write-time rules | injected at session start | — |
-| Prompt-free scripts + orchestration env | configured / offered / declined | check 5 |
-| Local conflicts | none / N found | migration (check 6) |
+| Prompt-free scripts + orchestration env | configured / offered / declined | check 6 |
+| Local conflicts | none / N found | migration (check 7) |
 
 One line of verdict at the end: fully ready, or the single next action to get there.
 

@@ -39,7 +39,7 @@ Update the work note at every stage transition, through the vault's atomic-write
 
 `ingested → crawled → grilled → split-decided → planned → approved → implementing → in-review → merged → complete`
 
-At each transition: state the recommendation and the one-line reason, ask, record the answer in the Stage Log. Gate answers mean:
+At each transition: state the recommendation and the one-line reason, ask, record the answer in the Stage Log. Present each gate via the AskUserQuestion form per the communication doctrine, recommended answer first. Gate answers mean:
 
 - **Yes** — advance to the stage.
 - **Skip** — advance without running the stage's work, reason recorded. Valid at the crawl and grill gates only; the split gate is a fork, not a pass-through — it needs an answer (one plan or several), and "skip" is not one.
