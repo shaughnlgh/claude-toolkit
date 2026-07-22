@@ -1,0 +1,11 @@
+{
+  "name": "a long single-line paragraph passes",
+  "stdin": {
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "/tmp/doc.md",
+      "content": "A single unwrapped paragraph that is quite long but stays on one line so it should pass the check without any complaint at all.\n\nAnother paragraph, also one line."
+    }
+  },
+  "expect_exit": 0
+}

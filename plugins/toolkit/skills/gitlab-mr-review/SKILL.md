@@ -18,6 +18,9 @@ conductor: it prepares inputs, launches the workflow, adjudicates, and owns the 
 
 ## 1. Fetch the MR
 
+- Fail fast on auth, before any other work: run `glab api user >/dev/null` (one cheap
+  authenticated call). If it fails, stop immediately and tell the user to re-auth
+  (`glab auth login`) — a revoked token discovered mid-review wastes the whole fan-out.
 - Token: `glab auth token` (requires `glab` authenticated once via `glab auth login`;
   never print the token). Export `GITLAB_HOST` for the instance
   (e.g. `gitlab.example.com`), or derive it from the repo's git remote.
@@ -82,6 +85,12 @@ args: {
 }
 ```
 
+The moment the Workflow tool returns its `runId`, save it to `<scratchpad>/<slug>.runid`
+(with the resolved scriptPath). Runs die for reasons outside anyone's control — API
+overload, a VPN drop, a session restart — and with the runId on disk the review resumes
+(`resumeFromRunId`: completed agents return cached, only dead work re-runs) instead of
+being relaunched from scratch. Never relaunch when a resume is possible.
+
 The result is `{confirmed, refuted, unverified, openQuestions}`.
 
 ## 6. Adjudicate (conductor duty — do not skip)
@@ -101,6 +110,11 @@ The result is `{confirmed, refuted, unverified, openQuestions}`.
   (verify what IS true, not just whether the claim as stated is false).
 
 ## 7. Report
+
+Write the full report to a file (`<scratchpad>/<slug>-review.md`, or the plan directory
+if the review belongs to a plan) as you produce it, and print inline only the verdict
+plus the severity-ordered findings summary. A long report streamed inline can hit the
+output-token ceiling and take the whole session's work with it; a file cannot.
 
 Lead with the verdict (merge-ready / needs work) in one sentence, then findings ordered by
 severity: what, where (file:line), why it is real, concrete failure scenario, suggested fix.

@@ -1,0 +1,12 @@
+{
+  "name": "hard-wrapped prose in a Write is flagged back to the model",
+  "stdin": {
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "/tmp/doc.md",
+      "content": "This is a long paragraph that keeps going and should never be wrapped early because doctrine\nsays one line per paragraph and this continuation proves it was wrapped."
+    }
+  },
+  "expect_exit": 2,
+  "expect_stderr_contains": ["Hard-wrapped prose detected", "one continuous line"]
+}

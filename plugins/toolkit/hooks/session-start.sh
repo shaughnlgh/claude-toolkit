@@ -20,7 +20,7 @@ $1" || CTX="$1"; }
 # copies). Frontend rules stay on-demand via the frontend-designer agent.
 if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; then
   RULES=""; ROVR=""
-  for r in testing security error-handling database; do
+  for r in testing security error-handling database performance; do
     f="${CLAUDE_PLUGIN_ROOT}/rules/${r}.md"
     if [ -f "$HOME/.claude/rules/${r}.md" ]; then f="$HOME/.claude/rules/${r}.md"; ROVR="${ROVR} ${r}"; fi
     if [ -f "$f" ]; then
