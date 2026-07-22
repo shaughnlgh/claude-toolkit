@@ -32,7 +32,7 @@ Stay cheap on small work. "Here's an error, go fix it" must never grow ceremony:
 
 ## 1. Ingest
 
-Capture the brief verbatim — the user's words, plus the ticket content when a reference is given. For GitLab issues or MRs, fetch via `glab` (read-only). For Jira, use the Jira adapter when it ships; until then ask the user to paste the ticket body. Merge everything into one brief without paraphrasing requirements away. Hold it in conversation; nothing is written yet.
+Capture the brief verbatim — the user's words, plus the ticket content when a reference is given. For GitLab issues or MRs, fetch via `glab` (read-only). For Jira keys or ticket URLs, load the `jira` skill (`../jira/SKILL.md` from this skill's base directory) and use the verbatim brief it returns as the ticket content. Merge everything into one brief without paraphrasing requirements away. Hold it in conversation; nothing is written yet.
 
 ## 2. Investigate
 
@@ -50,7 +50,7 @@ Apply the rubric to the evidence, not to the brief:
 - **plan-workflow** — one coherent change with a single decision surface, however large.
 - **no plan** — below the planning threshold: a trivial bounded change. Run `testing-gate` and do it.
 
-Present to the user in one block: the evidence summary, the corrections to the brief, the open questions, and the recommended route with the one-line reason. Proceed only on explicit confirmation — except the no-plan route on trivial work, which writes nothing, so there is nothing to gate: state the one-line routing and proceed. A crawl route the user has confirmed counts as the explicit request that wayfinder's own trigger requires — the user said yes to the decomposition, so nothing fires automatically.
+Present to the user in one block: the evidence summary, the corrections to the brief, the open questions, and the recommended route with the one-line reason. Present the route confirmation itself via the AskUserQuestion form per the communication doctrine, recommended route first. Proceed only on explicit confirmation — except the no-plan route on trivial work, which writes nothing, so there is nothing to gate: state the one-line routing and proceed. A crawl route the user has confirmed counts as the explicit request that wayfinder's own trigger requires — the user said yes to the decomposition, so nothing fires automatically.
 
 ## 4. Hand off with the evidence
 
