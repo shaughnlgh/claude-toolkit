@@ -39,7 +39,7 @@ suite_pass "RESULT: 55 passed, 0 failed" 55 || _sc=1                     # a rea
 echo "== Structure =="
 n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
 [ "$(ls $P/agents/*.md 2>/dev/null | wc -l)" -eq 12 ] && ok "12 agents" || no "12 agents"
-[ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 11 ] && ok "11 skills" || no "11 skills"
+[ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 12 ] && ok "12 skills" || no "12 skills"
 [ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 8 ] && ok "8 commands" || no "8 commands"
 [ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 6 ] && ok "6 rules" || no "6 rules"
 [ "$(ls $P/doctrine/*.md 2>/dev/null | wc -l)" -eq 12 ] && ok "12 doctrine files" || no "12 doctrine files"

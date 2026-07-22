@@ -11,6 +11,8 @@ When this skill is active, before writing or editing code, ask exactly once:
 
 > Do we require tests for this task, or is manual verification sufficient?
 
+Present this question via the AskUserQuestion form per the communication doctrine, recommended answer first.
+
 ## After User Reply
 - If tests are required: use the test setup that already exists in the repo, and follow the `test-first` skill for the red-green-refactor loop
 - If manual verification is sufficient: proceed without adding tests, but do not ask again in this session
