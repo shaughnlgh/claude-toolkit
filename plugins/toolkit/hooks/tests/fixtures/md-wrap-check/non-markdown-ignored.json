@@ -1,0 +1,11 @@
+{
+  "name": "non-markdown files are ignored",
+  "stdin": {
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "/tmp/code.ts",
+      "content": "const veryLongVariableNameForTesting = buildSomethingLong(withArguments, thatKeepGoing)\n  .andChainOntoTheNextLine()"
+    }
+  },
+  "expect_exit": 0
+}

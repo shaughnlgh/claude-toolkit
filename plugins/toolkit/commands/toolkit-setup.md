@@ -83,6 +83,25 @@ and the global `~/.claude/CLAUDE.md`.
         Vault root resolves from `~/.claude/obsidian-sync.json`.
       - `bash <plugin-root>/scripts/git-ro.sh <dir> <status|diff|log|show>` -
         read-only git anywhere; mutation subcommands refused.
+- **Read-only command allowlist.** The workflows lean on read-only `gh`/`glab` calls
+  that otherwise prompt on every new machine. Offer these `permissions.allow` rules
+  (all inherently read-only subcommands — never offer mutating ones like `gh api -X`,
+  `gh pr merge`, or `glab mr merge`, which must keep prompting):
+
+      Bash(gh pr view:*)
+      Bash(gh pr list:*)
+      Bash(gh pr checks:*)
+      Bash(gh pr diff:*)
+      Bash(gh run list:*)
+      Bash(gh run view:*)
+      Bash(glab mr view:*)
+      Bash(glab mr list:*)
+      Bash(glab mr diff:*)
+      Bash(glab auth status:*)
+
+  Skip any rule already present. Mention that `/fewer-permission-prompts` extends the
+  allowlist from this machine's actual usage history when prompt fatigue persists.
+
 - **Orchestration environment.** The toolkit's orchestration doctrine routes every
   worker question or blocker to the conductor; the built-in advisor tool is a
   side-channel around that. Offer:
@@ -135,7 +154,7 @@ conflict with the plugin. Detect each class and explain its exact effect:
 - **Workflow scripts:** `~/.claude/workflows/review-mr.js` duplicating the plugin's
   bundled copy.
 - **Rules (duplication with injection):** files in `~/.claude/rules/` matching plugin
-  rule names (testing, security, error-handling, database, frontend) or carrying
+  rule names (testing, security, error-handling, database, performance, frontend) or carrying
   `source: toolkit@shaughn-toolkit` frontmatter. The plugin now injects these rules
   live at session start, so local copies mean the content lands twice. Offer removal;
   the user's own unrelated rules are never touched.

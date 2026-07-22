@@ -1,0 +1,11 @@
+{
+  "name": "lists, code fences, and YAML frontmatter never match",
+  "stdin": {
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "/tmp/doc.md",
+      "content": "---\ndescription: a long yaml description value that runs well past sixty characters here\ntags: [worker, exploration]\n---\n\n- a long list item that runs past sixty characters before it wraps onto the next\n  continuation line, which is indented\n\n```\nsome code that is quite long and wraps in ways that look exactly like wrapped prose\nbut lives inside a fence so it is fine\n```"
+    }
+  },
+  "expect_exit": 0
+}
