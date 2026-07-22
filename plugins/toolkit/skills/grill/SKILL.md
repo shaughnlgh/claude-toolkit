@@ -67,7 +67,8 @@ discover at the end that nothing can be written.
 - The deferred-ideas exception (the one named exception to the consent gate): an answer that surfaces material belonging to a different phase gets recorded outside the conversation at the moment it surfaces, not held for the write gate — deferred ideas that live only in conversation get lost. The target is the wayfinder child stub that owns it (Open Questions or Current Context) when stubs exist, or the expedition work note's Parked Items section before they do. These are vault plan artifacts, so the write goes through plan-workflow's mechanics (load plan-workflow, atomic write via vault-fs.sh, validate-plan.py after a stub edit) — this exception updates existing pipeline artifacts and never touches grill's own repo artifacts, which stay behind the consent gate. Announce each such write as it happens.
 - Offer a recommended answer with every question (recommend, then confirm, never
   decide silently). State the recommendation and the reasoning in one line, then ask
-  for a yes, a correction, or a different answer.
+  for a yes, a correction, or a different answer. Confirm-or-correct questions use the
+  AskUserQuestion form per the communication doctrine; open-ended elicitation stays prose.
 - Before asking, check what the codebase can already settle (existing code, config,
   naming, docs, prior ADRs). State the settled answer instead of asking, and let the
   user correct it if it is wrong. Only ask what the codebase genuinely cannot answer.
