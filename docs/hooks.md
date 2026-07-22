@@ -1,13 +1,13 @@
 # Hooks
 
-The toolkit ships five hook scripts that run automatically once the plugin is
+The toolkit ships six hook scripts that run automatically once the plugin is
 installed — no opt-in, no separate config. This page is the full accounting, in the
 spirit of transparency: exactly what each one checks, what it hard-blocks versus merely
 asks you to confirm, and every environment variable it honors. The README's Docs list
 links here in one line; this is the full version — the one to read before trusting the
 toolkit with a repo.
 
-Two properties hold across all five:
+Two properties hold across all six:
 
 - **Fails safe.** No hook can crash or hang your session. Where "safe" lands differs by
   hook: `protect-files.sh` and `block-dangerous-commands.sh` require `jq` to parse the
@@ -31,6 +31,7 @@ Two properties hold across all five:
 | `block-dangerous-commands.sh` | PreToolUse (`Bash`) | Hard-blocks a fixed list of destructive command patterns — no "ask" path in this script at all |
 | `session-start.sh` | SessionStart (`startup\|resume\|clear`) | Injects write-time rules, a doctrine pointer, and a git briefing into context; prints a user-visible status line on startup only |
 | `notify.sh` | Notification (every notification) | Fires a native OS notification when Claude needs input |
+| `md-wrap-check.sh` | PostToolUse (`Edit\|Write`) | Flags hard-wrapped prose in the content a `.md` write just produced and feeds the finding back to the model (doctrine: one line per paragraph) — warning only, never blocks, checks only the new content |
 
 ## The boundary model — what enforces what
 

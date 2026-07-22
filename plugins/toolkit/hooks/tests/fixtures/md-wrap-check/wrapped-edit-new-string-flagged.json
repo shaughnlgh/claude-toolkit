@@ -1,0 +1,13 @@
+{
+  "name": "hard-wrapped prose in an Edit new_string is flagged",
+  "stdin": {
+    "tool_name": "Edit",
+    "tool_input": {
+      "file_path": "/tmp/doc.md",
+      "old_string": "old",
+      "new_string": "An edited paragraph that runs long enough to trip the length threshold and then wraps\nonto a second line starting lowercase, which is the wrap signature."
+    }
+  },
+  "expect_exit": 2,
+  "expect_stderr_contains": ["Hard-wrapped prose detected"]
+}
