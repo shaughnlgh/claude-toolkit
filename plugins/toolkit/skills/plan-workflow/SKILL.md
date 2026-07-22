@@ -149,7 +149,11 @@ issue), stop and report the failure. Do not write repo-local workflow artifacts.
 ### Do not write if
 
 - The active plan directory is ambiguous.
-- The plan note does not exist or has not been created yet.
+- The plan note does not exist or has not been created yet. (Exception: an
+  expedition's `work - <name>.md` and `brief - <name>.md` precede the plan note by
+  design — the expedition derives the plan name at ingestion per this skill's naming
+  rules, so those two artifacts carry the eventual plan name and land in the eventual
+  plan directory.)
 - The Obsidian config is missing.
 - Sensitive data may be present in the artifacts.
 - The user explicitly says not to write.
@@ -348,6 +352,8 @@ When a planning prompt points you at an **already-scaffolded** plan note (a pre-
 a new plan directory. Fill in the
 existing note in place. Treat its path as the single source of truth for the plan.
 
+A plan note scaffolded by the `crawl` skill arrives with Current Context, Assumptions, and Open Questions pre-filled from a same-session investigation, and a `brief - <plan-name>.md` sibling holding the verbatim brief. Treat the crawl-filled sections as this session's ground truth — verify only what the plan hinges on, do not re-derive them — and link the brief under Linked Artifacts.
+
 ### Plan status lifecycle
 
 Drive the plan note's frontmatter `status` through its lifecycle so plan-tracking
@@ -362,6 +368,11 @@ tooling can surface state:
   the frontmatter `approved:` date. Approval sets both fields (`status: approved` +
   `approved: <date>`); tooling may automate this and attach the plan note to the ticket. Only an `approved` plan should be
   worked: while a plan is in `review`, the only actions are approve and time tracking.
+  The FIRST action after approval, before touching any file, is invoking the
+  execute-workflow skill — non-negotiable, and doubly so right after a /compact, which
+  can summarize away previously loaded doctrine: the conductor supervises and
+  delegates, it never implements directly, and execute-workflow is where that
+  contract lives.
 - `in-progress` → `completed` (or `blocked` / `abandoned`) as execution proceeds.
 
 ### Record the session on the plan

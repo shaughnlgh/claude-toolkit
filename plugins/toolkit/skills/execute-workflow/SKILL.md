@@ -33,6 +33,12 @@ After plan approval and explicit user instruction to execute:
 9. If the actual worker model differs from the requested model and that is visible,
    report it.
 10. Report progress and residual risk.
+11. When execution surfaces an idea, requirement, or risk that belongs to a different
+    phase of a multi-part effort, write it into the child plan stub that owns it
+    (Open Questions or Current Context) at the moment it surfaces, and say so.
+    Deferred ideas that live only in conversation get lost. Stub edits go through
+    plan-workflow's mechanics: atomic vault write, then validate-plan.py on the
+    edited stub.
 
 ### Build minimal
 
