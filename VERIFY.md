@@ -91,7 +91,7 @@ side-by-side and resolves by intent with confirmation, not a write-back GUI.
 `wayfinder` emits a parent umbrella plan plus child plan stubs.
 
 ### Commands
-- `/toolkit-setup` (reports readiness; changes nothing without a yes).
+- `/setup` (reports readiness; changes nothing without a yes).
 - `/company-rules` if a company rules plugin is also installed (a separate plugin, if your org ships one).
 
 ### Hooks enforce in-session
