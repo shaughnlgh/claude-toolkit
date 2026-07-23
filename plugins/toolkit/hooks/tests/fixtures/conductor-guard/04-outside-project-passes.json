@@ -1,0 +1,7 @@
+{
+  "name": "vault/memory/scratchpad paths outside cwd pass silently",
+  "stdin": { "session_id": "cg-4", "transcript_path": "/tmp/proj/session.jsonl", "cwd": "/repo", "tool_name": "Write", "tool_input": { "file_path": "/Users/u/vault/plans/plan - x.md" } },
+  "env": { "TOOLKIT_CONDUCTOR_EDITS": "0" },
+  "expect_exit": 0,
+  "expect_stdout_not_contains": ["permissionDecision"]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "second-plus compaction escalates to model and user",
+  "stdin": { "source": "compact", "transcript_path": "fixtures/session-start/transcripts/three-compacts.jsonl" },
+  "env": { "CLAUDE_PLUGIN_ROOT": "../.." },
+  "expect_exit": 0,
+  "expect_stdout_contains": ["This session has now compacted 3 times", "fresh session", "systemMessage"]
+}

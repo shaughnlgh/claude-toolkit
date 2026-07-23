@@ -186,7 +186,7 @@ End with a table:
 
 | Capability | Status | Needs |
 |---|---|---|
-| Agents (12) | always ready | — |
+| Agents (13) | always ready | — |
 | Review capability (reviewer agents, testing-gate skill) | always ready | — |
 | gitlab-mr-review | ready / not ready | glab auth |
 | jira skill (ticket to brief) | ready / not ready | jira-cli + JIRA_API_TOKEN |

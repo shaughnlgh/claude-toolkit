@@ -1,0 +1,8 @@
+{
+  "name": "past 200k nudges the model without a user-visible message",
+  "stdin": { "session_id": "fx-cs-02", "transcript_path": "fixtures/context-sentinel/transcripts/mid.jsonl" },
+  "env": { "TOOLKIT_SENTINEL_STATELESS": "1" },
+  "expect_exit": 0,
+  "expect_stdout_contains": ["Context sentinel", "delegate mechanical work", "additionalContext"],
+  "expect_stdout_not_contains": ["systemMessage"]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "conductor editing a project file triggers ask",
+  "stdin": { "session_id": "cg-1", "transcript_path": "/tmp/proj/session.jsonl", "cwd": "/repo", "tool_name": "Edit", "tool_input": { "file_path": "/repo/src/app.ts" } },
+  "env": { "TOOLKIT_CONDUCTOR_EDITS": "0" },
+  "expect_exit": 0,
+  "expect_stdout_contains": ["permissionDecision", "ask", "Conductor guard"]
+}
