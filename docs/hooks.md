@@ -1,13 +1,13 @@
 # Hooks
 
-The toolkit ships six hook scripts that run automatically once the plugin is
+The toolkit ships eight hook scripts that run automatically once the plugin is
 installed — no opt-in, no separate config. This page is the full accounting, in the
 spirit of transparency: exactly what each one checks, what it hard-blocks versus merely
 asks you to confirm, and every environment variable it honors. The README's Docs list
 links here in one line; this is the full version — the one to read before trusting the
 toolkit with a repo.
 
-Two properties hold across all six:
+Two properties hold across all eight:
 
 - **Fails safe.** No hook can crash or hang your session. Where "safe" lands differs by
   hook: `protect-files.sh` and `block-dangerous-commands.sh` require `jq` to parse the
@@ -15,7 +15,10 @@ Two properties hold across all six:
   let a security check that can't run pass silently. `scan-secrets.sh` degrades to a
   no-op without `jq` (it cannot parse the write, so it does not block). `notify.sh` still
   fires with a default message when `jq` is missing, and only no-ops when no OS notifier
-  is available. `session-start.sh` falls back to plain-stdout context. Either way, the worst case is one blocked tool call or a
+  is available. `session-start.sh` falls back to plain-stdout context. `context-sentinel.sh`
+  is a silent no-op without `jq` or a readable transcript, and never blocks anything
+  regardless. `conductor-guard.sh` likewise fails open without `jq` and can only ever
+  ask, never deny. Either way, the worst case is one blocked tool call or a
   slightly thinner context injection — never a broken session.
 - **Reads no network** — with one narrow exception: `session-start.sh`'s verbose mode
   (`TOOLKIT_SESSION_VERBOSE=1`) calls `gh pr view` when the `gh` CLI is installed, which
@@ -32,6 +35,8 @@ Two properties hold across all six:
 | `session-start.sh` | SessionStart (`startup\|resume\|clear\|compact`) | Injects write-time rules, a doctrine pointer, and a git briefing into context; prints a user-visible status line on startup only. Fires on compaction too, so a compacted session gets the rules and doctrine pointer re-injected instead of losing them with the summarized context |
 | `notify.sh` | Notification (every notification) | Fires a native OS notification when Claude needs input |
 | `md-wrap-check.sh` | PostToolUse (`Edit\|Write`) | Flags hard-wrapped prose in the content a `.md` write just produced and feeds the finding back to the model (doctrine: one line per paragraph) — warning only, never blocks, checks only the new content |
+| `context-sentinel.sh` | PostToolUse (all tools) | Watches the conversation's context size via the session transcript; past 200k/400k/600k tokens it injects a model-visible nudge to delegate and plan a handoff (user-visible too from 400k) — advisory only, never blocks |
+| `conductor-guard.sh` | PreToolUse (`Edit\|Write\|NotebookEdit`) | Prompts for confirmation when the main conversation (the conductor, not a subagent) edits a project file directly — doctrine delegates every change to a worker; `TOOLKIT_CONDUCTOR_EDITS=1` disables for a session |
 
 ## The boundary model — what enforces what
 
@@ -168,14 +173,17 @@ Produces two separate outputs:
   bodies — testing, security, error-handling, database, frontmatter stripped — read
   live from the plugin's `rules/` directory, or from `~/.claude/rules/<name>.md` when
   you have overridden one (see [overrides](overrides.md)); a one-line pointer to the
-  toolkit doctrine index; a git briefing (current branch, or the short SHA if HEAD is
-  detached, plus a `dirty` flag when the tree has uncommitted changes); and, when any are
-  present, a one-line announcement of the active doctrine / rule / agent / skill
-  overrides.
+  toolkit doctrine index; the delegate-everything standing rule verbatim (one line, so
+  even sessions that never open the doctrine see it); a git briefing (current branch,
+  or the short SHA if HEAD is detached, plus a `dirty` flag when the tree has
+  uncommitted changes); and, when any are present, a one-line announcement of the
+  active doctrine / rule / agent / skill overrides.
 - **`systemMessage`** (user-visible, `startup` only — suppressed on `resume`/`clear` so
   it doesn't repeat): a one-line `toolkit active — N agents, M skills, planning ready`
   status, or a `planning not configured: run /toolkit-setup` variant if
   `~/.claude/obsidian-sync.json` doesn't exist.
+
+On `compact` it additionally counts the session's compaction boundaries in the transcript (stateless — no counter file) and, from the second compaction onward, adds a model-visible escalation (stable point, update the plan/work note, recommend a fresh session) plus a user-visible `session compacted N×` warning. A session that compacts repeatedly re-pays its whole context indefinitely; this is the companion signal to `context-sentinel.sh`'s thresholds.
 
 **Env vars:** `TOOLKIT_SESSION_VERBOSE=1` extends the git briefing with the last commit
 line, a count of changed files, a `staged` flag, the stash count, and — only if the
@@ -185,6 +193,42 @@ network read in the entire hook set.
 **Failure mode:** needs `jq` to emit JSON with a `systemMessage`; if missing, it falls
 back to plain-stdout `additionalContext` with no `systemMessage` at all — degrades,
 never blocks.
+
+## conductor-guard.sh
+
+**Event:** `PreToolUse`, matcher `Edit|Write|NotebookEdit`.
+
+The delegation guard. The orchestration doctrine delegates every change, however small, to a worker agent; the only override is the human saying otherwise. This hook makes that mechanical: when the MAIN conversation (payload has no `agent_id` — subagent tool calls carry one) is about to `Edit`/`Write` a file inside the project (`cwd`), it returns an `ask` decision — "wait, you are the conductor; delegate unless the human directed this" — so the human's approval IS the override, per edit. Subagent edits, and conductor writes outside the project (vault plan/work notes, memory, scratchpad — conductor-owned artifacts, not implementation), pass untouched.
+
+**Hard blocks / asks:** only ever `ask`, never `deny` — the human can always approve the edit through the prompt.
+
+**Env vars:** `TOOLKIT_CONDUCTOR_EDITS=1` disables the guard for the whole session — the standing form of "I said do it yourself". If worker (subagent) edits ever start prompting, the payload signal changed with a Claude Code update — update the plugin rather than living with `TOOLKIT_CONDUCTOR_EDITS=1`; reaching for that flag routinely is itself the signal that the conductor is doing worker-work.
+
+**Failure mode:** fails open — silent no-op without `jq`, on an empty payload, or when the target path can't be determined. A workflow guard, not a security boundary.
+
+The guard is matcher-scoped to `Edit`/`Write`/`NotebookEdit`, so a conductor write spelled as `Bash` (`sed -i`, `echo >`, `git apply`) never consults it, for the same unbounded-ways-to-spell-a-write reason given in the boundary model above — that half of the doctrine is discipline, not enforcement.
+
+The outside-`cwd` exemption assumes the standard project-checkout-plus-external-vault layout; a session whose `cwd` IS the vault or `~/.claude`, or multi-repo edits via absolute sibling paths, will be misclassified — advisory hook, not a boundary.
+
+## context-sentinel.sh
+
+**Event:** `PostToolUse`, no matcher — fires after every tool call.
+
+The fuel gauge. Reads the session transcript (`transcript_path` from the hook payload), takes the last main-loop assistant message's usage, and computes the context the next request will re-send (`input + cache_read + cache_creation` tokens; sidechain/subagent entries are excluded — their contexts are separate and small). Crossing a threshold emits, once per crossing:
+
+- **≥ 200k tokens:** a model-visible `additionalContext` nudge — delegate remaining mechanical work (searches, browser loops, log trawls, test runs) to workers and plan a wrap-up point.
+- **≥ 400k:** a stronger nudge plus a user-visible `systemMessage` — reach a stable point, update the plan/work note, continue in a fresh session.
+- **≥ 600k:** wrap up now; do not start new work in this session.
+
+Why it exists: past ~200k tokens of context, every tool step costs several times a fresh session's, and near the window limit roughly thirty times — the dominant real-world burn pattern is a long session quietly re-paying its own history on every request. The binding guidance lives in `doctrine/orchestration.md` (Context budget); this hook is what makes it fire at the moment it matters.
+
+Each threshold fires once per crossing: the announced tier is remembered in a per-session temp file (`$TMPDIR/toolkit-ctx-sentinel-<session_id>`) and re-arms when context shrinks again after `/compact` or `/clear`.
+
+**Env vars:** `TOOLKIT_CTX_SENTINEL=0` disables the hook entirely. `TOOLKIT_SENTINEL_STATELESS=1` skips the once-per-crossing dedup (used by the fixture tests, not meant for real sessions).
+
+**Hard blocks / asks:** none — advisory only, exits 0 always.
+
+**Failure mode:** silent no-op without `jq`, without a readable transcript, or on any parse failure. It can only ever add context, never stop a tool call.
 
 ## notify.sh
 

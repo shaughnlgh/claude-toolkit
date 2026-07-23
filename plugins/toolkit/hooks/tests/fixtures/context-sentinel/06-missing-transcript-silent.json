@@ -1,0 +1,7 @@
+{
+  "name": "missing transcript exits 0 with no output",
+  "stdin": { "session_id": "fx-cs-06", "transcript_path": "fixtures/context-sentinel/transcripts/does-not-exist.jsonl" },
+  "env": { "TOOLKIT_SENTINEL_STATELESS": "1" },
+  "expect_exit": 0,
+  "expect_stdout_not_contains": ["Context sentinel"]
+}
