@@ -180,7 +180,7 @@ Produces two separate outputs:
   active doctrine / rule / agent / skill overrides.
 - **`systemMessage`** (user-visible, `startup` only — suppressed on `resume`/`clear` so
   it doesn't repeat): a one-line `toolkit active — N agents, M skills, planning ready`
-  status, or a `planning not configured: run /toolkit-setup` variant if
+  status, or a `planning not configured: run /setup` variant if
   `~/.claude/obsidian-sync.json` doesn't exist.
 
 On `compact` it additionally counts the session's compaction boundaries in the transcript (stateless — no counter file) and, from the second compaction onward, adds a model-visible escalation (stable point, update the plan/work note, recommend a fresh session) plus a user-visible `session compacted N×` warning. A session that compacts repeatedly re-pays its whole context indefinitely; this is the companion signal to `context-sentinel.sh`'s thresholds.
