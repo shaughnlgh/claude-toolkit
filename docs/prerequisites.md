@@ -1,6 +1,6 @@
 # Prerequisites
 
-The toolkit shells out to a few CLIs rather than holding any credentials of its own. Each is a one-time install and auth on your machine; after installing the plugin, `/toolkit-setup` checks every one of these and reports exactly what is missing.
+The toolkit shells out to a few CLIs rather than holding any credentials of its own. Each is a one-time install and auth on your machine; after installing the plugin, `/setup` checks every one of these and reports exactly what is missing.
 
 ### gh (GitHub CLI)
 

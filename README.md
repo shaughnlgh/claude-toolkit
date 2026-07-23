@@ -19,7 +19,7 @@ Full transparency — what ships, what runs automatically, and why.
 - [`docs/prerequisites.md`](docs/prerequisites.md) — the CLI prerequisites: what each is for, install, and auth.
 - [`docs/skills.md`](docs/skills.md) — the skills, with short demos of each in action.
 - [`docs/agents.md`](docs/agents.md) — the 13 worker agents and the conductor/leaf-worker model.
-- [`docs/commands.md`](docs/commands.md) — all eight slash commands (`/toolkit-setup`, `/obsidian-topic`, `/override`, and the thinking tools).
+- [`docs/commands.md`](docs/commands.md) — all eight slash commands (`/setup`, `/obsidian-topic`, `/override`, and the thinking tools).
 - [`docs/hooks.md`](docs/hooks.md) — the eight hooks that run automatically once installed,
   with no opt-in, in full: what each blocks, what it only asks, env vars, and fail-safe
   behavior. Read it before trusting the toolkit with a repo.
@@ -40,7 +40,7 @@ Full transparency — what ships, what runs automatically, and why.
 
 ## Prerequisites
 
-The toolkit shells out to a few CLIs rather than holding any credentials of its own: gh, glab, jira-cli, jq, and python3. What each is for, plus the install and auth commands (including the jira token flow), lives in [`docs/prerequisites.md`](docs/prerequisites.md). The Install step below needs gh's SSH setup first; after installing, `/toolkit-setup` checks every prerequisite and reports exactly what is missing.
+The toolkit shells out to a few CLIs rather than holding any credentials of its own: gh, glab, jira-cli, jq, and python3. What each is for, plus the install and auth commands (including the jira token flow), lives in [`docs/prerequisites.md`](docs/prerequisites.md). The Install step below needs gh's SSH setup first; after installing, `/setup` checks every prerequisite and reports exactly what is missing.
 
 ## Install
 
@@ -101,15 +101,15 @@ Then the errors, in the order a fresh machine hits them:
 
 ## Setup
 
-After installing, run `/toolkit-setup` in any Claude Code session — it checks
+After installing, run `/setup` in any Claude Code session — it checks
 everything below, guides you through the vault config, and prints a readiness report.
 
-- **CLI tooling** — gh, glab, jira, jq, python3: see [`docs/prerequisites.md`](docs/prerequisites.md) for what each is for and the install and auth commands. `/toolkit-setup` reports the readiness of each.
+- **CLI tooling** — gh, glab, jira, jq, python3: see [`docs/prerequisites.md`](docs/prerequisites.md) for what each is for and the install and auth commands. `/setup` reports the readiness of each.
 - **Planning workflow** (optional; required only for plan-workflow / obsidian-topic):
   plan and topic notes are written into an Obsidian vault you control. If you don't
   have Obsidian yet, download it from [obsidian.md](https://obsidian.md/), open it,
   and follow its prompts to create a vault (any name and location work — you'll point
-  the toolkit at it next). `/toolkit-setup` then creates `~/.claude/obsidian-sync.json`
+  the toolkit at it next). `/setup` then creates `~/.claude/obsidian-sync.json`
   from the shipped template; all docs and scripts resolve your vault location and
   root folder from that file.
 
@@ -141,8 +141,7 @@ Without auto-update, pull the latest when you want it:
 claude plugin update toolkit@shaughn-toolkit
 ```
 
-Either way, `/toolkit-setup` always reports the installed commit so you can see
-whether you are current.
+After any update — auto or manual — run `/setup` to confirm you are current: it reports the installed commit and re-checks that every capability is still ready.
 
 ## Verifying
 
