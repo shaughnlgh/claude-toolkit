@@ -1,0 +1,7 @@
+{
+  "name": "root cwd guards every absolute path and asks",
+  "stdin": { "session_id": "cg-9", "transcript_path": "/tmp/proj/session.jsonl", "cwd": "/", "tool_name": "Edit", "tool_input": { "file_path": "/anywhere/file.ts" } },
+  "env": { "TOOLKIT_CONDUCTOR_EDITS": "0" },
+  "expect_exit": 0,
+  "expect_stdout_contains": ["permissionDecision", "ask"]
+}

@@ -8,8 +8,10 @@
 
 INPUT=$(cat 2>/dev/null)
 SOURCE=""
+TRANSCRIPT=""
 if command -v jq >/dev/null 2>&1 && [ -n "$INPUT" ]; then
   SOURCE=$(printf '%s' "$INPUT" | jq -r '.source // empty' 2>/dev/null)
+  TRANSCRIPT=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
 fi
 VERBOSE="${TOOLKIT_SESSION_VERBOSE:-0}"
 CTX=""
@@ -36,6 +38,7 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
     add "Frontend work: use the frontend-designer agent, or read rules/frontend.md in this plugin."
   fi
   [ -f "${CLAUDE_PLUGIN_ROOT}/CLAUDE.md" ] && add "Toolkit doctrine: read the index at ${CLAUDE_PLUGIN_ROOT}/CLAUDE.md before multi-agent or planned work (binding essences plus per-section files; design rationale in README.md alongside). Subagents do not see this line: pass doctrine constraints down in delegation prompts, or add the pointer to your global CLAUDE.md via /toolkit-setup."
+  add "Toolkit standing rule (binds the conductor/main chat only): every file change is delegated to a worker agent, no matter how small; the conductor edits nothing itself unless the human explicitly directs it per instance or TOOLKIT_CONDUCTOR_EDITS=1 is set. Enforced by the conductor-guard hook."
   # Per-file doctrine overrides: a same-named file in ~/.claude/doctrine/ replaces the
   # plugin's copy for that concern. Detected here so it needs no pointer written anywhere.
   if [ -d "$HOME/.claude/doctrine" ]; then
@@ -79,6 +82,17 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
   [ -n "${G:-}" ] && add "$G"
 fi
 
+# Compaction escalation: a session that compacts repeatedly re-pays its whole context
+# indefinitely. Counted from the transcript (stateless), announced from the 2nd compact.
+NCOMPACT=0
+if [ "$SOURCE" = "compact" ] && [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
+  NCOMPACT=$(grep -c '"subtype":"compact_boundary"' "$TRANSCRIPT" 2>/dev/null)
+  case "$NCOMPACT" in ''|*[!0-9]*) NCOMPACT=0 ;; esac
+  if [ "$NCOMPACT" -ge 2 ]; then
+    add "This session has now compacted ${NCOMPACT} times. The vault plan/work note is the continuity mechanism, not this conversation: bring the current task to a stable point, update the note with state and next steps, and recommend the user continue in a fresh session instead of riding further compactions."
+  fi
+fi
+
 # User-visible status line, startup only (skip on resume/clear so it doesn't nag).
 STATUS=""
 if [ "$SOURCE" = "startup" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
@@ -91,6 +105,8 @@ if [ "$SOURCE" = "startup" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
   else
     STATUS="toolkit${VER} active — ${NA} agents, ${NS} skills · planning not configured: run /toolkit-setup"
   fi
+elif [ "$NCOMPACT" -ge 2 ]; then
+  STATUS="toolkit: session compacted ${NCOMPACT}× — the plan/work note carries the state; consider a fresh session"
 fi
 
 # Emit. JSON (with systemMessage) when jq is present; plain-stdout context otherwise.
