@@ -64,6 +64,10 @@ For a multi-phase expedition, stages 5–8 repeat per child; the work note's sta
 
 An idea, requirement, or risk that surfaces in one phase but belongs to another gets written immediately into the child stub that owns it (Open Questions or Current Context) — the stub is where that phase's future planning session will look first. A central parking lot is where ideas go to be forgotten. Before stubs exist (stages 1–4: crawl, alignment grill, split decision — exactly the highest-yield stages for these items), the target is the work note's **Parked Items** section; wayfinder drains it when it emits the stubs, moving each item into the stub that owns it. When a deferred item changes the sequencing itself, also update the umbrella's Task Roadmap row with a one-line pointer. Repo-owned artifacts (CONTEXT.md terms, ADRs, /docs) stay repo-global per grill's own rules.
 
+## Session boundaries
+
+A stage gate is also a session boundary. The work note exists so the effort survives session changes — use that, don't ride one conversation across stages: a long session re-pays its entire context on every request, and the expedition's cost driver is conductor context, not stage work. When a gate closes a stage (crawled, grilled, split-decided, each plan's approval, each child's merged), update the work note, then recommend ending the session and resuming fresh at the next stage — resume already knows how to pick up from the note. Within a stage, if the context sentinel fires or the session compacts twice, same move: stable point, note updated, fresh session. Never let continuity live in the conversation when the note can carry it.
+
 ## Boundary
 
 Expedition does not plan, grill, decompose, implement, review, or approve — the owning skills do, with their own rules intact. It does not create ADRs or glossary entries (grill's job). It never advances a stage without the gate's answer recorded, never skips the human plan approval, and never marks `complete` on its own inference — merged is observable, done is the human's word.

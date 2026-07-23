@@ -97,12 +97,7 @@ Before writing anything:
    Proceed?
    ```
 
-4. Write only after one explicit yes to this exact list. If the user does not confirm,
-   or the interview is abandoned before this point, write nothing. There is no
-   incremental or mid-interview write of grill's own artifacts. Everything accumulates
-   in conversation only, until this single gate — the sole exception is the
-   deferred-ideas rule in the interview loop, which updates existing pipeline
-   artifacts, never grill's own.
+4. Hand the exact settled content to `toolkit:implementer` to write only after one explicit yes to this exact list; the conductor does not write these files itself. If the user does not confirm, or the interview is abandoned before this point, write nothing. There is no incremental or mid-interview write of grill's own artifacts. Everything accumulates in conversation only, until this single gate — the sole exception is the deferred-ideas rule in the interview loop, which updates existing pipeline artifacts, never grill's own.
 
 ## Writing the glossary (CONTEXT.md)
 
@@ -187,15 +182,7 @@ Keep ADRs rare on purpose. A flood of them dilutes the ones that matter.
 
 ## Writes go into the project repo, never the vault
 
-Grill is the first toolkit skill that writes into the project repo's working
-directory instead of the vault other toolkit skills use for plan and topic notes.
-Use plain Write and Edit tools directly against the repo (these go through the normal
-permission flow). Nothing grill produces (glossary, ADRs) goes into the vault, and
-grill never reads or writes the vault's sync config. The deferred-ideas exception is
-not a grill artifact: it updates existing pipeline notes (wayfinder stubs, an
-expedition work note) that live in the vault, and exactly those writes use
-plan-workflow's vault mechanics (atomic write via vault-fs.sh) rather than plain
-Write.
+Grill is the first toolkit skill that writes into the project repo's working directory instead of the vault other toolkit skills use for plan and topic notes. After the consent gate, `toolkit:implementer` writes the settled content: the conductor hands over the exact CONTEXT.md and ADR text agreed to at the gate, verbatim, then reads the written files back to confirm they match — the conductor never calls Write/Edit on these artifacts itself. Nothing grill produces (glossary, ADRs) goes into the vault, and grill never reads or writes the vault's sync config. The deferred-ideas exception is not a grill artifact: it updates existing pipeline notes (wayfinder stubs, an expedition work note) that live in the vault, and exactly those writes use plan-workflow's vault mechanics (atomic write via vault-fs.sh) rather than plain Write.
 
 ## Report step
 

@@ -9,6 +9,7 @@
     "Verify behavior, not implementation",
     "Never modify an existing migration",
     "frontend-designer",
-    "Toolkit doctrine: read the index"
+    "Toolkit doctrine: read the index",
+    "Toolkit standing rule"
   ]
 }

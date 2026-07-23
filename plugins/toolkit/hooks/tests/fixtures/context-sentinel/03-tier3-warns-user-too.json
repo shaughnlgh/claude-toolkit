@@ -1,0 +1,7 @@
+{
+  "name": "past 600k warns the model and the user",
+  "stdin": { "session_id": "fx-cs-03", "transcript_path": "fixtures/context-sentinel/transcripts/big.jsonl" },
+  "env": { "TOOLKIT_SENTINEL_STATELESS": "1" },
+  "expect_exit": 0,
+  "expect_stdout_contains": ["near the window limit", "wrap up NOW", "systemMessage", "650k"]
+}

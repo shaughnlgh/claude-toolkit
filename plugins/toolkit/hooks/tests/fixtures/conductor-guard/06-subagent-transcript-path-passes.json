@@ -1,0 +1,7 @@
+{
+  "name": "payload with subagents transcript path passes silently",
+  "stdin": { "session_id": "cg-6", "transcript_path": "/tmp/proj/session/subagents/agent-abc.jsonl", "cwd": "/repo", "tool_name": "Edit", "tool_input": { "file_path": "/repo/src/app.ts" } },
+  "env": { "TOOLKIT_CONDUCTOR_EDITS": "0" },
+  "expect_exit": 0,
+  "expect_stdout_not_contains": ["permissionDecision"]
+}

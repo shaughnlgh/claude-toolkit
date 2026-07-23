@@ -1,0 +1,3 @@
+{"type":"user","message":{"role":"user","content":"hello"}}
+{"type":"system","subtype":"compact_boundary","content":"compacted"}
+{"type":"user","isCompactSummary":true,"message":{"role":"user","content":"summary"}}

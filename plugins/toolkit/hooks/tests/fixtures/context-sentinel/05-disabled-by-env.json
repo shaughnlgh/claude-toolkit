@@ -1,0 +1,7 @@
+{
+  "name": "TOOLKIT_CTX_SENTINEL=0 disables the hook",
+  "stdin": { "session_id": "fx-cs-05", "transcript_path": "fixtures/context-sentinel/transcripts/big.jsonl" },
+  "env": { "TOOLKIT_CTX_SENTINEL": "0", "TOOLKIT_SENTINEL_STATELESS": "1" },
+  "expect_exit": 0,
+  "expect_stdout_not_contains": ["Context sentinel"]
+}

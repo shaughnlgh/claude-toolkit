@@ -1,0 +1,7 @@
+{
+  "name": "subagent edit (agent_id present) passes silently",
+  "stdin": { "session_id": "cg-2", "agent_id": "a123", "agent_type": "implementer", "transcript_path": "/tmp/proj/session.jsonl", "cwd": "/repo", "tool_name": "Edit", "tool_input": { "file_path": "/repo/src/app.ts" } },
+  "env": { "TOOLKIT_CONDUCTOR_EDITS": "0" },
+  "expect_exit": 0,
+  "expect_stdout_not_contains": ["permissionDecision"]
+}

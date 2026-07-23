@@ -1,15 +1,9 @@
 # Agents
 
-The toolkit ships 12 agents. The main chat is the **conductor**: it plans, delegates,
-and accepts. Agents are **leaf workers** — each carries an explicit tool allowlist and
-none of them get the Agent tool, so none can spawn sub-agents. A worker that hits a
-blocker, a question, or an ambiguity reports it back to the conductor instead of
-delegating around it; the conductor decides how to proceed and remains the only role
-that decides "done". No agent runs on Haiku. Returns are distilled — file paths and
-one-line findings, never pasted file contents.
+The toolkit ships 13 agents. The main chat is the **conductor**: it plans, delegates, and accepts. Every change is delegated, no matter how small — the conductor edits nothing itself unless the human explicitly says otherwise. Agents are **leaf workers** — each carries an explicit tool allowlist and none of them get the Agent tool, so none can spawn sub-agents. A worker that hits a blocker, a question, or an ambiguity reports it back to the conductor instead of delegating around it; the conductor decides how to proceed and remains the only role that decides "done". No agent runs on Haiku. Returns are distilled — file paths and one-line findings, never pasted file contents.
 
 Tools and model are set in each agent's own frontmatter. `verify.sh`
-statically proves the leaf property for all 12: no agent's tool allowlist includes
+statically proves the leaf property for all 13: no agent's tool allowlist includes
 `Agent` or `Task`, none omits an allowlist, and none is routed to Haiku.
 
 Invoke by scoped name (`toolkit:<name>`) so the plugin copy resolves rather than a
@@ -41,6 +35,12 @@ verbose output mode and an internal ≥80-confidence filter on findings.
 | `toolkit:doc-reviewer` | Cross-references docs against actual source: stale references, wrong signatures, missing params, broken examples. | After `.md`, docstring, JSDoc, or API-doc changes — or when code changes may have invalidated existing docs. |
 | `toolkit:silent-failure-hunter` | Finds code that fails silently — swallowed errors, failures masked as success, fallbacks that hide breakage. | After any change touching error handling, catch blocks, fallbacks, retries, or async flows — and on every PR review. |
 | `toolkit:pr-test-analyzer` | Judges whether tests actually verify the change — assertion-free tests, mock theater, tests that can't fail, weakened or deleted tests. | When a diff adds or changes tests, or changes behavior without touching tests. |
+
+## Browser
+
+| Agent | What it does | When to use |
+|---|---|---|
+| `toolkit:browser-driver` | Drives Chrome via claude-in-chrome for multi-step journeys: reproduction runs, checkout/login-gated flows, UI verification, dashboard and log-viewer trawls. Prefers text extraction over screenshots, surfaces login walls as blockers (never enters credentials), returns a distilled run report. | Any browser loop longer than a handful of steps. Keeps computer-use steps and screenshots out of the conductor's context — the single most expensive known usage pattern (see `doctrine/orchestration.md`, Context budget). |
 
 ## Design
 
