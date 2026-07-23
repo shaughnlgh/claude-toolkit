@@ -63,10 +63,10 @@ Check `~/.claude/obsidian-sync.json`:
 
 ### 6. Permissions and environment (optional, consent-gated)
 
-Three optional additions, shown verbatim, explained in one line, and applied only on an
+Five optional additions, shown verbatim, explained in one line, and applied only on an
 explicit yes. They span the user's `~/.claude/settings.json` (merge into the existing
-`permissions.allow` / `env` objects, never replacing them, always leaving valid JSON)
-and the global `~/.claude/CLAUDE.md`.
+`permissions.allow` / `env` / `extraKnownMarketplaces` objects, never replacing them,
+always leaving valid JSON) and the global `~/.claude/CLAUDE.md`.
 
 - **Prompt-free toolkit scripts.** The plugin's vault and git scripts are invoked by
   its skills from the plugin cache. Offer these allow rules, written with the user's
@@ -135,15 +135,28 @@ and the global `~/.claude/CLAUDE.md`.
       Personal overrides: state one inline below, or drop a same-named file in
       ~/.claude/doctrine/ (auto-detected each session, no pointer needed).
 
-Do not offer to pre-create override directories — `/override` creates whatever it
-needs when a doctrine, rule, agent, or skill override is actually made, and an empty
-directory has no effect. In the readiness report, mention once that overrides for
-all four types are available via `/override` (see `docs/overrides.md`; safety
-sections may be tightened, not loosened).
+- **Auto-update.** New commits are new versions. Offer to enable marketplace
+  auto-update by merging into `~/.claude/settings.json` (top-level
+  `extraKnownMarketplaces`, merged into any existing object, never replacing it):
 
-If any offer is declined, note the practical effects (occasional permission prompts;
-advisor available to workers; doctrine unreachable by subagents) and move on. Never
-re-nag on later runs: report current state, offer only what is absent.
+      "extraKnownMarketplaces": {
+        "shaughn-toolkit": {
+          "source": { "source": "git", "url": "git@github.com:shaughnlgh/claude-toolkit.git" },
+          "autoUpdate": true
+        }
+      }
+
+  Explain the trade: with it on, each session start background-pulls and prompts
+  `/reload-plugins` when a new version arrives — this needs the SSH marketplace
+  remote (see the root README's Install), as the background pull cannot authenticate
+  over HTTPS. If `shaughn-toolkit` is already present with `"autoUpdate": true`,
+  report it as current. If present but `autoUpdate` is false or absent, offer to set
+  only that field, leaving the existing `source` untouched. Applied only on an
+  explicit yes.
+
+Do not offer to pre-create override directories — `/override` creates whatever it needs when a doctrine, rule, agent, or skill override is actually made, and an empty directory has no effect. In the readiness report, mention once that overrides for all four types are available via `/override` (see `docs/overrides.md`; safety sections may be tightened, not loosened).
+
+If any offer is declined, note the practical effects (occasional permission prompts; advisor available to workers; doctrine unreachable by subagents; updates must be pulled manually) and move on. Never re-nag on later runs: report current state, offer only what is absent.
 
 ### 7. Local copies that conflict with the plugin (migration check)
 
@@ -193,6 +206,7 @@ End with a table:
 | Planning workflow (plan-workflow, obsidian-topic) | ready / not ready | vault config |
 | Write-time rules | injected at session start | — |
 | Prompt-free scripts + orchestration env | configured / offered / declined | check 6 |
+| Auto-update | on / offered / declined | check 6 |
 | Local conflicts | none / N found | migration (check 7) |
 
 One line of verdict at the end: fully ready, or the single next action to get there.

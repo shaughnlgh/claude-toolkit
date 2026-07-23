@@ -37,7 +37,7 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
     add "$RULES"
     add "Frontend work: use the frontend-designer agent, or read rules/frontend.md in this plugin."
   fi
-  [ -f "${CLAUDE_PLUGIN_ROOT}/CLAUDE.md" ] && add "Toolkit doctrine: read the index at ${CLAUDE_PLUGIN_ROOT}/CLAUDE.md before multi-agent or planned work (binding essences plus per-section files; design rationale in README.md alongside). Subagents do not see this line: pass doctrine constraints down in delegation prompts, or add the pointer to your global CLAUDE.md via /toolkit-setup."
+  [ -f "${CLAUDE_PLUGIN_ROOT}/CLAUDE.md" ] && add "Toolkit doctrine: read the index at ${CLAUDE_PLUGIN_ROOT}/CLAUDE.md before multi-agent or planned work (binding essences plus per-section files; design rationale in README.md alongside). Subagents do not see this line: pass doctrine constraints down in delegation prompts, or add the pointer to your global CLAUDE.md via /setup."
   add "Toolkit standing rule (binds the conductor/main chat only): every file change is delegated to a worker agent, no matter how small; the conductor edits nothing itself unless the human explicitly directs it per instance or TOOLKIT_CONDUCTOR_EDITS=1 is set. Enforced by the conductor-guard hook."
   # Per-file doctrine overrides: a same-named file in ~/.claude/doctrine/ replaces the
   # plugin's copy for that concern. Detected here so it needs no pointer written anywhere.
@@ -103,7 +103,7 @@ if [ "$SOURCE" = "startup" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
   if [ -f "$HOME/.claude/obsidian-sync.json" ]; then
     STATUS="toolkit${VER} active — ${NA} agents, ${NS} skills, planning ready"
   else
-    STATUS="toolkit${VER} active — ${NA} agents, ${NS} skills · planning not configured: run /toolkit-setup"
+    STATUS="toolkit${VER} active — ${NA} agents, ${NS} skills · planning not configured: run /setup"
   fi
 elif [ "$NCOMPACT" -ge 2 ]; then
   STATUS="toolkit: session compacted ${NCOMPACT}× — the plan/work note carries the state; consider a fresh session"

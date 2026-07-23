@@ -24,7 +24,7 @@ always-on layer lean.
   consumes that contract; the workflow never depends on the tooling.
 - **Rules are write-time law; reviewer agents are review-time enforcement** of the
   same sins. Complementary, not redundant.
-- **Everything consent-gated.** `/toolkit-setup` changes nothing without an explicit
+- **Everything consent-gated.** `/setup` changes nothing without an explicit
   yes; hooks are listed transparently in the root README; the plugin never
   self-privileges (no permission self-grants, no prompt-skipping hooks — the one
   documented lever for that was deliberately rejected).
