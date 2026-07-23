@@ -24,7 +24,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved this way.
 | `override.sh` | Copy a plugin doctrine, rule, agent, or skill into `~/.claude/` to override it (drives `/override`) | Name only (no paths); refuses unknown/ambiguous names; won't clobber an existing override |
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
 | `validate-plan.py` | Validates a plan note against the plan-workflow contract | Read-only — never edits the note; no network, no config, stdlib only |
-| `obsidian-sync.json.template` | Vault config template `toolkit-setup` instantiates to `~/.claude/obsidian-sync.json` | n/a — config, not an executable |
+| `obsidian-sync.json.template` | Vault config template `setup` instantiates to `~/.claude/obsidian-sync.json` | n/a — config, not an executable |
 | `design-detector/` | Deterministic, no-LLM detector for AI-generated frontend anti-patterns (most of 46 rules) | Vendored from Impeccable (Apache-2.0, attributed); read-only; zero-dep by default |
 
 ## vault-fs.sh
@@ -183,7 +183,7 @@ Tests: `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh`
 
 ## obsidian-sync.json.template
 
-The source template `toolkit-setup` copies to `~/.claude/obsidian-sync.json` on
+The source template `setup` copies to `~/.claude/obsidian-sync.json` on
 first setup. It is config, not an executable — this is what `vault-fs.sh` (and the
 vault-writing skills) read `vault_path` and `root_folder` from to resolve the vault
 root.

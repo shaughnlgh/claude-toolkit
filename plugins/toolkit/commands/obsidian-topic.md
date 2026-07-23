@@ -216,7 +216,7 @@ and from which projects.
   always; set `verified` only when the note's facts were actually checked this
   session (see Freshness and validation).
 - Use atomic writes: Write to a `.tmp` file in the target directory, then
-  the toolkit's `vault-fs.sh mv`, in the `scripts/` directory at the plugin root (locate the plugin root via the installed cache path shown by /toolkit-setup, or ../scripts relative to this commands/ directory).
+  the toolkit's `vault-fs.sh mv`, in the `scripts/` directory at the plugin root (locate the plugin root via the installed cache path shown by /setup, or ../scripts relative to this commands/ directory).
 
 ### 5. Maintain the link graph
 
