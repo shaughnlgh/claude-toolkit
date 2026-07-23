@@ -1,0 +1,7 @@
+{
+  "name": "missing cwd field guards every absolute path and asks",
+  "stdin": { "session_id": "cg-7", "transcript_path": "/tmp/proj/session.jsonl", "tool_name": "Edit", "tool_input": { "file_path": "/repo/src/app.ts" } },
+  "env": { "TOOLKIT_CONDUCTOR_EDITS": "0" },
+  "expect_exit": 0,
+  "expect_stdout_contains": ["permissionDecision", "ask"]
+}

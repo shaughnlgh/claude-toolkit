@@ -13,6 +13,12 @@
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/block-dangerous-commands.sh\"", "timeout": 10 }
         ]
+      },
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/conductor-guard.sh\"", "timeout": 10 }
+        ]
       }
     ],
     "PostToolUse": [
@@ -20,6 +26,11 @@
         "matcher": "Edit|Write",
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/md-wrap-check.sh\"", "timeout": 10 }
+        ]
+      },
+      {
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/context-sentinel.sh\"", "timeout": 10 }
         ]
       }
     ],

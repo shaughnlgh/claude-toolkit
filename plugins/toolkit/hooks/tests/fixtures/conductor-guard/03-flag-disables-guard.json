@@ -1,0 +1,7 @@
+{
+  "name": "TOOLKIT_CONDUCTOR_EDITS=1 disables the guard",
+  "stdin": { "session_id": "cg-3", "transcript_path": "/tmp/proj/session.jsonl", "cwd": "/repo", "tool_name": "Write", "tool_input": { "file_path": "/repo/src/app.ts" } },
+  "env": { "TOOLKIT_CONDUCTOR_EDITS": "1" },
+  "expect_exit": 0,
+  "expect_stdout_not_contains": ["permissionDecision"]
+}

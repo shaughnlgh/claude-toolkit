@@ -38,12 +38,12 @@ suite_pass "RESULT: 55 passed, 0 failed" 55 || _sc=1                     # a rea
 
 echo "== Structure =="
 n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
-[ "$(ls $P/agents/*.md 2>/dev/null | wc -l)" -eq 12 ] && ok "12 agents" || no "12 agents"
+[ "$(ls $P/agents/*.md 2>/dev/null | wc -l)" -eq 13 ] && ok "13 agents" || no "13 agents"
 [ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 12 ] && ok "12 skills" || no "12 skills"
 [ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 8 ] && ok "8 commands" || no "8 commands"
 [ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 6 ] && ok "6 rules" || no "6 rules"
 [ "$(ls $P/doctrine/*.md 2>/dev/null | wc -l)" -eq 12 ] && ok "12 doctrine files" || no "12 doctrine files"
-[ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 6 ] && ok "6 hook scripts" || no "6 hook scripts"
+[ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 8 ] && ok "8 hook scripts" || no "8 hook scripts"
 for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js \
          skills/gitlab-mr-review/scripts/post_mr_comments.py \
          skills/grill/SKILL.md \
@@ -60,7 +60,7 @@ fi
 
 echo "== Hook behavior (fixture suite is authoritative) =="
 out="$(cd "$P/hooks/tests" && bash run-all.sh 2>/dev/null | tail -1)"
-suite_ok "hook fixture suite" "$out" 96
+suite_ok "hook fixture suite" "$out" 119
 # spot-confirm session-start's two injections directly (no fixture asserts the pair)
 ss="$(echo '{}' | bash "$P/hooks/session-start.sh" 2>/dev/null)"
 want "session-start injects a write-time rule" "$ss" "Verify behavior, not implementation"
