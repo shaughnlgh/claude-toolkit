@@ -1,0 +1,7 @@
+{
+  "name": "below 200k context emits nothing",
+  "stdin": { "session_id": "fx-cs-01", "transcript_path": "fixtures/context-sentinel/transcripts/small.jsonl" },
+  "env": { "TOOLKIT_SENTINEL_STATELESS": "1" },
+  "expect_exit": 0,
+  "expect_stdout_not_contains": ["Context sentinel"]
+}

@@ -28,7 +28,7 @@ Fire when new work arrives — a brief, a ticket link, a dictated task — at se
 
 Thin-crawl skip: when the brief already names exact files and functions and those facts are verified (a bug the user already diagnosed), or topic recall shows a prior crawl or plan covering the same ground, skip the investigation, say why, and route directly. Skipping requires a stated reason, the same discipline as every other gate in this toolkit.
 
-Stay cheap on small work. "Here's an error, go fix it" must never grow ceremony: the thin-skip plus the no-plan route collapse to a single sentence ("brief checks out against the repo, below planning threshold — fixing it directly") with no confirmation gate. The full present-and-confirm routing block is for work where the route is genuinely in question. The `expedition` skill uses crawl as its stage 2; that changes nothing about how crawl behaves standalone.
+Stay cheap on small work. "Here's an error, go fix it" must never grow ceremony: the thin-skip plus the no-plan route collapse to a single sentence ("brief checks out against the repo, below planning threshold — handing off to implementer for a direct fix") with no confirmation gate. The full present-and-confirm routing block is for work where the route is genuinely in question. The `expedition` skill uses crawl as its stage 2; that changes nothing about how crawl behaves standalone.
 
 ## 1. Ingest
 
