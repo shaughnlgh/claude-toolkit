@@ -1,18 +1,14 @@
 # Overrides
 
-The toolkit ships opinionated defaults — doctrine, rules, agents, skills. They are
-defaults, not law. Your own config wins when it disagrees, so you bend the toolkit to how
-you and your team work instead of forking it.
+The toolkit ships opinionated defaults — doctrine, rules, agents, skills. They are defaults, not law. Your own config wins when it disagrees, so you bend the toolkit to how you and your team work instead of forking it.
 
 ## The rule
 
-Most specific wins: project config beats your global config beats the plugin's defaults.
-Safety sections (git-safety, security) may be tightened, never loosened.
+Most specific wins: project config beats your global config beats the plugin's defaults. Safety sections (git-safety, security) may be tightened, never loosened.
 
 ## What you can override, and how each takes effect
 
-You override by placing a same-named copy under your global `~/.claude/`. The `/override`
-command does the copy for you (below), or you can drop the file in by hand.
+You override by placing a same-named copy under your global `~/.claude/`. The `/override` command does the copy for you (below), or you can drop the file in by hand.
 
 | Type | Put your copy at | How it wins |
 |---|---|---|
@@ -21,14 +17,9 @@ command does the copy for you (below), or you can drop the file in by hand.
 | **agents** | `~/.claude/agents/<name>.md` | Claude Code resolves your agent over the plugin's — for the **bare name**. Invoke it as `<name>`, not `toolkit:<name>` (the scoped name pins to the plugin). |
 | **skills** | `~/.claude/skills/<name>/` | Same as agents — resolved for the bare name. Copied as a whole directory. |
 
-Doctrine and rules are picked up because the hook loads them fresh each session. Agents
-and skills are resolved natively by Claude Code, so they work with no hook involvement,
-but only when invoked by their bare name.
+Doctrine and rules are picked up because the hook loads them fresh each session. Agents and skills are resolved natively by Claude Code, so they work with no hook involvement, but only when invoked by their bare name.
 
-The `frontend` rule is the one exception: it is reference-only (never injected — its
-content lives in the `frontend-designer` agent), so there is nothing for a rule override
-to replace. Override the `frontend-designer` agent instead. `/override` will tell you
-this if you try.
+The `frontend` rule is the one exception: it is reference-only (never injected — its content lives in the `frontend-designer` agent), so there is nothing for a rule override to replace. Override the `frontend-designer` agent instead. `/override` will tell you this if you try.
 
 ## The `/override` command
 
@@ -36,17 +27,13 @@ this if you try.
 
 - **no argument** — lists everything overridable, grouped by type.
 - **a name** (`/override conventions`) — auto-detects the type and copies it.
-- **a type and name** (`/override rules security`) — needed only for an ambiguous name
-  (`security` is both a doctrine and a rule).
+- **a type and name** (`/override rules security`) — needed only for an ambiguous name (`security` is both a doctrine and a rule).
 
-It refuses unknown or ambiguous names, and never overwrites an override you have already
-created (edit that one directly). Under the hood it runs `scripts/override.sh`, which is
-self-locating and needs no config.
+It refuses unknown or ambiguous names, and never overwrites an override you have already created (edit that one directly). Under the hood it runs `scripts/override.sh`, which is self-locating and needs no config.
 
 ## What you see each session
 
-When an override is active the session-start hook announces it, so it is never a silent
-change:
+When an override is active the session-start hook announces it, so it is never a silent change:
 
 - *Doctrine overrides active … `conventions`* — read your global copy for that concern.
 - *Rule overrides active …* — your rule body was injected instead of the plugin's.
@@ -54,7 +41,4 @@ change:
 
 ## Tightening safety
 
-The safety sections — the git-safety and security doctrine, and the security rule — can
-be made stricter in your override, never looser. This is stated discipline, not hook-enforced — a hook cannot tell
-a tighten from a loosen — so it rests on you keeping to it, the same as the rest of the
-doctrine.
+The safety sections — the git-safety and security doctrine, and the security rule — can be made stricter in your override, never looser. This is stated discipline, not hook-enforced — a hook cannot tell a tighten from a loosen — so it rests on you keeping to it, the same as the rest of the doctrine.
