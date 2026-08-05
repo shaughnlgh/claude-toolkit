@@ -37,7 +37,7 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
     add "$RULES"
     add "Frontend work: use the frontend-designer agent, or read rules/frontend.md in this plugin."
   fi
-  [ -f "${CLAUDE_PLUGIN_ROOT}/CLAUDE.md" ] && add "Toolkit doctrine: read the index at ${CLAUDE_PLUGIN_ROOT}/CLAUDE.md before multi-agent or planned work (binding essences plus per-section files; design rationale in README.md alongside). Subagents do not see this line: pass doctrine constraints down in delegation prompts, or add the pointer to your global CLAUDE.md via /setup."
+  [ -f "${CLAUDE_PLUGIN_ROOT}/CLAUDE.md" ] && add "Toolkit doctrine: read the index at ${CLAUDE_PLUGIN_ROOT}/CLAUDE.md before multi-agent or planned work (binding essences plus per-section files; design rationale in README.md alongside). Subagents do not see this line or the write-time rules above: pass doctrine and rule constraints down in delegation prompts, or add both pointers to your global CLAUDE.md via /setup."
   add "Toolkit standing rule (binds the conductor/main chat only): every file change is delegated to a worker agent, no matter how small; the conductor edits nothing itself unless the human explicitly directs it per instance or TOOLKIT_CONDUCTOR_EDITS=1 is set. Enforced by the conductor-guard hook."
   # Per-file doctrine overrides: a same-named file in ~/.claude/doctrine/ replaces the
   # plugin's copy for that concern. Detected here so it needs no pointer written anywhere.
