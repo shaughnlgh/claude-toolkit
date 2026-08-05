@@ -15,7 +15,7 @@ description: >-
 
 This skill turns a Jira ticket into a verbatim brief for the planning skills. It exists because briefs must carry the ticket's exact words: a paraphrase drops the requirement that triples the scope. The model never summarizes, reorders, or cleans up ticket content — it fetches, extracts, and presents it as written.
 
-Transport is `jira-cli` (see ADR 0001 in the repo's `docs/adr/`), which reads `JIRA_API_TOKEN` from the environment per invocation with no stored credential. Reference the token by name only; never print it or copy it into any file. The Atlassian MCP connector and acli are documented fallbacks, not built — do not reach for them.
+Transport is `jira-cli` (see ADR 0001 in the repo's `docs/decisions/`), which reads `JIRA_API_TOKEN` from the environment per invocation with no stored credential. Reference the token by name only; never print it or copy it into any file. The Atlassian MCP connector and acli are documented fallbacks, not built — do not reach for them.
 
 ## 1. Fail fast on auth
 
