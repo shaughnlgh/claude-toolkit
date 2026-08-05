@@ -109,8 +109,7 @@ Resolve the vault path and folder template from `~/.claude/obsidian-sync.json`.
 
 ### Repo-local plans directory
 
-Do not write workflow artifacts to repo-local `.claude/plans/`. The Obsidian vault
-is the only artifact location.
+Do not write workflow artifacts (plan, handoff, and session notes) to repo-local `.claude/plans/`. The Obsidian vault is the only location for these workflow artifacts; it does not govern repo-owned knowledge artifacts (facts, decisions, playbooks, glossary), which follow `doctrine/repo-artifacts.md` instead.
 
 ### Built-in plan directory
 
@@ -314,6 +313,8 @@ structure, content rules, freshness validation, build process) lives in
 the toolkit's obsidian-topic command (`../../commands/obsidian-topic.md` from this
 skill's base directory) — Read it before creating or updating topic notes or stubs. Prefer fewer, better topic links over many noisy ones. Do not rely on
 Obsidian-only plugins for basic readability.
+
+Stubs created during planning stay vault-side; promoting a topic's canonical facts into the project repo happens only through `obsidian-topic`'s own consent gate (Repo mode), never as a side effect of planning.
 
 Use plain strings in the plan frontmatter `related_topics`, and Obsidian `[[wiki links]]`
 in the body Related Topics section. Linked Artifacts follows its rule under Required

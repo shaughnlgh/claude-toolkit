@@ -7,10 +7,10 @@ description: >-
   it on the user's confirmed yes. Interviews one question at a time with
   a recommended answer for each, settles from the codebase whatever the codebase can
   answer instead of asking, and once the user confirms shared understanding, writes a
-  canonical glossary (CONTEXT.md) and Nygard-style ADRs (docs/adr/) into the project
-  repo behind a single consent gate, then hands off to plan-workflow. Do not invoke on
-  task fuzziness the model detects on its own. Only an explicit grill, elicit, or
-  interview request should trigger this.
+  canonical glossary and Nygard-style ADRs into the project repo (location per
+  doctrine/repo-artifacts.md) behind a single consent gate, then hands off to
+  plan-workflow. Do not invoke on task fuzziness the model detects on its own. Only an
+  explicit grill, elicit, or interview request should trigger this.
 ---
 
 # Grill
@@ -23,13 +23,7 @@ repo-owned artifacts before a plan exists. `plan-workflow` is conductor-driven (
 reads the code and lists Open Questions at the end of a drafted plan). Grill inverts
 that by interviewing the user up front. See Boundary below for what grill does not do.
 
-A skill is markdown instructions the model follows, not deterministic code. The
-behaviors below that can be made mechanical (the git precondition, the sentinel
-marker, the single end-of-interview consent gate with its one named exception for
-deferred out-of-phase items, the explicit-request trigger) are
-stated as hard rules. The rest (one question at a time, recommending before deciding,
-keeping ADRs rare) are discipline: follow them carefully, but they are not enforced by
-tooling.
+A skill is markdown instructions the model follows, not deterministic code. The behaviors below that can be made mechanical (the git precondition, the sentinel marker, the single end-of-interview consent gate for grill's own new artifacts with its one named exception for deferred out-of-phase items, the separate `docs/adr/` migration gate when an older layout is found, the explicit-request trigger) are stated as hard rules. The rest (one question at a time, recommending before deciding, keeping ADRs rare) are discipline: follow them carefully, but they are not enforced by tooling.
 
 ## Trigger and scope
 
@@ -42,7 +36,7 @@ Fuzziness alone is not a trigger. Only an explicit grill, elicit, or interview r
 should trigger this skill. If unsure whether the user is asking for this, ask rather
 than assume.
 
-Phase-scoped grills: when the user invokes grill on a wayfinder child stub, scope the interview to that child's issue codes and objective — do not re-litigate the umbrella's agreed outcome (wayfinder's alignment step settled it; treat it as a given unless the interview surfaces evidence it is wrong, and then say so rather than silently diverging). Repeat grills across children of one family append to the same `CONTEXT.md` through the existing update mechanics; the ADR three-part gate applies unchanged, per decision, not per child.
+Phase-scoped grills: when the user invokes grill on a wayfinder child stub, scope the interview to that child's issue codes and objective — do not re-litigate the umbrella's agreed outcome (wayfinder's alignment step settled it; treat it as a given unless the interview surfaces evidence it is wrong, and then say so rather than silently diverging). Repeat grills across children of one family append to the same glossary location (per doctrine/repo-artifacts.md) through the existing update mechanics; the ADR three-part gate applies unchanged, per decision, not per child.
 
 ## Preconditions, checked immediately, before the interview starts
 
@@ -54,9 +48,16 @@ Phase-scoped grills: when the user invokes grill on a wayfinder child stub, scop
 2. If it is a git repository, check for a dirty working tree (`git status
    --porcelain`). If dirty, warn the user once (new files will land in a tree that
    already has uncommitted changes) and continue. This is a warning, not a block.
+3. Check for an older layout. A root `CONTEXT.md` carrying the grill sentinel as its first line can ride the main consent gate below, as one bullet. An existing `docs/adr/` directory is a separate, explicit decision that never rides that gate: ask about it now, right after preconditions and before the interview, so its answer does not block the end-of-interview gate (see Migrating an older layout).
+4. Before any repo write, run the docs-dir caution and the repo-root/monorepo anchor check from `doctrine/repo-artifacts.md`: confirm `docs/` here is a knowledge home, not published site content or build output, and confirm which repo root the write anchors to.
 
-Checking this before the interview begins avoids spending the user's time only to
-discover at the end that nothing can be written.
+Checking this before the interview begins avoids spending the user's time only to discover at the end that nothing can be written, or that an existing file needs migrating first.
+
+## Migrating an older layout
+
+Only a layout grill itself owns may ride its own main consent gate: a root `CONTEXT.md` carrying the grill sentinel as its first line. Propose renaming it into `docs/glossary.md` as one bullet in that gate's file list, and sweep the repo for references to the old path (README, other docs, in-repo links) as part of the same bullet, so nothing dangles after the move.
+
+An existing `docs/adr/` directory is never folded into that gate. Ask about it separately, right after preconditions: state the ADR count, and warn that external links, CI, or ADR tooling may depend on the existing paths. On a yes, migrate in two further gates, not one: first propose the renames alone (`docs/adr/NNNN-*.md` to `docs/decisions/NNNN-*.md`, same numbers, never renumbered) as their own enumerated list; only after that is approved, grep the repo for every file that mentions an old `docs/adr/` path and present that edit list as a second enumerated gate before touching any of them. Recommend the user start from a clean working tree before either phase. On a no, or when there is no `docs/adr/` to ask about: leave it exactly as it is, and write this session's new ADRs into `docs/decisions/` alongside it, per the unconditional location contract, never write to both locations for the same artifact.
 
 ## The interview loop
 
@@ -91,18 +92,19 @@ Before writing anything:
 
    ```
    I will write:
-   - CONTEXT.md (new, with the grill sentinel marker)
-   - docs/adr/0007-cache-invalidation-strategy.md (new)
+   - docs/glossary.md (new, with the grill sentinel marker)
+   - docs/decisions/0007-cache-invalidation-strategy.md (new, with frontmatter)
 
    Proceed?
    ```
 
+   If precondition 3 found a root `CONTEXT.md` carrying the grill sentinel, add one bullet to the same list migrating it, for example `- migrate CONTEXT.md → docs/glossary.md (rename, sweep references)`. A `docs/adr/` migration never appears in this list: it runs through its own two-phase gate (see Migrating an older layout), decided before or after this one but never folded into it.
+
 4. Hand the exact settled content to `toolkit:implementer` to write only after one explicit yes to this exact list; the conductor does not write these files itself. If the user does not confirm, or the interview is abandoned before this point, write nothing. There is no incremental or mid-interview write of grill's own artifacts. Everything accumulates in conversation only, until this single gate — the sole exception is the deferred-ideas rule in the interview loop, which updates existing pipeline artifacts, never grill's own.
 
-## Writing the glossary (CONTEXT.md)
+## Writing the glossary
 
-Location: `CONTEXT.md` at the repo root. One root file for now (a `CONTEXT-MAP.md` for
-multi-context repos is a possible future extension, not built here).
+Location: `docs/glossary.md`, full stop. One glossary file for now (a `CONTEXT-MAP.md`/multi-file split for multi-context repos is a possible future extension, not built here). The glossary carries no YAML frontmatter: the sentinel marker below, as the literal first line, is its only marker (per `doctrine/repo-artifacts.md`).
 
 - On create, write the sentinel marker as the literal first line, then the glossary:
 
@@ -123,13 +125,13 @@ multi-context repos is a possible future extension, not built here).
 
   Terms are sorted alphabetically under the single `## Glossary` heading.
 
-- On an existing `CONTEXT.md` that has the sentinel marker as its first line: this is
+- On an existing `docs/glossary.md` that has the sentinel marker as its first line: this is
   an update. Read the whole file first (recall-before-write). Insert new terms
   alphabetically under the existing `## Glossary` heading. Before adding a term, check
   the existing `### Term` headings case-insensitively. If it already exists, update
   its definition in place instead of adding a second section for it. Never duplicate a
   term.
-- On an existing `CONTEXT.md` that does NOT have the sentinel marker: refuse to edit
+- On an existing `docs/glossary.md` that does NOT have the sentinel marker: refuse to edit
   it. Tell the user it looks foreign (owned by something other than this skill) and
   ask how they want to proceed (rename their file, add the marker themselves, or skip
   the glossary write this round). Do not append to it or overwrite it.
@@ -138,16 +140,22 @@ multi-context repos is a possible future extension, not built here).
   no class or function names, no code. ("Reconciliation Window" belongs. A note about
   which service class implements it does not.)
 
-## Writing ADRs (docs/adr/)
+## Writing ADRs
 
-Location: `docs/adr/NNNN-kebab-title.md`, four-digit, sequential. Before writing, scan
-`docs/adr/*.md` for the highest existing `NNNN` and use max-plus-one. If `docs/adr/`
-does not exist yet, create it and start at `0001`. Do not fill numbering gaps and do
-not create a `0000` meta-ADR.
+Location: `docs/decisions/NNNN-kebab-title.md`, full stop, four-digit, sequential. Before writing, scan `docs/decisions/*.md` for the highest existing `NNNN` and use max-plus-one. If `docs/decisions/` does not exist yet, create it and start at `0001`. Do not fill numbering gaps and do not create a `0000` meta-ADR.
 
-Template (Nygard):
+Template (Nygard), with the frontmatter `doctrine/repo-artifacts.md` requires above the body:
 
 ```
+---
+title: <one line>
+summary: <one line>
+type: decision
+status: active
+owner: <git config user.name, verbatim>
+last_reviewed: <today, ISO>
+---
+
 # NNNN. Title
 
 Date: YYYY-MM-DD
@@ -167,6 +175,8 @@ Status: Accepted
 <what becomes easier or harder as a result, including tradeoffs accepted>
 ```
 
+The frontmatter `status` mirrors the body's `Status:` line, never a blanket `active`: `Accepted` maps to `active`, `Superseded` maps to `deprecated` plus a `superseded_by` field naming the superseding ADR, `Proposed` maps to `draft`. Keep both in sync whenever the body's `Status:` line changes.
+
 ### The three-part gate (strict)
 
 Create an ADR only when the decision meets ALL three conditions:
@@ -182,14 +192,15 @@ Keep ADRs rare on purpose. A flood of them dilutes the ones that matter.
 
 ## Writes go into the project repo, never the vault
 
-Grill is the first toolkit skill that writes into the project repo's working directory instead of the vault other toolkit skills use for plan and topic notes. After the consent gate, `toolkit:implementer` writes the settled content: the conductor hands over the exact CONTEXT.md and ADR text agreed to at the gate, verbatim, then reads the written files back to confirm they match — the conductor never calls Write/Edit on these artifacts itself. Nothing grill produces (glossary, ADRs) goes into the vault, and grill never reads or writes the vault's sync config. The deferred-ideas exception is not a grill artifact: it updates existing pipeline notes (wayfinder stubs, an expedition work note) that live in the vault, and exactly those writes use plan-workflow's vault mechanics (atomic write via vault-fs.sh) rather than plain Write.
+Grill is the first toolkit skill that writes into the project repo's working directory instead of the vault other toolkit skills use for plan and topic notes. After the consent gate, `toolkit:implementer` writes the settled content: the conductor hands over the exact glossary and ADR text agreed to at the gate, verbatim, at the locations `doctrine/repo-artifacts.md` defines, then reads the written files back to confirm they match — the conductor never calls Write/Edit on these artifacts itself. Nothing grill produces (glossary, ADRs) goes into the vault, and grill never reads or writes the vault's sync config. The deferred-ideas exception is not a grill artifact: it updates existing pipeline notes (wayfinder stubs, an expedition work note) that live in the vault, and exactly those writes use plan-workflow's vault mechanics (atomic write via vault-fs.sh) rather than plain Write.
 
 ## Report step
 
 After writing, print exactly what happened:
 
-- Created or updated, and the path, for `CONTEXT.md`.
+- Created or updated, and the path, for `docs/glossary.md`.
 - Created, and the path, for each ADR.
+- Migrated, and the old and new paths, for anything moved out of an older layout.
 - The terms added or updated, and the ADR titles, in one short list each.
 
 ## Done signal and handoff to plan-workflow
@@ -200,8 +211,8 @@ name the exact artifacts for the next step:
 
 ```
 Handoff to plan-workflow:
-- Glossary: CONTEXT.md
-- ADRs: docs/adr/0007-cache-invalidation-strategy.md
+- Glossary: docs/glossary.md
+- ADRs: docs/decisions/0007-cache-invalidation-strategy.md
 ```
 
 Tell the user that `plan-workflow` (`../plan-workflow/SKILL.md` from this skill's base
