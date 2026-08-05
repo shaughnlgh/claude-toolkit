@@ -1,14 +1,8 @@
 # Skills
 
-The toolkit ships a set of skills — markdown instructions Claude loads at the moment
-they apply. Most exist to enforce one discipline: plan before you build, decide testing
-up front, review before you ship. This page is the reference for the full set, with
-short screencasts of the ones worth seeing in motion.
+The toolkit ships a set of skills — markdown instructions Claude loads at the moment they apply. Most exist to enforce one discipline: plan before you build, decide testing up front, review before you ship. This page is the reference for the full set, with short screencasts of the ones worth seeing in motion.
 
-These GIFs live in the repo (`docs/media/`) but not in the installed plugin. The
-marketplace `source` is `./plugins/toolkit`, so only that subtree is pulled into a
-user's install — the docs and their media stay in GitHub and never bloat anyone's
-plugin cache.
+These GIFs live in the repo (`docs/media/`) but not in the installed plugin. The marketplace `source` is `./plugins/toolkit`, so only that subtree is pulled into a user's install — the docs and their media stay in GitHub and never bloat anyone's plugin cache.
 
 ## The set
 
@@ -27,18 +21,11 @@ plugin cache.
 | `expedition` | The ticket-to-complete pipeline for big, deliberately-committed work: sequences crawl, grill, split decision, planning, execution, and review through recommend-and-confirm gates, with the stage persisted in a vault work note so the effort survives across days. Completion is always your word, never inferred. | You explicitly invoke it, or ask to resume one. Never automatic — committing to the full workflow is your decision. |
 | `jira` | Read-only ticket-to-brief adapter: fetches a Jira issue via jira-cli and returns a verbatim brief (metadata, full description, comments, issue links) for crawl or expedition to plan from. | Crawl's ingest step meets a Jira key or ticket URL, or you ask to fetch one directly. |
 
-All of the request-triggered skills (`grill`, `handoff`, `resolving-merge-conflicts`,
-`wayfinder`, `expedition`) fire only on an explicit ask, never on something the model
-infers on its own — with two narrow carve-outs: a crawl route you confirmed counts as
-the explicit ask for wayfinder, and a confirmed yes at an expedition's grill gate
-counts as the explicit ask for grill. `crawl` is the exception in the other
-direction: it fires automatically on new work (a brief or ticket with no plan note),
-staying near-silent on trivial work.
+All of the request-triggered skills (`grill`, `handoff`, `resolving-merge-conflicts`, `wayfinder`, `expedition`) fire only on an explicit ask, never on something the model infers on its own — with two narrow carve-outs: a crawl route you confirmed counts as the explicit ask for wayfinder, and a confirmed yes at an expedition's grill gate counts as the explicit ask for grill. `crawl` is the exception in the other direction: it fires automatically on new work (a brief or ticket with no plan note), staying near-silent on trivial work.
 
 ## Example prompts
 
-How to trigger each skill. Some you invoke directly, some fire automatically inside the
-plan-then-build flow.
+How to trigger each skill. Some you invoke directly, some fire automatically inside the plan-then-build flow.
 
 **Invoke directly:**
 
@@ -72,25 +59,19 @@ plan-then-build flow.
 
 **Fire automatically inside a flow** (you don't prompt them by name):
 
-- `crawl` — fires first when new work arrives with no plan note, validates the brief
-  against the repo, and routes it (near-silently for trivial work). Triggered by, for
-  example:
+- `crawl` — fires first when new work arrives with no plan note, validates the brief against the repo, and routes it (near-silently for trivial work). Triggered by, for example:
 
       Here's the ticket: <link>. We need bulk order editing in the admin.
 
-- `jira` — fires when crawl's ingest step meets a Jira key or ticket URL, or you ask to
-  fetch one directly. Triggered by, for example:
+- `jira` — fires when crawl's ingest step meets a Jira key or ticket URL, or you ask to fetch one directly. Triggered by, for example:
 
       Pull in https://<site>.atlassian.net/browse/PROJ-123, we need to plan this.
 
-- `testing-gate` — fires when you start any feature, bugfix, or refactor (after crawl
-  has routed, when both match), and asks once
-  whether tests are required. Triggered by, for example:
+- `testing-gate` — fires when you start any feature, bugfix, or refactor (after crawl has routed, when both match), and asks once whether tests are required. Triggered by, for example:
 
       Add a CSV export to the reports page.
 
-- `test-first` — takes over once `testing-gate` decides tests are required, running the
-  red-green-refactor loop as the code is written. No separate prompt.
+- `test-first` — takes over once `testing-gate` decides tests are required, running the red-green-refactor loop as the code is written. No separate prompt.
 
 - `execute-workflow` — loads when you start executing an approved plan:
 
@@ -100,44 +81,30 @@ plan-then-build flow.
 
 ### test-first
 
-`testing-gate` asks its one question. You say tests are required, and `test-first`
-takes over: a failing test first, run red, minimum code to pass, run green, refactor
-with the test still green. It uses the repo's existing test setup rather than inventing
-one.
+`testing-gate` asks its one question. You say tests are required, and `test-first` takes over: a failing test first, run red, minimum code to pass, run green, refactor with the test still green. It uses the repo's existing test setup rather than inventing one.
 
 ![test-first red-green-refactor demo](media/test-first-demo.gif)
 
 ### resolving-merge-conflicts
 
-The overview helper runs first to show the shape of the conflict (files, hunks, lines
-per side). Then each hunk is resolved by working out what each side intended, and
-nothing is written until you confirm. It never runs `git add` or commits — that stays
-with you.
+The overview helper runs first to show the shape of the conflict (files, hunks, lines per side). Then each hunk is resolved by working out what each side intended, and nothing is written until you confirm. It never runs `git add` or commits — that stays with you.
 
 ![resolving a merge conflict by intent](media/merge-conflict-demo.gif)
 
 ### handoff
 
-One explicit ask writes a single continuation note into the vault — into the active
-plan's directory if one exists, otherwise a `_handoffs/` bucket — capturing what was
-decided, what is done, what remains, and the next concrete step. It never touches the
-project repo.
+One explicit ask writes a single continuation note into the vault — into the active plan's directory if one exists, otherwise a `_handoffs/` bucket — capturing what was decided, what is done, what remains, and the next concrete step. It never touches the project repo.
 
 ![writing a handoff note to the vault](media/handoff-demo.gif)
 
 ### wayfinder
 
-Point it at a large, fuzzy effort (a migration, an incident) and it investigates,
-builds an issue register, then emits a parent umbrella plan plus a child plan stub per
-task, each ready to flow through `plan-workflow` on its own.
+Point it at a large, fuzzy effort (a migration, an incident) and it investigates, builds an issue register, then emits a parent umbrella plan plus a child plan stub per task, each ready to flow through `plan-workflow` on its own.
 
 ![decomposing a large effort into a plan tree](media/wayfinder-demo.gif)
 
 ### grill
 
-An explicit request to grill starts a requirements interview: one question at a time,
-each with a recommended answer, self-answering from the code whatever the code can
-settle. After a single consent gate it writes a canonical glossary (`docs/glossary.md`)
-and any ADRs (`docs/decisions/`) into the repo, then hands off to `plan-workflow`.
+An explicit request to grill starts a requirements interview: one question at a time, each with a recommended answer, self-answering from the code whatever the code can settle. After a single consent gate it writes a canonical glossary (`docs/glossary.md`) and any ADRs (`docs/decisions/`) into the repo, then hands off to `plan-workflow`.
 
 ![grilling requirements before a plan](media/grill-demo.gif)
