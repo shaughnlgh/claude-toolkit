@@ -70,18 +70,18 @@ probe; the expected result is in parentheses.
 
 ### grill (opt-in, manual-only for the interactive parts)
 - `bash functional-test.sh skills` covers only what a headless probe can prove:
-  the skill's contract facts (artifact targets `CONTEXT.md`, `docs/adr/`) surface
+  the skill's contract facts (artifact targets `docs/glossary.md`, `docs/decisions/`) surface
   in schema-validated output. It does not and cannot assert the interview loop, the
   stop signal, the consent gate, or no-writes-until-confirmed — those require a real
   interactive session.
 - Manual check, in a throwaway git repo: explicitly ask to grill/elicit requirements
   for a genuinely fuzzy task. Confirm it asks one question at a time with a
   recommended answer, self-answers at least one question from the code, writes
-  `CONTEXT.md` (with the sentinel marker) and one `docs/adr/NNNN-*.md` only at the end
-  and only after a single consent gate listing every file, refuses to touch an
-  unmarked existing `CONTEXT.md`, and stops at the shared-understanding confirmation
-  naming the artifacts for `plan-workflow`. Confirm nothing is written to the vault,
-  and confirm abandoning mid-interview leaves no files on disk.
+  `docs/glossary.md` (with the sentinel marker) and one `docs/decisions/NNNN-*.md` only
+  at the end and only after a single consent gate listing every file, refuses to touch
+  an unmarked existing `docs/glossary.md`, and stops at the shared-understanding
+  confirmation naming the artifacts for `plan-workflow`. Confirm nothing is written to
+  the vault, and confirm abandoning mid-interview leaves no files on disk.
 
 ### test-first, handoff, resolving-merge-conflicts, wayfinder (opt-in, manual-only)
 Each fires only on explicit request. Manual check: `test-first` runs the red-green

@@ -22,6 +22,7 @@ config, and existing patterns.
 - If docs are missing or insufficient, flag the gap.
 - Do not invent architecture when docs are silent.
 - State which docs and config were read when presenting a plan.
+- When writing new repo docs, resolve the location from `doctrine/repo-artifacts.md` instead of inventing a path.
 
 Each project defines its own required docs and verification files in its
 `01-project-core.md` or equivalent. Read those project-specific lists when they exist.

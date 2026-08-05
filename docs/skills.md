@@ -19,7 +19,7 @@ plugin cache.
 | `execute-workflow` | Execution mechanics after a plan is approved: delegate to worker agents, report progress in a fixed format, run the doc-update pass, debug with runtime evidence. | Starting execution of an approved plan; debugging a runtime or integration issue. |
 | `testing-gate` | Asks once, up front, whether the task needs automated tests or manual verification is enough. | Starting a feature, bugfix, or refactor. |
 | `test-first` | The red-green-refactor loop that runs once `testing-gate` has said tests are required. Chains from the gate, never decides the gate itself. | Writing code on a task where tests were required. |
-| `grill` | Requirements interview before a plan exists: one question at a time with a recommended answer, self-answers from the code, then writes a `CONTEXT.md` glossary and ADRs into the repo. | You explicitly ask to grill, elicit, or interview requirements. |
+| `grill` | Requirements interview before a plan exists: one question at a time with a recommended answer, self-answers from the code, then writes a glossary to `docs/glossary.md` and ADRs to `docs/decisions/` in the repo. | You explicitly ask to grill, elicit, or interview requirements. |
 | `handoff` | Compresses the session into a continuation note in the vault so a second person, or a later session, can pick the work up cold. | You explicitly ask to hand off or write a continuation note. |
 | `resolving-merge-conflicts` | Overview plus side-by-side of every conflict, resolves each hunk by intent, and waits for your confirmation before writing. | You ask for help with a git merge or rebase conflict. |
 | `wayfinder` | Turns a large, fuzzy investigation or migration into a mapped set of tickets: aligns with you on outcome and success first, then an issue register, a parent umbrella plan, and one child plan stub per task (each recommended a scoped grill before its own planning). | You ask to map, scope, or break down a big multi-part effort before planning it, or crawl routes here with your confirmation. |
@@ -137,7 +137,7 @@ task, each ready to flow through `plan-workflow` on its own.
 
 An explicit request to grill starts a requirements interview: one question at a time,
 each with a recommended answer, self-answering from the code whatever the code can
-settle. After a single consent gate it writes a canonical glossary (`CONTEXT.md`) and
-any ADRs into the repo, then hands off to `plan-workflow`.
+settle. After a single consent gate it writes a canonical glossary (`docs/glossary.md`)
+and any ADRs (`docs/decisions/`) into the repo, then hands off to `plan-workflow`.
 
 ![grilling requirements before a plan](media/grill-demo.gif)

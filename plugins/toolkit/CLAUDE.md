@@ -39,3 +39,4 @@ security) may be tightened, not loosened.
 - **`doctrine/communication.md`** — plain language first, honest over agreeable.
 - **`doctrine/build-memory.md`** — corrections become durable memories after mutual
   confirmation; route by layer.
+- **`doctrine/repo-artifacts.md`** — repo-root-anchored locations for context/ADR/playbook/glossary artifacts, always behind a consent gate; ADR frontmatter status mirrors the body; a root `CONTEXT.md` may migrate inside a gate, `docs/adr/` never auto-migrates.
