@@ -13,6 +13,9 @@
 #     "expect_stderr_contains": ["substring", ...]    // optional
 #   }
 #
+# Also runs notify-osascript-argv-check.sh for checks fixtures can't express
+# (PATH stubs, argv capture); its result folds into the same PASS/FAIL totals.
+#
 # Exit 0 on all pass, 1 on any fail.
 
 set -uo pipefail
@@ -107,6 +110,13 @@ for dir in "$FIXTURES"/*/; do
     run_case "$hook_name" "$f"
   done
 done
+
+# Checks that need a PATH stub or argv capture, which JSON fixtures can't express.
+# A missing/unsourceable file or missing function must fail the suite, not go silently uncounted.
+source "$ROOT/tests/notify-osascript-argv-check.sh" || { echo "FATAL: cannot source notify-osascript-argv-check.sh" >&2; exit 2; }
+declare -F check_notify_osascript_argv >/dev/null || { echo "FATAL: check_notify_osascript_argv not defined" >&2; exit 2; }
+echo "== notify (non-fixture) =="
+check_notify_osascript_argv
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
