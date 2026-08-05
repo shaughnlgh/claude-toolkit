@@ -2,13 +2,9 @@
 
 The toolkit ships 13 agents. The main chat is the **conductor**: it plans, delegates, and accepts. Every change is delegated, no matter how small — the conductor edits nothing itself unless the human explicitly says otherwise. Agents are **leaf workers** — each carries an explicit tool allowlist and none of them get the Agent tool, so none can spawn sub-agents. A worker that hits a blocker, a question, or an ambiguity reports it back to the conductor instead of delegating around it; the conductor decides how to proceed and remains the only role that decides "done". No agent runs on Haiku. Returns are distilled — file paths and one-line findings, never pasted file contents.
 
-Tools and model are set in each agent's own frontmatter. `verify.sh`
-statically proves the leaf property for all 13: no agent's tool allowlist includes
-`Agent` or `Task`, none omits an allowlist, and none is routed to Haiku.
+Tools and model are set in each agent's own frontmatter. `verify.sh` statically proves the leaf property for all 13: no agent's tool allowlist includes `Agent` or `Task`, none omits an allowlist, and none is routed to Haiku.
 
-Invoke by scoped name (`toolkit:<name>`) so the plugin copy resolves rather than a
-same-named project-local agent. Projects may override with local agents at
-`<repo>/.claude/agents/`; project-local agents win when they exist.
+Invoke by scoped name (`toolkit:<name>`) so the plugin copy resolves rather than a same-named project-local agent. Projects may override with local agents at `<repo>/.claude/agents/`; project-local agents win when they exist.
 
 ## Workflow agents
 
@@ -24,8 +20,7 @@ The plan-then-build pipeline: explore, plan, red-team the plan, implement, verif
 
 ## Review agents
 
-Post-hoc quality review of a diff, each via `git diff --name-only`, each with a terse/
-verbose output mode and an internal ≥80-confidence filter on findings.
+Post-hoc quality review of a diff, each via `git diff --name-only`, each with a terse/verbose output mode and an internal ≥80-confidence filter on findings.
 
 | Agent | What it does | When to use |
 |---|---|---|
@@ -50,19 +45,13 @@ verbose output mode and an internal ≥80-confidence filter on findings.
 
 ## Example invocations
 
-Most of these you never invoke by hand — the conductor spawns them for you. The
-plan-then-build pipeline (`explorer` → `planner` → `plan-critic` → `implementer` →
-`verifier`) runs through `plan-workflow` / `execute-workflow`, and the review agents
-fire when there is a diff to check. You can also call any of them directly by scoped
-name:
+Most of these you never invoke by hand — the conductor spawns them for you. The plan-then-build pipeline (`explorer` → `planner` → `plan-critic` → `implementer` → `verifier`) runs through `plan-workflow` / `execute-workflow`, and the review agents fire when there is a diff to check. You can also call any of them directly by scoped name:
 
 - **Build or restyle UI** (the one you will reach for most):
 
       Use the frontend-designer agent to build a pricing card component.
 
-  It states a plan, builds tokens-first, then runs the design detector on its own
-  output and delivers either a clean pass or a justified exception (see
-  [`scripts.md`](scripts.md) for the detector).
+  It states a plan, builds tokens-first, then runs the design detector on its own output and delivers either a clean pass or a justified exception (see [`scripts.md`](scripts.md) for the detector).
 
 - **Review a change before committing:**
 
@@ -73,14 +62,8 @@ name:
 
       Use the toolkit:explorer to find every place we resolve the vault path.
 
-The workflow agents (`planner`, `implementer`, `verifier`, `plan-critic`) are normally
-driven by the plan/execute workflow rather than invoked by hand — start a planning or
-execution session and they spawn at the right step.
+The workflow agents (`planner`, `implementer`, `verifier`, `plan-critic`) are normally driven by the plan/execute workflow rather than invoked by hand — start a planning or execution session and they spawn at the right step.
 
 ## Why leaf-only
 
-The toolkit's own history is the argument: recursive agent trees (workers spawning
-workers) burned tokens until they died. Capping workers as leaf nodes — no Agent tool,
-blockers bubble up — closed that failure mode. See `plugins/toolkit/README.md` for the
-full design rationale and `plugins/toolkit/doctrine/orchestration.md` for the binding
-model.
+The toolkit's own history is the argument: recursive agent trees (workers spawning workers) burned tokens until they died. Capping workers as leaf nodes — no Agent tool, blockers bubble up — closed that failure mode. See `plugins/toolkit/README.md` for the full design rationale and `plugins/toolkit/doctrine/orchestration.md` for the binding model.
