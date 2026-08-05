@@ -60,7 +60,7 @@ fi
 
 echo "== Hook behavior (fixture suite is authoritative) =="
 out="$(cd "$P/hooks/tests" && bash run-all.sh 2>/dev/null | tail -1)"
-suite_ok "hook fixture suite" "$out" 119
+suite_ok "hook fixture suite" "$out" 120
 # spot-confirm session-start's two injections directly (no fixture asserts the pair)
 ss="$(echo '{}' | bash "$P/hooks/session-start.sh" 2>/dev/null)"
 want "session-start injects a write-time rule" "$ss" "Verify behavior, not implementation"
@@ -121,8 +121,10 @@ fi
 
 echo "== Resolver (installed copy) =="
 if [ -f ~/.claude/plugins/installed_plugins.json ]; then
-  IP="$(jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json 2>/dev/null)"
-  if [ -n "$IP" ] && [ -d "$IP" ]; then ok "installed_plugins.json resolves to a real dir"; else no "resolver ($IP)"; fi
+  IP="$(jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath // empty' ~/.claude/plugins/installed_plugins.json 2>/dev/null)"
+  if [ -z "$IP" ]; then
+    printf '  \033[33m-\033[0m %s\n' "skipped: toolkit not installed via plugin manager"
+  elif [ -d "$IP" ]; then ok "installed_plugins.json resolves to a real dir"; else no "resolver ($IP)"; fi
 else
   printf '  \033[33m-\033[0m %s\n' "skipped: no local plugin install (CI checkout)"
 fi
