@@ -36,7 +36,7 @@ glab auth login
 
 ### jira (jira-cli)
 
-A community Jira CLI (ankitpokhrel/jira-cli, chosen over Atlassian's official acli — see `docs/adr/0001` for the trade-offs). The jira skill fetches tickets through it and turns them into verbatim planning briefs, so a pasted ticket URL becomes a plan input with no copy-paste. Unlike gh and glab it has no login flow: it only consumes a pre-provisioned API token from your environment, which is exactly why it was picked — no stored credential, stateless per invocation.
+A community Jira CLI (ankitpokhrel/jira-cli, chosen over Atlassian's official acli — see `docs/decisions/0001` for the trade-offs). The jira skill fetches tickets through it and turns them into verbatim planning briefs, so a pasted ticket URL becomes a plan input with no copy-paste. Unlike gh and glab it has no login flow: it only consumes a pre-provisioned API token from your environment, which is exactly why it was picked — no stored credential, stateless per invocation.
 
 Auth is token-first: `jira init` itself makes authenticated API calls, so the token must exist before init runs.
 

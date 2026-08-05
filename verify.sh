@@ -42,7 +42,7 @@ n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
 [ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 12 ] && ok "12 skills" || no "12 skills"
 [ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 8 ] && ok "8 commands" || no "8 commands"
 [ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 6 ] && ok "6 rules" || no "6 rules"
-[ "$(ls $P/doctrine/*.md 2>/dev/null | wc -l)" -eq 12 ] && ok "12 doctrine files" || no "12 doctrine files"
+[ "$(ls $P/doctrine/*.md 2>/dev/null | wc -l)" -eq 13 ] && ok "13 doctrine files" || no "13 doctrine files"
 [ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 8 ] && ok "8 hook scripts" || no "8 hook scripts"
 for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js \
          skills/gitlab-mr-review/scripts/post_mr_comments.py \

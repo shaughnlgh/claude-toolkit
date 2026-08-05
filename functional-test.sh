@@ -291,7 +291,7 @@ probe_skills() {
     "'glab' in a"
   skill_probe "grill knows its artifact targets" \
     "Invoke the grill skill conceptually. Do not write files and do not wait for answers. Report as the answer the artifact paths it writes at the end." \
-    "'context.md' in a and 'docs/adr' in a"
+    "'docs/glossary.md' in a and 'docs/decisions' in a"
   skill_probe "test-first knows its loop" \
     "Load the test-first skill. Report as the answer the name of the loop it runs and when it engages." \
     "'red' in a and 'green' in a"
