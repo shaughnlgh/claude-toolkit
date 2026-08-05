@@ -1,15 +1,8 @@
 # Rules
 
-The toolkit ships six write-time rule files under `plugins/toolkit/rules/` — plain
-checklists that shape code as Claude writes it, not after the fact. Five reach every
-session automatically: `session-start.sh` reads `testing.md`, `security.md`,
-`error-handling.md`, `database.md`, and `performance.md` straight out of the plugin, strips their
-frontmatter, and injects the bodies verbatim into session context (roughly 780 tokens
-combined). They're current by construction — no local copies to drift, nothing to sync.
-The sixth, `frontend.md`, never gets injected. It's reference-only: its content is
-duplicated inside the `frontend-designer` agent, and the injected context ends with a
-pointer to it instead of its body — "Frontend work: use the frontend-designer agent, or
-read rules/frontend.md in this plugin."
+The toolkit ships six write-time rule files under `plugins/toolkit/rules/` — plain checklists that shape code as Claude writes it, not after the fact. Five reach every session automatically: `session-start.sh` reads `testing.md`, `security.md`, `error-handling.md`, `database.md`, and `performance.md` straight out of the plugin, strips their frontmatter, and injects the bodies verbatim into session context (roughly 780 tokens combined). They're current by construction — no local copies to drift, nothing to sync. The sixth, `frontend.md`, never gets injected. It's reference-only: its content is duplicated inside the `frontend-designer` agent, and the injected context ends with a pointer to it instead of its body — "Frontend work: use the frontend-designer agent, or read rules/frontend.md in this plugin."
+
+Session-start injection reaches only the main conversation — subagents never fire SessionStart. `/setup` extends the global doctrine pointer in `~/.claude/CLAUDE.md` to also name this plugin's `rules/` directory, so a worker can read the relevant file on demand instead of depending on the conductor to paste it into every delegation prompt.
 
 ## The set
 
@@ -22,13 +15,8 @@ read rules/frontend.md in this plugin."
 | `performance.md` | Yes | Single round-trip over sequential queries on prod paths, no queries in loops (N+1), no blocking I/O in request handlers, paginate unbounded lists, index what you filter and sort on. |
 | `frontend.md` | No — reference only | Design tokens before raw values, one design principle per surface, match the project's existing component/animation/icon stack, non-negotiable accessibility (contrast, focus, keyboard, `alt` text). |
 
-Don't paste rule bodies into a prompt or plan — they're long, and five of the six are
-already in context by the time you'd need them. Read `plugins/toolkit/rules/` for the
-verbatim text.
+Don't paste rule bodies into a prompt or plan — they're long, and five of the six are already in context by the time you'd need them. Read `plugins/toolkit/rules/` for the verbatim text.
 
 ## Rules vs. reviewer agents
 
-Rules are write-time law: they shape the diff as the model produces it. Reviewer
-agents (see `docs/agents.md`) enforce the same concerns at review time, after the code
-exists. Complementary, not redundant — one guides the writing, the other catches what
-slipped through.
+Rules are write-time law: they shape the diff as the model produces it. Reviewer agents (see `docs/agents.md`) enforce the same concerns at review time, after the code exists. Complementary, not redundant — one guides the writing, the other catches what slipped through.
