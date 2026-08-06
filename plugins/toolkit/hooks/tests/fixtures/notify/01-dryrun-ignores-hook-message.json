@@ -1,0 +1,8 @@
+{
+  "name": "dry-run ignores hook-supplied message, uses the fixed message",
+  "stdin": { "message": "Claude needs permission to run npm test" },
+  "env": { "TOOLKIT_NOTIFY_DRYRUN": "1" },
+  "expect_exit": 0,
+  "expect_stdout_contains": ["Claude Code needs your attention"],
+  "expect_stdout_not_contains": ["Claude needs permission to run npm test"]
+}

@@ -7,11 +7,12 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 P="$ROOT/plugins/toolkit"
 export CLAUDE_PLUGIN_ROOT="$P"
-pass=0; fail=0
+pass=0; fail=0; skip=0
 ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; pass=$((pass+1)); }
 no() { printf '  \033[31m✗\033[0m %s\n' "$1"; fail=$((fail+1)); }
-# report: name, actual, expected-substring
-want() { case "$2" in *"$3"*) ok "$1";; *) no "$1 (got: ${2:0:60})";; esac; }
+skip() { printf '  \033[33m-\033[0m %s\n' "$1"; skip=$((skip+1)); }
+# report: name, actual, expected-substring (an empty needle is a caller bug, not a match)
+want() { [ -z "$3" ] && { no "$1 (got: ${2:0:60})"; return; }; case "$2" in *"$3"*) ok "$1";; *) no "$1 (got: ${2:0:60})";; esac; }
 # report on exit code
 code() { if [ "$2" -eq "$3" ]; then ok "$1"; else no "$1 (exit $2, wanted $3)"; fi; }
 # suite_pass: pure predicate (no printing). "RESULT: N passed, M failed" line +
@@ -27,14 +28,22 @@ suite_pass() {
 # suite_ok: name, RESULT line, min-passed -> report via ok/no.
 suite_ok() { if suite_pass "$2" "$3"; then ok "$1"; else no "$1 (got: ${2:0:60})"; fi; }
 # Self-check the reporting helpers (the meta-verifier must fail closed — this is the
-# class of bug that let a failing/empty suite read as green).
+# class of bug that let a failing/empty suite read as green). Drives the REAL want/code
+# in subshells (so the live pass/fail counters are never written) and requires `fail`
+# to have incremented. A failure here bypasses ok/no entirely and exits 2 directly: this
+# is the one verdict that cannot be reported through the counters it is testing.
 _sc=0
-case "match" in *"nope"*) _sc=1;; esac                                  # want must not match a mismatch
 suite_pass "RESULT: 0 passed, 0 failed" 1 && _sc=1                       # empty suite must NOT pass
 suite_pass "RESULT: 40 passed, 3 failed" 1 && _sc=1                      # any failures must NOT pass
 suite_pass "RESULT: 55 passed, 0 failed" 55 || _sc=1                     # a real green must pass
-[ "$_sc" = "0" ] && ok "verify helpers fail closed (reject mismatch, empty suite, and failures)" \
-                 || no "verify helpers do NOT fail closed"
+_f1=$(fail=0; want "sc-mismatch" "abc" "xyz" >/dev/null; printf '%s' "$fail");  [ "$_f1" = "1" ] || _sc=1
+_f1=$(fail=0; want "sc-empty-needle" "abc" "" >/dev/null; printf '%s' "$fail"); [ "$_f1" = "1" ] || _sc=1
+_f1=$(fail=0; code "sc-wrong-exit" 1 0 >/dev/null; printf '%s' "$fail");        [ "$_f1" = "1" ] || _sc=1
+if [ "$_sc" != "0" ]; then
+  echo "FATAL: verify helpers do NOT fail closed" >&2
+  exit 2
+fi
+ok "verify helpers fail closed (reject mismatch, empty suite, and failures)"
 
 echo "== Structure =="
 n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
@@ -55,12 +64,24 @@ echo "== Manifest =="
 if command -v claude >/dev/null 2>&1; then
   if claude plugin validate "$ROOT" >/dev/null 2>&1; then ok "plugin validate"; else no "plugin validate"; fi
 else
-  printf '  \033[33m-\033[0m %s\n' "skipped: claude CLI not found"
+  skip "skipped: claude CLI not found"
 fi
 
 echo "== Hook behavior (fixture suite is authoritative) =="
-out="$(cd "$P/hooks/tests" && bash run-all.sh 2>/dev/null | tail -1)"
-suite_ok "hook fixture suite" "$out" 119
+hout="$(cd "$P/hooks/tests" && bash run-all.sh 2>&1)"; hrc=$?
+if [ "$hrc" -eq 2 ]; then
+  fmsg="$(printf '%s' "$hout" | grep '^FATAL:' | tail -1)"
+  no "hook fixture suite (${fmsg:-suite exited 2 with no FATAL message})"
+else
+  # exit code is part of the pass condition and the RESULT line is picked by prefix,
+  # not by trailing position: a merged stderr line must not masquerade as the verdict.
+  out="$(printf '%s' "$hout" | grep -E '^RESULT: ' | tail -1)"
+  if [ "$hrc" -eq 0 ] && suite_pass "$out" 127; then
+    ok "hook fixture suite"
+  else
+    no "hook fixture suite (exit $hrc, got: ${out:0:60})"
+  fi
+fi
 # spot-confirm session-start's two injections directly (no fixture asserts the pair)
 ss="$(echo '{}' | bash "$P/hooks/session-start.sh" 2>/dev/null)"
 want "session-start injects a write-time rule" "$ss" "Verify behavior, not implementation"
@@ -116,15 +137,23 @@ if command -v node >/dev/null 2>&1; then
   ddout="$(node "$DD/detect.mjs" "$ddt" 2>/dev/null)"; rm -f "$ddt"
   want "detector runs zero-dep and flags overused-font" "$ddout" "overused-font"
 else
-  printf '  - node not found; skipped detector smoke test\n'
+  skip "skipped: node not found; detector smoke test"
 fi
 
 echo "== Resolver (installed copy) =="
 if [ -f ~/.claude/plugins/installed_plugins.json ]; then
-  IP="$(jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json 2>/dev/null)"
-  if [ -n "$IP" ] && [ -d "$IP" ]; then ok "installed_plugins.json resolves to a real dir"; else no "resolver ($IP)"; fi
+  if [ ! -s ~/.claude/plugins/installed_plugins.json ] || \
+     [ -z "$(tr -d '[:space:]' < ~/.claude/plugins/installed_plugins.json)" ]; then
+    no "installed_plugins.json empty or whitespace-only"
+  elif IP="$(jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath // empty' ~/.claude/plugins/installed_plugins.json 2>/dev/null)"; then
+    if [ -z "$IP" ]; then
+      skip "skipped: toolkit not installed via plugin manager"
+    elif [ -d "$IP" ]; then ok "installed_plugins.json resolves to a real dir"; else no "resolver ($IP)"; fi
+  else
+    no "installed_plugins.json unparseable"
+  fi
 else
-  printf '  \033[33m-\033[0m %s\n' "skipped: no local plugin install (CI checkout)"
+  skip "skipped: no local plugin install (CI checkout)"
 fi
 
 echo "== Orchestration invariants (leaf workers, no Haiku) =="
@@ -182,5 +211,8 @@ PY
 case "$cov" in *"MISSING:NONE"*) ok "docs reference every shipped skill/agent/command/hook/rule/doctrine/script/workflow";; *) no "undocumented -> ${cov#*MISSING:}";; esac
 
 echo
-echo "RESULT: $pass passed, $fail failed"
-[ "$fail" -eq 0 ]
+echo "RESULT: $pass passed, $skip skipped, $fail failed"
+# Floor, not just zero-failures: silently deleting real checks must not read green.
+# Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
+# no node, no local plugin install) must not read as a vanished check.
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 42 ]
