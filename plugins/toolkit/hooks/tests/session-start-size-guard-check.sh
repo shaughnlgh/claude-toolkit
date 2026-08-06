@@ -14,9 +14,6 @@ SG_CAP=65536  # must match RULE_BODY_CAP in session-start.sh; not introspectable
 SG_OVER_CAP_SIZE=$((SG_CAP + 2048))
 SG_ARGMAX_SIZE=1200000  # comfortably over this machine's 1MB ARG_MAX (getconf ARG_MAX)
 SG_OUTPUT_BOUND=100000  # generous ceiling: real capped output is ~66KB regardless of input size
-# `mktemp` with no template (what session-start.sh calls) ignores $TMPDIR on macOS and
-# always resolves here; case 4 watches this real directory rather than a fake isolated one.
-SG_REALTMP="$(dirname "$(mktemp -u)")"
 
 _sg_pass() {
   printf '  PASS  session-start-size-guard :: %s\n' "$1"
@@ -57,8 +54,9 @@ _sg_json_ok() {
 
 # Sets SG_OUT on success. On any setup failure, fails loudly via _sg_fail and returns 1
 # rather than leaving the case to pass vacuously against an empty/absent result.
+# $3, if given, overrides TMPDIR for the hook invocation (used by the cleanup case).
 _sg_run_case() {
-  local label="$1" size="$2" out rc
+  local label="$1" size="$2" tmp_override="${3:-}" out rc
   SG_HOME="$(mktemp -d)" || { _sg_fail "$label :: mktemp -d failed for temp HOME"; return 1; }
   SG_PROOT="$(mktemp -d)" || { _sg_fail "$label :: mktemp -d failed for temp plugin root"; rm -rf "$SG_HOME"; return 1; }
   if ! _sg_setup_plugin_root "$SG_PROOT"; then
@@ -78,7 +76,11 @@ _sg_run_case() {
     return 1
   fi
 
-  out="$(printf '{}' | HOME="$SG_HOME" CLAUDE_PLUGIN_ROOT="$SG_PROOT" bash "$SG_HOOK" 2>/dev/null)"
+  if [[ -n "$tmp_override" ]]; then
+    out="$(printf '{}' | HOME="$SG_HOME" CLAUDE_PLUGIN_ROOT="$SG_PROOT" TMPDIR="$tmp_override" bash "$SG_HOOK" 2>/dev/null)"
+  else
+    out="$(printf '{}' | HOME="$SG_HOME" CLAUDE_PLUGIN_ROOT="$SG_PROOT" bash "$SG_HOOK" 2>/dev/null)"
+  fi
   rc=$?
   rm -rf "$SG_HOME" "$SG_PROOT"
 
@@ -161,20 +163,24 @@ check_sg_argmax() {
   _sg_pass "argmax :: >1MB rule body still yields valid, bounded JSON ($outlen bytes)"
 }
 
-# Snapshots $SG_REALTMP's mktemp-pattern entries before/after: catches a leaked CTXFILE
-# even though session-start.sh's own `mktemp` ignores any TMPDIR override we could set.
+# Points TMPDIR at an isolated scratch dir for the run and asserts no toolkit-ctx.*
+# file remains there afterward: catches a leaked CTXFILE without depending on the
+# shared system temp dir (and the race that watching it would carry).
 check_sg_cleanup() {
-  local before after new f
-  before="$(ls -1 "$SG_REALTMP" 2>/dev/null | grep -E '^tmp\.[A-Za-z0-9]{10}$' || true)"
-  _sg_run_case "cleanup" "$SG_UNDER_CAP_SIZE" || return
-  after="$(ls -1 "$SG_REALTMP" 2>/dev/null | grep -E '^tmp\.[A-Za-z0-9]{10}$' || true)"
-  new="$(comm -13 <(printf '%s\n' "$before" | sort) <(printf '%s\n' "$after" | sort))"
-  if [[ -n "$new" ]]; then
-    while IFS= read -r f; do [[ -n "$f" ]] && rm -f "$SG_REALTMP/$f"; done <<<"$new"
-    _sg_fail "cleanup :: temp file(s) left behind after a run: $(printf '%s' "$new" | tr '\n' ' ')"
+  local scratch leftover
+  scratch="$(mktemp -d)" || { _sg_fail "cleanup :: mktemp -d failed for scratch TMPDIR"; return; }
+  if ! _sg_run_case "cleanup" "$SG_UNDER_CAP_SIZE" "$scratch"; then
+    rm -rf "$scratch"
     return
   fi
-  _sg_pass "cleanup :: no leftover temp files after a run"
+  leftover="$(ls -1 "$scratch" 2>/dev/null | grep '^toolkit-ctx\.' || true)"
+  if [[ -n "$leftover" ]]; then
+    _sg_fail "cleanup :: toolkit-ctx temp file(s) left behind in isolated TMPDIR: $(printf '%s' "$leftover" | tr '\n' ' ')"
+    rm -rf "$scratch"
+    return
+  fi
+  rm -rf "$scratch"
+  _sg_pass "cleanup :: no leftover toolkit-ctx.* files in isolated TMPDIR after a run"
 }
 
 run_session_start_size_guard_checks() {
