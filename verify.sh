@@ -7,9 +7,10 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 P="$ROOT/plugins/toolkit"
 export CLAUDE_PLUGIN_ROOT="$P"
-pass=0; fail=0
+pass=0; fail=0; skip=0
 ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; pass=$((pass+1)); }
 no() { printf '  \033[31m✗\033[0m %s\n' "$1"; fail=$((fail+1)); }
+skip() { printf '  \033[33m-\033[0m %s\n' "$1"; skip=$((skip+1)); }
 # report: name, actual, expected-substring (an empty needle is a caller bug, not a match)
 want() { [ -z "$3" ] && { no "$1 (got: ${2:0:60})"; return; }; case "$2" in *"$3"*) ok "$1";; *) no "$1 (got: ${2:0:60})";; esac; }
 # report on exit code
@@ -63,7 +64,7 @@ echo "== Manifest =="
 if command -v claude >/dev/null 2>&1; then
   if claude plugin validate "$ROOT" >/dev/null 2>&1; then ok "plugin validate"; else no "plugin validate"; fi
 else
-  printf '  \033[33m-\033[0m %s\n' "skipped: claude CLI not found"
+  skip "skipped: claude CLI not found"
 fi
 
 echo "== Hook behavior (fixture suite is authoritative) =="
@@ -136,7 +137,7 @@ if command -v node >/dev/null 2>&1; then
   ddout="$(node "$DD/detect.mjs" "$ddt" 2>/dev/null)"; rm -f "$ddt"
   want "detector runs zero-dep and flags overused-font" "$ddout" "overused-font"
 else
-  printf '  - node not found; skipped detector smoke test\n'
+  skip "skipped: node not found; detector smoke test"
 fi
 
 echo "== Resolver (installed copy) =="
@@ -146,13 +147,13 @@ if [ -f ~/.claude/plugins/installed_plugins.json ]; then
     no "installed_plugins.json empty or whitespace-only"
   elif IP="$(jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath // empty' ~/.claude/plugins/installed_plugins.json 2>/dev/null)"; then
     if [ -z "$IP" ]; then
-      printf '  \033[33m-\033[0m %s\n' "skipped: toolkit not installed via plugin manager"
+      skip "skipped: toolkit not installed via plugin manager"
     elif [ -d "$IP" ]; then ok "installed_plugins.json resolves to a real dir"; else no "resolver ($IP)"; fi
   else
     no "installed_plugins.json unparseable"
   fi
 else
-  printf '  \033[33m-\033[0m %s\n' "skipped: no local plugin install (CI checkout)"
+  skip "skipped: no local plugin install (CI checkout)"
 fi
 
 echo "== Orchestration invariants (leaf workers, no Haiku) =="
@@ -210,6 +211,8 @@ PY
 case "$cov" in *"MISSING:NONE"*) ok "docs reference every shipped skill/agent/command/hook/rule/doctrine/script/workflow";; *) no "undocumented -> ${cov#*MISSING:}";; esac
 
 echo
-echo "RESULT: $pass passed, $fail failed"
+echo "RESULT: $pass passed, $skip skipped, $fail failed"
 # Floor, not just zero-failures: silently deleting real checks must not read green.
-[ "$fail" -eq 0 ] && [ "$pass" -ge 42 ]
+# Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
+# no node, no local plugin install) must not read as a vanished check.
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 42 ]
