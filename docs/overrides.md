@@ -37,6 +37,8 @@ When an override is active the session-start hook announces it, so it is never a
 
 - *Doctrine overrides active … `conventions`* — read your global copy for that concern.
 - *Rule overrides active …* — your rule body was injected instead of the plugin's.
+- *Rule override(s) empty or unreadable, plugin default used instead …* — your override file exists but has no usable body, so the hook fell back to the plugin's copy; fix or remove the override.
+- *Rule file(s) unreadable, no override and no usable plugin default …* — named explicitly: neither your override nor the plugin's copy could supply a body for that rule.
 - *Agent/skill overrides active …* — your version resolves for the bare name.
 
 ## Tightening safety
