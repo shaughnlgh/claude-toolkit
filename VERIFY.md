@@ -6,7 +6,7 @@ Two layers. Run both after any significant change, and when onboarding a new mac
 
     bash verify.sh
 
-Deterministic: structure, manifest, hook fixtures (119, plus a non-fixture argv check), hook injection, script guardrails, plan-validator cases (24), vault-fs containment (15), git-ro boundary (12), resolver, docs coverage. Expect `RESULT: N passed, M skipped, 0 failed` with `N + M` at or above the floor; a skip is an environment-dependent check that can't run here (no `claude` CLI, no `node`, no local plugin install) — the floor on `pass + skip` still catches a check that silently vanished. Also run the suites directly if you touched them: `bash plugins/toolkit/hooks/tests/run-all.sh` for hooks, `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` for the plan validator, `bash plugins/toolkit/scripts/tests/vault-fs/run-tests.sh` for vault-fs.
+Deterministic: structure, manifest, hook suite (127 total: 119 JSON fixtures + 8 non-fixture checks), hook injection, script guardrails, plan-validator cases (24), vault-fs containment (15), git-ro boundary (12), resolver, docs coverage. Expect `RESULT: N passed, M skipped, 0 failed` with `N + M` at or above the floor; a skip is an environment-dependent check that can't run here (no `claude` CLI, no `node`, no local plugin install) — the floor on `pass + skip` still catches a check that silently vanished. Also run the suites directly if you touched them: `bash plugins/toolkit/hooks/tests/run-all.sh` for hooks, `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` for the plan validator, `bash plugins/toolkit/scripts/tests/vault-fs/run-tests.sh` for vault-fs.
 
 ## 1b. Live hermetic probes (functional-test.sh — costs real Claude calls)
 
