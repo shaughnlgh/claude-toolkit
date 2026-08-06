@@ -25,18 +25,14 @@ $1" || CTX="$1"; }
 # copies). Frontend rules stay on-demand via the frontend-designer agent.
 RULES_MISSING_PATH=""
 if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; then
-  # Body of $1: CRLF-normalized; frontmatter stripped only with >=2 "---" markers (else whole file is the body); empty/unreadable -> exit 1 (never a false "loaded").
+  # Body of $1: CRLF-normalized; frontmatter exists only when line 1 is exactly "---",
+  # stripped through its closing "---"; unterminated frontmatter or empty/unreadable -> exit 1 (never leaks raw frontmatter).
   body_of() {
-    local raw b dashes
+    local raw b
     [ -r "$1" ] || return 1
     raw="$(cat "$1" 2>/dev/null)"
     raw="${raw//$'\r'/}"
-    dashes=$(printf '%s\n' "$raw" | grep -c '^---$')
-    if [ "$dashes" -eq 0 ]; then
-      b="$raw"
-    else
-      b="$(printf '%s\n' "$raw" | awk 'f{print} /^---$/{c++; if(c==2)f=1}')"
-    fi
+    b="$(printf '%s\n' "$raw" | awk 'NR==1 && $0=="---"{f=1;next} f==1{if($0=="---")f=2;next} f==2{print;next} {print}')"
     case "$b" in *[![:space:]]*) printf '%s' "$b"; return 0 ;; esac
     return 1
   }
@@ -162,7 +158,7 @@ fi
 # $CTX goes through a file (--rawfile), never argv: it can carry an unbounded-size rule
 # body and argv is capped by ARG_MAX (jq -n --arg "$CTX" fails past that with invalid JSON).
 if command -v jq >/dev/null 2>&1; then
-  CTXFILE="$(mktemp 2>/dev/null)"
+  CTXFILE="$(mktemp "${TMPDIR:-/tmp}/toolkit-ctx.XXXXXX" 2>/dev/null)"
   if [ -n "$CTXFILE" ] && printf '%s' "$CTX" > "$CTXFILE" 2>/dev/null; then
     jq -n --rawfile ctx "$CTXFILE" --arg sm "$STATUS" \
       'def base: {hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$ctx}};
