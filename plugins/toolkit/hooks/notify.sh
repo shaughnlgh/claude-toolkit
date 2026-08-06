@@ -3,17 +3,10 @@
 # Used as a Notification hook.
 # Supports macOS (osascript), Linux (notify-send), and WSL (powershell).
 
-INPUT=$(cat 2>/dev/null)
+cat >/dev/null 2>&1
 
-# Extract the notification message if jq is available
+# Fixed literals only below: the hook's stdin is untrusted and must never reach a notifier.
 MESSAGE="Claude Code needs your attention"
-if command -v jq >/dev/null 2>&1 && [ -n "$INPUT" ]; then
-  MSG=$(echo "$INPUT" | jq -r '.message // empty' 2>/dev/null)
-  if [ -n "$MSG" ]; then
-    MESSAGE="$MSG"
-  fi
-fi
-
 TITLE="Claude Code"
 
 # Test/dry-run mode: print instead of notifying (used by hook fixtures).
@@ -24,19 +17,19 @@ fi
 
 # macOS
 if command -v osascript >/dev/null 2>&1; then
-  osascript -e "display notification \"$MESSAGE\" with title \"$TITLE\"" 2>/dev/null
+  osascript -e 'on run {msg, ttl}' -e 'display notification msg with title ttl' -e 'end run' -- "$MESSAGE" "$TITLE" 2>/dev/null
   exit 0
 fi
 
 # Linux (native)
 if command -v notify-send >/dev/null 2>&1; then
-  notify-send "$TITLE" "$MESSAGE" 2>/dev/null
+  notify-send -- "$TITLE" "$MESSAGE" 2>/dev/null
   exit 0
 fi
 
 # WSL → Windows toast
 if command -v powershell.exe >/dev/null 2>&1; then
-  powershell.exe -Command "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; \$n = New-Object System.Windows.Forms.NotifyIcon; \$n.Icon = [System.Drawing.SystemIcons]::Information; \$n.Visible = \$true; \$n.ShowBalloonTip(5000, '$TITLE', '$MESSAGE', 'Info')" 2>/dev/null
+  powershell.exe -Command '[System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms") | Out-Null; $n = New-Object System.Windows.Forms.NotifyIcon; $n.Icon = [System.Drawing.SystemIcons]::Information; $n.Visible = $true; $n.ShowBalloonTip(5000, "Claude Code", "Claude Code needs your attention", "Info")' 2>/dev/null
   exit 0
 fi
 
