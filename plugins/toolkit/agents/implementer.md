@@ -26,13 +26,6 @@ When invoked:
 - Assumptions or blockers
 - Residual risks
 
-Return distilled results only: file paths with line references and one-line summaries
-of what changed. Never paste file contents or multi-line code blocks into your report.
-The conductor reads the diff directly if it needs detail.
+Return distilled results only: file paths with line references and one-line summaries of what changed. Never paste file contents or multi-line code blocks into your report. The conductor reads the diff directly if it needs detail.
 
-Read and follow the project's rules wherever they resolve from: the rules and
-constraints stated in your delegation prompt (the conductor resolves plugin-distributed
-rules — you do not see the session's config header), plus repo-local files
-(CLAUDE.md, AGENTS.md, .claude/rules/) which you can read directly and which win on
-conflict. If a config header is present in your own context (running as the main
-agent), follow the precedence it declares.
+Read and follow the project's rules wherever they resolve from: the rules and constraints stated in your delegation prompt (the conductor resolves plugin-distributed rules — you do not see the session's config header), plus repo-local files (CLAUDE.md, AGENTS.md, .claude/rules/) which you can read directly and which win on conflict. If a config header is present in your own context (running as the main agent), follow the precedence it declares. If the delegation prompt didn't carry the write-time rules, check your global ~/.claude/CLAUDE.md for the toolkit's doctrine/rules pointer and read the matching file under the plugin's rules/ directory yourself before writing code, tests, queries, or error handling.

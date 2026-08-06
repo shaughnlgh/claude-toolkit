@@ -13,6 +13,9 @@
 #     "expect_stderr_contains": ["substring", ...]    // optional
 #   }
 #
+# Also runs notify-osascript-argv-check.sh for checks fixtures can't express
+# (PATH stubs, argv capture); its result folds into the same PASS/FAIL totals.
+#
 # Exit 0 on all pass, 1 on any fail.
 
 set -uo pipefail
@@ -98,15 +101,38 @@ run_case() {
   rm -f "$out_file" "$err_file"
 }
 
+fixture_dir_count=0
+fixture_case_count=0
 for dir in "$FIXTURES"/*/; do
   [[ -d "$dir" ]] || continue
+  fixture_dir_count=$((fixture_dir_count+1))
   hook_name=$(basename "$dir")
   echo "== $hook_name =="
   for f in "$dir"*.json; do
     [[ -f "$f" ]] || continue
+    fixture_case_count=$((fixture_case_count+1))
     run_case "$hook_name" "$f"
   done
 done
+
+# A vanished/emptied fixtures/ dir must fail the suite, not glob to nothing and pass.
+if [[ $fixture_dir_count -eq 0 || $fixture_case_count -eq 0 ]]; then
+  echo "FATAL: no fixture directories/cases found under $FIXTURES" >&2
+  exit 2
+fi
+
+# Checks that need a PATH stub or argv capture, which JSON fixtures can't express.
+# A missing/unsourceable file or missing function must fail the suite, not go silently uncounted.
+source "$ROOT/tests/notify-osascript-argv-check.sh" || { echo "FATAL: cannot source notify-osascript-argv-check.sh" >&2; exit 2; }
+declare -F run_notify_checks >/dev/null || { echo "FATAL: run_notify_checks not defined" >&2; exit 2; }
+echo "== notify (non-fixture) =="
+run_notify_checks
+
+# Checks that need an oversized rule body, which JSON fixtures can't express.
+source "$ROOT/tests/session-start-size-guard-check.sh" || { echo "FATAL: cannot source session-start-size-guard-check.sh" >&2; exit 2; }
+declare -F run_session_start_size_guard_checks >/dev/null || { echo "FATAL: run_session_start_size_guard_checks not defined" >&2; exit 2; }
+echo "== session-start size guard (non-fixture) =="
+run_session_start_size_guard_checks
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
