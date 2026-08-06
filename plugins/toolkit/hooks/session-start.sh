@@ -9,6 +9,9 @@
 INPUT=$(cat 2>/dev/null)
 SOURCE=""
 TRANSCRIPT=""
+CTXFILE=""
+cleanup() { [ -n "$CTXFILE" ] && rm -f "$CTXFILE"; }
+trap cleanup EXIT
 if command -v jq >/dev/null 2>&1 && [ -n "$INPUT" ]; then
   SOURCE=$(printf '%s' "$INPUT" | jq -r '.source // empty' 2>/dev/null)
   TRANSCRIPT=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
@@ -20,22 +23,57 @@ $1" || CTX="$1"; }
 
 # Write-time rules + doctrine pointer, live from the plugin (always current; no local
 # copies). Frontend rules stay on-demand via the frontend-designer agent.
+RULES_MISSING_PATH=""
 if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; then
-  RULES=""; ROVR=""
+  # Body of $1: CRLF-normalized; frontmatter stripped only with >=2 "---" markers (else whole file is the body); empty/unreadable -> exit 1 (never a false "loaded").
+  body_of() {
+    local raw b dashes
+    [ -r "$1" ] || return 1
+    raw="$(cat "$1" 2>/dev/null)"
+    raw="${raw//$'\r'/}"
+    dashes=$(printf '%s\n' "$raw" | grep -c '^---$')
+    if [ "$dashes" -eq 0 ]; then
+      b="$raw"
+    else
+      b="$(printf '%s\n' "$raw" | awk 'f{print} /^---$/{c++; if(c==2)f=1}')"
+    fi
+    case "$b" in *[![:space:]]*) printf '%s' "$b"; return 0 ;; esac
+    return 1
+  }
+  RULES=""; ROVR=""; RFALLBACK=""; RMISSING=""; RTRUNC=""; NLOADED=0; NTOTAL=0
+  RULE_BODY_CAP=65536  # 64KB per rule body; re-sent every request for the session, so unbounded bodies are ruinously expensive
   for r in testing security error-handling database performance; do
-    f="${CLAUDE_PLUGIN_ROOT}/rules/${r}.md"
-    if [ -f "$HOME/.claude/rules/${r}.md" ]; then f="$HOME/.claude/rules/${r}.md"; ROVR="${ROVR} ${r}"; fi
-    if [ -f "$f" ]; then
-      body="$(awk 'f{print} /^---$/{c++; if(c==2)f=1}' "$f")"
-      [ -z "$body" ] && body="$(cat "$f")"   # override without frontmatter: use the whole file, never drop the rule
+    NTOTAL=$((NTOTAL+1))
+    pf="${CLAUDE_PLUGIN_ROOT}/rules/${r}.md"
+    ovf="$HOME/.claude/rules/${r}.md"
+    body=""
+    if [ -f "$ovf" ]; then
+      if body="$(body_of "$ovf")"; then
+        ROVR="${ROVR} ${r}"
+      elif body="$(body_of "$pf")"; then
+        RFALLBACK="${RFALLBACK} ${r}"
+      else
+        RMISSING="${RMISSING} ${r}"
+      fi
+    elif ! body="$(body_of "$pf")"; then
+      RMISSING="${RMISSING} ${r}"
+    fi
+    if [ -n "$body" ]; then
+      if [ "$(printf '%s' "$body" | wc -c | tr -d ' ')" -gt "$RULE_BODY_CAP" ]; then
+        body="$(printf '%s' "$body" | head -c "$RULE_BODY_CAP")"
+        RTRUNC="${RTRUNC} ${r}"
+      fi
+      NLOADED=$((NLOADED+1))
       RULES="${RULES}${body}
 "
     fi
   done
   if [ -n "$RULES" ]; then
-    add "Toolkit write-time rules:"
+    add "Toolkit write-time rules (${NLOADED}/${NTOTAL} loaded):"
     add "$RULES"
     add "Frontend work: use the frontend-designer agent, or read rules/frontend.md in this plugin."
+  else
+    add "Toolkit write-time rules: 0/${NTOTAL} loaded (plugin rules unreadable or empty at ${CLAUDE_PLUGIN_ROOT}/rules) - proceeding without them."
   fi
   [ -f "${CLAUDE_PLUGIN_ROOT}/CLAUDE.md" ] && add "Toolkit doctrine: read the index at ${CLAUDE_PLUGIN_ROOT}/CLAUDE.md before multi-agent or planned work (binding essences plus per-section files; design rationale in README.md alongside). Subagents do not see this line or the write-time rules above: pass doctrine and rule constraints down in delegation prompts, or add both pointers to your global CLAUDE.md via /setup."
   add "Toolkit standing rule (binds the conductor/main chat only): every file change is delegated to a worker agent, no matter how small; the conductor edits nothing itself unless the human explicitly directs it per instance or TOOLKIT_CONDUCTOR_EDITS=1 is set. Enforced by the conductor-guard hook."
@@ -50,6 +88,9 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
   fi
   # Rule overrides: injected above from ~/.claude/rules/ instead of the plugin defaults.
   [ -n "$ROVR" ] && add "Rule overrides active. Your global ~/.claude/rules/ versions were injected above instead of the plugin defaults:${ROVR}."
+  [ -n "$RFALLBACK" ] && add "Rule override(s) empty or unreadable, plugin default used instead:${RFALLBACK}."
+  [ -n "$RMISSING" ] && add "Rule file(s) unreadable, no override and no usable plugin default:${RMISSING}."
+  [ -n "$RTRUNC" ] && add "Rule body(ies) exceeded the 64KB cap and were truncated to the first 64KB, rest omitted:${RTRUNC}."
   # Agent/skill overrides: a same-named file/dir in ~/.claude/{agents,skills} shadows the
   # plugin's (Claude Code resolves it natively for the bare name). Announced for visibility.
   ASOVR=""
@@ -62,6 +103,8 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
     [ -d "${CLAUDE_PLUGIN_ROOT}/skills/${n}" ] && ASOVR="${ASOVR} skill:${n}"
   done
   [ -n "$ASOVR" ] && add "Agent/skill overrides active. Claude Code resolves your global version over the plugin's for the bare name (invoke bare, not toolkit:<name>):${ASOVR}."
+else
+  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then RULES_MISSING_PATH="${CLAUDE_PLUGIN_ROOT}/rules"; else RULES_MISSING_PATH="CLAUDE_PLUGIN_ROOT unset"; fi
 fi
 
 # Git briefing (only inside a repo).
@@ -95,12 +138,18 @@ fi
 
 # User-visible status line, startup only (skip on resume/clear so it doesn't nag).
 STATUS=""
-if [ "$SOURCE" = "startup" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
-  VER=$(basename "$CLAUDE_PLUGIN_ROOT")
-  case "$VER" in toolkit) VER="";; *) VER=" $VER";; esac  # dev checkout has no version segment
-  NA=$(ls "$CLAUDE_PLUGIN_ROOT"/agents/*.md 2>/dev/null | wc -l | tr -d ' ')
-  NS=$(ls -d "$CLAUDE_PLUGIN_ROOT"/skills/*/ 2>/dev/null | wc -l | tr -d ' ')
-  if [ -f "$HOME/.claude/obsidian-sync.json" ]; then
+if [ "$SOURCE" = "startup" ]; then
+  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+    VER=$(basename "$CLAUDE_PLUGIN_ROOT")
+    case "$VER" in toolkit) VER="";; *) VER=" $VER";; esac  # dev checkout has no version segment
+    NA=$(ls "$CLAUDE_PLUGIN_ROOT"/agents/*.md 2>/dev/null | wc -l | tr -d ' ')
+    NS=$(ls -d "$CLAUDE_PLUGIN_ROOT"/skills/*/ 2>/dev/null | wc -l | tr -d ' ')
+  fi
+  if [ -n "$RULES_MISSING_PATH" ] && [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+    STATUS="toolkit active — RULES NOT INJECTED (missing ${RULES_MISSING_PATH})"
+  elif [ -n "$RULES_MISSING_PATH" ]; then
+    STATUS="toolkit${VER} active — RULES NOT INJECTED (missing ${RULES_MISSING_PATH}); ${NA} agents, ${NS} skills"
+  elif [ -f "$HOME/.claude/obsidian-sync.json" ]; then
     STATUS="toolkit${VER} active — ${NA} agents, ${NS} skills, planning ready"
   else
     STATUS="toolkit${VER} active — ${NA} agents, ${NS} skills · planning not configured: run /setup"
@@ -110,10 +159,17 @@ elif [ "$NCOMPACT" -ge 2 ]; then
 fi
 
 # Emit. JSON (with systemMessage) when jq is present; plain-stdout context otherwise.
+# $CTX goes through a file (--rawfile), never argv: it can carry an unbounded-size rule
+# body and argv is capped by ARG_MAX (jq -n --arg "$CTX" fails past that with invalid JSON).
 if command -v jq >/dev/null 2>&1; then
-  jq -n --arg ctx "$CTX" --arg sm "$STATUS" \
-    'def base: {hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$ctx}};
-     if $sm=="" then base else base + {systemMessage:$sm} end'
+  CTXFILE="$(mktemp 2>/dev/null)"
+  if [ -n "$CTXFILE" ] && printf '%s' "$CTX" > "$CTXFILE" 2>/dev/null; then
+    jq -n --rawfile ctx "$CTXFILE" --arg sm "$STATUS" \
+      'def base: {hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$ctx}};
+       if $sm=="" then base else base + {systemMessage:$sm} end'
+  else
+    [ -n "$CTX" ] && printf '%s\n' "$CTX"
+  fi
 else
   [ -n "$CTX" ] && printf '%s\n' "$CTX"
 fi
