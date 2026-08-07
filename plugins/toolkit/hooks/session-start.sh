@@ -67,7 +67,7 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
   if [ -n "$RULES" ]; then
     add "Toolkit write-time rules (${NLOADED}/${NTOTAL} loaded):"
     add "$RULES"
-    add "Frontend work: use the frontend-designer agent, or read rules/frontend.md in this plugin."
+    add "Frontend work: use the frontend-designer agent, or read rules/frontend.md in this plugin. Design/platform-gotcha rules are indexed in rules/design.md — read only the concern files under rules/design/ that the task touches."
   else
     add "Toolkit write-time rules: 0/${NTOTAL} loaded (plugin rules unreadable or empty at ${CLAUDE_PLUGIN_ROOT}/rules) - proceeding without them."
   fi
