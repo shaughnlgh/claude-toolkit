@@ -25,4 +25,4 @@ tags: [design, frontend]
 - Presentational effects (typewriter, marquee, reveals, spinners) are CSS animations, not JS loops or libraries. Example — typewriter with no JS: `animation: type 2.5s steps(22) forwards` on an `overflow: hidden; white-space: nowrap` element, `steps()` count = character count (widths in `ch` are only reliable in monospace). Reach for JS only when the effect depends on runtime state or data.
 - Default to compositor-only properties: animate `transform` and `opacity`. Contained text effects (typewriter's width/clip) are the exception — keep them inside a fixed-size wrapper so surrounding layout never reflows.
 - Never animate layout properties (`top`/`left`/`width`/`height`) on page-level containers; use transforms.
-- Gate non-essential motion behind `@media (prefers-reduced-motion: reduce)` — disable or reduce it there.
+- Non-essential motion runs only under `@media (prefers-reduced-motion: no-preference)` — users who set reduced motion get it disabled or replaced with a non-animated equivalent.
