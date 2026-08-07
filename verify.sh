@@ -70,8 +70,37 @@ for ref in $(grep -oE 'design/[A-Za-z0-9_-]+\.md' "$P/rules/design.md" 2>/dev/nu
   [ -f "$P/rules/${ref}" ] || stale_design="${stale_design} ${ref}"
 done
 [ -z "$stale_design" ] && ok "rules/design.md references only files that exist" || no "rules/design.md references missing file(s):${stale_design}"
+# design-rules-reminder.sh's pattern list is an operational copy of design.md's paths:
+# frontmatter; the two must name the same set of extension/segment tokens in EITHER
+# direction, or a frontend edit one side claims to cover silently drifts from the other.
+drr_sync="$(python3 - "$P" <<'PY'
+import re,sys
+P=sys.argv[1]
+fm=open(P+"/rules/design.md").read()
+paths=re.findall(r'^\s*-\s*"([^"]+)"', fm, re.M)
+hook=open(P+"/hooks/design-rules-reminder.sh").read()
+
+fm_tokens=set(); unparsed=[]
+for p in paths:
+    m=re.match(r'\*\*/\*\.([A-Za-z0-9]+)$', p) or re.match(r'\*\*/([A-Za-z0-9_-]+)/\*\*$', p)
+    if m: fm_tokens.add(m.group(1))
+    else: unparsed.append(p)
+
+hook_tokens = set(re.findall(r'\*\.([A-Za-z0-9]+)\b', hook)) | \
+              set(re.findall(r'\b([A-Za-z][A-Za-z0-9_-]*)/\*(?!\.)', hook))
+
+only_fm = sorted(fm_tokens - hook_tokens)
+only_hook = sorted(hook_tokens - fm_tokens)
+out=[]
+if unparsed: out.append("unparsed design.md pattern(s): " + "; ".join(unparsed))
+if only_fm: out.append("in design.md but missing from the hook: " + ", ".join(only_fm))
+if only_hook: out.append("in the hook but missing from design.md: " + ", ".join(only_hook))
+print("MISSING:"+("; ".join(out) if out else "NONE"))
+PY
+)"
+case "$drr_sync" in *"MISSING:NONE"*) ok "design-rules-reminder.sh's pattern list and rules/design.md's paths: frontmatter name the same tokens";; *) no "design-rules-reminder.sh <-> design.md pattern drift -> ${drr_sync#*MISSING:}";; esac
 [ "$(ls $P/doctrine/*.md 2>/dev/null | wc -l)" -eq 13 ] && ok "13 doctrine files" || no "13 doctrine files"
-[ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 8 ] && ok "8 hook scripts" || no "8 hook scripts"
+[ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 9 ] && ok "9 hook scripts" || no "9 hook scripts"
 for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js \
          skills/gitlab-mr-review/scripts/post_mr_comments.py \
          skills/grill/SKILL.md \
