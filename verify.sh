@@ -50,7 +50,26 @@ n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
 [ "$(ls $P/agents/*.md 2>/dev/null | wc -l)" -eq 13 ] && ok "13 agents" || no "13 agents"
 [ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 12 ] && ok "12 skills" || no "12 skills"
 [ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 8 ] && ok "8 commands" || no "8 commands"
-[ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 6 ] && ok "6 rules" || no "6 rules"
+[ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 7 ] && ok "7 rules" || no "7 rules"
+# design/ catalog coverage, both directions: every rules/design/*.md concern file must be
+# listed in the rules/design.md index, and every design/<name>.md reference the index makes
+# must resolve to a real file (catches a stale entry pointing at a deleted concern file).
+n_design_files="$(ls "$P"/rules/design/*.md 2>/dev/null | wc -l | tr -d ' ')"
+if [ "$n_design_files" -eq 0 ]; then
+  no "design.md indexes every rules/design/*.md file (no rules/design/*.md files found)"
+else
+  missing_design=""
+  for f in "$P"/rules/design/*.md; do
+    b="$(basename "$f")"
+    grep -q "$b" "$P/rules/design.md" 2>/dev/null || missing_design="${missing_design} $b"
+  done
+  [ -z "$missing_design" ] && ok "design.md indexes every rules/design/*.md file" || no "design.md missing:${missing_design}"
+fi
+stale_design=""
+for ref in $(grep -oE 'design/[A-Za-z0-9_-]+\.md' "$P/rules/design.md" 2>/dev/null | sort -u); do
+  [ -f "$P/rules/${ref}" ] || stale_design="${stale_design} ${ref}"
+done
+[ -z "$stale_design" ] && ok "rules/design.md references only files that exist" || no "rules/design.md references missing file(s):${stale_design}"
 [ "$(ls $P/doctrine/*.md 2>/dev/null | wc -l)" -eq 13 ] && ok "13 doctrine files" || no "13 doctrine files"
 [ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 8 ] && ok "8 hook scripts" || no "8 hook scripts"
 for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js \
