@@ -6,12 +6,16 @@ paths:
   - "**/*.svelte"
   - "**/*.css"
   - "**/*.scss"
+  - "**/*.sass"
+  - "**/*.less"
   - "**/*.html"
+  - "**/*.phtml"
   - "**/components/**"
   - "**/pages/**"
   - "**/views/**"
   - "**/layouts/**"
   - "**/styles/**"
+  - "**/templates/**"
 source: toolkit@shaughn-toolkit
 tags: [design, frontend]
 ---

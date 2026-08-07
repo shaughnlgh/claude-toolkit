@@ -134,6 +134,13 @@ declare -F run_session_start_size_guard_checks >/dev/null || { echo "FATAL: run_
 echo "== session-start size guard (non-fixture) =="
 run_session_start_size_guard_checks
 
+# Checks that need real (non-stateless) marker persistence, an isolated TMPDIR, or
+# genuinely malformed stdin, which JSON fixtures can't express.
+source "$ROOT/tests/design-rules-reminder-check.sh" || { echo "FATAL: cannot source design-rules-reminder-check.sh" >&2; exit 2; }
+declare -F run_design_rules_reminder_checks >/dev/null || { echo "FATAL: run_design_rules_reminder_checks not defined" >&2; exit 2; }
+echo "== design rules reminder (non-fixture) =="
+run_design_rules_reminder_checks
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 if [[ $FAIL -gt 0 ]]; then

@@ -1,0 +1,7 @@
+{
+  "name": "directory segment (pages/) with a non-frontend extension still emits the reminder",
+  "stdin": { "session_id": "fx-drr-02", "tool_name": "Edit", "tool_input": { "file_path": "src/pages/Home.ts" } },
+  "env": { "TOOLKIT_DESIGN_REMINDER_STATELESS": "1" },
+  "expect_exit": 0,
+  "expect_stdout_contains": ["design rules catalog", "design.md"]
+}
