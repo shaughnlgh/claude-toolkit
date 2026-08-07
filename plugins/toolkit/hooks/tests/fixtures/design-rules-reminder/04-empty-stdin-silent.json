@@ -1,0 +1,6 @@
+{
+  "name": "empty stdin object exits 0 with no output (fail-open, no file_path)",
+  "stdin": {},
+  "expect_exit": 0,
+  "expect_stdout_not_contains": ["design rules catalog"]
+}
