@@ -1,0 +1,7 @@
+{
+  "name": "non-frontend file (.go under src/) is silent",
+  "stdin": { "session_id": "fx-drr-03", "tool_name": "Write", "tool_input": { "file_path": "src/main.go" } },
+  "env": { "TOOLKIT_DESIGN_REMINDER_STATELESS": "1" },
+  "expect_exit": 0,
+  "expect_stdout_not_contains": ["design rules catalog"]
+}

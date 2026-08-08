@@ -88,8 +88,8 @@ Use whatever the project already has. Don't mix competing libraries.
 
 ## Performance
 
-- Images: `loading="lazy"` below fold, explicit `width`/`height`.
+- Images: lazy-load below-the-fold images — never the LCP image (see rules/design.md), explicit `width`/`height`.
 - Fonts: `font-display: swap`.
-- Animations: `transform` and `opacity` only.
+- Animations: `transform` and `opacity` by default — see rules/design/animation.md for the contained-text-effect exception.
 - Large lists: virtualize at 100+ items.
 - Bundle size: never import a whole library for one function.
