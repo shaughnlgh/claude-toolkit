@@ -1,3 +1,12 @@
+---
+title: "Jira transport: community jira-cli over official acli"
+summary: Adopt jira-cli, not Atlassian's official acli, as the toolkit's sole v1 Jira CLI transport.
+type: decision
+status: active
+owner: Shaughn Le Grange - Hatlen
+last_reviewed: 2026-08-08
+---
+
 # 0001. Jira transport: community jira-cli over official acli
 
 Date: 2026-07-22
