@@ -1,0 +1,7 @@
+{
+  "name": "NotebookEdit's notebook_path field is honored the same as file_path",
+  "stdin": { "session_id": "fx-drr-05", "tool_name": "NotebookEdit", "tool_input": { "notebook_path": "src/components/Notebook.svelte" } },
+  "env": { "TOOLKIT_DESIGN_REMINDER_STATELESS": "1" },
+  "expect_exit": 0,
+  "expect_stdout_contains": ["design rules catalog", "design.md"]
+}
