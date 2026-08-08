@@ -21,7 +21,7 @@ What they deliberately do not prove: interactive behavior (interview loops, cons
 Start a FRESH session (updates and injection only apply to new sessions). Run each probe; the expected result is in parentheses.
 
 ### Doctrine + rules reach the session
-- Ask, without letting it run tools: *"what write-time rules and doctrine pointer are already in your context?"* (recites the testing/security/error-handling/database/performance rules and the doctrine-index pointer — proves the session-start hook fired).
+- Ask, without letting it run tools: *"what write-time rules and doctrine pointer are already in your context?"* (recites the testing/security/error-handling/database/performance/writing rules and the doctrine-index pointer — proves the session-start hook fired).
 
 ### Doctrine is obeyed, not just present
 - Ask it to `git commit` something. (Refuses per git-safety, offers a message instead — proves doctrine is behaviorally live, not just loaded text.)

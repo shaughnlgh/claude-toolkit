@@ -26,6 +26,7 @@ Full transparency — what ships, what runs automatically, and why.
 - [`plugins/toolkit/README.md`](plugins/toolkit/README.md) — the conductor-and-workers model and the design decisions behind it.
 - [`plugins/toolkit/CLAUDE.md`](plugins/toolkit/CLAUDE.md) — the working doctrine index, one concern per file under [`doctrine/`](plugins/toolkit/doctrine).
 - [`docs/overrides.md`](docs/overrides.md) — how to override any default (doctrine, rules, agents, skills) with your own, and how `/override` works.
+- [`docs/context-economics.md`](docs/context-economics.md) — how prompt-cache mechanics drive cost, and the practices (and doctrine) that follow from it.
 - [`VERIFY.md`](VERIFY.md) — the live-session verification checklist (the mechanical battery is `verify.sh`).
 
 ## Prerequisites

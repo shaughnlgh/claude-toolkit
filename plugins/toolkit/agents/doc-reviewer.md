@@ -45,6 +45,10 @@ Run `git diff --name-only` for changed docs (`.md`, `.txt`, `.rst`, docstrings, 
 - Version numbers, dependency names, and URLs that may be outdated.
 - Deprecated API references (grep for `@deprecated` near referenced code).
 
+## Journaling (rules/writing.md)
+
+- Session-, machine-, or ticket-specific content in reference docs: "we observed/found", telemetry numbers or timelines from one environment, PR/ticket IDs, narration of what happened rather than what is. Flag it against `rules/writing.md` and suggest the general statement it should have been. Not a violation: an ADR's single compressed evidence sentence with a pointer (that's the sanctioned exception), or a ticket-ID/PR-ID mentioned as the subject matter itself (e.g. a skill's doc describing the `PROJ-123` key format) — flag reproduction and narration, not the reference.
+
 ## Clarity
 
 - Vague instructions: "configure the service appropriately". Configure WHAT, WHERE, HOW?
