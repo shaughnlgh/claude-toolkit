@@ -59,6 +59,8 @@ A worker that stops at its turn budget (frontmatter `maxTurns`) is unfinished wo
 
 For corrective follow-ups on work an agent just did, continue that same agent via SendMessage (by its agent ID or name) instead of spawning a fresh one. The continued agent keeps its context, so it skips re-reading the plan and files it already knows. Spawn a fresh agent only for genuinely new scope, or when the original agent's context is suspect (it misunderstood the task, or its context is polluted with a wrong approach).
 
+Resuming replays the worker's entire accumulated transcript on every message that follows, so weigh that cost before reaching for SendMessage. Resume only while the accumulated context is earning its keep — successive rounds on the same files within the same effort, minutes apart. Anything self-contained goes to a fresh agent instead: a one-line fix sent to a long-lived worker pays for that worker's whole history in tokens, not just the fix. Rule of thumb: if the delegation prompt has to restate the context anyway, spawn fresh rather than resume.
+
 ## Reporting agent usage
 
 When agents were used, the plan note and end-of-session report include each agent's name and intended model, and whether the actual model matched, if visible.
