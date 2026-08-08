@@ -1,3 +1,12 @@
+---
+title: Worker resume vs fresh spawn
+summary: Resume a worker only while its accumulated context is still earning its keep; otherwise spawn fresh.
+type: decision
+status: active
+owner: Shaughn
+last_reviewed: 2026-08-08
+---
+
 # 0002. Worker resume vs fresh spawn
 
 Date: 2026-08-08
