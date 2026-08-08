@@ -96,9 +96,10 @@ Five optional additions, shown verbatim, explained in one line, and applied only
       `<plugin-root>/CLAUDE.md`. Design rationale: `<plugin-root>/README.md`.
       Personal overrides: state one inline below, or drop a same-named file in
       ~/.claude/doctrine/ (auto-detected each session, no pointer needed).
-      Write-time rules: before writing code, tests, queries, or error handling, read
-      the matching file under `<plugin-root>/rules/` (testing.md, security.md,
-      error-handling.md, database.md, performance.md, writing.md, frontend.md).
+      Write-time rules: before writing code, tests, queries, error handling, or
+      documentation/comments, read the matching file under `<plugin-root>/rules/`
+      (testing.md, security.md, error-handling.md, database.md, performance.md,
+      writing.md, frontend.md).
 
 - **Auto-update.** New commits are new versions. Offer to enable marketplace auto-update by merging into `~/.claude/settings.json` (top-level `extraKnownMarketplaces`, merged into any existing object, never replacing it):
 
