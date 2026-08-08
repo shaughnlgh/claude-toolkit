@@ -1,8 +1,8 @@
 # Hooks
 
-The toolkit ships eight hook scripts that run automatically once the plugin is installed — no opt-in, no separate config. This page is the full accounting, in the spirit of transparency: exactly what each one checks, what it hard-blocks versus merely asks you to confirm, and every environment variable it honors. The README's Docs list links here in one line; this is the full version — the one to read before trusting the toolkit with a repo.
+The toolkit ships nine hook scripts that run automatically once the plugin is installed — no opt-in, no separate config. This page is the full accounting, in the spirit of transparency: exactly what each one checks, what it hard-blocks versus merely asks you to confirm, and every environment variable it honors. The README's Docs list links here in one line; this is the full version — the one to read before trusting the toolkit with a repo.
 
-Two properties hold across all eight:
+Two properties hold across all nine:
 
 - **Fails safe.** No hook can crash or hang your session. Where "safe" lands differs by hook: `protect-files.sh` and `block-dangerous-commands.sh` require `jq` to parse the tool call, so if `jq` is missing they hard-block that one write or command rather than let a security check that can't run pass silently. `scan-secrets.sh` degrades to a no-op without `jq` (it cannot parse the write, so it does not block). `notify.sh` always fires with its fixed message and only no-ops when no OS notifier is available. `session-start.sh` falls back to plain-stdout context. `context-sentinel.sh` is a silent no-op without `jq` or a readable transcript, and never blocks anything regardless. `conductor-guard.sh` likewise fails open without `jq` and can only ever ask, never deny. Either way, the worst case is one blocked tool call or a slightly thinner context injection — never a broken session.
 - **Reads no network** — with one narrow exception: `session-start.sh`'s verbose mode (`TOOLKIT_SESSION_VERBOSE=1`) calls `gh pr view` when the `gh` CLI is installed, which does reach GitHub's API for the current repo's PR status. Every other code path in every hook is local only: file reads, git plumbing, `jq`, and OS notification APIs.
@@ -19,6 +19,7 @@ Two properties hold across all eight:
 | `md-wrap-check.sh` | PostToolUse (`Edit\|Write`) | Flags hard-wrapped prose in the content a `.md` write just produced and feeds the finding back to the model (doctrine: one line per paragraph) — warning only, never blocks, checks only the new content |
 | `context-sentinel.sh` | PostToolUse (all tools) | Watches the conversation's context size via the session transcript; past 200k/400k/600k tokens it injects a model-visible nudge to delegate and plan a handoff (user-visible too from 400k) — advisory only, never blocks |
 | `conductor-guard.sh` | PreToolUse (`Edit\|Write\|NotebookEdit`) | Prompts for confirmation when the main conversation (the conductor, not a subagent) edits a project file directly — doctrine delegates every change to a worker; `TOOLKIT_CONDUCTOR_EDITS=1` disables for a session |
+| `design-rules-reminder.sh` | PreToolUse (`Edit\|Write\|NotebookEdit`) | When the target file matches a frontend pattern (extension or directory segment), injects a one-line pointer at the `rules/design.md` catalog into model context, once per session — advisory only, never blocks |
 
 ## The boundary model — what enforces what
 
@@ -124,6 +125,18 @@ The delegation guard. The orchestration doctrine delegates every change, however
 The guard is matcher-scoped to `Edit`/`Write`/`NotebookEdit`, so a conductor write spelled as `Bash` (`sed -i`, `echo >`, `git apply`) never consults it, for the same unbounded-ways-to-spell-a-write reason given in the boundary model above — that half of the doctrine is discipline, not enforcement.
 
 The outside-`cwd` exemption assumes the standard project-checkout-plus-external-vault layout; a session whose `cwd` IS the vault or `~/.claude`, or multi-repo edits via absolute sibling paths, will be misclassified — advisory hook, not a boundary.
+
+## design-rules-reminder.sh
+
+**Event:** `PreToolUse`, matcher `Edit|Write|NotebookEdit`.
+
+The design catalog (`rules/design.md` and its per-concern files under `rules/design/`) is reference-only — it never reaches session context via `session-start.sh`. This hook is the other way it surfaces: when the target file's extension or directory segment matches the frontend pattern list (an operational copy of `rules/design.md`'s `paths:` frontmatter, kept in sync by a `verify.sh` check), it injects a one-line `additionalContext` pointer at the catalog — no `permissionDecision`, so the edit is never delayed or blocked. Fires once per session; the marker lives at `$TMPDIR/toolkit-design-reminder-<session_id>`, the same idiom `context-sentinel.sh` uses for its once-per-crossing state.
+
+**Hard blocks / asks:** none — advisory only, exits 0 always.
+
+**Env vars:** `TOOLKIT_DESIGN_REMINDER_STATELESS=1` skips the once-per-session dedup (used by the fixture tests, not meant for real sessions).
+
+**Failure mode:** fails open — silent no-op without `jq`, on malformed or empty stdin, or when the marker directory is unwritable.
 
 ## context-sentinel.sh
 
