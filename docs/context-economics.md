@@ -1,6 +1,6 @@
 # Context Economics
 
-How context, cache reads, and cache writes drive Claude Code's cost, and what that means for how work is run in this toolkit. This is a reference doc for conductors — read it once, then let the practices below become habit; the observed numbers are one machine's telemetry, illustrating the shape of the effect, not universal constants, and the pricing multipliers are Anthropic's published cache pricing as of writing and may change.
+How context, cache reads, and cache writes drive Claude Code's cost, and what that means for how work is run in this toolkit. Read once, then let the practices below become habit. Pricing multipliers are Anthropic's published cache pricing as of writing and may change.
 
 ## Mechanics
 
@@ -8,9 +8,9 @@ Prompt caching is exact-prefix: the system prompt, tool schemas, injected contex
 
 ## What this means per task shape
 
-- **Long sessions.** Each post-gap turn re-writes the whole history, so cost grows with context length even when the session reads as "cached" throughout. Observed: 71% of a week's usage sat at >150k tokens of context. A Q&A-only session showed 156k tokens cache-written against only 47k read — an inverted ratio, meaning turns were arriving slower than the TTL and paying the write rate repeatedly instead of the read rate.
+- **Long sessions.** Each post-gap turn re-writes the whole history, so cost grows with context length even when the session reads as "cached" throughout. A session whose turns arrive slower than the TTL pays the write rate on every turn instead of the read rate, and can end up writing several times more context than it ever reads back.
 - **Subagents.** Each spawn is a fresh context, paying its own system-prompt-and-doctrine write once. Each resume replays the whole worker transcript instead — see `docs/decisions/0002-worker-resume-vs-fresh-spawn.md` for when that trade is and isn't worth it.
-- **Always-injected content.** Session-start rules, MCP tool listings, and plugin hooks/agents sit in every request of every session. Cheap per-request while the cache stays warm, but re-written in full on every cache break. This is why the toolkit keeps write-time rules to five small bodies with a 64KB per-rule cap, keeps the design and frontend rules reference-only behind an index (`docs/rules.md`) instead of injecting the whole catalog, and why unused MCP connectors are worth disconnecting — an audit on this machine found only 3 of roughly 22 connected servers had any invocations in the trailing 30 days.
+- **Always-injected content.** Session-start rules, MCP tool listings, and plugin hooks/agents sit in every request of every session. Cheap per-request while the cache stays warm, but re-written in full on every cache break. This is why the toolkit keeps write-time rules to five small bodies with a 64KB per-rule cap, and keeps the design and frontend rules reference-only behind an index (`docs/rules.md`) instead of injecting the whole catalog. The same logic applies to MCP connectors: one that's rarely invoked still costs prefix space in every session, cached or not, so periodically audit actual usage (grep session transcripts for real invocations, not just configured connectors) and disconnect what isn't used.
 
 ## Practices
 
