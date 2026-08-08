@@ -10,7 +10,7 @@ The orchestration doctrine lets a conductor resume a completed worker via SendMe
 
 ## Decision
 
-Resume a worker only while its accumulated context is earning its keep: successive rounds on the same files, within the same effort, minutes apart. Anything self-contained — a one-line fix, a new and unrelated ask — spawns a fresh agent instead. Rule of thumb: if the delegation prompt would have to restate the context anyway, spawn fresh rather than resume. This is codified in the "Acceptance and re-delegation" section of `plugins/toolkit/doctrine/orchestration.md`.
+Resume a worker only while its accumulated context is earning its keep: successive rounds on the same files, within the same effort, minutes apart. A one-line fix to a long-lived or cold worker spawns a fresh agent instead — so does a new and unrelated ask — since the fix would pay for the worker's whole history just to answer it. Rule of thumb: if the delegation prompt would have to restate the context anyway, spawn fresh rather than resume. This is codified in the "Acceptance and re-delegation" section of `plugins/toolkit/doctrine/orchestration.md`.
 
 ## Consequences
 
