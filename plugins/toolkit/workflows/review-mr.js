@@ -12,7 +12,9 @@ export const meta = {
 // diffPath   (required) absolute path to the saved unified diff
 // repoRoot   (required) absolute path to the local repo holding target-branch code
 // contextBlock (required) env facts + MR summary + verification instructions, built by the conductor
-// dimensions (optional) [{key, prompt}] extra MR-specific dimensions (contract impact, conventions, domain)
+// dimensions (optional) [{key, prompt, cold?}] extra MR-specific dimensions (contract impact,
+//   conventions, domain); cold: true omits the conductor's contextBlock from this dimension's
+//   prompt so it reads the diff without the author's framing
 // registryReviewers (optional) agentType names to fan out; must be fully qualified as the
 //   harness registers them (plugin agents are namespaced, e.g. 'toolkit:code-reviewer') —
 //   the Workflow agentType lookup is literal, with none of the Agent tool's bare-name
@@ -108,9 +110,9 @@ ${OUTPUT_CONTRACT}`,
 const customDimensions = CUSTOM.map((d) => ({
   key: d.key,
   agentType: undefined,
-  prompt: `${a.contextBlock}
+  prompt: `${d.cold ? '' : `${a.contextBlock}
 
-Read the full unified diff at ${a.diffPath} first. ${REPO_STATE}
+`}Read the full unified diff at ${a.diffPath} first. ${REPO_STATE}
 
 DIMENSION: ${d.prompt}
 ${OUTPUT_CONTRACT}`,

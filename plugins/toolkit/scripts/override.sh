@@ -22,10 +22,19 @@ has() {  # $1=type $2=name -> 0 if it exists in the plugin
   esac
 }
 
-# No args: list everything overridable.
+# No args: list everything overridable. frontend/design are excluded from the rules
+# listing (and guards below refuse them) since they're reference-only, never injected.
 if [ $# -eq 0 ]; then
   echo "overridable toolkit components (run: override.sh <name>  or  override.sh <type> <name>):"
-  for t in $TYPES; do echo "  $t:"; names_of "$t" | sed 's/^/    /'; done
+  for t in $TYPES; do
+    echo "  $t:"
+    if [ "$t" = rules ]; then
+      names_of "$t" | grep -v -x -e frontend -e design | sed 's/^/    /'
+      echo "    (frontend, design: reference-only, not overridable)"
+    else
+      names_of "$t" | sed 's/^/    /'
+    fi
+  done
   exit 0
 fi
 
