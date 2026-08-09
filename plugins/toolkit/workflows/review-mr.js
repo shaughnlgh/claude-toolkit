@@ -1,7 +1,7 @@
 export const meta = {
   name: 'review-mr',
-  description: 'Multi-dimension MR review: fan out global reviewer agents + custom dimensions, adversarially verify every finding',
-  whenToUse: 'Invoked by the /gitlab-mr-review skill (or directly) with args = {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?}. Reviews a fetched MR diff against local target-branch code.',
+  description: 'Multi-dimension diff review: fan out global reviewer agents + custom dimensions, adversarially verify every finding',
+  whenToUse: 'Invoked by the gitlab-mr-review skill (fetched MR diffs, target-branch checkout) or the red-team skill (local uncommitted slice diffs) with args = {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?}. Reviews a saved unified diff against the local code at repoRoot whose state repoState declares.',
   phases: [
     { title: 'Review', detail: 'registry reviewer agents + custom prompt dimensions over the diff' },
     { title: 'Verify', detail: 'adversarial verification of each finding against repo truth' },
@@ -17,6 +17,8 @@ export const meta = {
 //   harness registers them (plugin agents are namespaced, e.g. 'toolkit:code-reviewer') —
 //   the Workflow agentType lookup is literal, with none of the Agent tool's bare-name
 //   fall-through. Default: the toolkit's reviewer agents.
+// repoState (optional) sentence describing the state of the tree at repoRoot, substituted into
+//   the reviewer and verifier prompts; defaults to the current MR target-branch sentence.
 
 // The harness may deliver args as a JSON string rather than a parsed object.
 let a = args
@@ -25,8 +27,12 @@ if (typeof a === 'string') {
 }
 
 if (!a || !a.diffPath || !a.repoRoot || !a.contextBlock) {
-  throw new Error('review-mr requires args: {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?}')
+  throw new Error('review-mr requires args: {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?}')
 }
+
+const REPO_STATE = a.repoState || `The local repo at ${a.repoRoot} holds the
+TARGET-branch code (the MR branch is NOT checked out) — use it to verify claims about existing
+code, callers, and framework behavior.`
 
 const REVIEWERS = a.registryReviewers || [
   'toolkit:code-reviewer',
@@ -95,9 +101,7 @@ const registryDimensions = REVIEWERS.map((name) => ({
   agentType: name,
   prompt: `${a.contextBlock}
 
-Read the full unified diff at ${a.diffPath} first. The local repo at ${a.repoRoot} holds the
-TARGET-branch code (the MR branch is NOT checked out) — use it to verify claims about existing
-code, callers, and framework behavior. Apply your review speciality to this MR diff.
+Read the full unified diff at ${a.diffPath} first. ${REPO_STATE} Apply your review speciality to this MR diff.
 ${OUTPUT_CONTRACT}`,
 }))
 
@@ -106,8 +110,7 @@ const customDimensions = CUSTOM.map((d) => ({
   agentType: undefined,
   prompt: `${a.contextBlock}
 
-Read the full unified diff at ${a.diffPath} first. The local repo at ${a.repoRoot} holds the
-TARGET-branch code (the MR branch is NOT checked out).
+Read the full unified diff at ${a.diffPath} first. ${REPO_STATE}
 
 DIMENSION: ${d.prompt}
 ${OUTPUT_CONTRACT}`,
@@ -137,10 +140,10 @@ const results = await pipeline(
 
 You are an adversarial verifier. A reviewer (dimension: ${d.key}) claims the following finding in
 this MR. Try to REFUTE it by checking the diff at ${a.diffPath} and the local repo at
-${a.repoRoot}. It is only real if the evidence holds up: the code path actually executes, the
-failure scenario is concrete and reachable, and it is not already handled elsewhere in the diff or
-repo. Conventions findings are real only if they contradict both written project rules and actual
-repo practice.
+${a.repoRoot}. ${REPO_STATE} It is only real if the evidence holds up: the code path actually
+executes, the failure scenario is concrete and reachable, and it is not already handled elsewhere
+in the diff or repo. Conventions findings are real only if they contradict both written project
+rules and actual repo practice.
 
 FINDING: ${f.title}
 FILE: ${f.file}
