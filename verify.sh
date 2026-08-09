@@ -129,7 +129,7 @@ else
   # exit code is part of the pass condition and the RESULT line is picked by prefix,
   # not by trailing position: a merged stderr line must not masquerade as the verdict.
   out="$(printf '%s' "$hout" | grep -E '^RESULT: ' | tail -1)"
-  if [ "$hrc" -eq 0 ] && suite_pass "$out" 127; then
+  if [ "$hrc" -eq 0 ] && suite_pass "$out" 136; then
     ok "hook fixture suite"
   else
     no "hook fixture suite (exit $hrc, got: ${out:0:60})"
@@ -162,6 +162,8 @@ bash "$P/scripts/git-ro.sh" "$ROOT" status >/dev/null 2>&1; code "git-ro allows 
 want "override lists components (no arg)" "$(bash "$P/scripts/override.sh" 2>&1)" "conventions"
 want "override refuses unknown name"      "$(bash "$P/scripts/override.sh" nonesuch 2>&1)" "refused"
 want "override refuses ambiguous name"    "$(bash "$P/scripts/override.sh" security 2>&1)" "ambiguous"
+want "override refuses frontend rule (reference-only, no injection to replace)" "$(bash "$P/scripts/override.sh" rules frontend 2>&1)" "refused: the 'frontend' rule is reference-only"
+want "override refuses design rule (reference-only, no injection to replace)"   "$(bash "$P/scripts/override.sh" rules design 2>&1)"   "refused: the 'design' rule is reference-only"
 doh="$(mktemp -d)"; HOME="$doh" bash "$P/scripts/override.sh" conventions >/dev/null 2>&1; HOME="$doh" bash "$P/scripts/override.sh" testing >/dev/null 2>&1
 { [ -f "$doh/.claude/doctrine/conventions.md" ] && [ -f "$doh/.claude/rules/testing.md" ]; } && ok "override copies doctrine + rule into ~/.claude" || no "override copy"; rm -rf "$doh"
 
