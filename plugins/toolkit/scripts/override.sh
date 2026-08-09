@@ -51,6 +51,11 @@ if [ "$typ" = rules ] && [ "$name" = frontend ]; then
   echo "refused: the 'frontend' rule is reference-only and is not injected. Its content lives in the frontend-designer agent — override that instead:  override.sh agents frontend-designer" >&2
   exit 1
 fi
+# The design rule is reference-only (never injected); it's just an index over rules/design/.
+if [ "$typ" = rules ] && [ "$name" = design ]; then
+  echo "refused: the 'design' rule is reference-only and is not injected. It's an index over the rules/design/ catalog, with no equivalent component to override." >&2
+  exit 1
+fi
 
 # Source + destination.
 if [ "$typ" = skills ]; then src="$ROOT/skills/$name"; dst="$HOMEC/skills/$name"
