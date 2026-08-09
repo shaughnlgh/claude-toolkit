@@ -15,7 +15,7 @@ description: >-
 
 # Expedition
 
-Expedition is a state machine with a dispatcher, not a mega-skill. It owns exactly three things: the stage sequence below, the gates between stages (recommend, then the user confirms, skips, or redirects), and persistence in the vault so a fresh session days later knows exactly where the effort stands and what the next gate is. Every stage's actual work is delegated to the skill that owns it — crawl, grill, wayfinder, plan-workflow, execute-workflow, gitlab-mr-review. Expedition never absorbs or re-implements them, and each stays independently invokable outside any expedition.
+Expedition is a state machine with a dispatcher, not a mega-skill. It owns exactly three things: the stage sequence below, the gates between stages (recommend, then the user confirms, skips, or redirects), and persistence in the vault so a fresh session days later knows exactly where the effort stands and what the next gate is. Every stage's actual work is delegated to the skill that owns it — crawl, grill, wayfinder, plan-workflow, execute-workflow, red-team, gitlab-mr-review. Expedition never absorbs or re-implements them, and each stays independently invokable outside any expedition.
 
 Load `plan-workflow` before creating any vault artifact here; its canonical layout, naming, and frontmatter rules govern the expedition's directory exactly as they govern any plan's.
 
@@ -54,7 +54,7 @@ The approval gate is the standing exception: it is plan-workflow's human approva
 4. **Split decision.** Once the alignment layer is agreed, put the split question: one plan or several phases, with a recommendation from the crawl and grill evidence. Several → `wayfinder` decomposes (consuming the alignment instead of re-running it); one → the same grill session continues to full depth and feeds a single plan. Stage: `split-decided`.
 5. **Plan.** Each plan (the single one, or each wayfinder child when its turn comes) goes through `plan-workflow`, children preceded by their own scoped deep grill where requirements are not pinned. Stage: `planned` when the first plan note is complete; the work note's Links section tracks per-child status via the umbrella's Task Roadmap rather than duplicating it.
 6. **Approve.** plan-workflow's human approval, per plan. Stage: `approved`.
-7. **Implement and verify.** `execute-workflow` per approved plan. Stage: `implementing`.
+7. **Implement and verify.** `execute-workflow` per approved plan. Stage: `implementing`. Slice closures inside this stage go through the `red-team` gate before the stage-advance gate to `in-review`, so the two gates sequence rather than collide.
 8. **Review.** MR raised; `gitlab-mr-review` when asked. Stage: `in-review`, then `merged` when the MR lands.
 9. **Complete.** Manual, always: the user says the work is done (deployed, verified in production, whatever "done" means for this effort — the toolkit has no reliable way to observe deploys, so it never pretends to). Record who said so and when. Stage: `complete`.
 
