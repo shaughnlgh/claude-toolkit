@@ -52,6 +52,10 @@ The plan says what to build; build the least that satisfies it. Workers do not s
 - `<risk, follow-up, or constraint>`
 ```
 
+## Slice Finalization
+
+When the user signals a completed implementation slice, the `red-team` skill (`../red-team/SKILL.md` from this skill's base directory) owns finalization: it recommends the adversarial review, runs it on confirmation, and ends with a commit suggestion. It invokes this skill's Doc Update Pass once, after its fixes.
+
 ## Doc Update Pass
 
 Treat docs as part of the change, not an afterthought. When implementation changes architecture, conventions, contracts, workflow, OR the set of files / modules / commands / options that a doc enumerates, update the affected docs in the same changeset.
