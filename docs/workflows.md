@@ -20,8 +20,8 @@ args: {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoSt
 ```
 
 - `diffPath` (required) — absolute path to the saved unified diff.
-- `repoRoot` (required) — absolute path to the local repo holding the target-branch code.
-- `contextBlock` (required) — env facts, MR summary, and verification instructions, built by the conductor (the skill) before the workflow runs.
+- `repoRoot` (required) — absolute path to the local repo the review verifies claims against, whose state `repoState` declares: a target-branch checkout for `gitlab-mr-review`, the post-change working tree for `red-team`.
+- `contextBlock` (required) — env facts, a summary of the change under review, and verification instructions, built by the conductor (the skill) before the workflow runs.
 - `dimensions` (optional) — `[{key, prompt}]`, extra MR-specific review angles (contract impact, framework wiring, conventions, data/upgrade safety) the registry reviewers won't cover.
 - `registryReviewers` (optional) — override the default set of five reviewer agent types. Names must be fully qualified as the harness registers them (plugin agents are namespaced, e.g. `toolkit:code-reviewer`).
 - `repoState` (optional) — sentence describing the state of the tree at `repoRoot`, substituted into the reviewer and verifier prompts; defaults to the current MR target-branch sentence.
