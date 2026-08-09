@@ -11,6 +11,7 @@ For non-trivial development tasks, use a plan-first workflow: the plan note is w
 | Writing or editing code when testing-gate determined tests are required | `test-first` skill |
 | Starting execution of an approved plan | `execute-workflow` + `plan-workflow` skills |
 | Debugging runtime/integration issues; finishing implementation (doc pass) | `execute-workflow` skill |
+| User signals a completed implementation slice (recommend red team, run only on confirmation) | `red-team` skill |
 | Creating or updating a topic note or stub | `obsidian-topic` command |
 | Reviewing a GitLab MR | `gitlab-mr-review` skill |
 | (opt-in, not blocking) User asks to grill / elicit requirements for a fuzzy feature, before planning | `grill` skill |
@@ -20,5 +21,7 @@ For non-trivial development tasks, use a plan-first workflow: the plan note is w
 | (opt-in, not blocking) User explicitly invokes the full ticket-to-complete pipeline for a big scope of work, or asks to resume one | `expedition` skill |
 
 The `grill`, `handoff`, `resolving-merge-conflicts`, `wayfinder`, and `expedition` rows are guidance, not a blocking requirement like the rows above them. Each fires only on an explicit user request, never on task fuzziness or size the model detects on its own — with two carve-outs: a `crawl` route the user has confirmed counts as the explicit request for `wayfinder`, and a confirmed yes at an expedition's grill gate counts as the explicit request for `grill`. The `crawl` row is the front door for new work: it investigates the brief and routes to `wayfinder`, `plan-workflow`, or no plan; on routes that write artifacts the user confirms the route first, while the trivial no-plan route states its routing in one sentence and proceeds.
+
+The `red-team` row is blocking for the recommendation only, not the run — at a closure signal, saying so in one line is mandatory, while the review itself runs only on the user's explicit confirmation; an explicit red-team request invokes the skill directly at any time, bypassing the recommendation. At slice closure, `red-team` owns finalization and invokes `execute-workflow`'s doc pass exactly once after its own fixes; the finishing-implementation row above continues to cover doc-pass mechanics outside a red-teamed closure.
 
 Never write or edit a plan note without `plan-workflow` loaded — its frontmatter and naming rules are a contract that plan-tracking tooling parses, and improvising them breaks that contract. Keep this discipline for real planned work, not trivial Q&A or explanation-only sessions.

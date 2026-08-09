@@ -48,7 +48,7 @@ ok "verify helpers fail closed (reject mismatch, empty suite, and failures)"
 echo "== Structure =="
 n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
 [ "$(ls $P/agents/*.md 2>/dev/null | wc -l)" -eq 13 ] && ok "13 agents" || no "13 agents"
-[ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 12 ] && ok "12 skills" || no "12 skills"
+[ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 13 ] && ok "13 skills" || no "13 skills"
 [ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 8 ] && ok "8 commands" || no "8 commands"
 [ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 8 ] && ok "8 rules" || no "8 rules"
 # design/ catalog coverage, both directions: every rules/design/*.md concern file must be
@@ -107,6 +107,11 @@ for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js \
          scripts/vault-fs.sh scripts/git-ro.sh; do
   [ -f "$P/$f" ] && ok "present: $f" || no "MISSING: $f"
 done
+# functional-test.sh's header comment states the skills mode's call count; it must
+# equal the actual skill_probe() call count, or the two silently drift apart.
+stated_skills="$(sed -nE 's/.*functional-test\.sh skills.*\(([0-9]+) calls.*/\1/p' "$ROOT/functional-test.sh")"
+actual_skills="$(grep -c 'skill_probe "' "$ROOT/functional-test.sh")"
+[ "$stated_skills" = "$actual_skills" ] && ok "functional-test.sh skills header count matches actual skill_probe calls" || no "functional-test.sh skills header ($stated_skills) != actual skill_probe calls ($actual_skills)"
 
 echo "== Manifest =="
 if command -v claude >/dev/null 2>&1; then

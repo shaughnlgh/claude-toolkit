@@ -1,6 +1,6 @@
 # Workflows
 
-Workflows are multi-agent orchestrations the toolkit ships as scripts under `plugins/toolkit/workflows/`, run through the Workflow tool rather than a single agent turn. There is currently one: `review-mr`, driven by the `gitlab-mr-review` skill.
+Workflows are multi-agent orchestrations the toolkit ships as scripts under `plugins/toolkit/workflows/`, run through the Workflow tool rather than a single agent turn. There is currently one: `review-mr`, driven by the `gitlab-mr-review` skill against fetched MR diffs and the `red-team` skill against local uncommitted slice diffs (passing `repoState`).
 
 ## review-mr.js
 
@@ -11,12 +11,12 @@ Multi-dimension MR review. It runs two phases:
 
 The workflow then adjudicates its own results — splitting findings into `confirmed`, `refuted` (with reasoning), `unverified` (verifier died mid-run — the conductor must settle these), and `openQuestions` — and returns that structure. It does not produce a final report itself; that's the calling skill's job.
 
-Reviews are run against the diff plus a local checkout of the **target branch only** — the MR branch itself is never checked out, so any claim about existing code, callers, or framework behavior is verified against target-branch truth, not the MR's changes.
+Reviews are run against the diff plus a local checkout at `repoRoot`, whose state the `repoState` argument declares — a target-branch checkout for `gitlab-mr-review`, the post-change working tree for `red-team` — so any claim about existing code, callers, or framework behavior is verified against that declared state.
 
-Invoked by the `gitlab-mr-review` skill (or directly) with:
+Invoked by the `gitlab-mr-review` or `red-team` skill (or directly) with:
 
 ```
-args: {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?}
+args: {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?}
 ```
 
 - `diffPath` (required) — absolute path to the saved unified diff.
@@ -24,6 +24,7 @@ args: {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?}
 - `contextBlock` (required) — env facts, MR summary, and verification instructions, built by the conductor (the skill) before the workflow runs.
 - `dimensions` (optional) — `[{key, prompt}]`, extra MR-specific review angles (contract impact, framework wiring, conventions, data/upgrade safety) the registry reviewers won't cover.
 - `registryReviewers` (optional) — override the default set of five reviewer agent types. Names must be fully qualified as the harness registers them (plugin agents are namespaced, e.g. `toolkit:code-reviewer`).
+- `repoState` (optional) — sentence describing the state of the tree at `repoRoot`, substituted into the reviewer and verifier prompts; defaults to the current MR target-branch sentence.
 
 ## post_mr_comments.py
 

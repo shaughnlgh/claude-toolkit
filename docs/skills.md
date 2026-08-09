@@ -20,8 +20,9 @@ These GIFs live in the repo (`docs/media/`) but not in the installed plugin. The
 | `gitlab-mr-review` | Multi-dimension MR review: fans out reviewer agents plus MR-specific dimensions and adversarially verifies every finding against the local checkout. | You ask to review a GitLab merge request. |
 | `expedition` | The ticket-to-complete pipeline for big, deliberately-committed work: sequences crawl, grill, split decision, planning, execution, and review through recommend-and-confirm gates, with the stage persisted in a vault work note so the effort survives across days. Completion is always your word, never inferred. | You explicitly invoke it, or ask to resume one. Never automatic — committing to the full workflow is your decision. |
 | `jira` | Read-only ticket-to-brief adapter: fetches a Jira issue via jira-cli and returns a verbatim brief (metadata, full description, comments, issue links) for crawl or expedition to plan from. | Crawl's ingest step meets a Jira key or ticket URL, or you ask to fetch one directly. |
+| `red-team` | Gates an implementation slice's finalization: recommends an adversarial review on a closure signal, runs — on confirmation — the `review-mr` workflow's reviewer/verifier panel over the local uncommitted diff, delegates fixes for confirmed findings with scoped re-checks, runs the doc pass once, and closes with a commit suggestion. | A closure signal ("I'm happy with this", "looks good, let's continue") fires with uncommitted implementation changes present, or you explicitly ask to red team code or a diff. |
 
-All of the request-triggered skills (`grill`, `handoff`, `resolving-merge-conflicts`, `wayfinder`, `expedition`) fire only on an explicit ask, never on something the model infers on its own — with two narrow carve-outs: a crawl route you confirmed counts as the explicit ask for wayfinder, and a confirmed yes at an expedition's grill gate counts as the explicit ask for grill. `crawl` is the exception in the other direction: it fires automatically on new work (a brief or ticket with no plan note), staying near-silent on trivial work.
+All of the request-triggered skills (`grill`, `handoff`, `resolving-merge-conflicts`, `wayfinder`, `expedition`) fire only on an explicit ask, never on something the model infers on its own — with two narrow carve-outs: a crawl route you confirmed counts as the explicit ask for wayfinder, and a confirmed yes at an expedition's grill gate counts as the explicit ask for grill. `crawl` is the exception in the other direction: it fires automatically on new work (a brief or ticket with no plan note), staying near-silent on trivial work. `red-team` sits between the two: the recommendation fires automatically on a closure signal, but the run itself still waits on your explicit confirmation — an explicit ask to red team a diff skips that gate and counts as the confirmation on its own.
 
 ## Example prompts
 
@@ -76,6 +77,10 @@ How to trigger each skill. Some you invoke directly, some fire automatically ins
 - `execute-workflow` — loads when you start executing an approved plan:
 
       The plan is approved, go ahead and implement it.
+
+- `red-team` — fires when a closure signal arrives with uncommitted implementation changes, or you explicitly ask to red team a diff. Triggered by, for example:
+
+      I'm happy with this, let's continue.
 
 ## In action
 
