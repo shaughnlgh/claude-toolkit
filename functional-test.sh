@@ -309,7 +309,7 @@ probe_skills() {
     "'jira me' in a and '--raw' in a and '--plain' in a and 'read-only' in a"
   skill_probe "red-team knows its engine and standing panel" \
     "Load the red-team skill. Report as the answer: the workflow it reuses for the review and the reviewer agents that are always on its panel." \
-    "'review-mr' in a and 'silent-failure-hunter' in a and 'pr-test-analyzer' in a"
+    "'review-mr' in a and 'code-reviewer' in a and 'silent-failure-hunter' in a and 'pr-test-analyzer' in a"
 }
 
 # ---------- probes: agents (fixture-based, event-verified) ----------
