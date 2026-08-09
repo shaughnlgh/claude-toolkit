@@ -19,7 +19,7 @@ You override by placing a same-named copy under your global `~/.claude/`. The `/
 
 Doctrine and rules are picked up because the hook loads them fresh each session. Agents and skills are resolved natively by Claude Code, so they work with no hook involvement, but only when invoked by their bare name.
 
-The `frontend` rule is the one exception: it is reference-only (never injected — its content lives in the `frontend-designer` agent), so there is nothing for a rule override to replace. Override the `frontend-designer` agent instead. `/override` will tell you this if you try.
+Two rules are exceptions: `frontend` and `design` are reference-only (never injected), so there is nothing for a rule override to replace. `frontend`'s content lives in the `frontend-designer` agent — override that instead. `design` is just an index over the `rules/design/` catalog, with no equivalent component to override. `/override` will tell you this if you try.
 
 ## The `/override` command
 
