@@ -49,7 +49,7 @@ Seed the prompts with any specific suspicions from your own read of the diff —
 
 ## 5. Run the workflow
 
-Invoke the Workflow tool with `{scriptPath: "<this skill's base directory>/../../workflows/review-mr.js"}` (resolve to an absolute path; try `{name: "review-mr"}` first — if name resolution fails outside a repo with local workflows, fall back to scriptPath) and:
+Invoke the Workflow tool: when `repoRoot` is the toolkit plugin source itself (the tree contains `plugins/toolkit/workflows/review-mr.js`), invoke with `{scriptPath: "<repoRoot>/plugins/toolkit/workflows/review-mr.js"}` so uncommitted workflow edits are exercised; otherwise invoke `{name: "toolkit:review-mr"}` (the name the harness registers for the installed plugin), falling back to `{scriptPath: "<this skill's base directory>/../../workflows/review-mr.js"}` (resolved to an absolute path) if name resolution fails, and:
 
 ```
 args: {
@@ -60,7 +60,7 @@ args: {
 }
 ```
 
-The moment the Workflow tool returns its `runId`, save it to `<scratchpad>/<slug>.runid` (with the resolved scriptPath). Runs die for reasons outside anyone's control — API overload, a VPN drop, a session restart — and with the runId on disk the review resumes (`resumeFromRunId`: completed agents return cached, only dead work re-runs) instead of being relaunched from scratch. Never relaunch when a resume is possible.
+The moment the Workflow tool returns its `runId`, save it to `<scratchpad>/<slug>.runid` together with the script file path the launch result reports (it reports one for both name and scriptPath launches, and resuming needs scriptPath). Runs die for reasons outside anyone's control — API overload, a VPN drop, a session restart — and with the runId on disk the review resumes (`resumeFromRunId`: completed agents return cached, only dead work re-runs) instead of being relaunched from scratch. Never relaunch when a resume is possible.
 
 The result is `{confirmed, refuted, unverified, openQuestions}`.
 
