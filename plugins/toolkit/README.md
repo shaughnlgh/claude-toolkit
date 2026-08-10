@@ -17,3 +17,9 @@ The main chat is a **conductor** that plans, delegates, and accepts; **worker ag
 ## Verification culture
 
 The toolkit's own history is its argument: fixtures approved broken code three times during its construction; live verification caught every one. Hence the verifier's prime directive (verify against real data, never fixtures alone), claim provenance as doctrine, and plan-critic red-teaming plans before humans approve them.
+
+The red-team finalization gate applies the same logic to implementation: a slice's diff gets an adversarial review before it is committed, but the run itself waits on the human confirming the slice is truly closed — a panel run against a premature stopping point is paid for twice, since the next fix invalidates it, and only the human knows nothing else is coming. Three things keep that review honest:
+
+- **One reviewer always reads cold.** The panel keeps a reviewer who re-derives the change from the diff alone and reads every instruction literally — a reviewer briefed by the author inherits the author's blind spots, and the ambiguity a briefed reviewer quietly auto-corrects toward intent is exactly where defects hide.
+- **Refuted findings get read, not discarded.** Adversarial verification buys precision at the cost of recall; a real defect wrapped in an overstated failure story dies with the story unless it is read before it is thrown away.
+- **Embedded commands get run, not judged by reading.** Prose that embeds commands is code, and executing them against awkward fixtures finds defects that reading them does not.
