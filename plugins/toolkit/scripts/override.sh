@@ -22,10 +22,19 @@ has() {  # $1=type $2=name -> 0 if it exists in the plugin
   esac
 }
 
-# No args: list everything overridable.
+# No args: list everything overridable. frontend/design are excluded from the rules
+# listing (and guards below refuse them) since they're reference-only, never injected.
 if [ $# -eq 0 ]; then
   echo "overridable toolkit components (run: override.sh <name>  or  override.sh <type> <name>):"
-  for t in $TYPES; do echo "  $t:"; names_of "$t" | sed 's/^/    /'; done
+  for t in $TYPES; do
+    echo "  $t:"
+    if [ "$t" = rules ]; then
+      names_of "$t" | grep -v -x -e frontend -e design | sed 's/^/    /'
+      echo "    (frontend, design: reference-only, not overridable)"
+    else
+      names_of "$t" | sed 's/^/    /'
+    fi
+  done
   exit 0
 fi
 
@@ -49,6 +58,11 @@ has "$typ" "$name" || { echo "refused: no $typ named '$name'" >&2; exit 1; }
 # The frontend rule is reference-only (never injected); its content lives in the agent.
 if [ "$typ" = rules ] && [ "$name" = frontend ]; then
   echo "refused: the 'frontend' rule is reference-only and is not injected. Its content lives in the frontend-designer agent — override that instead:  override.sh agents frontend-designer" >&2
+  exit 1
+fi
+# The design rule is reference-only (never injected); it's just an index over rules/design/.
+if [ "$typ" = rules ] && [ "$name" = design ]; then
+  echo "refused: the 'design' rule is reference-only and is not injected. It's an index over the rules/design/ catalog, with no equivalent component to override." >&2
   exit 1
 fi
 

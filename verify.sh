@@ -129,7 +129,7 @@ else
   # exit code is part of the pass condition and the RESULT line is picked by prefix,
   # not by trailing position: a merged stderr line must not masquerade as the verdict.
   out="$(printf '%s' "$hout" | grep -E '^RESULT: ' | tail -1)"
-  if [ "$hrc" -eq 0 ] && suite_pass "$out" 127; then
+  if [ "$hrc" -eq 0 ] && suite_pass "$out" 136; then
     ok "hook fixture suite"
   else
     no "hook fixture suite (exit $hrc, got: ${out:0:60})"
@@ -159,9 +159,21 @@ want "vault-fs refuses traversal"  "$(HOME="$vfh" bash "$P/scripts/vault-fs.sh" 
 rm -rf "$vfh"
 want "git-ro refuses mutation"     "$(bash "$P/scripts/git-ro.sh" "$ROOT" commit 2>&1)" "refused"
 bash "$P/scripts/git-ro.sh" "$ROOT" status >/dev/null 2>&1; code "git-ro allows status" "$?" 0
-want "override lists components (no arg)" "$(bash "$P/scripts/override.sh" 2>&1)" "conventions"
+noarg="$(bash "$P/scripts/override.sh" 2>&1)"
+want "override lists components (no arg)" "$noarg" "conventions"
+want "override no-arg listing marks frontend/design reference-only" "$noarg" "reference-only, not overridable"
 want "override refuses unknown name"      "$(bash "$P/scripts/override.sh" nonesuch 2>&1)" "refused"
 want "override refuses ambiguous name"    "$(bash "$P/scripts/override.sh" security 2>&1)" "ambiguous"
+frh="$(mktemp -d)"; frout="$(HOME="$frh" bash "$P/scripts/override.sh" rules frontend 2>&1)"; frrc=$?
+want "override refuses frontend rule (reference-only, no injection to replace)" "$frout" "refused: the 'frontend' rule is reference-only"
+code "override refuses frontend rule (exit code)" "$frrc" 1
+[ ! -e "$frh/.claude/rules/frontend.md" ] && ok "override refuses frontend rule (no file created)" || no "override refuses frontend rule (no file created)"
+rm -rf "$frh"
+dsh="$(mktemp -d)"; dsout="$(HOME="$dsh" bash "$P/scripts/override.sh" rules design 2>&1)"; dsrc=$?
+want "override refuses design rule (reference-only, no injection to replace)" "$dsout" "refused: the 'design' rule is reference-only"
+code "override refuses design rule (exit code)" "$dsrc" 1
+[ ! -e "$dsh/.claude/rules/design.md" ] && ok "override refuses design rule (no file created)" || no "override refuses design rule (no file created)"
+rm -rf "$dsh"
 doh="$(mktemp -d)"; HOME="$doh" bash "$P/scripts/override.sh" conventions >/dev/null 2>&1; HOME="$doh" bash "$P/scripts/override.sh" testing >/dev/null 2>&1
 { [ -f "$doh/.claude/doctrine/conventions.md" ] && [ -f "$doh/.claude/rules/testing.md" ]; } && ok "override copies doctrine + rule into ~/.claude" || no "override copy"; rm -rf "$doh"
 
