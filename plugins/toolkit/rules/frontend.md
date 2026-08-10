@@ -42,6 +42,15 @@ Pick one primary principle. Don't mix randomly.
 | **Material Elevation** | Data-heavy apps, enterprise |
 | **Editorial** | Blogs, long-form content |
 
+## Typography
+
+- UI and body text use a legibility-engineered sans (high x-height, disambiguated I/l/1 — the Inter/Manrope class); geometric display faces (the Poppins class) are for headings only, decorative faces never for UI text.
+
+## Hierarchy & Copy
+
+- One primary CTA per view — demote competitors to secondary/ghost so the screen survives a glance.
+- Microcopy priority is clear > concise > character — conversational labels ("Looks Good") only when the action stays unambiguous and localizable.
+
 ## AI-Slop Reflex-Reject
 
 Ban these by default — the recognizable tells of AI-generated UI. (Adapted from Impeccable's anti-pattern catalog, Apache-2.0 — see THIRD-PARTY-NOTICES.md.)
