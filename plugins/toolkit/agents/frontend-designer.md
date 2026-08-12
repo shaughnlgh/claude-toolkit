@@ -63,7 +63,7 @@ Brand-register reflex-reject (beyond Inter/Roboto/Arial above — these read as 
 
 ## Color
 
-All colors through tokens. Zero raw hex or rgb in components. Dominant color with sharp accents beats evenly-distributed palettes. Dark themes: never pure `#000` (use `#0a0a0a`, `#111`, `#1a1a2e`). Light themes: never pure `#fff` (use `#fafafa`, `#f8f7f4`, `#fef9ef`). See AI-slop tells below for the color patterns to avoid (gradient text, the AI purple/cyan palette, cream defaults, dark-mode glow).
+All colors through tokens. Zero raw hex or rgb in components. Dominant color with sharp accents beats evenly-distributed palettes. Dark themes: no pure `#000` by default — start near `#121212`, or lower/tinted flat brand darks (`#0a0a0a`, `#111`, `#1a1a2e`); deliberate OLED black is the one exception (see rules/design/color.md). Light themes: never pure `#fff` (use `#fafafa`, `#f8f7f4`, `#fef9ef`). See AI-slop tells below for the color patterns to avoid (gradient text, the AI purple/cyan palette, cream defaults, dark-mode glow).
 
 ## Layout
 
