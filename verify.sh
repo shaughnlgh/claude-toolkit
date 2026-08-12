@@ -191,6 +191,10 @@ suite_ok "git-ro behavior suite" "$out" 12
 python3 "$P/scripts/validate-plan.py" "$P/scripts/tests/validate-plan/fixtures/2026-01-01-example-feature/plan - example-feature.md" >/dev/null 2>&1
 code "validate-plan accepts a canonical plan" "$?" 0
 
+echo "== post_mr_comments GITLAB_TOKEN guard =="
+out="$(bash "$P/scripts/tests/post-mr-comments/run-tests.sh" 2>/dev/null | tail -1)"
+suite_ok "post-mr-comments token-guard suite" "$out" 5
+
 echo "== Design detector (vendored, Apache-2.0) =="
 DD="$P/scripts/design-detector"
 [ -f "$DD/LICENSE" ] && ok "detector Apache LICENSE present" || no "detector LICENSE missing"

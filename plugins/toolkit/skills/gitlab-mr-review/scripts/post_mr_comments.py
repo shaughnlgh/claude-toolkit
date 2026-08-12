@@ -78,7 +78,12 @@ def build_line_index(diff_path):
 def main():
     cfg = json.load(open(sys.argv[1]))
     dry_run = "--dry-run" in sys.argv
-    token = os.environ["GITLAB_TOKEN"]
+    token = os.environ.get("GITLAB_TOKEN", "")
+    # Newlines/whitespace mean a command substitution captured CLI help text, not a token.
+    if not token or token != token.strip() or "\n" in token:
+        print('ABORT: GITLAB_TOKEN is unset, empty, or malformed. Run `glab auth login` once, '
+              'then export it: GITLAB_TOKEN="$(glab config get token --host <hostname>)"')
+        sys.exit(1)
     host = cfg["host"].rstrip("/")
     project = urllib.parse.quote(cfg["project"], safe="")
     iid = cfg["mr_iid"]
