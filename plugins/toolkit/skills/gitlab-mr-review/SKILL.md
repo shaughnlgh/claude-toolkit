@@ -14,7 +14,7 @@ Review a GitLab MR with the `review-mr` workflow (shipped with this plugin at `.
 ## 1. Fetch the MR
 
 - Fail fast on auth, before any other work: run `glab api user >/dev/null` (one cheap authenticated call). If it fails, stop immediately and tell the user to re-auth (`glab auth login`) — a revoked token discovered mid-review wastes the whole fan-out.
-- Token: `glab auth token` (requires `glab` authenticated once via `glab auth login`; never print the token). Export `GITLAB_HOST` for the instance (e.g. `gitlab.example.com`), or derive it from the repo's git remote.
+- Token: `glab config get token --host "$GITLAB_HOST"` (requires `glab` authenticated once via `glab auth login`; never print the token). Export `GITLAB_HOST` for the instance (e.g. `gitlab.example.com`), or derive it from the repo's git remote. An exported `GITLAB_TOKEN` wins: `glab` returns that value and ignores `--host`, which selects a host only when the token comes from glab's stored config.
 - Parse the MR URL into project path + IID. Fetch metadata via `glab api "projects/<url-encoded-path>/merge_requests/<iid>"`: record `title`, `description`, `source_branch`, `target_branch`, `sha` (head), and `diff_refs`.
 - Save the diff to the scratchpad: `glab mr diff <iid> -R "<project-path>" > <scratchpad>/<slug>.diff`.
 - Fetch existing MR notes briefly to avoid duplicating feedback already given (skip system notes).
@@ -81,7 +81,7 @@ Lead with the verdict (merge-ready / needs work) in one sentence, then findings 
 
 When the user asks to post the review to the MR:
 
-1. Build a `comments.json` per the schema documented in `scripts/post_mr_comments.py` under this skill's base directory (invoke as `GITLAB_TOKEN="$(glab auth token)" python3 <base>/scripts/post_mr_comments.py`): one entry per finding with `path`, an `anchor` (exact added-line content from the diff — unique within the file), and a markdown `body` (severity-tagged title + 2–4 sentences), plus a `summary` note.
+1. Build a `comments.json` per the schema documented in `scripts/post_mr_comments.py` under this skill's base directory (invoke as `GITLAB_TOKEN="$(glab config get token --host "$GITLAB_HOST")" python3 <base>/scripts/post_mr_comments.py`): one entry per finding with `path`, an `anchor` (exact added-line content from the diff — unique within the file), and a markdown `body` (severity-tagged title + 2–4 sentences), plus a `summary` note.
 2. Set `expected_head_sha` to the head sha the diff was fetched at. If the script aborts because the head moved, refetch the diff, compare content (`diff old new`); if identical, update the sha and proceed — if not, re-review the changed files first.
 3. Run with `--dry-run` and confirm every anchor resolves to a line.
 4. Run for real; report the discussion URLs/count back.
