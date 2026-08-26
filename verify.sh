@@ -50,7 +50,7 @@ n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
 [ "$(ls $P/agents/*.md 2>/dev/null | wc -l)" -eq 13 ] && ok "13 agents" || no "13 agents"
 [ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 13 ] && ok "13 skills" || no "13 skills"
 [ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 8 ] && ok "8 commands" || no "8 commands"
-[ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 8 ] && ok "8 rules" || no "8 rules"
+[ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 9 ] && ok "9 rules" || no "9 rules"
 # design/ catalog coverage, both directions: every rules/design/*.md concern file must be
 # listed in the rules/design.md index, and every design/<name>.md reference the index makes
 # must resolve to a real file (catches a stale entry pointing at a deleted concern file).

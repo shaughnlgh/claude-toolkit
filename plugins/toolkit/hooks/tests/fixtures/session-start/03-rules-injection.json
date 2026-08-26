@@ -9,7 +9,8 @@
     "Verify behavior, not implementation",
     "Never modify an existing migration",
     "Documentation states what is, never what happened",
-    "Toolkit write-time rules (6/6 loaded):",
+    "No em dashes in new prose",
+    "Toolkit write-time rules (7/7 loaded):",
     "frontend-designer",
     "Toolkit doctrine: read the index",
     "Toolkit standing rule"
