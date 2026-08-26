@@ -26,12 +26,13 @@ _sg_fail() {
   FAILED_NAMES+=("session-start-size-guard::$1")
 }
 
-# Plugin-default stub for all six rule names the hook always looks for, so the run
-# under test loads only via the one override the case under test writes into $HOME.
+# Plugin-default stub for all seven rule names the hook always looks for (testing,
+# security, error-handling, database, performance, writing, prose), so the run under
+# test loads only via the one override the case under test writes into $HOME.
 _sg_setup_plugin_root() {
   local dir="$1" r
   mkdir -p "$dir/rules" || return 1
-  for r in testing security error-handling database performance writing; do
+  for r in testing security error-handling database performance writing prose; do
     printf 'stub body for %s\n' "$r" > "$dir/rules/$r.md" || return 1
   done
 }
@@ -104,6 +105,17 @@ check_sg_under_cap() {
   fi
   if [[ "$SG_OUT" == *"exceeded the 64KB cap"* ]]; then
     _sg_fail "under-cap :: truncation announced for a body under the cap"
+    return
+  fi
+  # Every rule name the hook loops over must have a stub in _sg_setup_plugin_root, or the
+  # loaded count falls short of the total instead of exercising the case under test. Reads
+  # the "N/M loaded" banner rather than matching the hook's wording for a missing rule, so
+  # a wording change in the hook does not silently disarm this check.
+  local sg_counts sg_n
+  sg_counts="$(printf '%s' "$SG_OUT" | grep -o 'write-time rules ([0-9]*/[0-9]* loaded)' | head -1)"
+  sg_n="${sg_counts#*(}"; sg_n="${sg_n%% *}"
+  if [[ -z "$sg_counts" || "${sg_n%%/*}" != "${sg_n#*/}" ]]; then
+    _sg_fail "under-cap :: not all rules loaded (${sg_counts:-count line absent}) - stub list drifted from the hook rule loop"
     return
   fi
   _sg_pass "under-cap :: body injected in full, no truncation announced, output parses as JSON"

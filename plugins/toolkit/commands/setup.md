@@ -99,7 +99,7 @@ Five optional additions, shown verbatim, explained in one line, and applied only
       Write-time rules: before writing code, tests, queries, error handling, or
       documentation/comments, read the matching file under `<plugin-root>/rules/`
       (testing.md, security.md, error-handling.md, database.md, performance.md,
-      writing.md, frontend.md).
+      writing.md, frontend.md, prose.md).
 
 - **Auto-update.** New commits are new versions. Offer to enable marketplace auto-update by merging into `~/.claude/settings.json` (top-level `extraKnownMarketplaces`, merged into any existing object, never replacing it):
 
@@ -124,7 +124,7 @@ If this machine previously ran a copy-pasted version of this setup, local copies
 - **Agents (silent shadowing):** files in `~/.claude/agents/` whose names match plugin agents. Effect: the LOCAL copy wins (user scope outranks plugins), so plugin updates never take effect, with no visible symptom. Offer to remove matching local agents.
 - **Skills and commands (shadowing/duplication):** directories in `~/.claude/skills/` and files in `~/.claude/commands/` matching plugin skill/command names. Same effect as agents. Offer removal.
 - **Workflow scripts:** `~/.claude/workflows/review-mr.js` duplicating the plugin's bundled copy.
-- **Rules (duplication with injection):** files in `~/.claude/rules/` matching plugin rule names (testing, security, error-handling, database, performance, writing, frontend) or carrying `source: toolkit@shaughn-toolkit` frontmatter. The plugin now injects these rules live at session start, so local copies mean the content lands twice. Offer removal; the user's own unrelated rules are never touched.
+- **Rules (duplication with injection):** files in `~/.claude/rules/` matching plugin rule names (testing, security, error-handling, database, performance, writing, frontend, prose) or carrying `source: toolkit@shaughn-toolkit` frontmatter. The plugin now injects these rules live at session start, so local copies mean the content lands twice. Offer removal; the user's own unrelated rules are never touched.
 
 Before offering ANY removal, diff each local copy against the plugin's version (`diff -q`, then summarize real differences). If a local copy differs, say so plainly and show what differs — the user may have customized it, and that customization must be a conscious keep-or-discard decision, never collateral damage. Identical copies can be described as safe to remove.
 
