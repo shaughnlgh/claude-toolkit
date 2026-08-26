@@ -45,6 +45,13 @@ run "20 retired mr-description link with double space caught" "$FX/2026-01-01-mr
 run "21 distinct mr-description-notes artifact is allowed" "$FX/2026-01-01-mrnotes/plan - mrnotes.md" 0 "OK:"
 run "22 headings in a fence with a LONGER closing fence do not count" "$FX/2026-01-01-longfence/plan - longfence.md" 1 "missing required heading"
 run "23 headings after an UNCLOSED fence do not count" "$FX/2026-01-01-unclosedfence/plan - unclosedfence.md" 1 "missing required heading"
+run "24 post-adoption plan with Plain Language Summary present" "$FX/2026-08-27-pls-present/plan - pls-present.md" 0 "OK:"
+run "25 post-adoption plan missing only Plain Language Summary" "$FX/2026-08-27-pls-missing/plan - pls-missing.md" 1 "missing required heading: ## Plain Language Summary"
+run "26 created == SINCE date is NOT grandfathered (boundary)" "$FX/2026-08-26-pls-boundary/plan - pls-boundary.md" 1 "missing required heading: ## Plain Language Summary"
+run "27 created one day before SINCE date is grandfathered" "$FX/2026-08-25-pls-grandfathered/plan - pls-grandfathered.md" 0 "OK:"
+run "28 blank created is NOT grandfathered" "$FX/2026-08-27-pls-unparseable-created/plan - pls-unparseable-created.md" 1 "missing required heading: ## Plain Language Summary"
+run "29 Plain Language Summary only inside a fence (plus unfenced prose mention) does not count" "$FX/2026-08-27-pls-fenced/plan - pls-fenced.md" 1 "missing required heading: ## Plain Language Summary"
+run "30 malformed non-blank created (sorts lexicographically low) is NOT grandfathered" "$FX/2026-08-27-pls-malformed-created/plan - pls-malformed-created.md" 1 "missing required heading: ## Plain Language Summary"
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
