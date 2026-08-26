@@ -43,6 +43,13 @@ REQUIRED_HEADINGS = [
     "Open Questions", "Plan Changes During Execution", "Related Topics",
     "Linked Artifacts",
 ]
+# "Plain Language Summary" (immediately after Objective) joined the contract on
+# 2026-08-26. It is checked separately, gated on frontmatter `created`, so plans
+# written before the convention existed are not retroactively broken. A plan with
+# no parseable `created` (e.g. a same-day skeleton mid-scaffold) is NOT grandfathered.
+PLAIN_LANGUAGE_SUMMARY_HEADING = "Plain Language Summary"
+PLAIN_LANGUAGE_SUMMARY_SINCE = "2026-08-26"
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # Keys whose structure the validator actually checks. Anything else is unknown
 # metadata (Mission Control adds e.g. worklogs, tracking, mockups): its indented
 # block is consumed opaquely and tolerated, however it is shaped.
@@ -269,6 +276,14 @@ def main():
     for h in REQUIRED_HEADINGS:
         if not re.search(rf"^##\s+{re.escape(h)}\s*$", body_nocode, re.M):
             violations.append(f"missing required heading: ## {h}")
+
+    # -- Plain Language Summary (gated on `created`; see PLAIN_LANGUAGE_SUMMARY_SINCE) --
+    created = fm.get("created")
+    grandfathered = (isinstance(created, str) and DATE_RE.match(created)
+                      and created < PLAIN_LANGUAGE_SUMMARY_SINCE)
+    if not grandfathered:
+        if not re.search(rf"^##\s+{re.escape(PLAIN_LANGUAGE_SUMMARY_HEADING)}\s*$", body_nocode, re.M):
+            violations.append(f"missing required heading: ## {PLAIN_LANGUAGE_SUMMARY_HEADING}")
 
     # -- retired artifacts -- (tolerate whitespace; require a link-close/alias/space
     # boundary so a distinct artifact like `mr-description-notes` is not caught).

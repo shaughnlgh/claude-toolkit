@@ -204,6 +204,7 @@ sessions:
 ### Required plan sections (each as a `##` heading)
 
 - Objective
+- Plain Language Summary — immediately after Objective, first sentence exactly "This section is for non-technical readers. The technical detail below it can be skipped.", then one to three short jargon-free paragraphs a non-technical stakeholder can read
 - Current Context
 - Assumptions
 - Affected Files
@@ -282,7 +283,7 @@ Record the session id UP FRONT, not at the end. Your session id is the UUID dire
 
 At session start:
 - If your current session id is already on the list (a resumed conversation that kept its id), update that entry — do not append.
-- Otherwise append one new entry (date, a short "in progress" summary, your session id). If the plan note does not exist yet (no scaffold), derive the plan name and create the note skeleton (the full 18-key frontmatter — blank values except `type: plan` and `status: planning`, which the validator requires non-blank — carrying that `sessions:` entry, and all 12 required `##` headings present but empty, so it passes the validation gate) as one of the FIRST actions of the session, before deep exploration, then fill the body in as planning proceeds.
+- Otherwise append one new entry (date, a short "in progress" summary, your session id). If the plan note does not exist yet (no scaffold), derive the plan name and create the note skeleton (the full 18-key frontmatter — blank values except `type: plan` and `status: planning`, which the validator requires non-blank — carrying that `sessions:` entry, and all 13 required `##` headings present but empty, so it passes the validation gate) as one of the FIRST actions of the session, before deep exploration, then fill the body in as planning proceeds.
 - If resumption minted a genuinely new session id (a new transcript), that is a new session: append a new entry for it.
 - Every live session has an id — the scratchpad path is always in your context, so derivation always succeeds. Never leave `id:` blank on an entry you create, and never invent a placeholder value: if you truly cannot locate the scratchpad path, that is an error to surface to the human, not a reason to skip the id. A blank id only ever appears on a manually pre-scaffolded entry.
 
