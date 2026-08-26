@@ -38,7 +38,7 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
   }
   RULES=""; ROVR=""; RFALLBACK=""; RMISSING=""; RTRUNC=""; NLOADED=0; NTOTAL=0
   RULE_BODY_CAP=65536  # 64KB per rule body; re-sent every request for the session, so unbounded bodies are ruinously expensive
-  for r in testing security error-handling database performance writing; do
+  for r in testing security error-handling database performance writing prose; do
     NTOTAL=$((NTOTAL+1))
     pf="${CLAUDE_PLUGIN_ROOT}/rules/${r}.md"
     ovf="$HOME/.claude/rules/${r}.md"

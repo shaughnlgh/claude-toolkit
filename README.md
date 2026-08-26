@@ -2,7 +2,7 @@
 
 [![verify](https://github.com/shaughnlgh/claude-toolkit/actions/workflows/verify.yml/badge.svg)](https://github.com/shaughnlgh/claude-toolkit/actions/workflows/verify.yml)
 
-Shaughn's Claude Code toolkit — agents, skills, and working doctrine — distributed as a Claude Code plugin. Personally owned and maintained (see LICENSE), free for anyone with access to use. Third-party components it vendors (currently the design-detector, Apache-2.0) are attributed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+Shaughn's Claude Code toolkit — agents, skills, and working doctrine — distributed as a Claude Code plugin. Personally owned and maintained (see LICENSE), free for anyone with access to use. Third-party components it vendors or adapts are attributed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
 
 Under construction: components land one at a time, each tested through the plugin before its source-of-truth moves here.
 

@@ -61,7 +61,7 @@ Body, in plain sentences, covering:
 - Open questions (anything unresolved that the next person needs to decide or ask about).
 - The single next concrete step. One step, not a list, so the next person knows exactly where to start.
 
-Writing style for the note: plain sentences. Never use em dashes or semicolons to split text. Use separate sentences, commas, or parentheses instead. This matches the vault's writing rules for plan and topic notes.
+Writing style for the note: plain sentences. Never use em dashes or semicolons to split text. Use separate sentences or commas instead. This matches the vault's writing rules for plan and topic notes.
 
 ## Boundary
 
