@@ -61,9 +61,9 @@ Open this file when rewriting or reviewing existing prose, not when writing new 
 
 ## Before and after
 
-- Filler and hedging: "The migration has completed and the table is being rebuilt, which will hopefully improve query performance going forward." becomes "The migration completed. The database rebuilds the table. Query performance improves."
+- Filler and hedging: "The migration has completed and the table is being rebuilt, which will hopefully improve query performance going forward." becomes "The migration completed. The database rebuilds the table."
 - Colon-as-connector: "If you're coming from traditional automation: instead of registering event handlers, you describe conditions and the scheduler figures out when to run them." becomes "Describing when the scheduler fires works best as plain English, not as registered event handlers."
-- Inline-header list: "**Performance:** Performance improved across the board. **Reliability:** Reliability also improved." becomes "Both performance and reliability improved. Query latency dropped from 400ms to 90ms. The error rate fell to zero over a week of load."
+- Inline-header list: "**Performance:** Performance improved across the board. **Reliability:** Reliability also improved." becomes "Both performance and reliability improved. Give the measured numbers: the latency delta and the error-rate change."
 - Abstract jargon: "We built a new primitive as the substrate for the deploy vector." becomes "We built a new deploy step as the base for the release process."
 
 ## Adding voice
