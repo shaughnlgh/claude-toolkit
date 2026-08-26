@@ -42,7 +42,7 @@ The full Apache License 2.0 text is at
 - **Upstream:** https://github.com/cursor/plugins (path `pstack/skills/unslop/SKILL.md`)
 - **Author / copyright:** Lauren Tan
 - **License:** MIT, full text below under "MIT license text (Unslop, SimpleEnglish)"
-- **Pinned at commit:** `bdf7aa355337897f167153e05069aca505dae17c` (2026-08-24)
+- **Pinned at commit:** `bdf7aa355337897f167153e05069aca505dae17c` (2026-08-25)
 
 Derived: the AI-tell pattern catalog in `plugins/toolkit/rules/prose/unslop.md` and part of the distilled `plugins/toolkit/rules/prose.md`, rewritten in this toolkit's voice.
 
