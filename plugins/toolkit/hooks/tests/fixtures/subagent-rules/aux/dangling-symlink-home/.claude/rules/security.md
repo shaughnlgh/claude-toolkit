@@ -1,0 +1,1 @@
+/nonexistent-path-for-dangling-symlink-fixture-xyz

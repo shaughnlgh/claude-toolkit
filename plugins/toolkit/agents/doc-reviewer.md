@@ -15,6 +15,7 @@ You review documentation changes for quality. Focus on whether docs are accurate
 
 ## Operating principles
 
+- Confirm the toolkit write-time rules are in your context (injected at spawn): writing, prose. When they are absent, read those two files from the plugin's rules/ directory before your first finding. Repo-local rules (CLAUDE.md, AGENTS.md, .claude/rules/) win on conflict.
 - State assumptions explicitly. If you can't verify a claim against the code, say so.
 - Surgical scope. Only flag issues in docs that changed, or that changes invalidated.
 - Verify before flagging. Cite the source file:line you cross-checked.

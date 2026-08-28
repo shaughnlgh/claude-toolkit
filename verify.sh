@@ -47,10 +47,10 @@ ok "verify helpers fail closed (reject mismatch, empty suite, and failures)"
 
 echo "== Structure =="
 n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
-[ "$(ls $P/agents/*.md 2>/dev/null | wc -l)" -eq 13 ] && ok "13 agents" || no "13 agents"
+[ "$(ls $P/agents/*.md 2>/dev/null | wc -l)" -eq 14 ] && ok "14 agents" || no "14 agents"
 [ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 13 ] && ok "13 skills" || no "13 skills"
 [ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 8 ] && ok "8 commands" || no "8 commands"
-[ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 9 ] && ok "9 rules" || no "9 rules"
+[ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 10 ] && ok "10 rules" || no "10 rules"
 # design/ catalog coverage, both directions: every rules/design/*.md concern file must be
 # listed in the rules/design.md index, and every design/<name>.md reference the index makes
 # must resolve to a real file (catches a stale entry pointing at a deleted concern file).
@@ -99,14 +99,49 @@ print("MISSING:"+("; ".join(out) if out else "NONE"))
 PY
 )"
 case "$drr_sync" in *"MISSING:NONE"*) ok "design-rules-reminder.sh's pattern list and rules/design.md's paths: frontmatter name the same tokens";; *) no "design-rules-reminder.sh <-> design.md pattern drift -> ${drr_sync#*MISSING:}";; esac
+# Injected-rule-list sync: session-start.sh (conductor) and subagent-rules.sh (worker)
+# each hardcode their own copy of the "for r in ..." rule-name list; the two must name
+# the same rules, every named rule must resolve to a real file, and docs/rules.md must
+# describe every one of them, or an added/renamed rule silently reaches one path and not
+# the other (or reaches neither doc).
+ss_rule_list="$(sed -nE 's/^[[:space:]]*for r in (.*); do$/\1/p' "$P/hooks/session-start.sh" | head -1)"
+sa_rule_list="$(sed -nE 's/^[[:space:]]*for r in (.*); do$/\1/p' "$P/hooks/subagent-rules.sh" | head -1)"
+if [ -n "$ss_rule_list" ] && [ "$ss_rule_list" = "$sa_rule_list" ]; then
+  ok "session-start.sh and subagent-rules.sh inject the identical rule list"
+else
+  no "session-start.sh <-> subagent-rules.sh rule-list drift -> session-start: [${ss_rule_list:-<unparsed>}] subagent-rules: [${sa_rule_list:-<unparsed>}]"
+fi
+missing_rule_files=""
+for r in $ss_rule_list; do [ -f "$P/rules/${r}.md" ] || missing_rule_files="${missing_rule_files} ${r}"; done
+if [ -n "$ss_rule_list" ] && [ -z "$missing_rule_files" ]; then
+  ok "every injected rule name resolves to a rules/<name>.md file"
+else
+  no "injected rule name(s) with no rules/<name>.md:${missing_rule_files:- (rule list itself unparsed)}"
+fi
+missing_in_docs=""
+for r in $ss_rule_list; do grep -qF "\`${r}.md\`" "$ROOT/docs/rules.md" 2>/dev/null || missing_in_docs="${missing_in_docs} ${r}"; done
+if [ -n "$ss_rule_list" ] && [ -z "$missing_in_docs" ]; then
+  ok "docs/rules.md mentions every injected rule"
+else
+  no "docs/rules.md missing mention of injected rule(s):${missing_in_docs:- (rule list itself unparsed)}"
+fi
 [ "$(ls $P/doctrine/*.md 2>/dev/null | wc -l)" -eq 13 ] && ok "13 doctrine files" || no "13 doctrine files"
-[ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 9 ] && ok "9 hook scripts" || no "9 hook scripts"
+[ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 10 ] && ok "10 hook scripts" || no "10 hook scripts"
 for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js \
          skills/gitlab-mr-review/scripts/post_mr_comments.py \
          skills/grill/SKILL.md \
          scripts/vault-fs.sh scripts/git-ro.sh; do
   [ -f "$P/$f" ] && ok "present: $f" || no "MISSING: $f"
 done
+# subagent-rules.sh only fires if hooks.json actually wires it to SubagentStart; a hook
+# file can exist and still never run.
+want "hooks.json wires subagent-rules.sh to SubagentStart" \
+  "$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(json.dumps(d.get('hooks',{}).get('SubagentStart',[])))" "$P/hooks/hooks.json" 2>/dev/null)" \
+  "subagent-rules.sh"
+# coupling-reviewer must be both registered in review-mr.js's REVIEWERS array (or it never
+# runs in an MR review) and present as an agent file (or the registration invokes nothing).
+grep -qF "toolkit:coupling-reviewer" "$P/workflows/review-mr.js" 2>/dev/null && ok "review-mr.js REVIEWERS registers toolkit:coupling-reviewer" || no "review-mr.js REVIEWERS missing toolkit:coupling-reviewer"
+[ -f "$P/agents/coupling-reviewer.md" ] && ok "coupling-reviewer.md agent file exists" || no "coupling-reviewer.md agent file missing"
 # functional-test.sh's header comment states the skills mode's call count; it must
 # equal the actual skill_probe() call count, or the two silently drift apart.
 stated_skills="$(sed -nE 's/.*functional-test\.sh skills.*\(([0-9]+) calls.*/\1/p' "$ROOT/functional-test.sh")"
@@ -129,7 +164,7 @@ else
   # exit code is part of the pass condition and the RESULT line is picked by prefix,
   # not by trailing position: a merged stderr line must not masquerade as the verdict.
   out="$(printf '%s' "$hout" | grep -E '^RESULT: ' | tail -1)"
-  if [ "$hrc" -eq 0 ] && suite_pass "$out" 136; then
+  if [ "$hrc" -eq 0 ] && suite_pass "$out" 143; then
     ok "hook fixture suite"
   else
     no "hook fixture suite (exit $hrc, got: ${out:0:60})"
@@ -284,4 +319,4 @@ echo "RESULT: $pass passed, $skip skipped, $fail failed"
 # Floor, not just zero-failures: silently deleting real checks must not read green.
 # Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
 # no node, no local plugin install) must not read as a vanished check.
-[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 42 ]
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 48 ]

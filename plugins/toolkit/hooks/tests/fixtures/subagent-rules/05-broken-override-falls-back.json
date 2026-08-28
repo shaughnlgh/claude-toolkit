@@ -1,0 +1,13 @@
+{
+  "name": "empty override rule falls back to the plugin default and announces the fallback by name",
+  "stdin": {},
+  "env": {
+    "CLAUDE_PLUGIN_ROOT": "../..",
+    "HOME": "fixtures/subagent-rules/aux/broken-override-home"
+  },
+  "expect_exit": 0,
+  "expect_stdout_contains": [
+    "Toolkit write-time rules (8/8 loaded):",
+    "Rule override(s) empty or unreadable, plugin default used instead: testing"
+  ]
+}

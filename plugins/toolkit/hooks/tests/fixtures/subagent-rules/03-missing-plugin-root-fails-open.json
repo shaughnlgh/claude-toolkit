@@ -1,0 +1,12 @@
+{
+  "name": "empty CLAUDE_PLUGIN_ROOT fails open with no output",
+  "stdin": {},
+  "env": {
+    "CLAUDE_PLUGIN_ROOT": ""
+  },
+  "expect_exit": 0,
+  "expect_stdout_not_contains": [
+    "Toolkit",
+    "hookSpecificOutput"
+  ]
+}

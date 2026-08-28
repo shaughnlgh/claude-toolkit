@@ -10,7 +10,7 @@ Structural design judgment: how code should be shaped and where the boundaries g
 
 ## Seams and abstraction
 
-- Put boundaries where change is isolated, so a likely future change touches one place, not many.
+- Put boundaries where change is isolated, so a likely future change touches one place, not many. Distinguish committed from likely: an axis the roadmap or parent plan commits to gets its seam now. A merely likely one waits for its second caller (see minimalism.md).
 - A new abstraction must earn its keep. Do not add a layer that only forwards calls. Removing a needless layer is as valid as adding one.
 
 ## vs. conventions.md
