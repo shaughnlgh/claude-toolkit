@@ -1,0 +1,18 @@
+{
+  "name": "every rule file missing/unreadable: zero loaded, diagnostic line emitted, no directive or framing",
+  "stdin": {},
+  "env": {
+    "CLAUDE_PLUGIN_ROOT": "fixtures/subagent-rules/aux/zero-loaded-root",
+    "HOME": "fixtures/subagent-rules/aux/zero-loaded-root"
+  },
+  "expect_exit": 0,
+  "expect_stdout_contains": [
+    "Toolkit write-time rules: 0/8 loaded",
+    "proceeding without them"
+  ],
+  "expect_stdout_not_contains": [
+    "Apply these rules to every artifact",
+    "Toolkit doctrine: read the index",
+    "Frontend work: read rules/frontend.md"
+  ]
+}

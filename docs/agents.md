@@ -1,10 +1,12 @@
 # Agents
 
-The toolkit ships 13 agents. The main chat is the **conductor**: it plans, delegates, and accepts. Every change is delegated, no matter how small — the conductor edits nothing itself unless the human explicitly says otherwise. Agents are **leaf workers** — each carries an explicit tool allowlist and none of them get the Agent tool, so none can spawn sub-agents. A worker that hits a blocker, a question, or an ambiguity reports it back to the conductor instead of delegating around it; the conductor decides how to proceed and remains the only role that decides "done". No agent runs on Haiku. Returns are distilled — file paths and one-line findings, never pasted file contents.
+The toolkit ships 14 agents. The main chat is the **conductor**: it plans, delegates, and accepts. Every change is delegated, no matter how small — the conductor edits nothing itself unless the human explicitly says otherwise. Agents are **leaf workers** — each carries an explicit tool allowlist and none of them get the Agent tool, so none can spawn sub-agents. A worker that hits a blocker, a question, or an ambiguity reports it back to the conductor instead of delegating around it; the conductor decides how to proceed and remains the only role that decides "done". No agent runs on Haiku. Returns are distilled — file paths and one-line findings, never pasted file contents.
 
-Tools and model are set in each agent's own frontmatter. `verify.sh` statically proves the leaf property for all 13: no agent's tool allowlist includes `Agent` or `Task`, none omits an allowlist, and none is routed to Haiku.
+Tools and model are set in each agent's own frontmatter. `verify.sh` statically proves the leaf property for all 14: no agent's tool allowlist includes `Agent` or `Task`, none omits an allowlist, and none is routed to Haiku.
 
 Invoke by scoped name (`toolkit:<name>`) so the plugin copy resolves rather than a same-named project-local agent. Projects may override with local agents at `<repo>/.claude/agents/`; project-local agents win when they exist.
+
+Every worker's first step is to confirm the write-time rules `subagent-rules.sh` injected at spawn (see `docs/hooks.md`), so it writes against them without waiting for the conductor to paste them into the delegation prompt.
 
 ## Workflow agents
 
@@ -30,6 +32,7 @@ Post-hoc quality review of a diff, each via `git diff --name-only`, each with a 
 | `toolkit:doc-reviewer` | Cross-references docs against actual source: stale references, wrong signatures, missing params, broken examples. | After `.md`, docstring, JSDoc, or API-doc changes — or when code changes may have invalidated existing docs. |
 | `toolkit:silent-failure-hunter` | Finds code that fails silently — swallowed errors, failures masked as success, fallbacks that hide breakage. | After any change touching error handling, catch blocks, fallbacks, retries, or async flows — and on every PR review. |
 | `toolkit:pr-test-analyzer` | Judges whether tests actually verify the change — assertion-free tests, mock theater, tests that can't fail, weakened or deleted tests. | When a diff adds or changes tests, or changes behavior without touching tests. |
+| `toolkit:coupling-reviewer` | Hunts hardcoded account, tenant, or platform identifiers and missing extensibility seams, but only where a second value is already committed in the roadmap, plan, or an existing config surface, never for a speculative axis. Opus. | After changes to config files, tenant or platform wiring, routes, or environment plumbing, and whenever a diff hardcodes an account, tenant, or platform identifier. |
 
 ## Browser
 

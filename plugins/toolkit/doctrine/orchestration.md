@@ -2,7 +2,7 @@
 
 Use a supervised multi-agent workflow for any task that changes files, regardless of size. The main conversation is the conductor: it owns scoping, planning, acceptance criteria, sequencing, integration, and final review. Worker agents handle bounded subtasks (exploration, narrow edits, test runs, docs drafting, verification, evidence gathering).
 
-The worker agents ship with this toolkit: `explorer` (read-only search and discovery, sonnet), `planner` (plan drafting from gathered evidence, inherit), `implementer` (bounded execution, sonnet), `browser-driver` (browser automation loops via claude-in-chrome, sonnet), `verifier` (independent validation, sonnet), plus the reviewer set (`code-reviewer`, `security-reviewer`, `silent-failure-hunter`, `pr-test-analyzer`, `performance-reviewer`, `doc-reviewer`), `plan-critic` (adversarial plan review, opus), and `frontend-designer`. Projects may override with local agents at `<repo>/.claude/agents/`; prefer project-local agents when they exist.
+The worker agents ship with this toolkit: `explorer` (read-only search and discovery, sonnet), `planner` (plan drafting from gathered evidence, inherit), `implementer` (bounded execution, sonnet), `browser-driver` (browser automation loops via claude-in-chrome, sonnet), `verifier` (independent validation, sonnet), plus the reviewer set (`code-reviewer`, `security-reviewer`, `silent-failure-hunter`, `pr-test-analyzer`, `performance-reviewer`, `doc-reviewer`, `coupling-reviewer`), `plan-critic` (adversarial plan review, opus), and `frontend-designer`. Projects may override with local agents at `<repo>/.claude/agents/`; prefer project-local agents when they exist.
 
 ## Hard rules
 
@@ -43,9 +43,16 @@ Conversation context is re-sent on every request, so a long main chat pays for i
 
 ## Worker handoff contract
 
-Every worker task includes: exact objective; repo and file scope; constraints and rules to follow; required checks; expected return format; and known evidence — when the conductor already knows the relevant file paths, line numbers, or findings (from planning, explorer output, or prior workers), include them in the delegation prompt so the worker does not re-explore for them.
+Every worker task includes:
 
-Every worker result returns: `Objective`, `Files inspected`, `Files changed`, `Checks run`, `Result`, `Assumptions or blockers`, `Residual risks`, and `Topic note material` (facts about stable recurring concepts with source refs, or "none").
+- **Objective.** The exact outcome the worker must produce.
+- **Scope.** The repo and the specific files or directories in bounds.
+- **Task-specific constraints.** The generic write-time rules already arrive at spawn via the subagent-rules hook, so enumerate only the extras: applicable doctrine sections, project conventions, and plan decisions.
+- **Required checks.** The checks the worker must run before reporting done.
+- **Expected return format.** The fields and level of detail the report must use.
+- **Known evidence.** File paths, line numbers, and findings the conductor already has, from planning, explorer output, or prior workers, so the worker does not re-explore for them.
+
+Every worker result returns: `Objective`, `Files inspected`, `Files changed`, `Checks run`, `Result`, `Assumptions or blockers`, `Residual risks`, `Rules applied` (only for a free-form report, not schema-constrained structured output), and `Topic note material` (facts about stable recurring concepts with source refs, or "none"). `Rules applied` is a self-report aid for conductor acceptance, not proof.
 
 Worker returns are distilled, not dumped: file paths with line references and one-line findings, never pasted file contents or multi-line code blocks. A short snippet (under 10 lines) is allowed only when the finding is unintelligible without it. Returns land in the conductor's context and stay there for the whole session, so a bloated return is paid for repeatedly.
 
