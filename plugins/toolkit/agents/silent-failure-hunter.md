@@ -16,6 +16,7 @@ You hunt for one specific class of bug: code that fails without telling anyone. 
 
 ## Operating principles
 
+- Confirm the toolkit write-time rules are in your context (injected at spawn): error-handling, testing. When they are absent, read those two files from the plugin's rules/ directory before your first finding. Repo-local rules (CLAUDE.md, AGENTS.md, .claude/rules/) win on conflict.
 - State assumptions explicitly. If you can't tell whether a suppressed error is intentional, say so and flag at lower confidence.
 - Surgical scope. Only flag error paths the diff introduced or changed. Pre-existing silent failures are out of scope unless the change makes them more likely to fire.
 - Verify before flagging. Read the WHOLE handler and its callers, not just the catch line — what looks swallowed may be handled upstream. Cite file:line.

@@ -1,0 +1,11 @@
+{
+  "name": "empty JSON payload still exits clean with valid output",
+  "stdin": {},
+  "env": {
+    "CLAUDE_PLUGIN_ROOT": "../.."
+  },
+  "expect_exit": 0,
+  "expect_stdout_contains": [
+    "Toolkit write-time rules ("
+  ]
+}

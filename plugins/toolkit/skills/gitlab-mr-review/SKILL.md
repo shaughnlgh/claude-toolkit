@@ -9,7 +9,7 @@ description: >-
 
 # GitLab MR Review
 
-Review a GitLab MR with the `review-mr` workflow (shipped with this plugin at `../../workflows/review-mr.js` relative to this skill's base directory), which merges the toolkit reviewer agents (`toolkit:code-reviewer`, `toolkit:security-reviewer`, `toolkit:silent-failure-hunter`, `toolkit:performance-reviewer`, `toolkit:pr-test-analyzer`) with MR-specific custom dimensions and an adversarial verify pass run by the `toolkit:verifier` agent. All workers run on sonnet. The main chat is the conductor: it prepares inputs, launches the workflow, adjudicates, and owns the final report.
+Review a GitLab MR with the `review-mr` workflow (shipped with this plugin at `../../workflows/review-mr.js` relative to this skill's base directory), which merges the toolkit reviewer agents (`toolkit:code-reviewer`, `toolkit:security-reviewer`, `toolkit:silent-failure-hunter`, `toolkit:performance-reviewer`, `toolkit:pr-test-analyzer`, `toolkit:coupling-reviewer`) with MR-specific custom dimensions and an adversarial verify pass run by the `toolkit:verifier` agent. All workers run on sonnet. The main chat is the conductor: it prepares inputs, launches the workflow, adjudicates, and owns the final report.
 
 ## 1. Fetch the MR
 
@@ -38,7 +38,7 @@ Read the full diff yourself before delegating. Then write a `contextBlock` strin
 
 ## 4. Choose custom dimensions
 
-The five registry reviewers are always included by the workflow. Add 1–3 MR-specific `dimensions: [{key, prompt}]` that the generic reviewers will not cover, for example:
+The six registry reviewers are always included by the workflow. Add 1–3 MR-specific `dimensions: [{key, prompt}]` that the generic reviewers will not cover, for example:
 
 - Contract impact (GraphQL schema, API response shapes, downstream consumers such as a mobile app or a PWA).
 - Framework wiring correctness (plugin/preference/observer targets, DI, rewrites, renderer dispatch — verify target classes and signatures in local code).

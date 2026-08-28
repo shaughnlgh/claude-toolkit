@@ -43,6 +43,13 @@
         ]
       }
     ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-rules.sh\"", "timeout": 10 }
+        ]
+      }
+    ],
     "Notification": [
       {
         "hooks": [
