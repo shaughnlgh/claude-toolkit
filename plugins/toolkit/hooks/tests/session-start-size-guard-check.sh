@@ -26,13 +26,13 @@ _sg_fail() {
   FAILED_NAMES+=("session-start-size-guard::$1")
 }
 
-# Plugin-default stub for all seven rule names the hook always looks for (testing,
-# security, error-handling, database, performance, writing, prose), so the run under
-# test loads only via the one override the case under test writes into $HOME.
+# Plugin-default stub for all eight rule names the hook always looks for (testing,
+# security, error-handling, database, performance, writing, prose, config-coupling), so
+# the run under test loads only via the one override the case under test writes into $HOME.
 _sg_setup_plugin_root() {
   local dir="$1" r
   mkdir -p "$dir/rules" || return 1
-  for r in testing security error-handling database performance writing prose; do
+  for r in testing security error-handling database performance writing prose config-coupling; do
     printf 'stub body for %s\n' "$r" > "$dir/rules/$r.md" || return 1
   done
 }

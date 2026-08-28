@@ -6,7 +6,7 @@ Workflows are multi-agent orchestrations the toolkit ships as scripts under `plu
 
 Multi-dimension MR review. It runs two phases:
 
-- **Review** — fans out the toolkit reviewer agents (`toolkit:code-reviewer`, `toolkit:security-reviewer`, `toolkit:silent-failure-hunter`, `toolkit:performance-reviewer`, `toolkit:pr-test-analyzer`) plus any MR-specific custom dimensions, each reading the saved diff and reporting findings against a shared schema (title, file, severity, detail, failure scenario). A dimension that can't answer something from the diff or repo returns it as an `open_questions` entry instead of guessing.
+- **Review** — fans out the toolkit reviewer agents (`toolkit:code-reviewer`, `toolkit:security-reviewer`, `toolkit:silent-failure-hunter`, `toolkit:performance-reviewer`, `toolkit:pr-test-analyzer`, `toolkit:coupling-reviewer`) plus any MR-specific custom dimensions, each reading the saved diff and reporting findings against a shared schema (title, file, severity, detail, failure scenario). A dimension that can't answer something from the diff or repo returns it as an `open_questions` entry instead of guessing.
 - **Verify** — every finding from every dimension is checked again by a separate `toolkit:verifier` agent instructed to try to refute it: does the code path really execute, is the failure scenario reachable, is it already handled elsewhere. The verifier defaults to refuted when a claim is unreachable or speculative.
 
 The workflow then adjudicates its own results — splitting findings into `confirmed`, `refuted` (with reasoning), `unverified` (verifier died mid-run — the conductor must settle these), and `openQuestions` — and returns that structure. It does not produce a final report itself; that's the calling skill's job.
@@ -23,7 +23,7 @@ args: {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoSt
 - `repoRoot` (required) — absolute path to the local repo the review verifies claims against, whose state `repoState` declares: a target-branch checkout for `gitlab-mr-review`, the post-change working tree for `red-team`.
 - `contextBlock` (required) — env facts, a summary of the change under review, and verification instructions, built by the conductor (the skill) before the workflow runs.
 - `dimensions` (optional) — `[{key, prompt, cold?}]`, extra MR-specific review angles (contract impact, framework wiring, conventions, data/upgrade safety) the registry reviewers won't cover; `cold: true` omits the conductor's `contextBlock` from that dimension's prompt so it reads the diff without the author's framing.
-- `registryReviewers` (optional) — override the default set of five reviewer agent types. Names must be fully qualified as the harness registers them (plugin agents are namespaced, e.g. `toolkit:code-reviewer`).
+- `registryReviewers` (optional) — override the default set of six reviewer agent types. Names must be fully qualified as the harness registers them (plugin agents are namespaced, e.g. `toolkit:code-reviewer`).
 - `repoState` (optional) — sentence describing the state of the tree at `repoRoot`, substituted into the reviewer and verifier prompts; defaults to the current MR target-branch sentence.
 
 ## post_mr_comments.py
