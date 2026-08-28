@@ -1,0 +1,14 @@
+{
+  "name": "minimal agent_type payload injects toolkit rules",
+  "stdin": { "agent_type": "explorer" },
+  "env": {
+    "CLAUDE_PLUGIN_ROOT": "../.."
+  },
+  "expect_exit": 0,
+  "expect_stdout_contains": [
+    "Verify behavior, not implementation",
+    "These are write-time rules for artifacts you produce",
+    "Toolkit doctrine: read the index",
+    "Frontend work: read rules/frontend.md"
+  ]
+}

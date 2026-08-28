@@ -42,6 +42,7 @@ const REVIEWERS = a.registryReviewers || [
   'toolkit:silent-failure-hunter',
   'toolkit:performance-reviewer',
   'toolkit:pr-test-analyzer',
+  'toolkit:coupling-reviewer',
 ]
 
 const CUSTOM = a.dimensions || []

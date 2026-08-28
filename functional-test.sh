@@ -7,10 +7,10 @@
 #   bash functional-test.sh self-test      # harness self-tests, NO Claude calls
 #   bash functional-test.sh rules          # rules + doctrine reach a session (1 call, low cost)
 #   bash functional-test.sh skills         # each skill's contract facts load (11 calls, medium)
-#   bash functional-test.sh agents         # fixture-based agent probes (12 calls, high)
-#   bash functional-test.sh agents <name>  # a single agent probe (1 call)
+#   bash functional-test.sh agents         # fixture-based agent probes (15 calls, high)
+#   bash functional-test.sh agents <name>  # a single agent probe (1 call); unknown <name> ERRORS
 #   bash functional-test.sh orchestration  # no live calls — static + manual (see below)
-#   bash functional-test.sh all            # rules + skills + agents (24 calls, high)
+#   bash functional-test.sh all            # rules + skills + agents (27 calls, high)
 #
 # Isolation: every live probe runs inside a fresh `mktemp -d` workspace (its own
 # throwaway git repo when needed) — never against this checkout or any real
@@ -39,6 +39,13 @@ SYNC_HINT="Spawn it synchronously with run_in_background set to false, and wait 
 PROBE_TIMEOUT="${FT_TIMEOUT:-300}"
 pass=0; fail=0
 PRESERVED=()
+
+# Every valid <name> for `agents <name>`, kept in lockstep with probe_agents()'s run_one
+# calls below. An unrecognized name must ERROR (nonzero exit), never silently select
+# nothing and let the battery report a false success (zero probes run, zero failures).
+AGENT_PROBE_NAMES=(explorer implementer planner verifier code-reviewer security-reviewer silent-failure-hunter pr-test-analyzer performance-reviewer doc-reviewer plan-critic coupling-reviewer frontend-designer subagent-rules config-coupling-bait)
+
+known_agent_probe() { local n="$1" p; for p in "${AGENT_PROBE_NAMES[@]}"; do [ "$p" = "$n" ] && return 0; done; return 1; }
 
 ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; pass=$((pass+1)); }
 no() { printf '  \033[31m✗\033[0m %s\n' "$1"; fail=$((fail+1)); }
@@ -72,6 +79,25 @@ fixture_repo() { # $1 = workspace; init a disposable repo. Returns nonzero on fa
 fixture_commit() {
   git -C "$1" add -A >/dev/null 2>&1 || return 1
   git -C "$1" commit -qm fixture >/dev/null 2>&1 || return 1
+}
+
+# fixture_subagent_hook_ws <workspace>: registers THIS CHECKOUT's SubagentStart hook
+# (subagent-rules.sh) as the workspace's local settings, pinned to this checkout's own
+# plugin root — never an installed/system plugin — so a probe run against it proves the
+# code under test, not whatever version happens to be installed elsewhere. Returns
+# nonzero if the settings file cannot be written.
+fixture_subagent_hook_ws() {
+  local ws="$1" hook="$SELF_ROOT/plugins/toolkit/hooks/subagent-rules.sh" proot="$SELF_ROOT/plugins/toolkit"
+  mkdir -p "$ws/.claude" || return 1
+  cat > "$ws/.claude/settings.json" <<EOF || return 1
+{
+  "hooks": {
+    "SubagentStart": [
+      { "hooks": [ { "type": "command", "command": "CLAUDE_PLUGIN_ROOT='$proot' bash '$hook'", "timeout": 10 } ] }
+    ]
+  }
+}
+EOF
 }
 
 snapshot_checkout() { git -C "$SELF_ROOT" status --porcelain 2>/dev/null; }
@@ -170,7 +196,10 @@ for line in open(path, encoding="utf-8", errors="replace"):
         ev = json.loads(line)
     except Exception:
         continue
-    for b in ((ev.get("message") or {}).get("content") or []):
+    msg = ev.get("message")
+    if not isinstance(msg, dict):
+        continue  # e.g. a "system" event whose message is a plain string, not content blocks
+    for b in (msg.get("content") or []):
         if not isinstance(b, dict):
             continue
         if b.get("type") == "tool_use" and b.get("name") in ("Agent", "Task"):
@@ -422,6 +451,152 @@ probe_agent_frontend() {
   cleanup_ws "$ws"; cleanup_ws "$cap"
 }
 
+# ---------- probes: SubagentStart hook (recital + bait) ----------
+
+# Recital probe: proves the SubagentStart hook actually reaches a spawned worker on
+# THIS machine's Claude Code version, by pointing a disposable workspace's local
+# settings at THIS CHECKOUT's subagent-rules.sh (fixture_subagent_hook_ws) and asking
+# the spawned worker to name what is in its own context. "config coupling" is never
+# named in the prompt: a hit can only come from the hook-injected rule body.
+probe_subagent_rules() {
+  local ws cap
+  ws="$(mkws)"; cap="$(mkws)"
+  if ! fixture_repo "$ws"; then no "subagent-rules: fixture repo init failed (setup)"; preserve_ws "$ws"; return; fi
+  if ! fixture_subagent_hook_ws "$ws"; then no "subagent-rules: workspace hook registration failed (setup)"; preserve_ws "$ws"; return; fi
+  printf 'seed\n' > "$ws/README.md"
+  if ! fixture_commit "$ws"; then no "subagent-rules: fixture commit failed (setup) — no Claude call made"; preserve_ws "$ws"; return; fi
+  run_probe "$ws" "$cap" \
+    "Spawn the toolkit:explorer subagent and ask it this exact question, without using any tools: list the titles of every write-time rule currently present in your own context. Report its answer back to me verbatim. $SYNC_HINT" \
+    --output-format stream-json --verbose --disallowedTools "Write" "Edit" "NotebookEdit"
+  if [ "$(probe_rc "$cap")" != "0" ]; then no "subagent-rules probe (rc=$(probe_rc "$cap"))"; preserve_ws "$cap"; preserve_ws "$ws"; return; fi
+  local res okev=1; res="$(agent_result "$cap/out" "explorer")" && okev=0
+  if [ $okev -eq 0 ] && printf '%s' "$res" | grep -qiE "config[- ]coupling"; then
+    ok "subagent-rules: SubagentStart hook injects toolkit rules into a spawned worker (config coupling named, never in the prompt)"
+  else
+    no "subagent-rules: event=$okev config-coupling-named=$(printf '%s' "$res" | grep -qiE "config[- ]coupling" && echo yes || echo no)"
+    preserve_ws "$cap"; preserve_ws "$ws"; return
+  fi
+  cleanup_ws "$ws"; cleanup_ws "$cap"
+}
+
+# Bait fixture: a route already centrally defined once (src/api.js) and a tenant value
+# already externalized to committed config (tenants.json) — the compliant shape the
+# config-coupling rule asks for. A per-tenant CONFIG file carrying a tenant id is itself
+# a legitimate committed-config surface (the rule's bullet 1 targets values whose change
+# would require a CODE edit), so a bait that only ever writes config cannot produce an
+# unambiguous violation. This fixture instead asks for a new CODE file (a handler), so
+# reusing the seeded const/config — rather than copying their values inline — is the
+# only compliant way to satisfy the brief.
+fx_tenant_webhook() {
+  mkdir -p "$1/src"
+  printf "export const ORDERS_ROUTE = '/api/v1/orders';\n\nexport function ordersHandler(req, res) {\n  res.send(ORDERS_ROUTE);\n}\n" > "$1/src/api.js"
+  printf '{\n  "tenant": "acme"\n}\n' > "$1/tenants.json"
+}
+
+# strip_js_comments <file>: prints the file's content with // line comments and /* */
+# block comments removed, honoring string/template-literal state (', ", `) so a "//" or
+# "/*" inside a real string/URL is never mistaken for a comment start. Used so the bait
+# probe's positive checks (route/tenant referenced) cannot be satisfied by a comment-only
+# mention that never actually exercises the seam.
+# Limitation: a regex literal holding an unbalanced quote char can desync the scanner's
+# string-tracking; acceptable at the scale of these small generated fixtures.
+strip_js_comments() {
+  python3 - "$1" <<'PY'
+import sys
+s = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+out, i, n, in_str = [], 0, len(s), None
+while i < n:
+    c = s[i]
+    if in_str:
+        out.append(c)
+        if c == "\\" and i + 1 < n:
+            out.append(s[i + 1]); i += 2; continue
+        if c == in_str:
+            in_str = None
+        i += 1; continue
+    if c in ("'", '"', "`"):
+        in_str = c; out.append(c); i += 1; continue
+    if c == "/" and i + 1 < n and s[i + 1] == "/":
+        while i < n and s[i] != "\n":
+            i += 1
+        continue
+    if c == "/" and i + 1 < n and s[i + 1] == "*":
+        i += 2
+        while i + 1 < n and not (s[i] == "*" and s[i + 1] == "/"):
+            i += 1
+        i += 2
+        continue
+    out.append(c); i += 1
+sys.stdout.write("".join(out))
+PY
+}
+
+# tenant_literal_hit <file>: true if the tenant value "acme" appears as, or embedded in,
+# any single-quoted, double-quoted, or backtick(-template) string literal in the file —
+# catches `acme`, longer strings like "prefix-acme-suffix", and template literals, not
+# just an exact bare 'acme'/"acme" match.
+tenant_literal_hit() {
+  local f="$1"
+  grep -qE "'[^']*acme[^']*'" "$f" 2>/dev/null && return 0
+  grep -qE "\"[^\"]*acme[^\"]*\"" "$f" 2>/dev/null && return 0
+  grep -qE '`[^`]*acme[^`]*`' "$f" 2>/dev/null && return 0
+  return 1
+}
+
+# tenantref_hit <file>: true only if the file references the seeded config, either the
+# file path tenants.json (require/import/read of it) or a dotted access on its "tenant"
+# key (e.g. config.tenant) — mirrors how the route side is pinned by the ORDERS_ROUTE
+# symbol name, not just the bare word "route". A variable merely named "tenant" that
+# never touches the config (vacuous) does not count.
+tenantref_hit() {
+  local f="$1"
+  grep -qiE "tenants\.json" "$f" 2>/dev/null && return 0
+  grep -qiE '\.tenant\b' "$f" 2>/dev/null && return 0
+  return 1
+}
+
+# Bait probe: proves the injected config-coupling rule changes what a writing worker
+# produces, not just that text reaches it. The brief states the parent plan already
+# commits to a second tenant and asks for a tiny new file (webhooks.js) that reuses the
+# seeded route const and tenant config. Assertions require BOTH a positive (webhooks.js
+# actually references the shared route const and actually mentions tenant at all) and a
+# negative (the route literal appears nowhere else, the tenant literal appears nowhere)
+# so omitting the route or tenant handling entirely cannot pass vacuously. The assertion
+# is on the written file(s) only; config-coupling.md is never quoted in the prompt.
+probe_config_coupling_bait() {
+  local ws cap
+  ws="$(mkws)"; cap="$(mkws)"
+  if ! fixture_repo "$ws"; then no "config-coupling-bait: fixture repo init failed (setup)"; preserve_ws "$ws"; return; fi
+  if ! fixture_subagent_hook_ws "$ws"; then no "config-coupling-bait: workspace hook registration failed (setup)"; preserve_ws "$ws"; return; fi
+  fx_tenant_webhook "$ws"
+  if ! fixture_commit "$ws"; then no "config-coupling-bait: fixture commit failed (setup) — no Claude call made"; preserve_ws "$ws"; return; fi
+  run_probe "$ws" "$cap" \
+    "The parent plan already commits to onboarding a second tenant next quarter — this is decided, not speculative. Spawn the toolkit:implementer subagent with this exact bounded task: create a file named webhooks.js in the repository root. It must export a handler that posts to the orders route defined in src/api.js and logs a message prefixed with the tenant configured in tenants.json. $SYNC_HINT" \
+    --output-format stream-json --verbose --permission-mode acceptEdits
+  if [ "$(probe_rc "$cap")" != "0" ]; then no "config-coupling-bait probe (rc=$(probe_rc "$cap"))"; preserve_ws "$cap"; preserve_ws "$ws"; return; fi
+  local okev=1; agent_ran "$cap/out" "implementer" && okev=0
+  local wf="$ws/webhooks.js" routecount=0 routeref=0 tenantlit=0 tenantref=0
+  # Both positive and negative checks run against comment-stripped content (temp files):
+  # a "// uses ORDERS_ROUTE" mention must not count as a real reference, and a compliant
+  # "// never hardcode 'acme'" comment must not count as a hardcoded literal or route dup.
+  local wf_nc all_nc jsf
+  wf_nc="$(mktemp -t toolkit-ftest-nc)"; all_nc="$(mktemp -t toolkit-ftest-nc)"
+  [ -f "$wf" ] && strip_js_comments "$wf" > "$wf_nc"
+  while IFS= read -r jsf; do strip_js_comments "$jsf" >> "$all_nc"; done < <(find "$ws" -name '*.js')
+  routecount="$(grep -o '/api/v1/orders' "$all_nc" 2>/dev/null | wc -l | tr -d ' ')"
+  [ -f "$wf" ] && grep -q "ORDERS_ROUTE" "$wf_nc" && routeref=1
+  [ -f "$wf" ] && tenant_literal_hit "$wf_nc" && tenantlit=1
+  [ -f "$wf" ] && tenantref_hit "$wf_nc" && tenantref=1
+  rm -f "$wf_nc" "$all_nc"
+  if [ $okev -eq 0 ] && [ -f "$wf" ] && [ "$routeref" = "1" ] && [ "$routecount" = "1" ] && [ "$tenantlit" = "0" ] && [ "$tenantref" = "1" ]; then
+    ok "config-coupling-bait: webhooks.js reuses the shared route const (defined once workspace-wide) and derives the tenant instead of hardcoding it"
+  else
+    no "config-coupling-bait: event=$okev file=$([ -f "$wf" ] && echo yes || echo no) route-ref=$routeref route-occurrences=$routecount hardcoded-tenant=$tenantlit tenant-ref=$tenantref"
+    preserve_ws "$cap"; preserve_ws "$ws"; return
+  fi
+  cleanup_ws "$ws"; cleanup_ws "$cap"
+}
+
 fx_offbyone() { mkdir -p "$1/src"; printf 'function lastItem(arr) {\n  // returns the last element\n  return arr[arr.length];\n}\nmodule.exports = { lastItem };\n' > "$1/src/util.js"; }
 fx_sqli()     { mkdir -p "$1/src"; printf '<?php\nfunction findUser($db, $name) {\n  return $db->query("SELECT * FROM users WHERE name = \x27" . $name . "\x27");\n}\n' > "$1/src/repo.php"; }
 fx_swallow()  { mkdir -p "$1/src"; printf 'async function save(data) {\n  try {\n    await api.post("/save", data);\n  } catch (e) {\n    // ignore\n  }\n  return true;\n}\n' > "$1/src/save.js"; }
@@ -431,6 +606,43 @@ fx_staledoc() { mkdir -p "$1/docs" "$1/src"; printf '# API\n\nCall `fetchUser(id
 fx_badplan()  { printf -- '---\ntype: plan\nplan: fixture-plan\nstatus: review\n---\n\n## Objective\nMigrate the sessions table to a new schema.\n\n## Implementation Steps\n1. Run the migration directly in production.\n\n## Validation Steps\nIt will probably work.\n\n## Rollback Notes\n\n## Risks\n' > "$1/plan - fixture-plan.md"; }
 fx_data()     { printf 'id,name\n1,a\n2,b\n3,c\n' > "$1/data.csv"; }
 fx_planfix()  { printf 'Feature request: add a --verbose flag to the CLI entry in src/cli.js that logs each step.\n' > "$1/REQUEST.md"; mkdir -p "$1/src"; printf 'function main(args) { run(args); }\nmodule.exports = { main };\n' > "$1/src/cli.js"; }
+# Roadmap states the committed second tenant (coupling-reviewer's own rule requires a
+# findable commitment before it may flag an axis), src/orders.js hardcodes that tenant's
+# id in a logic-path comparison, and src/routes.js duplicates the route string that
+# orders.js already carries as a named const — two independent, obvious defects.
+fx_hardcoded_tenant() {
+  mkdir -p "$1/src" "$1/docs"
+  printf '# Roadmap\n\nQ3: onboard a second tenant, "beta-co", onto the same order pipeline. This is committed, not speculative.\n' > "$1/docs/roadmap.md"
+  printf "export const ORDERS_ROUTE = '/api/v1/orders';\n\nfunction handleOrder(req, res) {\n  if (req.tenantId === 'acme-co') {\n    res.send(ORDERS_ROUTE);\n  }\n}\n\nmodule.exports = { handleOrder };\n" > "$1/src/orders.js"
+  printf "function registerRoutes(router) {\n  router.post('/api/v1/orders', require('./orders').handleOrder);\n}\n\nmodule.exports = { registerRoutes };\n" > "$1/src/routes.js"
+}
+
+# Bespoke (not probe_agent_generic) because the fact check needs AND, not OR: a single
+# ERE like "acme-co|duplicat" would false-pass on a clean verdict such as "no duplication
+# found" (matches "duplicat" alone). Require the fixture's own hardcoded tenant token AND
+# an independent defect term, so a clean-verdict sentence cannot satisfy both.
+probe_coupling_reviewer() {
+  local ws cap
+  ws="$(mkws)"; cap="$(mkws)"
+  if ! fixture_repo "$ws"; then no "coupling-reviewer: fixture repo init failed (setup)"; preserve_ws "$ws"; return; fi
+  fx_hardcoded_tenant "$ws"
+  if ! fixture_commit "$ws"; then no "coupling-reviewer: fixture commit failed (setup) — no Claude call made"; preserve_ws "$ws"; return; fi
+  run_probe "$ws" "$cap" \
+    "Spawn the toolkit:coupling-reviewer subagent to review src/orders.js and src/routes.js in this repository, using docs/roadmap.md for commitment context. Report its findings. $SYNC_HINT" \
+    --output-format stream-json --verbose --disallowedTools "Write" "Edit" "NotebookEdit"
+  if [ "$(probe_rc "$cap")" != "0" ]; then no "coupling-reviewer probe (rc=$(probe_rc "$cap"))"; preserve_ws "$cap"; preserve_ws "$ws"; return; fi
+  local res okev=1; res="$(agent_result "$cap/out" "coupling-reviewer")" && okev=0
+  local tenant_named=0 defect_named=0
+  printf '%s' "$res" | grep -qiE "acme-co" && tenant_named=1
+  printf '%s' "$res" | grep -qiE "duplicat(e|ed|ion)|two places|defined (twice|in (two|multiple) places)" && defect_named=1
+  if [ $okev -eq 0 ] && [ "$tenant_named" = 1 ] && [ "$defect_named" = 1 ]; then
+    ok "coupling-reviewer: event-verified spawn+return, names the hardcoded tenant and the duplicated route"
+  else
+    no "coupling-reviewer: event=$okev tenant-named=$tenant_named defect-named=$defect_named"
+    preserve_ws "$cap"; preserve_ws "$ws"; return
+  fi
+  cleanup_ws "$ws"; cleanup_ws "$cap"
+}
 
 probe_agents() {
   local want="$only_agent"
@@ -464,7 +676,20 @@ probe_agents() {
   run_one plan-critic && probe_agent_generic plan-critic fx_badplan \
     "Spawn the toolkit:plan-critic subagent to red-team the plan note in this directory. Report its material objections." \
     "rollback" no
+  # coupling-reviewer is defined in THIS checkout (plugins/toolkit/agents/coupling-reviewer.md)
+  # but is currently untracked/uncommitted, so it is NOT part of the INSTALLED plugin
+  # snapshot that subagent_type resolution reads from. Only the SubagentStart hook path
+  # (fixture_subagent_hook_ws) is pinned to this checkout by absolute path; agent
+  # resolution itself is not, and there is no equivalent override for it. Until the next
+  # `/plugin` install/update pulls this file into the installed snapshot, this probe will
+  # genuinely fail with an "Agent type ... not found" tool_result — agent_result already
+  # refuses to count an is_error tool_result as "ran" (see self-test), so that failure is
+  # honestly reported, not silently swallowed. That is the correct outcome right now, not
+  # a harness bug — never special-case it into a fake pass.
+  run_one coupling-reviewer && probe_coupling_reviewer
   run_one frontend-designer && probe_agent_frontend
+  run_one subagent-rules && probe_subagent_rules
+  run_one config-coupling-bait && probe_config_coupling_bait
 }
 
 # ---------- self-test (no network, no Claude) ----------
@@ -522,6 +747,17 @@ EOF
     '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"tu_b2","content":"Async agent launched successfully. agentId: zzz999"}]}}' > "$cap/events_ackonly"
   agent_ran "$cap/events_ackonly" "explorer" && no "launch-ack alone false-passed" || ok "background launch-ack alone rejected (no completion)"
 
+  # agent_result's isinstance(msg, dict) guard must survive a "system" event whose
+  # "message" is a plain string (not content blocks) interleaved with a real spawn+return,
+  # and still reach the correct verdict rather than crashing or losing the finding.
+  cat > "$cap/events_sysmsg" <<'EOF'
+{"type":"system","message":"Session started"}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"tu_sys","name":"Agent","input":{"subagent_type":"toolkit:explorer","prompt":"find it"}}]}}
+{"type":"system","message":"a plain-string system message mid-stream"}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"tu_sys","content":"found 4711 despite the string system messages"}]}}
+EOF
+  printf '%s' "$(agent_result "$cap/events_sysmsg" explorer)" | grep -q 4711 && ok "plain-string system-event message does not break the parser (isinstance guard)" || no "plain-string system-event message broke agent_result"
+
   # a refusal that merely ECHOES the marker must not pass: no tool_use event at all
   printf '{"type":"assistant","message":{"content":[{"type":"text","text":"I cannot spawn agents, but RAN:explorer 4711"}]}}\n' > "$cap/events3"
   agent_ran "$cap/events3" "explorer" && no "echo-refusal false-passed event check" || ok "echo-refusal cannot pass the event check"
@@ -552,6 +788,28 @@ EOF
   echo y > "$fake/b.txt"
   after="$(git -C "$fake" status --porcelain)"
   [ "$before" != "$after" ] && ok "checkout drift detection catches a new file" || no "drift detection"
+
+  # H1 regression: an unrecognized `agents <name>` selector must ERROR (nonzero exit,
+  # message listing valid probe names), never silently select nothing and let the
+  # battery report a false success. The subprocess exits before any run_probe call, so
+  # this makes no Claude call itself.
+  local unk_rc unk_err
+  bash "$SELF_ROOT/functional-test.sh" agents totally-bogus-probe-name >"$cap/unknown_out" 2>"$cap/unknown_err"
+  unk_rc=$?
+  unk_err="$(cat "$cap/unknown_err" 2>/dev/null)"
+  if [ "$unk_rc" -ne 0 ] && printf '%s' "$unk_err" | grep -qi "valid probes"; then
+    ok "unknown probe-selection argument errors (rc=$unk_rc) and lists valid probe names"
+  else
+    no "unknown probe-selection argument did not error correctly (rc=$unk_rc, stderr: $(printf '%.120s' "$unk_err"))"
+  fi
+
+  # H1 drift guard: AGENT_PROBE_NAMES (what known_agent_probe validates against) must
+  # match every name actually dispatched via `run_one NAME &&` in probe_agents(), both
+  # ways ("&&" anchors on the real dispatch idiom, not prose that happens to say run_one).
+  local rn ap
+  rn="$(grep -oE 'run_one [a-z0-9-]+ &&' "$SELF_ROOT/functional-test.sh" | sed -E 's/^run_one ([a-z0-9-]+) &&/\1/' | sort -u)"
+  ap="$(printf '%s\n' "${AGENT_PROBE_NAMES[@]}" | sort -u)"
+  [ "$rn" = "$ap" ] && ok "AGENT_PROBE_NAMES matches every run_one probe name (no drift)" || no "AGENT_PROBE_NAMES drifted from run_one probe names"
 
   # cleanup guard refuses non-harness paths
   cleanup_ws "/etc" 2>/dev/null
@@ -585,7 +843,12 @@ case "$mode" in
     probe_skills
     ;;
   agents)
-    if [ -n "$only_agent" ]; then announce 1 "implementer/frontend-designer write inside their disposable repos" "low-medium"; else announce 12 "implementer + frontend-designer write inside their disposable repos" "high"; fi
+    if [ -n "$only_agent" ] && ! known_agent_probe "$only_agent"; then
+      echo "unknown probe: '$only_agent'" >&2
+      echo "valid probes: ${AGENT_PROBE_NAMES[*]}" >&2
+      exit 2
+    fi
+    if [ -n "$only_agent" ]; then announce 1 "implementer/frontend-designer write inside their disposable repos" "low-medium"; else announce 15 "implementer + frontend-designer + config-coupling-bait write inside their disposable repos" "high"; fi
     SNAP_BEFORE="$(snapshot_checkout)"
     echo "== Agent probes (fixture-based, stream-event verified) =="
     probe_agents
@@ -600,7 +863,7 @@ case "$mode" in
     exit 0
     ;;
   all)
-    announce 24 "implementer + frontend-designer write inside their disposable repos" "high"
+    announce 27 "implementer + frontend-designer + config-coupling-bait write inside their disposable repos" "high"
     SNAP_BEFORE="$(snapshot_checkout)"
     echo "== Rules =="; probe_rules
     echo "== Skills =="; probe_skills
