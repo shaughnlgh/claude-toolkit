@@ -31,7 +31,7 @@ After plan approval and explicit user instruction to execute:
 
 ### Build minimal
 
-The plan says what to build; build the least that satisfies it. Workers do not see the toolkit doctrine on their own, so pass the `minimalism` constraints down in every implementation delegation: shortest working diff, no unrequested abstractions, reuse before adding, and trace and grep the callers before changing a shared function. Prefer deleting code to adding it. Mark any deliberate shortcut with a greppable `TODO(author):` comment naming the ceiling and the upgrade path. See `../../doctrine/minimalism.md` from this skill's base directory.
+The plan says what to build; build the least that satisfies it. The subagent-rules hook injects the write-time rules at spawn, but doctrine itself still does not travel on its own, so pass task-relevant doctrine sections down in every implementation delegation, following the handoff template in `../../doctrine/orchestration.md` from this skill's base directory: shortest working diff, no unrequested abstractions, reuse before adding, and trace and grep the callers before changing a shared function. Prefer deleting code to adding it. Mark any deliberate shortcut with a greppable `TODO(author):` comment naming the ceiling and the upgrade path. See `../../doctrine/minimalism.md` from this skill's base directory.
 
 ### Progress format
 

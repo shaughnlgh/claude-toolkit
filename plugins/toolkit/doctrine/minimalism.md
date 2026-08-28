@@ -19,7 +19,7 @@ State the result of this check when you plan (see `plan-workflow`) so a reviewer
 ## Shape of the change
 
 - Shortest working diff that satisfies the plan. Prefer deleting code to adding it.
-- No unrequested abstractions: no interface with a single implementation, no factory for one product, no configuration knob for a value that never varies. Add the seam when the second caller actually arrives, not in anticipation of it. (`design.md` covers how to shape the abstractions you do keep.)
+- No unrequested abstractions: no interface with a single implementation, no factory for one product, no configuration knob for a value that never varies. Add the seam when the second caller actually arrives, not in anticipation of it. A roadmap-committed axis counts: when the parent plan or roadmap has already announced the second caller, add the seam now. (`design.md` covers how to shape the abstractions you do keep.)
 - Read before you change: trace the flow end to end and grep every caller before editing a shared function, so a local fix does not break a distant caller.
 - Fix bugs at the root — the shared choke point every caller routes through — not per caller as a symptom.
 

@@ -1,0 +1,14 @@
+{
+  "name": "oversized rule override truncated at 64KB and announced by name",
+  "stdin": {},
+  "env": {
+    "CLAUDE_PLUGIN_ROOT": "../..",
+    "HOME": "fixtures/subagent-rules/aux/oversized-home"
+  },
+  "expect_exit": 0,
+  "expect_stdout_contains": [
+    "Toolkit write-time rules (8/8 loaded):",
+    "exceeded the 64KB cap and were truncated",
+    "rest omitted: performance"
+  ]
+}

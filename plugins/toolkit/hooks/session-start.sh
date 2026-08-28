@@ -38,7 +38,7 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
   }
   RULES=""; ROVR=""; RFALLBACK=""; RMISSING=""; RTRUNC=""; NLOADED=0; NTOTAL=0
   RULE_BODY_CAP=65536  # 64KB per rule body; re-sent every request for the session, so unbounded bodies are ruinously expensive
-  for r in testing security error-handling database performance writing prose; do
+  for r in testing security error-handling database performance writing prose config-coupling; do
     NTOTAL=$((NTOTAL+1))
     pf="${CLAUDE_PLUGIN_ROOT}/rules/${r}.md"
     ovf="$HOME/.claude/rules/${r}.md"
@@ -71,7 +71,7 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
   else
     add "Toolkit write-time rules: 0/${NTOTAL} loaded (plugin rules unreadable or empty at ${CLAUDE_PLUGIN_ROOT}/rules) - proceeding without them."
   fi
-  [ -f "${CLAUDE_PLUGIN_ROOT}/CLAUDE.md" ] && add "Toolkit doctrine: read the index at ${CLAUDE_PLUGIN_ROOT}/CLAUDE.md before multi-agent or planned work (binding essences plus per-section files; design rationale in README.md alongside). Subagents do not see this line or the write-time rules above: pass doctrine and rule constraints down in delegation prompts, or add both pointers to your global CLAUDE.md via /setup."
+  [ -f "${CLAUDE_PLUGIN_ROOT}/CLAUDE.md" ] && add "Toolkit doctrine: read the index at ${CLAUDE_PLUGIN_ROOT}/CLAUDE.md before multi-agent or planned work (binding essences plus per-section files; design rationale in README.md alongside). The subagent-rules hook injects the write-time rules into every worker at spawn. Doctrine sections still travel in delegation prompts per the worker handoff contract."
   add "Toolkit standing rule (binds the conductor/main chat only): every file change is delegated to a worker agent, no matter how small; the conductor edits nothing itself unless the human explicitly directs it per instance or TOOLKIT_CONDUCTOR_EDITS=1 is set. Enforced by the conductor-guard hook."
   # Per-file doctrine overrides: a same-named file in ~/.claude/doctrine/ replaces the
   # plugin's copy for that concern. Detected here so it needs no pointer written anywhere.
