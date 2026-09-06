@@ -100,7 +100,10 @@ Other skills may create optional sibling artifacts in the same directory (e.g. `
 
 The plan note plus git (the branch diff and, after a squash-merge, the squashed commit) plus the session ids recorded on the plan are the complete record of what was done. Execution details belong in the plan note under "Plan Changes During Execution". Topic notes (the cross-plan knowledge layer) are maintained during planning and execution, not written at finalization.
 
-Use atomic writes (write to temp file, then the toolkit's scripts/vault-fs.sh mv) for all files written into the Obsidian vault. The vault path contains spaces and is inside iCloud Drive.
+Write every vault file atomically: Write the content to a `.tmp.md` file beside the destination, then move it into place with the toolkit's `scripts/vault-fs.sh mv`. The vault path contains spaces and sits inside iCloud Drive. The `.tmp.md` suffix keeps the markdown hooks firing on the temporary write. `vault-fs.sh` takes paths relative to `vault_path` plus `root_folder` from `~/.claude/obsidian-sync.json`, so a plan note path starts at `Projects/<repo>/...`. Worked example with the default template:
+
+    Write tool target: <vault_path>/<root_folder>/Projects/my-repo/<date>-example-feature/plan - example-feature.tmp.md
+    bash <plugin-root>/scripts/vault-fs.sh mv "Projects/my-repo/<date>-example-feature/plan - example-feature.tmp.md" "Projects/my-repo/<date>-example-feature/plan - example-feature.md"
 
 ## Plan Sync
 
@@ -111,7 +114,7 @@ If the plan note cannot be written to Obsidian (vault missing, path error, iClou
 ### Do not write if
 
 - The active plan directory is ambiguous.
-- The plan note does not exist or has not been created yet. (Exception: an expedition's `work - <name>.md` and `brief - <name>.md` precede the plan note by design — the expedition derives the plan name at ingestion per this skill's naming rules, so those two artifacts carry the eventual plan name and land in the eventual plan directory.)
+- The plan note does not exist or has not been created yet. (Exception: an expedition's `work - <name>.md` and `brief - <name>.md`, and an incident investigation's `incident - <name>.md`, precede the plan note by design. Each derives the plan name at ingestion per this skill's naming rules, so the artifact carries the eventual plan name and lands in the eventual plan directory.)
 - The Obsidian config is missing.
 - Sensitive data may be present in the artifacts.
 - The user explicitly says not to write.
@@ -234,6 +237,18 @@ Before the plan proposes new code, apply the reuse ladder from the toolkit's min
 
 Stop after writing the plan and wait for explicit approval before changing implementation files.
 
+### Feasibility gate
+
+Every planned signal, detector, integration, or data source gets two things before design proceeds: one check against real data (a query, an API call, a sample file) and a named external dependency (database credential, API access, connector) that the user confirms is available. A known caveat is a blocker now, never a "revisit later" note. Record each check and its result in Current Context.
+
+### Review readiness
+
+A plan enters `status: review` only when Open Questions and Assumptions are settled. Each section reads "None" or names an external unknown the team cannot resolve (a vendor answer, a pending access grant) together with its owner. Answer internal questions during planning. Never carry one into review.
+
+### Spec, not journal
+
+The plan body describes the current design as if it had always been so. After a rename or a reversal, rewrite the affected sections in place. History lives only under Plan Changes During Execution. Banned in the body: "renamed from", "was originally", "the earlier X design", "rescoped", "now confirmed", "revised on", and any date used as narration. When the change touches a versioned artifact, state the kind of change it needs (patch, minor, or major), never a version number.
+
 ### The plan note as a living document
 
 During execution, if implementation reality diverges from the plan, Claude must update the plan note rather than deferring deviations to a separate artifact. Record changes in the "Plan Changes During Execution" section. This keeps the plan as the single source of truth for what was intended and what actually happened.
@@ -260,7 +275,7 @@ For non-trivial tasks, follow these steps before writing the plan note:
 8. No implementation code changes in this mode.
 9. Stop and wait for explicit user approval before execution.
 
-On non-trivial plans, after drafting the plan note and before stopping for approval, run the `plan-critic` subagent (model: opus) to adversarially red-team the draft. Fold its material objections into the plan's Risks / Assumptions / Open Questions, then present for approval. This step is conductor-gated: skip it for trivial plans. It augments, and does not replace, the human approval gate.
+On non-trivial plans, after drafting the plan note and before stopping for approval, run the `plan-critic` subagent (model: opus) to adversarially red-team the draft. Plan-critic applies the inversion pre-mortem structure and returns tripwires and walk-away checks. Fold its material objections into the plan's Risks / Assumptions / Open Questions. Copy its Tripwires block into Validation Steps, one line per failure mode, and its Walk-away checks block into Risks, one line per check, so the plan carries the measurable signal and the threshold that means stop. Then present for approval. This step is conductor-gated: skip it for trivial plans. It augments, and does not replace, the human approval gate.
 
 ### Pre-scaffolded plans
 
