@@ -12,6 +12,7 @@ The worker agents ship with this toolkit: `explorer` (read-only search and disco
 - Do not ask about model preferences if the prompt or project workflow already defines them; record the routing in the plan and follow it during execution.
 - Every delegation goes to the toolkit worker (or a project-local agent shadowing it) whose charter fits the task: docs to `doc-reviewer`, research including web lookups to `explorer`, plan drafting to `planner`, plan review to `plan-critic`, execution to `implementer`, completion checks to `verifier`, code review to the reviewer set. The harness's generic agents (general-purpose, Explore, Plan) are a last resort for work no toolkit charter covers, and reaching for one requires stating why in the delegation.
 - An agent the user has stopped is cancelled work. Never resume, re-message, or relaunch it on your own initiative; it comes back only on the user's explicit instruction.
+- A review-stage content change to a plan note is plan drafting, not transcription. Route it to `planner` with the amendment and the affected sections. The conductor keeps assembly, the atomic write, and `validate-plan.py`. After three or more amendments to one plan in a review round, run a scoped `plan-critic` re-pass over the amended sections.
 
 ## Model policy
 
@@ -26,6 +27,8 @@ Routing preferences, not hard guarantees. Goal: best possible plan and acceptanc
 ## Spawning
 
 Spawn workers proactively when the task splits into independent subtasks, evidence can be gathered in parallel with other work, a subtask is mechanical/search-oriented, or a long-running command can run alongside another step. During planning for any non-trivial task, spawn at least one worker for repo/doc scan (`explorer` — discovery is its job, not the planner's) unless the task is obviously too small — if no worker is used, say why. Use a single worker rather than a fan-out when multiple workers would touch the same file or decision surface, or when the main challenge is choosing architecture — but the edit itself still goes to that worker, never the conductor.
+
+Two writers on one file lose work: `vault-fs.sh mv` and the Edit tool both replace whole-file content, so the last writer wins and the earlier write vanishes without an error. After any round in which more than one worker wrote, grep the load-bearing markers (headings, frontmatter keys, anchor lines) in every touched file before accepting the round.
 
 Browser automation is worker work. Reproduction runs, multi-step UI journeys, and dashboard or log-viewer trawls through claude-in-chrome go to `browser-driver`, not the conductor: hundreds of computer-use steps carried at full conductor context are the single most expensive known usage pattern (a worker starts near-empty; the conductor does not). The conductor coordinates — what to drive, what evidence to collect, when the human logs in — and reads the distilled run report. In any browser context, prefer text extraction (`get_page_text`, `read_page`, `find`) over screenshots and batch mechanical sequences with `browser_batch`; screenshots are image tokens that sit in context for the rest of the session. The conductor drives the browser itself only for a genuinely short interaction (a handful of steps) or when the human is interleaved in every step.
 

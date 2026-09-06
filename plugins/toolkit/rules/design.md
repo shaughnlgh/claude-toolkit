@@ -32,3 +32,4 @@ This is an index of per-concern rule files under `rules/design/`, each covering 
 - `design/scrolling.md` — modals/drawers, sticky/fixed headers, smooth scroll, or scroll-snap behavior.
 - `design/loading-feedback.md` — spinners, skeleton screens, progress indicators, or any loading state.
 - `design/color.md` — gradients, dark-theme surfaces, destructive-action color.
+- `design/style-changes.md` — editing or removing an existing CSS or SCSS rule, verifying a visual change, or deciding which bundle owns shared styles.

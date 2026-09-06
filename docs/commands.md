@@ -1,6 +1,6 @@
 # Commands
 
-The toolkit ships eight slash commands in two groups: **setup and vault** helpers, and on-demand **thinking tools**. This page is the reference for what each does, when to run it, and what it changes.
+The toolkit ships seven slash commands in two groups: **setup and vault** helpers, and on-demand **thinking tools**. This page is the reference for what each does, when to run it, and what it changes.
 
 ## Setup & vault
 
@@ -70,7 +70,7 @@ Copies a toolkit component — doctrine, rule, agent, or skill — into your glo
 
 ## Thinking tools
 
-On-demand reflection and red-team commands. Each leans into the communication doctrine (honest over agreeable), and none of them take an action — they audit, reframe, or question, they do not change files or git state. `/mentor` is a persistent mode; the rest are one-shot.
+On-demand reflection and red-team commands. Each leans into the communication doctrine (honest over agreeable), and none of them take an action — they audit, reframe, or question, they do not change files or git state. `/mentor` is a persistent mode; the rest are one-shot. The inversion pre-mortem is a skill (`inversion` in `docs/skills.md`): it fires on an evaluative question about a plan or fix as well as by name.
 
 ### `/glass-box`
 
@@ -141,20 +141,3 @@ Reads your last message back the way a stranger would hear it, honest not kind �
 
     /mirror-test
     /mirror-test the PR review I just drafted
-
-### `/inversion`
-
-A pre-mortem: assume the plan already failed completely and lay out every way it got there, unsoftened and worst-case, so the real problems surface while they can still be fixed. Ranks the failure modes, names the load-bearing risk, and points each top risk at a concrete fix.
-
-**When to run it** — on a plan or decision before committing to it.
-
-**Usage** — `/inversion [plan or decision]`. With no argument it uses the plan under discussion.
-
-**Related** — inside the plan-workflow, the `plan-critic` agent red-teams a written plan as part of planning; `/inversion` is the on-demand version for any plan or idea in conversation.
-
-**What it changes** — nothing.
-
-**Example**
-
-    /inversion
-    /inversion rolling this migration out in one deploy

@@ -170,7 +170,7 @@ Search the vault for an existing note with that basename: project dirs under `<r
 - Follow the Structure, Content rules, and writing style above (plain sentences, no em dashes or semicolons as splitters, no version pins, distilled facts).
 - `source_refs`: repo-relative module roots and doc URLs only.
 - On create, set `created`, `updated`, and `verified` to the creation date (the evidence-gathering process above is a verification). On update, bump `updated` always; set `verified` only when the note's facts were actually checked this session (see Freshness and validation).
-- Use atomic writes: Write to a `.tmp` file in the target directory, then the toolkit's `vault-fs.sh mv`, in the `scripts/` directory at the plugin root (locate the plugin root via the installed cache path shown by /setup, or ../scripts relative to this commands/ directory).
+- Use atomic writes: Write to a `.tmp.md` file beside the destination, then the toolkit's `vault-fs.sh mv`, in the `scripts/` directory at the plugin root (locate the plugin root via the installed cache path shown by /setup, or ../scripts relative to this commands/ directory).
 
 ### 6. Maintain the link graph
 

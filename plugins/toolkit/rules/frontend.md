@@ -79,6 +79,10 @@ Use whatever the project already has. Don't mix competing libraries.
 | Charts | Recharts, D3, Chart.js, Visx, ECharts, Nivo |
 | Icons | Lucide, Phosphor, Heroicons, Tabler Icons, Iconify |
 
+## Embeddable Hooks
+
+- Every new embeddable hook (data attribute, mount point, custom element) ships with a copy-pasteable HTML example in the docs, in the same change.
+
 ## Layout
 
 - CSS Grid for 2D, Flexbox for 1D. Use `gap`, not margin hacks.
