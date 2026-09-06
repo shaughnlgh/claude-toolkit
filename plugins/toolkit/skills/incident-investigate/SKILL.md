@@ -28,7 +28,7 @@ Recall vault topic notes and repo docs for the subsystem (plan-workflow's topic 
 
 ## 2. Parallel evidence gathering
 
-Launch one worker per evidence source in a single message. `explorer` handles read-only code and doc tracing. `verifier` handles anything that runs a query or a command. Scope each worker to its source and to the named items. Each worker returns findings with one concrete citation per finding: a log line with its timestamp, a row with its key, a code path with its line. Where nothing was found, the worker returns an explicit "no evidence" for that source and item. A worker whose command was refused or stalled returns `blocked: <command>` with the refusal text, never "no evidence". Speculation is not a finding. Against production, workers read only: SELECT statements only, GROUP BY-safe SQL, no writes of any kind. Every query binds or escapes each user-supplied item id; never interpolate an item id into SQL or shell text.
+Launch one worker per evidence source in a single message. `explorer` handles read-only code and doc tracing. `verifier` handles anything that runs a query or a command. Scope each worker to its source and to the named items. Each worker returns findings with one concrete citation per finding: a table and key, a log source and timestamp, or a code path and line, a non-sensitive locator only, never the raw row or log content, so no customer data enters a worker return. The redaction step in Artifacts stays as the second net at write time. Where nothing was found, the worker returns an explicit "no evidence" for that source and item. A worker whose command was refused or stalled returns `blocked: <command>` with the refusal text, never "no evidence". Speculation is not a finding. Against production, workers read only: SELECT statements only, GROUP BY-safe SQL, no writes of any kind. Every query binds or escapes each user-supplied item id; never interpolate an item id into SQL or shell text.
 
 ## 3. Adjudication
 
@@ -39,7 +39,7 @@ The conductor reconciles conflicting findings against the cited evidence. Produc
 Derive the incident name per plan-workflow's name derivation (ticket key first). Write into that name's plan directory with the atomic write, subject to plan-workflow's "Do not write if" list, whose exception names the incident note:
 
 - `incident - <name>.md`: the technical writeup. Scope fence, evidence sources checked, findings per source with citations, verdict and provenance, chain of events, outside-scope list. Redact customer PII before writing. Keep item ids, timestamps, and error codes. Where a finding cannot be written without PII, cite its location (table and key, log source and timestamp) instead of quoting it.
-- The stakeholder summary, as a section at the top of the same note under "Summary for stakeholders": plain language, short, Slack-ready, domain nouns kept, no hedging.
+- The stakeholder summary, as a section at the top of the same note under "Summary for stakeholders": plain language, short, Slack-ready, domain nouns kept, uncertainty stated directly with the verdict's provenance label (verified, derived, or judgment), never softened or padded with filler.
 
 Durable facts about the subsystem go to the topic note per obsidian-topic.
 

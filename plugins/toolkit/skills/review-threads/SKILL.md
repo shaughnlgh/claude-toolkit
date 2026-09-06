@@ -20,7 +20,7 @@ Work the reviewer threads on a pushed branch's MR or PR: list them, decide fix o
 
 ## 1. Locate the MR or PR
 
-Derive the host from `git remote get-url origin`. On GitLab, fail fast with `glab api user >/dev/null`, then `glab mr view -R "<project-path>"` from the current branch, or the IID the user gives. Fetch threads with `glab api "projects/<url-encoded-path>/merge_requests/<iid>/discussions"`. On GitHub, fail fast with `gh auth status`, then `gh pr view --json number,url,headRefName,reviewDecision`. Fetch threads with `gh api graphql` over `pullRequest.reviewThreads` (fields `id`, `isResolved`, `path`, `line`, `comments(first:50){nodes{databaseId,body,author{login}}}`). Never print a token.
+Derive the host from `git remote get-url origin`. On GitLab, fail fast with `glab api user >/dev/null`, then `glab mr view -R "<project-path>"` from the current branch, or the IID the user gives. Fetch threads with `glab api --paginate "projects/<url-encoded-path>/merge_requests/<iid>/discussions"`. On GitHub, fail fast with `gh auth status`, then `gh pr view --json number,url,headRefName,reviewDecision`. Fetch threads with `gh api graphql` over `pullRequest.reviewThreads` (fields `id`, `isResolved`, `path`, `line`, `comments(first:50){nodes{databaseId,body,author{login}}}`, plus `pageInfo { hasNextPage endCursor }`). Repeat the query with `after: <endCursor>` until `hasNextPage` is false. Never print a token.
 
 ## 2. List open threads
 
@@ -36,7 +36,7 @@ Push back: reply in that thread with the reasoning and the evidence (`file:line`
 
 ## 4. Report thread state
 
-After the round, re-fetch and report three lists: fixed (awaiting re-review), pushed back (awaiting the reviewer), open (not addressed, with the reason). Report the pipeline state: GitLab `glab ci status -R "<project-path>" -b <branch>`, GitHub `gh pr checks`.
+After the round, re-fetch and report three lists: fixed (awaiting re-review), pushed back (awaiting the reviewer), open (not addressed, with the reason). Report the pipeline state: GitLab `glab mr checks <iid>`, GitHub `gh pr checks <number>`, both using the PR or MR number resolved in step 1, never the current-branch default.
 
 ## 5. Merge gate
 

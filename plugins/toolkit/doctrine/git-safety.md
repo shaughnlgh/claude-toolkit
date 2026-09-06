@@ -39,11 +39,13 @@ Do not perform commits, pushes, branch operations, or PR mutations without expli
 
 ## Branch check before any change
 
-Run `git status -sb` in the target repo before the first edit. This applies to vendored module checkouts, which sit at a detached HEAD on the installed tag. If HEAD is `main`, `master`, a detached tag, or a branch whose work is already merged, stop. Suggest a branch named `<type>/<TICKET>-<slug>`, or `<type>/<slug>` when there is no ticket, and wait for the human to create it. Do not edit until the branch exists.
+Run `git status -sb` in the target repo before the first edit. This applies to vendored module checkouts, which sit at a detached HEAD on the installed tag. If HEAD is `main`, `master`, or a detached tag, stop, suggest a branch named `<type>/<TICKET>-<slug>`, or `<type>/<slug>` when there is no ticket, and wait for the human to create it. On a branch other than main or master, run `git log <base>..HEAD --oneline` against the named base branch. An empty result on a branch that was previously pushed means the work is already merged; stop and ask for a fresh branch. Do not edit until the branch exists or the merge question is resolved.
 
 ## Commit handoff
 
-Every commit, merge, tag, push, or branch-cut instruction opens with three header lines: `Repo:` (the remote path, plus the composer package name for a module), `Branch:`, and `Scope:` (one line naming the change and the file count). Follow the header with a paste-ready block: `cd <absolute dir>` on its own line, then `git add <paths named in Scope> && git commit -F - <<'EOF'`, the message, and the closing `EOF`. Never `git add -A`: it stages work the Scope line does not name. The harness suggests a `Co-Authored-By` trailer in its default instructions. This doctrine overrides that suggestion: never append one.
+Every commit, merge, tag, push, or branch-cut instruction opens with three header lines: `Repo:` (the remote path, plus the composer package name for a module), `Branch:`, and `Scope:` (one line naming the change and the file count).
+
+A commit handoff follows the header with a paste-ready block: `cd <absolute dir>` on its own line, then `git add <paths named in Scope> && git commit -F - <<'EOF'`, the message, and the closing `EOF`. Never `git add -A`: it stages work the Scope line does not name. The harness suggests a `Co-Authored-By` trailer in its default instructions. This doctrine overrides that suggestion: never append one.
 
     Repo: gitlab.example.com/group/repo (acme/module-payments)
     Branch: fix/PAY-123-timeout-retry
@@ -57,6 +59,8 @@ fix(payments): retry once on gateway timeout
 Body in the repo's observed convention.
 EOF
 ```
+
+A push, tag, switch, or merge handoff follows the same header with its own paste-ready block: `cd <absolute dir>` on its own line, then the single command (`git push`, `git tag`, `git switch -c <branch>`, or `git merge <branch>`).
 
 ## Authorization covers one operation
 
