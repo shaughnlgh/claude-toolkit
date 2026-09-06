@@ -4,7 +4,7 @@ description: >-
   Root-cause investigation for a production incident. Use only on explicit request:
   "investigate this incident", "/incident-investigate", or a pasted production alert
   with "find the cause". Input is an incident description, a ticket key, or a list of
-  named items (order ids, quote ids, request ids). Fences scope to the question asked,
+  named items (record ids, request ids, transaction ids). Fences scope to the question asked,
   checks evidence-source readiness before spawning anything, gathers evidence in
   parallel with one worker per source and a citation per finding, adjudicates to one
   root-cause verdict with a provenance label, writes a technical incident note and a
@@ -24,7 +24,7 @@ Restate the question asked and the named items in one line, and commit to answer
 
 ## 1. Topic recall and preflight
 
-Recall vault topic notes and repo docs for the subsystem (plan-workflow's topic recall step). Then, before spawning any worker, list the evidence sources the project documents for this subsystem: log search, database, gateway, metrics. Read them from the project's docs or company slice. This skill names no source itself. For each source, check that its credentials are exported in the session (`[ -n "${NAME:-}" ] && echo set || echo missing`, which never prints the value) and that the network path is up (read the reachability probe from the user's global instructions when one exists, otherwise ask). Report a missing source and ask the user to export or connect. Never work around a missing source. If the project documents no evidence source, stop before spawning anything, name the source classes this skill needs (log search, database, gateway, metrics), ask the user to name the project's sources or point at the doc, and wait. Never infer a source from the codebase.
+Recall vault topic notes and repo docs for the subsystem (plan-workflow's topic recall step). Then, before spawning any worker, list the evidence sources the project documents for this subsystem: log search, database, third-party service, metrics. Read them from the project's docs or company slice. This skill names no source itself. For each source, check that its credentials are exported in the session (`[ -n "${NAME:-}" ] && echo set || echo missing`, which never prints the value) and that the network path is up (read the reachability probe from the user's global instructions when one exists, otherwise ask). Report a missing source and ask the user to export or connect. Never work around a missing source. If the project documents no evidence source, stop before spawning anything, name the source classes this skill needs (log search, database, third-party service, metrics), ask the user to name the project's sources or point at the doc, and wait. Never infer a source from the codebase.
 
 ## 2. Parallel evidence gathering
 

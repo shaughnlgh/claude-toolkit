@@ -15,7 +15,7 @@ A confirmed defect found mid-task (a stranded flow, a dead end, a visual glitch,
 
 ## Investigation scope fence
 
-When the user names specific items to investigate (six orders, one MR, one file), the report covers exactly those items. List adjacent findings in a short "Outside scope" section at the end as one-line suggestions. Never investigate or write up an adjacent finding unasked. This fence is distinct from Known-broken states above: that rule covers defects found while implementing approved work, this one covers the boundary of an investigation.
+When the user names specific items to investigate (six records, one MR, one file), the report covers exactly those items. List adjacent findings in a short "Outside scope" section at the end as one-line suggestions. Never investigate or write up an adjacent finding unasked. This fence is distinct from Known-broken states above: that rule covers defects found while implementing approved work, this one covers the boundary of an investigation.
 
 ## Whole-class application
 
@@ -27,4 +27,4 @@ When the task is to write a ticket, write it for an assignee with no session con
 
 ## External side effects
 
-Build and compile-check locally. A state-changing call to an external system (a gateway charge, a ticket post, a repo mutation, a production config change) happens only on the user's explicit per-instance instruction. A skill the user invoked for that purpose counts as that instruction, for example review-threads posting a reply after the user asks it to post in this session. When posting an artifact to an external system, attach the full artifact plus a short pointer, and show the preview before it posts. Verify through the configured stack. Never wire, extract, or rotate credentials, and never switch an environment's credentials on the human's behalf.
+Build and compile-check locally. A state-changing call to an external system (a call that moves money or changes a live system, a ticket post, a repo mutation, a production config change) happens only on the user's explicit per-instance instruction. A skill the user invoked for that purpose counts as that instruction, for example review-threads posting a reply after the user asks it to post in this session. When posting an artifact to an external system, attach the full artifact plus a short pointer, and show the preview before it posts. Verify through the configured stack. Never wire, extract, or rotate credentials, and never switch an environment's credentials on the human's behalf.
