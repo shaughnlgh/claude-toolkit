@@ -11,7 +11,7 @@ Apply to all execution work, conductor and workers alike:
 
 ## Known-broken states
 
-A confirmed defect found mid-task (a stranded flow, a dead end, a visual glitch, an unguarded security gap) gets fixed on the current branch and recorded under Plan Changes During Execution. State the finding and the decision in one message, then continue. Reserve questions for forks with distinct options, and for changes that move money or touch credentials.
+A confirmed defect found while implementing or validating approved work gets fixed on the current branch when it sits inside the subsystem being changed or blocks the approved work's validation, and gets recorded under Plan Changes During Execution. State the finding and the decision in one message, then continue. A defect outside that scope gets reported with its location for explicit approval, never fixed silently. Reserve questions for forks with distinct options, and for changes that move money or touch credentials.
 
 ## Investigation scope fence
 

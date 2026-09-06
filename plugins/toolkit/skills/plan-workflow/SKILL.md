@@ -239,11 +239,11 @@ Stop after writing the plan and wait for explicit approval before changing imple
 
 ### Feasibility gate
 
-Every planned signal, detector, integration, or data source gets two things before design proceeds: one check against real data (a query, an API call, a sample file) and a named external dependency (database credential, API access, connector) that the user confirms is available. A known caveat is a blocker now, never a "revisit later" note. Record each check and its result in Current Context.
+Every planned signal, detector, integration, or data source gets a check against real data (a query, an API call, a sample file) before design proceeds. When the signal or mechanism depends on something outside the repo (a credential, an API, a connector, a remote system), it also gets a named external dependency that the user confirms is available. A local input (a repository file, compiler or test output, an in-process metric) records "external dependency: none" and passes the gate on its real-data check alone. A known caveat is a blocker now, never a "revisit later" note. Record each check and its result in Current Context.
 
 ### Review readiness
 
-A plan enters `status: review` only when Open Questions and Assumptions are settled. Each section reads "None" or names an external unknown the team cannot resolve (a vendor answer, a pending access grant) together with its owner. Answer internal questions during planning. Never carry one into review.
+A plan enters `status: review` only when Open Questions and Assumptions are settled. Each section reads "None" or names an external unknown the team cannot resolve (a vendor answer) together with its owner. An unresolved external dependency keeps the plan in planning until the user confirms access or the design drops the dependency. Answer internal questions during planning. Never carry one into review.
 
 ### Spec, not journal
 
