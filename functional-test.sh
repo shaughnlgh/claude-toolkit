@@ -341,10 +341,10 @@ probe_skills() {
     "'review-mr' in a and 'code-reviewer' in a and 'silent-failure-hunter' in a and 'pr-test-analyzer' in a"
   skill_probe "inversion knows its sections and horizons" \
     "Load the inversion skill. Report as the answer its section headings in order and the two default horizons." \
-    "'autopsy' in a and 'tripwires' in a and 'six months' in a and 'three weeks' in a"
-  skill_probe "review-threads knows its merge gate and silence rule" \
-    "Load the review-threads skill. Report as the answer the two conditions of its merge gate and what it does on a thread that a fix resolves." \
-    "'resolved' in a and ('green' in a or 'pipeline' in a) and 'never' in a"
+    "a.find('autopsy')>=0 and a.find('autopsy')<a.find('verdict')<a.find('rebuild')<a.find('adversary')<a.find('tripwires') and 'six months' in a and 'three weeks' in a"
+  skill_probe "review-threads knows its GitHub fix-then-resolve flow and merge gate" \
+    "Load the review-threads skill. Report as the answer what it does on GitHub after the fix commit for a thread is pushed, and the two conditions of its merge gate." \
+    "'resolve' in a and ('reply' in a or 'comment' in a) and 'merge' in a and 'green' in a"
   skill_probe "incident-investigate knows its scope fence" \
     "Load the incident-investigate skill. Without investigating anything, report as the answer what its first step does before any worker is spawned and where adjacent findings go." \
     "('restate' in a or 'named items' in a) and 'outside scope' in a"
