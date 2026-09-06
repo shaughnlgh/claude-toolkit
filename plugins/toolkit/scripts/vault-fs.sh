@@ -5,8 +5,8 @@ set -euo pipefail
 # - Every effective source/destination is then canonically resolved (symlinks and
 #   all) and must remain inside the canonical vault root — a symlinked directory
 #   pointing outside the vault is refused even though the input path looks relative.
-# - mv REPLACES an existing destination file by design: write-to-.tmp then mv is
-#   the toolkit's atomic-write mechanism.
+# - mv REPLACES an existing destination file by design: write to a `.tmp.md` file
+#   beside the destination then mv is the toolkit's atomic-write mechanism.
 # - Regular files only. No directory ops, no locking, no content validation.
 # Vault root resolves from the user's obsidian-sync.json (see obsidian-sync.json.template)
 CFG="$HOME/.claude/obsidian-sync.json"
@@ -25,29 +25,32 @@ PY
 )"
 [ -n "$ROOT" ] || { echo "vault-fs: cannot resolve vault root from $CFG" >&2; exit 1; }
 
+# Single source for the hint every path refusal appends (not the unknown-command one).
+HINT="(vault root: $ROOT, expected form: Projects/<repo>/...)"
+
 cmd="${1:?usage: vault-fs.sh rm|mv <relpath> [dst]}"
 
 # Cheap lexical guard first; canonical containment (canon) below catches what
 # this cannot: escape through a symlinked directory inside the vault.
 resolve() {
   case "$1" in
-    /*|*..*) echo "refused: relative vault paths only" >&2; exit 1 ;;
+    /*|*..*) echo "refused: relative vault paths only $HINT" >&2; exit 1 ;;
   esac
   printf '%s/%s' "$ROOT" "$1"
 }
 
 # canon <abs-path> <file|dest>: validates canonical containment and file-kind.
-# Prints a "refused: ..." reason to stderr and fails when the path (or, for a
-# not-yet-existing destination, its existing parent) resolves outside the vault
-# root, or is not a regular file. Paths are passed as arguments, never
-# interpolated into the Python source.
+# Prints a "refused: ..." reason (with the shared HINT appended) to stderr and
+# fails when the path (or, for a not-yet-existing destination, its existing
+# parent) resolves outside the vault root, or is not a regular file. Paths are
+# passed as arguments, never interpolated into the Python source.
 canon() {
-  python3 - "$ROOT" "$1" "$2" <<'PY'
+  python3 - "$ROOT" "$1" "$2" "$HINT" <<'PY'
 import os, sys
-root, cand, mode = sys.argv[1], sys.argv[2], sys.argv[3]
+root, cand, mode, hint = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 
 def refuse(msg):
-    sys.stderr.write("refused: %s\n" % msg)
+    sys.stderr.write("refused: %s %s\n" % (msg, hint))
     sys.exit(1)
 
 def contained(p):

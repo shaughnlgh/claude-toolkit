@@ -48,8 +48,8 @@ ok "verify helpers fail closed (reject mismatch, empty suite, and failures)"
 echo "== Structure =="
 n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
 [ "$(ls $P/agents/*.md 2>/dev/null | wc -l)" -eq 14 ] && ok "14 agents" || no "14 agents"
-[ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 13 ] && ok "13 skills" || no "13 skills"
-[ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 8 ] && ok "8 commands" || no "8 commands"
+[ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 16 ] && ok "16 skills" || no "16 skills"
+[ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 7 ] && ok "7 commands" || no "7 commands"
 [ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 10 ] && ok "10 rules" || no "10 rules"
 # design/ catalog coverage, both directions: every rules/design/*.md concern file must be
 # listed in the rules/design.md index, and every design/<name>.md reference the index makes
@@ -218,7 +218,7 @@ suite_ok "plan-validator fixture suite" "$out" 24
 
 echo "== vault-fs containment =="
 out="$(bash "$P/scripts/tests/vault-fs/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "vault-fs behavior suite" "$out" 15
+suite_ok "vault-fs behavior suite" "$out" 19
 
 echo "== git-ro execution boundary =="
 out="$(bash "$P/scripts/tests/git-ro/run-tests.sh" 2>/dev/null | tail -1)"
@@ -280,6 +280,12 @@ print("BAD",",".join(bad),"NONE",",".join(none),"HAIKU",",".join(hk))
 PY
 )"
 case "$inv" in *"BAD  NONE  HAIKU"*) ok "no agent can spawn sub-agents (leaf), none omits allowlist, none on Haiku";; *) no "orchestration invariant broken: $inv";; esac
+if grep -qF 'Tripwires:' "$P/agents/plan-critic.md" && grep -qF 'Walk-away checks:' "$P/agents/plan-critic.md" && grep -qF '60 lines' "$P/agents/plan-critic.md" \
+   && grep -qF 'Tripwires block' "$P/skills/plan-workflow/SKILL.md" && grep -qF 'Walk-away checks block' "$P/skills/plan-workflow/SKILL.md"; then
+  ok "plan-critic's Tripwires:/Walk-away checks:/60-line return contract is referenced by plan-workflow"
+else
+  no "plan-critic / plan-workflow Tripwires-Walk-away contract broken"
+fi
 
 echo "== Docs coverage (every shipped component is documented) =="
 cov="$(python3 - "$P" "$ROOT" <<'PY'
@@ -319,4 +325,4 @@ echo "RESULT: $pass passed, $skip skipped, $fail failed"
 # Floor, not just zero-failures: silently deleting real checks must not read green.
 # Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
 # no node, no local plugin install) must not read as a vanished check.
-[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 48 ]
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 49 ]

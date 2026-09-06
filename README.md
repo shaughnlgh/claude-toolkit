@@ -15,7 +15,7 @@ Full transparency — what ships, what runs automatically, and why.
 - [`docs/prerequisites.md`](docs/prerequisites.md) — the CLI prerequisites: what each is for, install, and auth.
 - [`docs/skills.md`](docs/skills.md) — the skills, with short demos of each in action.
 - [`docs/agents.md`](docs/agents.md) — the 14 worker agents and the conductor/leaf-worker model.
-- [`docs/commands.md`](docs/commands.md) — all eight slash commands (`/setup`, `/obsidian-topic`, `/override`, and the thinking tools).
+- [`docs/commands.md`](docs/commands.md) — all seven slash commands (`/setup`, `/obsidian-topic`, `/override`, and the thinking tools).
 - [`docs/hooks.md`](docs/hooks.md) — the ten hooks that run automatically once installed, with no opt-in, in full: what each blocks, what it only asks, env vars, and fail-safe behavior. Read it before trusting the toolkit with a repo.
 - [`docs/rules.md`](docs/rules.md) — the write-time rules injected into every session.
 - [`docs/scripts.md`](docs/scripts.md) — the shipped scripts and their safety guardrails.

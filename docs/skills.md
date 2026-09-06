@@ -21,8 +21,11 @@ These GIFs live in the repo (`docs/media/`) but not in the installed plugin. The
 | `expedition` | The ticket-to-complete pipeline for big, deliberately-committed work: sequences crawl, grill, split decision, planning, execution, and review through recommend-and-confirm gates, with the stage persisted in a vault work note so the effort survives across days. Completion is always your word, never inferred. | You explicitly invoke it, or ask to resume one. Never automatic — committing to the full workflow is your decision. |
 | `jira` | Read-only ticket-to-brief adapter: fetches a Jira issue via jira-cli and returns a verbatim brief (metadata, full description, comments, issue links) for crawl or expedition to plan from. | Crawl's ingest step meets a Jira key or ticket URL, or you ask to fetch one directly. |
 | `red-team` | Gates an implementation slice's finalization: recommends an adversarial review on a closure signal, runs — on confirmation — the `review-mr` workflow's reviewer/verifier panel over the local uncommitted diff, delegates fixes for confirmed findings with scoped re-checks, runs the doc pass once, and closes with a commit suggestion. | A closure signal ("I'm happy with this", "looks good, let's continue") fires with uncommitted implementation changes present, or you explicitly ask to red team code or a diff. |
+| `inversion` | Pre-mortem for a plan, decision, or code fix: seven ranked failure causes, a verdict naming the fatal flaw when one exists, a rebuilt plan with walk-away checks, the adversary's view, and one measurable tripwire per failure mode. Never reassures. | You invoke it by name, or ask whether a plan or fix is good, looks right, or is ready to ship. |
+| `review-threads` | Works the reviewer threads on a pushed MR or PR (CodeRabbit, Copilot, humans): lists open threads, fixes or pushes back per thread, never comments on threads a fix resolves, reports state, and recommends merge only when every thread is resolved and the pipeline is green. glab for GitLab, gh for GitHub. | You ask to go through or address the review comments on an MR or PR. |
+| `incident-investigate` | Root-cause investigation for a production incident: fences scope to the question and items you named, checks that the project's documented evidence sources are reachable before spawning, gathers evidence in parallel with a citation per finding, adjudicates to one verdict with a provenance label, and writes a technical incident note plus a stakeholder summary. Never implements a fix, never mutates production. | You explicitly ask to investigate an incident, or paste a production alert with "find the cause". |
 
-All of the request-triggered skills (`grill`, `handoff`, `resolving-merge-conflicts`, `wayfinder`, `expedition`) fire only on an explicit ask, never on something the model infers on its own — with two narrow carve-outs: a crawl route you confirmed counts as the explicit ask for wayfinder, and a confirmed yes at an expedition's grill gate counts as the explicit ask for grill. `crawl` is the exception in the other direction: it fires automatically on new work (a brief or ticket with no plan note), staying near-silent on trivial work. `red-team` sits between the two: the recommendation fires automatically on a closure signal, but the run itself still waits on your explicit confirmation — an explicit ask to red team a diff skips that gate and counts as the confirmation on its own.
+All of the request-triggered skills (`grill`, `handoff`, `resolving-merge-conflicts`, `wayfinder`, `expedition`, `review-threads`, `incident-investigate`) fire only on an explicit ask, never on something the model infers on its own — with two narrow carve-outs: a crawl route you confirmed counts as the explicit ask for wayfinder, and a confirmed yes at an expedition's grill gate counts as the explicit ask for grill. `inversion` also fires on an evaluative question about a plan or fix ("is this a good plan", "is this ready to ship"), which counts as the ask. `crawl` is the exception in the other direction: it fires automatically on new work (a brief or ticket with no plan note), staying near-silent on trivial work. `red-team` sits between the two: the recommendation fires automatically on a closure signal, but the run itself still waits on your explicit confirmation — an explicit ask to red team a diff skips that gate and counts as the confirmation on its own.
 
 ## Example prompts
 
@@ -57,6 +60,18 @@ How to trigger each skill. Some you invoke directly, some fire automatically ins
 - `gitlab-mr-review` — review a merge request:
 
       Review this GitLab MR: https://gitlab.example.com/group/repo/-/merge_requests/123
+
+- `inversion` — stress-test a plan or fix before committing to it:
+
+      Is this a good plan? Invert it before we go ahead.
+
+- `review-threads` — work the review comments after a push:
+
+      Go through the CodeRabbit and Copilot threads on this MR.
+
+- `incident-investigate` — find the cause of a production incident:
+
+      Investigate this incident: orders 1001, 1002, and 1003 were captured twice. Find the cause.
 
 **Fire automatically inside a flow** (you don't prompt them by name):
 

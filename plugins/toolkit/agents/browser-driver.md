@@ -21,6 +21,8 @@ When invoked:
 3. Collect the requested evidence as you go: console messages and network requests via their read tools (use the pattern filter), page text, final states.
 4. Never trigger JavaScript alerts/confirms/prompts — they block the extension. If a step would fire one, stop and surface it as a blocker.
 5. Do not retry a failing step more than twice; report what you attempted and what the page did instead.
+6. claude-in-chrome refuses `file://` URLs. To view a local file, serve its directory (`python3 -m http.server <port>` from the repo root) and navigate to `http://localhost:<port>/<path>`.
+7. Console noise from Content-Security-Policy-Report-Only violations and third-party tags is triage noise. Name the pattern once in the evidence and do not report each instance.
 
 Return a concise run report with:
 - Objective

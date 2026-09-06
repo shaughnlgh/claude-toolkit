@@ -30,7 +30,7 @@ If it is ambiguous whether an active plan exists (more than one candidate, or th
 
 ## Writing mechanics
 
-Use atomic writes, the same as `plan-workflow`: write the note to a `.tmp` file first, then move it into place with the toolkit's `scripts/vault-fs.sh mv`. The vault path contains spaces and lives in iCloud Drive, so writing directly (instead of write-then-move) risks a partial file if iCloud syncs mid-write. Never write directly to the final path in the vault.
+Use atomic writes, the same as `plan-workflow`: write the note to a `.tmp.md` file beside the destination first, then move it into place with the toolkit's `scripts/vault-fs.sh mv`. The vault path contains spaces and lives in iCloud Drive, so writing directly (instead of write-then-move) risks a partial file if iCloud syncs mid-write. Never write directly to the final path in the vault.
 
 ## Content of the note
 
