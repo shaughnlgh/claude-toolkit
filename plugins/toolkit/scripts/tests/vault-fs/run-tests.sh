@@ -28,13 +28,13 @@ out="$(run rm 'Projects/gone.md')"; rc=$?
 [ $rc -eq 0 ] && [ ! -e "$V/Projects/gone.md" ] && ok "01 rm regular file" || no "01 rm regular file" "rc=$rc $out"
 
 # 2. .tmp -> new final path mv
-echo body > "$V/Projects/note.md.tmp"
-out="$(run mv 'Projects/note.md.tmp' 'Projects/note.md')"; rc=$?
-[ $rc -eq 0 ] && [ -f "$V/Projects/note.md" ] && [ ! -e "$V/Projects/note.md.tmp" ] && ok "02 tmp -> new final mv" || no "02 tmp -> new final mv" "rc=$rc $out"
+echo body > "$V/Projects/note.tmp.md"
+out="$(run mv 'Projects/note.tmp.md' 'Projects/note.md')"; rc=$?
+[ $rc -eq 0 ] && [ -f "$V/Projects/note.md" ] && [ ! -e "$V/Projects/note.tmp.md" ] && ok "02 tmp -> new final mv" || no "02 tmp -> new final mv" "rc=$rc $out"
 
 # 3. atomic replacement of an existing final file stays allowed
-echo v2 > "$V/Projects/note.md.tmp"
-out="$(run mv 'Projects/note.md.tmp' 'Projects/note.md')"; rc=$?
+echo v2 > "$V/Projects/note.tmp.md"
+out="$(run mv 'Projects/note.tmp.md' 'Projects/note.md')"; rc=$?
 [ $rc -eq 0 ] && [ "$(cat "$V/Projects/note.md")" = "v2" ] && ok "03 atomic replace existing final" || no "03 atomic replace existing final" "rc=$rc $out"
 
 # 4. absolute input refused
@@ -76,13 +76,13 @@ out="$(run mv 'Projects/src11.md' 'escape/leaked.md')"; rc=$?
 # 12. symlinked directory resolving INSIDE the vault stays allowed
 mkdir -p "$V/Docs"
 ln -s "$V/Docs" "$V/docs-link"
-echo x > "$V/docs-link/in.md.tmp"
-out="$(run mv 'docs-link/in.md.tmp' 'docs-link/in.md')"; rc=$?
+echo x > "$V/docs-link/in.tmp.md"
+out="$(run mv 'docs-link/in.tmp.md' 'docs-link/in.md')"; rc=$?
 [ $rc -eq 0 ] && [ -f "$V/Docs/in.md" ] && ok "12 in-vault symlink allowed" || no "12 in-vault symlink allowed" "rc=$rc $out"
 
 # 13. paths containing spaces work
-echo x > "$V/Projects/demo dir/plan - my note.md.tmp"
-out="$(run mv 'Projects/demo dir/plan - my note.md.tmp' 'Projects/demo dir/plan - my note.md')"; rc=$?
+echo x > "$V/Projects/demo dir/plan - my note.tmp.md"
+out="$(run mv 'Projects/demo dir/plan - my note.tmp.md' 'Projects/demo dir/plan - my note.md')"; rc=$?
 [ $rc -eq 0 ] && [ -f "$V/Projects/demo dir/plan - my note.md" ] && ok "13 spaces in paths" || no "13 spaces in paths" "rc=$rc $out"
 
 # 14. canonically similar prefix outside the vault refused (defeats string-prefix checks)
@@ -98,6 +98,25 @@ printf '{"vault_path": "%s", "root_folder": "AI"}\n' "$BASE/vault-link" > "$BASE
 echo x > "$V/Projects/via-link.md"
 out="$(HOME="$BASE/home2" bash "$VFS" rm 'Projects/via-link.md' 2>&1)"; rc=$?
 [ $rc -eq 0 ] && [ ! -e "$V/Projects/via-link.md" ] && ok "15 symlinked configured root works" || no "15 symlinked configured root works" "rc=$rc $out"
+
+VREAL="$(cd "$V" && pwd -P)"
+
+# 16. absolute input names the resolved root and expected form
+out="$(run rm "$V/Projects/x.md")"; rc=$?
+[ $rc -ne 0 ] && case "$out" in *"vault root: $VREAL"*"Projects/<repo>/"*) ok "16 absolute path error names root";; *) no "16 absolute path error names root" "$out";; esac || no "16 absolute path error names root" "rc=0"
+
+# 17. missing source names the resolved root and expected form
+out="$(run rm 'Projects/does-not-exist.md')"; rc=$?
+[ $rc -ne 0 ] && case "$out" in *"vault root: $VREAL"*"Projects/<repo>/"*) ok "17 missing source error names root";; *) no "17 missing source error names root" "$out";; esac || no "17 missing source error names root" "rc=0"
+
+# 18. destination directory missing names the resolved root and expected form
+echo x > "$V/Projects/src18.md"
+out="$(run mv 'Projects/src18.md' 'NoSuchDir/dest18.md')"; rc=$?
+[ $rc -ne 0 ] && case "$out" in *"vault root: $VREAL"*"Projects/<repo>/"*) ok "18 destination directory missing names root";; *) no "18 destination directory missing names root" "$out";; esac || no "18 destination directory missing names root" "rc=0"
+
+# 19. outside-vault symlink refusal names the resolved root and expected form
+out="$(run rm 'escape/target.md')"; rc=$?
+[ $rc -ne 0 ] && case "$out" in *"vault root: $VREAL"*"Projects/<repo>/"*) ok "19 outside-vault symlink refusal names root";; *) no "19 outside-vault symlink refusal names root" "$out";; esac || no "19 outside-vault symlink refusal names root" "rc=0"
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"

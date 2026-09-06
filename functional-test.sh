@@ -6,11 +6,11 @@
 #
 #   bash functional-test.sh self-test      # harness self-tests, NO Claude calls
 #   bash functional-test.sh rules          # rules + doctrine reach a session (1 call, low cost)
-#   bash functional-test.sh skills         # each skill's contract facts load (11 calls, medium)
+#   bash functional-test.sh skills         # each skill's contract facts load (14 calls, medium)
 #   bash functional-test.sh agents         # fixture-based agent probes (15 calls, high)
 #   bash functional-test.sh agents <name>  # a single agent probe (1 call); unknown <name> ERRORS
 #   bash functional-test.sh orchestration  # no live calls — static + manual (see below)
-#   bash functional-test.sh all            # rules + skills + agents (27 calls, high)
+#   bash functional-test.sh all            # rules + skills + agents (30 calls, high)
 #
 # Isolation: every live probe runs inside a fresh `mktemp -d` workspace (its own
 # throwaway git repo when needed) — never against this checkout or any real
@@ -339,6 +339,15 @@ probe_skills() {
   skill_probe "red-team knows its engine and standing panel" \
     "Load the red-team skill. Report as the answer: the workflow it reuses for the review and the reviewer agents that are always on its panel." \
     "'review-mr' in a and 'code-reviewer' in a and 'silent-failure-hunter' in a and 'pr-test-analyzer' in a"
+  skill_probe "inversion knows its sections and horizons" \
+    "Load the inversion skill. Report as the answer its section headings in order and the two default horizons." \
+    "a.find('autopsy')>=0 and a.find('autopsy')<a.find('verdict')<a.find('rebuild')<a.find('adversary')<a.find('tripwires') and 'six months' in a and 'three weeks' in a"
+  skill_probe "review-threads knows its GitHub fix-then-resolve flow and merge gate" \
+    "Load the review-threads skill. Report as the answer what it does on GitHub after the fix commit for a thread is pushed, and the two conditions of its merge gate." \
+    "'resolve' in a and ('reply' in a or 'comment' in a) and 'merge' in a and 'green' in a"
+  skill_probe "incident-investigate knows its scope fence" \
+    "Load the incident-investigate skill. Without investigating anything, report as the answer what its first step does before any worker is spawned and where adjacent findings go." \
+    "('restate' in a or 'named items' in a) and 'outside scope' in a"
 }
 
 # ---------- probes: agents (fixture-based, event-verified) ----------
@@ -837,7 +846,7 @@ case "$mode" in
     probe_rules
     ;;
   skills)
-    announce 11 "none (read-only)" "medium"
+    announce 14 "none (read-only)" "medium"
     SNAP_BEFORE="$(snapshot_checkout)"
     echo "== Skills load their contract facts (schema-structured; interactive behavior stays manual) =="
     probe_skills
@@ -863,7 +872,7 @@ case "$mode" in
     exit 0
     ;;
   all)
-    announce 27 "implementer + frontend-designer + config-coupling-bait write inside their disposable repos" "high"
+    announce 30 "implementer + frontend-designer + config-coupling-bait write inside their disposable repos" "high"
     SNAP_BEFORE="$(snapshot_checkout)"
     echo "== Rules =="; probe_rules
     echo "== Skills =="; probe_skills

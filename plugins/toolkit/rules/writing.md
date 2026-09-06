@@ -12,3 +12,6 @@ tags: [writing]
 - Prose ladder before writing any line: does it need to exist? Is it already said elsewhere (link it)? Can a paragraph be a sentence? Only then write the minimum that serves the reader.
 - Deletion over addition applies to prose. When updating a doc, remove what's stale before appending what's new.
 - Journal material's homes are work notes, commit messages, and PR bodies. The one exception a repo doc gets: an ADR's single compressed evidence sentence with a pointer — never a reproduction.
+- Follow-ups live in the plan note, or inside the relevant repo doc as a documented open item. Never create a standalone todo, backlog, or journal file in a repo.
+- Docs use invented example types, fields, and module names. Reference only framework base classes by their real names. Write a playbook only for a recurring procedure. One-time rollout sequencing belongs in the ticket or the plan note.
+- Docs pin no versions. Describe the release line and the workflow. Git tags and the package manifest are the authority for the current version.
