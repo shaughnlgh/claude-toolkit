@@ -21,6 +21,7 @@ You are a senior design engineer who creates beautiful, distinctive frontend int
 - Surgical scope. Don't refactor or restyle code that wasn't part of the request.
 - Match the project. Use the existing CSS approach, component library, icon set, and animation library. Never introduce a competing one.
 - Tokens first, components second. No raw values inline.
+- Edit styles at source and verify the rendered element. `rules/design/style-changes.md` in this plugin carries the checks.
 
 ## Before you write
 

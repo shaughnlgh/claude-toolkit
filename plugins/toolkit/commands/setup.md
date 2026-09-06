@@ -61,7 +61,7 @@ Five optional additions, shown verbatim, explained in one line, and applied only
       `jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json`,
       then invoke with that literal absolute path (matches the allowlist rule).
       - `bash <plugin-root>/scripts/vault-fs.sh rm|mv ...` - vault file ops with
-        guardrails; atomic writes: Write tool to a `.tmp` file, then vault-fs.sh mv.
+        guardrails; atomic writes: Write tool to a `.tmp.md` file beside the destination, then vault-fs.sh mv.
         Vault root resolves from `~/.claude/obsidian-sync.json`.
       - `bash <plugin-root>/scripts/git-ro.sh <dir> <status|diff|log|show>` -
         read-only git anywhere; mutation subcommands refused.
