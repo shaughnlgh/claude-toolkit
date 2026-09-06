@@ -40,12 +40,13 @@ Guardrails — this is the point of the script:
 - **Refuses absolute paths and traversal lexically.** Any path starting with `/` or containing `..` is rejected before it's joined to the vault root — relative vault paths only.
 - **Canonical containment, symlinks included.** Every effective source and destination is resolved to its canonical path (a not-yet-existing destination via its existing parent) and must remain inside the canonical vault root, compared path-aware (`/vault-other` does not count as inside `/vault`). A symlinked directory inside the vault pointing outside it is refused; a symlink resolving to another location inside the vault is allowed. Fails closed with a `refused:` reason when containment cannot be established.
 - **Regular files only.** Directory sources and destinations, non-regular files, dangling symlink destinations, and a missing source are all refused.
-- **`mv` replaces an existing destination file by design.** Write-to-`.tmp` then `mv` is the toolkit's atomic-write mechanism — do not expect a no-clobber guard.
+- **`mv` replaces an existing destination file by design.** Write-to-`.tmp.md` then `mv` is the toolkit's atomic-write mechanism — do not expect a no-clobber guard.
 - **Unknown subcommands are refused**, not silently ignored.
+- Every path refusal (traversal, containment, directory ops, missing source, missing destination directory, non-regular file, dangling symlink destination) names the resolved vault root and the expected relative form (`Projects/<repo>/...`). The unknown-subcommand refusal is the one exception; it carries no hint.
 
 What it does NOT provide, deliberately: directory creation, locking or concurrency control, content/frontmatter validation, or a general filesystem sandbox beyond these two operations.
 
-Tests: `bash plugins/toolkit/scripts/tests/vault-fs/run-tests.sh` (15 behavior cases in a temporary vault; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/vault-fs/run-tests.sh` (19 behavior cases in a temporary vault; also run by `verify.sh`).
 
 ## git-ro.sh
 
