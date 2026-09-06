@@ -47,14 +47,14 @@ Every commit, merge, tag, push, or branch-cut instruction opens with three heade
 
 A commit handoff follows the header with a paste-ready block: `cd "<absolute dir>"` on its own line, then `git add -- "<path one>" "<path two>" && git commit -F - <<'EOF'`, the message, and the closing `EOF`. Double-quote each path and put `--` before the pathspec. Never `git add -A`: it stages work the Scope line does not name. The harness suggests a `Co-Authored-By` trailer in its default instructions. This doctrine overrides that suggestion: never append one.
 
-    Repo: gitlab.example.com/group/repo (acme/module-payments)
-    Branch: fix/PAY-123-timeout-retry
-    Scope: retry once on gateway timeout, 3 files
+    Repo: gitlab.example.com/group/repo (acme/module-example)
+    Branch: fix/PROJ-123-timeout-retry
+    Scope: retry once on request timeout, 3 files
 
 ```bash
 cd "/absolute/path/to/repo"
-git add -- "app/code/Acme/Payments/Model/Gateway.php" "app/code/Acme/Payments/etc/config.xml" "tests/GatewayTest.php" && git commit -F - <<'EOF'
-fix(payments): retry once on gateway timeout
+git add -- "app/code/Acme/Example/Model/Client.php" "app/code/Acme/Example/etc/config.xml" "tests/ClientTest.php" && git commit -F - <<'EOF'
+fix(example): retry once on request timeout
 
 Body in the repo's observed convention.
 EOF
