@@ -334,8 +334,8 @@ probe_skills() {
     "Load the wayfinder skill. Report as the answer what kinds of plan notes it emits." \
     "('umbrella' in a or 'parent' in a) and ('child' in a or 'stub' in a)"
   skill_probe "jira knows its fail-fast probe, verbatim-fetch rule, and read-only boundary" \
-    "Load the jira skill. Without fetching any real ticket, report as the answer: the exact command it runs first to fail fast on auth, which flag it uses to fetch ticket content byte-for-byte, which flag is banned as a content source, and the one word describing whether it ever writes back to Jira." \
-    "'jira me' in a and '--raw' in a and '--plain' in a and 'read-only' in a"
+    "Load the jira skill. Without fetching any real ticket, answer these four questions in one message: (1) the exact command it runs first to fail fast on auth, (2) the exact flag that fetches ticket content byte-for-byte, (3) the flag it must never use as a content source, (4) does it ever write back to Jira, answered yes or no." \
+    "'jira me' in a and '--raw' in a and '--plain' in a and ('no' in a or 'never' in a or 'read-only' in a)"
   skill_probe "red-team knows its engine and standing panel" \
     "Load the red-team skill. Report as the answer: the workflow it reuses for the review and the reviewer agents that are always on its panel." \
     "'review-mr' in a and 'code-reviewer' in a and 'silent-failure-hunter' in a and 'pr-test-analyzer' in a"
@@ -344,10 +344,10 @@ probe_skills() {
     "a.find('autopsy')>=0 and a.find('autopsy')<a.find('verdict')<a.find('rebuild')<a.find('adversary')<a.find('tripwires') and 'six months' in a and 'three weeks' in a"
   skill_probe "review-threads knows its GitHub fix-then-resolve flow and merge gate" \
     "Load the review-threads skill. Report as the answer what it does on GitHub after the fix commit for a thread is pushed, and the two conditions of its merge gate." \
-    "'resolve' in a and ('reply' in a or 'comment' in a) and 'merge' in a and 'green' in a"
+    "'resolve' in a and ('repl' in a or 'comment' in a) and 'merge' in a and 'green' in a"
   skill_probe "incident-investigate knows its scope fence" \
-    "Load the incident-investigate skill. Without investigating anything, report as the answer what its first step does before any worker is spawned and where adjacent findings go." \
-    "('restate' in a or 'named items' in a) and 'outside scope' in a"
+    "Load the incident-investigate skill. Without investigating anything, report as the answer: what does step 0, the scope fence, of the incident-investigate skill do, and where do adjacent findings go?" \
+    "('restat' in a or 'named item' in a or 'question asked' in a) and 'outside scope' in a"
 }
 
 # ---------- probes: agents (fixture-based, event-verified) ----------
