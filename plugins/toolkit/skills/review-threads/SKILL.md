@@ -6,10 +6,11 @@ description: >-
   review comments, threads, or bot findings (CodeRabbit, Copilot, human reviewers) on
   an MR or PR. Host-agnostic: glab for GitLab, gh for GitHub. Lists open threads and,
   for each, either pushes back by replying in that thread with reasoning or delegates a
-  fix, never both. On GitHub, after the fix commit is pushed, reply on the thread and
-  resolve it via GraphQL, because Copilot never resolves a thread itself. On GitLab,
-  wait for the bot's re-review, then reply and resolve only the threads it left open.
-  Reports thread state after and states the merge gate: all threads
+  fix, never both. Once a fix commit is pushed, verify the fix, reply on the thread, and
+  resolve it, on both hosts: via GraphQL on GitHub, because Copilot never resolves a
+  thread itself, and via the discussions API on GitLab, because CodeRabbit resolves a
+  thread only when it withdraws its own finding after a push-back reply, never after a
+  plain fix push. Reports thread state after and states the merge gate: all threads
   resolved and pipeline green, otherwise no merge recommendation. Never mutates git
   state and never posts without the user's request in this session. Do not fire for
   reviewing an MR from scratch (gitlab-mr-review) or for an uncommitted local diff
@@ -34,15 +35,23 @@ For each open thread decide one of two outcomes and say which.
 
 Fix: before delegating, confirm the local checkout is on the PR or MR head branch: `git rev-parse --abbrev-ref HEAD` must equal the head ref resolved in step 1. If it does not match, stop and tell the user which branch to check out. Otherwise delegate to `implementer` per the orchestration doctrine. The human commits and pushes per git-safety.
 
-On GitHub, once the fix commit is pushed, reply on the thread with one line, `Fixed in <short sha>: <what changed>`, then resolve the thread. Copilot never resolves a thread on its own, so leave it open forever otherwise.
+Once the fix commit is pushed, verify the fix on disk, reply `Fixed in <short sha>: <what changed>` on the thread, and resolve it. This rule holds on both hosts: neither bot resolves a thread from a fix push alone. Copilot never resolves a thread itself. CodeRabbit resolves a thread only when it withdraws its own finding after a push-back reply, not after a plain fix push.
+
+GitHub:
 
 `gh api graphql -f query='mutation($id:ID!,$body:String!){addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$id,body:$body}){comment{id}}}' -f id=<thread-node-id> -f body='Fixed in <short-sha>: <what-changed>'`
 
 `gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -f id=<thread-node-id>`
 
-On GitLab, wait for the bot's re-review of the new push. It resolves the threads its own fix satisfies. Re-fetch discussions and reply plus resolve only the threads it left open, using the notes and discussions-resolve endpoints from step 1. A human reviewer's threads resolve on their own confirmation, never on the skill's behalf.
+GitLab:
 
-Push back: reply in that thread with the reasoning and the evidence (`file:line`, a test, a doc). Post only after the user asks to post in this session, on both hosts. GitLab: `glab api --method POST "projects/<path>/merge_requests/<iid>/discussions/<id>/notes" --field body=@<file>`. GitHub: `gh api --method POST "repos/<owner>/<repo>/pulls/<n>/comments/<comment-id>/replies" -F body=@<file>`, where `<comment-id>` is the comment's `databaseId` from the thread fetch, not the GraphQL node id. Show the reply text before posting. Never resolve a pushed-back thread on the reviewer's behalf.
+`glab api --method POST "projects/<path>/merge_requests/<iid>/discussions/<id>/notes" --field body=@<file>`
+
+`glab api --method PUT "projects/<path>/merge_requests/<iid>/discussions/<id>" --field resolved=true`
+
+A human reviewer's threads resolve on their own confirmation, never on the skill's behalf.
+
+Push back: reply in that thread with the reasoning and the evidence (`file:line`, a test, a doc). Post only after the user asks to post in this session, on both hosts. GitLab: `glab api --method POST "projects/<path>/merge_requests/<iid>/discussions/<id>/notes" --field body=@<file>`. GitHub: `gh api --method POST "repos/<owner>/<repo>/pulls/<n>/comments/<comment-id>/replies" -F body=@<file>`, where `<comment-id>` is the comment's `databaseId` from the thread fetch, not the GraphQL node id. Show the reply text before posting. Never resolve a pushed-back thread on the reviewer's behalf: a bot that agrees with the push back withdraws its own finding and resolves the thread itself, and a bot that disagrees replies, and that reply gets triaged like a new thread.
 
 ## 4. Report thread state
 
