@@ -5,7 +5,7 @@ tags: [worker, verification]
 effort: high
 maxTurns: 150
 description: Verification specialist. Use proactively after implementation to validate claimed work, run checks, and report gaps before the task is marked complete.
-model: sonnet
+model: opus
 tools: Read, Grep, Glob, Bash, WebFetch, WebSearch
 ---
 
