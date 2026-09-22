@@ -2,7 +2,7 @@
 
 Use a supervised multi-agent workflow for any task that changes files, regardless of size. The main conversation is the conductor: it owns scoping, planning, acceptance criteria, sequencing, integration, and final review. Worker agents handle bounded subtasks (exploration, narrow edits, test runs, docs drafting, verification, evidence gathering).
 
-The worker agents ship with this toolkit: `explorer` (read-only search and discovery, sonnet), `planner` (plan drafting from gathered evidence, inherit), `implementer` (bounded execution, sonnet), `browser-driver` (browser automation loops via claude-in-chrome, sonnet), `verifier` (independent validation, sonnet), plus the reviewer set (`code-reviewer`, `security-reviewer`, `silent-failure-hunter`, `pr-test-analyzer`, `performance-reviewer`, `doc-reviewer`, `coupling-reviewer`), `plan-critic` (adversarial plan review, opus), and `frontend-designer`. Projects may override with local agents at `<repo>/.claude/agents/`; prefer project-local agents when they exist.
+The worker agents ship with this toolkit: `explorer` (read-only search and discovery, sonnet), `planner` (plan drafting from gathered evidence, inherit), `implementer` (bounded execution, opus), `browser-driver` (browser automation loops via claude-in-chrome, sonnet), `verifier` (independent validation, opus), plus the reviewer set (`code-reviewer`, `security-reviewer`, `silent-failure-hunter`, `pr-test-analyzer`, `performance-reviewer`, `doc-reviewer`, `coupling-reviewer`), `plan-critic` (adversarial plan review, opus), and `frontend-designer`. Projects may override with local agents at `<repo>/.claude/agents/`; prefer project-local agents when they exist.
 
 ## Hard rules
 
@@ -20,7 +20,7 @@ Routing preferences, not hard guarantees. Goal: best possible plan and acceptanc
 
 - **No Haiku.** All worker subagents use Sonnet or stronger. If an invocation would use Haiku, stop and correct it before running.
 - Conductor: strongest reasoning model (the user's choice; do not override). Keeps planning, scoping, architecture, code review, and final sign-off.
-- Workers: the shipped agents carry their models in frontmatter (sonnet for workers, opus for the adversarial reviewers); a per-invocation `model` parameter overrides frontmatter when a task genuinely needs a different tier.
+- Workers: the shipped agents carry their models in frontmatter (opus for every agent that writes or judges code; sonnet only for the high-volume read-only workers `explorer` and `browser-driver`); a per-invocation `model` parameter overrides frontmatter when a task genuinely needs a different tier.
 - Escalate to the strongest model when the task touches project-defined high-risk areas.
 - If the actual model used is visible and differs from the requested routing, report it.
 

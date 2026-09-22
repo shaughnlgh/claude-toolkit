@@ -8,6 +8,7 @@ tools:
   - Bash
 model: opus
 source: custom
+effort: high
 tags: [review]
 ---
 
