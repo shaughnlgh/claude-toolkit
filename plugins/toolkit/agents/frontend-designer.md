@@ -10,6 +10,7 @@ tools:
   - Grep
 model: opus
 source: custom
+effort: high
 tags: [frontend, ui]
 ---
 
