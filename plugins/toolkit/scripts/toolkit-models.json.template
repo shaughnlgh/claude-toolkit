@@ -1,0 +1,19 @@
+{
+  "_readme": "Copy to ~/.claude/toolkit-models.json. Each key under \"agents\" is a shipped toolkit agent name (see plugins/toolkit/agents/*.md). An empty string keeps the model set in that agent's own frontmatter. A value can be any Claude Code model alias (\"sonnet\", \"opus\", \"fable\") or a full model ID such as \"claude-opus-5-5\". \"haiku\" is refused by the toolkit model policy. An explicit per-call model, or CLAUDE_CODE_SUBAGENT_MODEL_FORCE, always wins over this file. This applies to Agent-tool spawns only, not Workflow scripts (the MR review engine keeps its own model settings).",
+  "agents": {
+    "browser-driver": "",
+    "code-reviewer": "",
+    "coupling-reviewer": "",
+    "doc-reviewer": "",
+    "explorer": "",
+    "frontend-designer": "",
+    "implementer": "",
+    "performance-reviewer": "",
+    "plan-critic": "",
+    "planner": "",
+    "pr-test-analyzer": "",
+    "security-reviewer": "",
+    "silent-failure-hunter": "",
+    "verifier": ""
+  }
+}

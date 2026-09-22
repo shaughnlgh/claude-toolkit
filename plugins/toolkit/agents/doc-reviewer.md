@@ -6,8 +6,9 @@ tools:
   - Grep
   - Glob
   - Bash
-model: sonnet
+model: opus
 source: custom
+effort: high
 tags: [review]
 ---
 
