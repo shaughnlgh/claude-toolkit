@@ -1,8 +1,8 @@
 # Hooks
 
-The toolkit ships ten hook scripts that run automatically once the plugin is installed — no opt-in, no separate config. This page is the full accounting, in the spirit of transparency: exactly what each one checks, what it hard-blocks versus merely asks you to confirm, and every environment variable it honors. The README's Docs list links here in one line; this is the full version — the one to read before trusting the toolkit with a repo.
+The toolkit ships eleven hook scripts that run automatically once the plugin is installed — no opt-in, no separate config. This page is the full accounting, in the spirit of transparency: exactly what each one checks, what it hard-blocks versus merely asks you to confirm, and every environment variable it honors. The README's Docs list links here in one line; this is the full version — the one to read before trusting the toolkit with a repo.
 
-Two properties hold across all ten:
+Two properties hold across all eleven:
 
 - **Fails safe.** No hook can crash or hang your session. Where "safe" lands differs by hook: `protect-files.sh` and `block-dangerous-commands.sh` require `jq` to parse the tool call, so if `jq` is missing they hard-block that one write or command rather than let a security check that can't run pass silently. `scan-secrets.sh` degrades to a no-op without `jq` (it cannot parse the write, so it does not block). `notify.sh` always fires with its fixed message and only no-ops when no OS notifier is available. `session-start.sh` and `subagent-rules.sh` both fall back to plain-stdout context. `context-sentinel.sh` is a silent no-op without `jq` or a readable transcript, and never blocks anything regardless. `conductor-guard.sh` likewise fails open without `jq` and can only ever ask, never deny. Either way, the worst case is one blocked tool call or a slightly thinner context injection — never a broken session.
 - **Reads no network** — with one narrow exception: `session-start.sh`'s verbose mode (`TOOLKIT_SESSION_VERBOSE=1`) calls `gh pr view` when the `gh` CLI is installed, which does reach GitHub's API for the current repo's PR status. Every other code path in every hook is local only: file reads, git plumbing, `jq`, and OS notification APIs.
@@ -21,6 +21,7 @@ Two properties hold across all ten:
 | `context-sentinel.sh` | PostToolUse (all tools) | Watches the conversation's context size via the session transcript; past 200k/400k/600k tokens it injects a model-visible nudge to delegate and plan a handoff (user-visible too from 400k) — advisory only, never blocks |
 | `conductor-guard.sh` | PreToolUse (`Edit\|Write\|NotebookEdit`) | Prompts for confirmation when the main conversation (the conductor, not a subagent) edits a project file directly — doctrine delegates every change to a worker; `TOOLKIT_CONDUCTOR_EDITS=1` disables for a session |
 | `design-rules-reminder.sh` | PreToolUse (`Edit\|Write\|NotebookEdit`) | When the target file matches a frontend pattern (extension or directory segment), injects a one-line pointer at the `rules/design.md` catalog into model context, once per session — advisory only, never blocks |
+| `agent-model.sh` | PreToolUse (`Agent`) | Injects the model from `~/.claude/toolkit-models.json` into an Agent call when the config names that agent and the call carries no model. Advisory, fails open; warnings surface as a user-visible `systemMessage` |
 
 ## The boundary model — what enforces what
 
@@ -138,6 +139,28 @@ The delegation guard. The orchestration doctrine delegates every change, however
 The guard is matcher-scoped to `Edit`/`Write`/`NotebookEdit`, so a conductor write spelled as `Bash` (`sed -i`, `echo >`, `git apply`) never consults it, for the same unbounded-ways-to-spell-a-write reason given in the boundary model above — that half of the doctrine is discipline, not enforcement.
 
 The outside-`cwd` exemption assumes the standard project-checkout-plus-external-vault layout; a session whose `cwd` IS the vault or `~/.claude`, or multi-repo edits via absolute sibling paths, will be misclassified — advisory hook, not a boundary.
+
+## agent-model.sh
+
+**Event:** `PreToolUse`, matcher `Agent`.
+
+Reads `~/.claude/toolkit-models.json` (or `$TOOLKIT_MODELS_FILE`, see below) and, when the config names a model for the agent an `Agent` tool call is about to spawn, adds that model to the call. It never shadows the agent file itself. The agent's prompt, tools, and every other field on the call pass through untouched, only the model changes.
+
+The agent name comes from `tool_input.subagent_type`, with a leading `toolkit:` scope stripped, so both `toolkit:implementer` and a bare `implementer` resolve to the same config key. A value of `""` in the config means "use the agent file's own default" and is treated the same as the agent being absent from the config.
+
+Claude Code's `PreToolUse` contract replaces `tool_input` wholesale with whatever `updatedInput` the hook returns, so a partial object like `{"model": "opus"}` would drop every other field on the call and fail schema validation. This hook always emits the full original `tool_input` plus the added `model` key, never a partial object.
+
+An explicit per-call model on the tool call itself always wins over this hook; the hook only fills in a model when the call didn't already carry one. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, when Claude Code has it set, wins over both the per-call model and this hook.
+
+This hook only reaches `Agent`-tool spawns. Workflow-script `agent()` calls (the MR review engine) are not confirmed to pass through `PreToolUse`, so they keep whatever model the workflow script itself sets, unaffected by this config.
+
+A configured model value containing `haiku` (case-insensitive) is refused, because the toolkit model policy runs no worker on Haiku, and the call proceeds with no model added, the same as an unlisted agent.
+
+**Hard blocks / asks:** none. This hook never blocks or asks; it only adds a `model` field to a call the permission system was already going to process.
+
+**Env vars:** `TOOLKIT_MODELS_FILE` overrides the config path in place of `~/.claude/toolkit-models.json` (used by the fixture tests below to point at a fixture config without touching a real one).
+
+**Failure mode:** fails open. No `jq`, empty stdin, or a missing config file all exit silently with no model added. A malformed config (invalid JSON, or `agents` not an object) is announced once per call as a user-visible `systemMessage` and then ignored, the same as an unlisted agent or an invalid model value.
 
 ## design-rules-reminder.sh
 

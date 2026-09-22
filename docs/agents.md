@@ -2,7 +2,7 @@
 
 The toolkit ships 14 agents. The main chat is the **conductor**: it plans, delegates, and accepts. Every change is delegated, no matter how small — the conductor edits nothing itself unless the human explicitly says otherwise. Agents are **leaf workers** — each carries an explicit tool allowlist and none of them get the Agent tool, so none can spawn sub-agents. A worker that hits a blocker, a question, or an ambiguity reports it back to the conductor instead of delegating around it; the conductor decides how to proceed and remains the only role that decides "done". No agent runs on Haiku. Returns are distilled — file paths and one-line findings, never pasted file contents.
 
-Tools and model are set in each agent's own frontmatter. `verify.sh` statically proves the leaf property for all 14: no agent's tool allowlist includes `Agent` or `Task`, none omits an allowlist, and none is routed to Haiku.
+Tools and model are set in each agent's own frontmatter. A per-machine `~/.claude/toolkit-models.json`, set up by `/setup`, can re-route an individual agent's model without touching that frontmatter; see [`overrides.md`](overrides.md). `verify.sh` statically proves the leaf property for all 14: no agent's tool allowlist includes `Agent` or `Task`, none omits an allowlist, and none is routed to Haiku.
 
 Invoke by scoped name (`toolkit:<name>`) so the plugin copy resolves rather than a same-named project-local agent. Projects may override with local agents at `<repo>/.claude/agents/`; project-local agents win when they exist.
 
