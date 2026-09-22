@@ -20,6 +20,12 @@
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/conductor-guard.sh\"", "timeout": 10 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/design-rules-reminder.sh\"", "timeout": 10 }
         ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/agent-model.sh\"", "timeout": 10 }
+        ]
       }
     ],
     "PostToolUse": [

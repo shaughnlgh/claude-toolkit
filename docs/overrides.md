@@ -21,6 +21,10 @@ Doctrine and rules are picked up because the hook loads them fresh each session.
 
 Two rules are exceptions: `frontend` and `design` are reference-only (never injected), so there is nothing for a rule override to replace. `frontend`'s content lives in the `frontend-designer` agent — override that instead. `design` is just an index over the `rules/design/` catalog, with no equivalent component to override. `/override` will tell you this if you try.
 
+## Agent models without an override
+
+To change only an agent's model, do not copy the agent file. Set it in `~/.claude/toolkit-models.json` instead, built from the shipped `scripts/toolkit-models.json.template` and offered by `/setup`. A copied agent under `~/.claude/agents/` freezes that agent's future updates, so it is the wrong tool for a model-only change. The `agent-model.sh` hook reads the config and applies the model on Agent-tool spawns, without touching the agent file at all.
+
 ## The `/override` command
 
 `/override [type] [name]`:

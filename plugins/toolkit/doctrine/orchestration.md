@@ -20,7 +20,7 @@ Routing preferences, not hard guarantees. Goal: best possible plan and acceptanc
 
 - **No Haiku.** All worker subagents use Sonnet or stronger. If an invocation would use Haiku, stop and correct it before running.
 - Conductor: strongest reasoning model (the user's choice; do not override). Keeps planning, scoping, architecture, code review, and final sign-off.
-- Workers: the shipped agents carry their models in frontmatter (opus for every agent that writes or judges code; sonnet only for the high-volume read-only workers `explorer` and `browser-driver`); a per-invocation `model` parameter overrides frontmatter when a task genuinely needs a different tier.
+- Workers: the shipped agents carry their models in frontmatter (opus for every agent that writes or judges code; sonnet only for the high-volume read-only workers `explorer` and `browser-driver`); a per-invocation `model` parameter overrides frontmatter when a task genuinely needs a different tier; a per-machine `~/.claude/toolkit-models.json` (set up by `/setup`) re-routes a named agent's model on Agent-tool spawns without shadowing the agent file.
 - Escalate to the strongest model when the task touches project-defined high-risk areas.
 - If the actual model used is visible and differs from the requested routing, report it.
 
