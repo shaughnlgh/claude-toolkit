@@ -21,6 +21,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved this way.
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
 | `validate-plan.py` | Validates a plan note against the plan-workflow contract | Read-only — never edits the note; no network, no config, stdlib only |
 | `obsidian-sync.json.template` | Vault config template `setup` instantiates to `~/.claude/obsidian-sync.json` | n/a — config, not an executable |
+| `toolkit-models.json.template` | Per-agent model routing config template `setup` instantiates to `~/.claude/toolkit-models.json` | n/a, config, not an executable |
 | `design-detector/` | Deterministic, no-LLM detector for AI-generated frontend anti-patterns (most of 46 rules) | Vendored from Impeccable (Apache-2.0, attributed); read-only; zero-dep by default |
 
 ## vault-fs.sh
@@ -114,6 +115,12 @@ Tests: `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` (31 behav
 The source template `setup` copies to `~/.claude/obsidian-sync.json` on first setup. It is config, not an executable — this is what `vault-fs.sh` (and the vault-writing skills) read `vault_path` and `root_folder` from to resolve the vault root.
 
 Fields, by what each observably does: `vault_path` (per-machine, set during setup — the physical vault root), `root_folder` (the toolkit-owned subtree inside the vault; everything the toolkit writes lives under it), `plan_folder_template` (the canonical plan-directory layout the planning workflow creates and consumers like mc-catchup enumerate), and `_readme` (human guidance only, read by nothing). A live config may carry additional legacy or external-consumer fields; the toolkit ignores them and never rewrites the file.
+
+## toolkit-models.json.template
+
+The source template `setup` copies to `~/.claude/toolkit-models.json`. It is config, not an executable. The `agent-model.sh` PreToolUse hook (see `docs/hooks.md`) reads it to re-route a named agent's model on an Agent-tool spawn, without shadowing the agent file itself.
+
+Fields: `agents` (one key per shipped agent name; an empty string keeps the model set in that agent's own frontmatter; any Claude Code model alias or full model ID is accepted; `haiku` is refused) and `_readme` (human guidance only, read by nothing). An explicit per-call model, or `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, wins over this file. It applies to Agent-tool spawns only, not Workflow scripts.
 
 ## design-detector/
 

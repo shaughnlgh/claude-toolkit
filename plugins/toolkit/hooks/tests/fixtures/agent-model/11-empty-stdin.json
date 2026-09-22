@@ -1,0 +1,7 @@
+{
+  "name": "an empty stdin object is silent",
+  "stdin": {},
+  "env": { "TOOLKIT_MODELS_FILE": "fixtures/agent-model/aux/models.json" },
+  "expect_exit": 0,
+  "expect_stdout_not_contains": ["updatedInput"]
+}
