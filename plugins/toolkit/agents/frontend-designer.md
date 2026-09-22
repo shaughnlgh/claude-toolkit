@@ -8,7 +8,7 @@ tools:
   - Bash
   - Glob
   - Grep
-model: sonnet
+model: opus
 source: custom
 tags: [frontend, ui]
 ---
