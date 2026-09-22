@@ -1,0 +1,7 @@
+{
+  "name": "scoped toolkit name maps to the configured model",
+  "stdin": { "tool_name": "Agent", "tool_input": { "description": "d", "prompt": "p", "subagent_type": "toolkit:implementer" } },
+  "env": { "TOOLKIT_MODELS_FILE": "fixtures/agent-model/aux/models.json" },
+  "expect_exit": 0,
+  "expect_stdout_contains": ["updatedInput", "\"model\":\"opus\"", "\"prompt\":\"p\"", "\"description\":\"d\"", "\"subagent_type\":\"toolkit:implementer\""]
+}

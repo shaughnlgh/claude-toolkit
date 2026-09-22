@@ -126,7 +126,7 @@ else
   no "docs/rules.md missing mention of injected rule(s):${missing_in_docs:- (rule list itself unparsed)}"
 fi
 [ "$(ls $P/doctrine/*.md 2>/dev/null | wc -l)" -eq 13 ] && ok "13 doctrine files" || no "13 doctrine files"
-[ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 10 ] && ok "10 hook scripts" || no "10 hook scripts"
+[ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 11 ] && ok "11 hook scripts" || no "11 hook scripts"
 for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js \
          skills/gitlab-mr-review/scripts/post_mr_comments.py \
          skills/grill/SKILL.md \
@@ -138,6 +138,25 @@ done
 want "hooks.json wires subagent-rules.sh to SubagentStart" \
   "$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(json.dumps(d.get('hooks',{}).get('SubagentStart',[])))" "$P/hooks/hooks.json" 2>/dev/null)" \
   "subagent-rules.sh"
+# agent-model.sh only fires if hooks.json wires it to a PreToolUse entry matched exactly
+# on "Agent". A broader or missing matcher means it never reaches an Agent-tool spawn.
+want "hooks.json wires agent-model.sh to PreToolUse matcher Agent" \
+  "$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); m=[e for e in d.get('hooks',{}).get('PreToolUse',[]) if e.get('matcher')=='Agent']; print(json.dumps(m))" "$P/hooks/hooks.json" 2>/dev/null)" \
+  "agent-model.sh"
+# toolkit-models.json.template must offer every shipped agent under "agents", or a new
+# agent silently has no model-routing entry to fill in.
+tm_match="$(python3 -c "
+import json,glob,os,sys
+P=sys.argv[1]
+agents=sorted(os.path.basename(f)[:-3] for f in glob.glob(P+'/agents/*.md'))
+tmpl=json.load(open(P+'/scripts/toolkit-models.json.template'))
+keys=sorted(tmpl.get('agents',{}).keys())
+print('MATCH' if agents==keys else 'MISMATCH agents=%s template=%s' % (agents, keys))
+" "$P" 2>/dev/null)"
+case "$tm_match" in
+  MATCH) ok "toolkit-models.json.template lists every shipped agent" ;;
+  *) no "toolkit-models.json.template lists every shipped agent (${tm_match:-python3 failed})" ;;
+esac
 # coupling-reviewer must be both registered in review-mr.js's REVIEWERS array (or it never
 # runs in an MR review) and present as an agent file (or the registration invokes nothing).
 grep -qF "toolkit:coupling-reviewer" "$P/workflows/review-mr.js" 2>/dev/null && ok "review-mr.js REVIEWERS registers toolkit:coupling-reviewer" || no "review-mr.js REVIEWERS missing toolkit:coupling-reviewer"
@@ -164,7 +183,7 @@ else
   # exit code is part of the pass condition and the RESULT line is picked by prefix,
   # not by trailing position: a merged stderr line must not masquerade as the verdict.
   out="$(printf '%s' "$hout" | grep -E '^RESULT: ' | tail -1)"
-  if [ "$hrc" -eq 0 ] && suite_pass "$out" 143; then
+  if [ "$hrc" -eq 0 ] && suite_pass "$out" 154; then
     ok "hook fixture suite"
   else
     no "hook fixture suite (exit $hrc, got: ${out:0:60})"

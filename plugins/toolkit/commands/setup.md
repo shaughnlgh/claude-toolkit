@@ -130,6 +130,15 @@ Before offering ANY removal, diff each local copy against the plugin's version (
 
 Present all findings as one table (component, local path, effect, identical-or-modified), then ask ONE question: remove the identical ones now? Modified ones are individual decisions. Removal of hook registrations must leave `~/.claude/settings.json` valid JSON (mind trailing commas when deleting the last entry of an object).
 
+### 8. Worker models (per-agent routing, optional)
+
+Read `~/.claude/toolkit-models.json`. If `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set in the environment, report first that it overrides every agent's model, including this config.
+
+- Missing: every agent runs on the model in its own frontmatter. Print a table (agent, model) built by reading `model:` from each `agents/*.md` at the plugin root. Offer to create the config from the shipped template (`scripts/toolkit-models.json.template` at the plugin root); apply only on an explicit yes. Then ask which agents to re-route and to what, and write those values.
+- Present: validate it parses as JSON with an `agents` object. Flag any key that is not a shipped agent name (likely a typo; the hook will never match it), any value that is not a string, and any value containing `haiku` (refused by the model policy). Print the effective table: the config value when it is non-empty, otherwise the frontmatter value, with a column naming which one applies. Never rewrite the file; offer fixes only.
+
+The routing is applied by the `agent-model.sh` hook to Agent-tool spawns only, so Workflow scripts (the MR review engine) keep their own model settings. Copying an agent under `~/.claude/agents/` is not needed for a model change, and doing so would freeze that agent's future updates instead.
+
 ## Readiness report
 
 End with a table:
@@ -145,6 +154,7 @@ End with a table:
 | Prompt-free scripts + orchestration env | configured / offered / declined | check 6 |
 | Auto-update | on / offered / declined | check 6 |
 | Local conflicts | none / N found | migration (check 7) |
+| Worker model routing | default (frontmatter) / configured / needs fix | check 8 |
 
 One line of verdict at the end: fully ready, or the single next action to get there.
 
