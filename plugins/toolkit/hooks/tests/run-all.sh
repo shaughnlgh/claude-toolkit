@@ -141,6 +141,12 @@ declare -F run_design_rules_reminder_checks >/dev/null || { echo "FATAL: run_des
 echo "== design rules reminder (non-fixture) =="
 run_design_rules_reminder_checks
 
+# Checks that need a symlink, which the plugin installer does not copy into the installed tree.
+source "$ROOT/tests/subagent-rules-dangling-symlink-check.sh" || { echo "FATAL: cannot source subagent-rules-dangling-symlink-check.sh" >&2; exit 2; }
+declare -F run_subagent_rules_dangling_symlink_checks >/dev/null || { echo "FATAL: run_subagent_rules_dangling_symlink_checks not defined" >&2; exit 2; }
+echo "== subagent-rules dangling symlink (non-fixture) =="
+run_subagent_rules_dangling_symlink_checks
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 if [[ $FAIL -gt 0 ]]; then
