@@ -60,9 +60,10 @@ Body, in plain sentences, covering:
 - Where the code lives: repo, branch, and the key files and paths touched.
 - Open questions (anything unresolved that the next person needs to decide or ask about).
 - The single next concrete step. One step, not a list, so the next person knows exactly where to start.
+- Promote what outlives the plan. Name each finding a future contributor would need without this note: a behavior, a gotcha, a decision. The code MR carries each finding into the repo doc that `doctrine/repo-artifacts.md` names for its kind, or into the module's README, behind that file's consent gate. Handoff never writes that doc itself (see Boundary), so record each finding's target path here and whether the MR has written it yet. Once the doc exists, link its path from the plan's Linked Artifacts. If no active plan exists, list the path in this note instead. If nothing outlives the plan, write "Nothing to promote" so the omission is deliberate. If the project treats the repo as legacy, never promote into it. Leave that knowledge in the vault topic note.
 
 Writing style for the note: plain sentences. Never use em dashes or semicolons to split text. Use separate sentences or commas instead. This matches the vault's writing rules for plan and topic notes.
 
 ## Boundary
 
-Handoff complements `plan-workflow`'s session closure, it does not replace it. It does not fire in place of recording a `sessions:` entry on the plan note, that still happens per `plan-workflow`'s Session Closure rules. Handoff writes only to the vault, never to the project repo. Handoff never changes a plan note's `status` and never marks a plan complete, it only adds a link from the plan's Linked Artifacts section when case 1 applies.
+Handoff complements `plan-workflow`'s session closure, it does not replace it. It does not fire in place of recording a `sessions:` entry on the plan note, that still happens per `plan-workflow`'s Session Closure rules. Handoff writes only to the vault, never to the project repo. Handoff never changes a plan note's `status` and never marks a plan complete, it only adds links to the plan's Linked Artifacts section when case 1 applies.
