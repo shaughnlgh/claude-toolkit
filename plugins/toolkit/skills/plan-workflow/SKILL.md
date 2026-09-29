@@ -218,7 +218,7 @@ sessions:
 - Open Questions
 - Plan Changes During Execution — initially empty; updated during execution if reality diverges from the plan (changed assumptions, changed affected files, deviations, validation changes)
 - Related Topics — use `[[wiki links]]` here
-- Linked Artifacts — the heading is present from creation but starts with no links. It lists the sibling artifacts actually created for this plan (e.g. `[[handoff - <plan-name>]]` when the handoff skill writes one). Link an artifact only once it exists — never speculatively.
+- Linked Artifacts — the heading is present from creation but starts with no links. It lists the sibling artifacts actually created for this plan (e.g. `[[handoff - <plan-name>]]` when the handoff skill writes one) and the repo doc paths promoted from it under Finalize. Link an artifact only once it exists — never speculatively.
 
 ### Implementation Steps must show the code, not just describe it
 
@@ -317,7 +317,7 @@ The record of the work is the plan note (kept current during execution), git (th
 
 ### Finalize
 
-Mark a plan done once the MRs are merged: post a comment to the ticket, transition the ticket status, and set the plan frontmatter to `completed`. Tooling may automate these steps.
+Mark a plan done once the MRs are merged: post a comment to the ticket, transition the ticket status, and set the plan frontmatter to `completed`. Tooling may automate these steps. Before the final MR merges, promote what outlives the plan as the handoff skill's "Promote what outlives the plan" item describes, so Linked Artifacts names each promoted path, or reads "Nothing to promote", before the plan is set to `completed`.
 
 ### Do not mark a plan complete if
 
