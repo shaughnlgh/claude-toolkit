@@ -20,6 +20,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved this way.
 | `override.sh` | Copy a plugin doctrine, rule, agent, or skill into `~/.claude/` to override it (drives `/override`) | Name only (no paths); refuses unknown/ambiguous names; won't clobber an existing override |
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
 | `validate-plan.py` | Validates a plan note against the plan-workflow contract | Read-only — never edits the note; no network, no config, stdlib only |
+| `topic-recall.py` | Lexical topic search over the vault index, with a frontmatter fallback and an optional repo `docs/` source | Read-only against the vault and the repo, stdlib only, skips symlinks and non-regular files, INDEX.md included, reads at most 64 KiB of each scanned note or doc, stops at a 3-second deadline |
 | `obsidian-sync.json.template` | Vault config template `setup` instantiates to `~/.claude/obsidian-sync.json` | n/a — config, not an executable |
 | `toolkit-models.json.template` | Per-agent model routing config template `setup` instantiates to `~/.claude/toolkit-models.json` | n/a, config, not an executable |
 | `design-detector/` | Deterministic, no-LLM detector for AI-generated frontend anti-patterns (most of 46 rules) | Vendored from Impeccable (Apache-2.0, attributed); read-only; zero-dep by default |
@@ -109,6 +110,34 @@ Exit codes: `0` valid, `1` contract violation(s) (each printed as `VIOLATION: ..
 When it runs: the `plan-workflow` skill requires a passing validation after every plan-note write, before presenting a plan for approval, before starting execution, and at session closure.
 
 Tests: `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` (31 behavior cases over 30 fixtures plus a direct nonexistent-path case; also run by `verify.sh`).
+
+## topic-recall.py
+
+Lexical search over the vault's topic notes and, when asked, a repo's `docs/` folder. Session start, plan-workflow, crawl, and execute-workflow run it to recall what earlier sessions recorded about a repo or a task.
+
+Invoke:
+
+```bash
+python3 "$PLUGIN_ROOT/scripts/topic-recall.py" [--repo <name>] [--repo-root <path>] [--top N] [--format text|json] [query words...]
+```
+
+Defaults are `--top 10` and `--format text`. The vault root comes from `~/.claude/obsidian-sync.json` (`vault_path` plus `root_folder`).
+
+Source: the script reads `<vault_path>/<root_folder>/INDEX.md`, which Mission Control writes. The toolkit never writes it. Only rows under `## Topics by domain` count, up to the next level-2 heading, so the plan links under `## Projects` stay out. The script reads the parenthesized meta of each row by content, not by position. A segment that starts with `verified` or `unverified` is the verified state, a segment that equals `stale` after the script strips the `⚠` sign and whitespace marks the row stale, and any other segment is the comma-separated repo list. Mission Control omits the repo segment when a topic has no repos, so rows ending in `(unverified)` or `(verified 2026-08-10; ⚠ stale)` parse with no repos. The script reads a regular INDEX.md whole. If INDEX.md is missing, unreadable, a symlink, not a regular file, or has no topic rows, the script walks the root folder instead and keeps files whose frontmatter says `type: topic`. If INDEX.md exists but is a symlink, is not a regular file, or cannot be read, the script prints one line naming the path to stderr before it falls back. Text output from the fallback starts with `source: frontmatter scan (INDEX.md unavailable)`, and every fallback row reports `stale` as false.
+
+File reads: the frontmatter fallback walk and the repo docs walk skip symlinked files, symlinked directories, and any entry that is not a regular file, such as a FIFO or a device. The script reads at most 64 KiB of each file, drops a leading UTF-8 byte order mark, and keeps at most the first 120 lines of that. It ignores frontmatter that does not close within those lines. Frontmatter values can be plain scalars, `[a, b]` lists, `- item` lists, or YAML block scalars (`>`, `>-`, `>+`, `|`, `|-`, `|+`). The script joins the indented lines of a block scalar with spaces.
+
+Repo source: if `--repo-root <path>` is given, the script adds the Markdown files under `<path>/docs` to the vault rows before ranking. The script makes the path absolute first, so `--repo-root .` names the repo of the current directory. If `--repo` is not passed, it defaults to the basename of that absolute path. The walk visits directories and files in sorted order, skips directories that start with `.` or are named `node_modules`, keeps files at most 4 path components below `docs/` (the files `find -maxdepth 4` lists), and skips `.md` files that start with `.`. The walk lists the files of a directory before it enters its subdirectories, and the 400-file cap applies in that order, so the files directly under `docs/` count first. A missing `docs/` adds nothing. The title is the frontmatter `title`, else the first `# ` heading after the frontmatter, else the file name without `.md`. The summary is the frontmatter `summary`, else the first paragraph after the frontmatter that does not start with `#` or `<!--`. The script joins the lines of that paragraph with spaces up to the first blank line. Either summary is cut at 200 characters. A doc whose frontmatter does not close within the first 120 lines gets the file name as its title and an empty summary. Each repo row lists the repo basename as its only repo, reports `verified` as `repo`, and carries `source: repo`. Vault rows carry `source: vault`.
+
+Scoring: the script lower-cases the query, splits it on `[a-z0-9]+`, and drops tokens shorter than 3 characters. Each distinct query token found in a title adds 8, and each distinct query token found in a summary adds 3. For a vault row, a `--repo` value listed in the row's repos adds 6 once. A repo row gets no repo bonus, because every repo row lists the repo. The repo row for `<repo-root>/docs/README.md` adds 2 if it has at least one token hit, so the docs index leads its folder on equal hits. With no query words, every repo row scores 0. Rows that score 0 are dropped. Hits sort by score, highest first, then by title. A stale or unverified row scores the same as a verified one.
+
+Output: text prints three lines per hit. The first line is the title, the repos in brackets, then `[vault]` and the verified state for a vault row, or `[repo]` for a repo row, and it ends with `(score N)`. The summary and the absolute note path follow. JSON prints a list of objects with `title`, `summary`, `repos`, `verified`, `stale`, `path`, `source`, and `score`. The path is blank in JSON, and `(no local file)` in text, when no `<Title>.md` exists under the root folder, for example when iCloud has evicted the note. The script writes stdout as UTF-8 whatever the locale, and replaces any character it cannot encode.
+
+Exit codes: `0` with hits or with none, `2` if `~/.claude/obsidian-sync.json` is missing or unreadable, or the vault root is not a directory, and `3` if the run passes its internal 3-second deadline. The script sets that deadline with `SIGALRM`, so a platform without `SIGALRM` has no exit 3. On exit 2 or 3 the reason goes to stderr and nothing goes to stdout.
+
+Embedding seam: `rank()` is the only function an embedding backend replaces. It receives the candidates, the query words, the repo name, and the docs index path. Loading, path resolution, and rendering stay as they are, so the CLI and its output do not change.
+
+Tests: `bash plugins/toolkit/scripts/tests/topic-recall/run-tests.sh` (43 behavior cases in temporary vaults and repos with an overridden HOME). `verify.sh` also runs it.
 
 ## obsidian-sync.json.template
 

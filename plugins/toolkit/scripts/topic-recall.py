@@ -1,0 +1,436 @@
+#!/usr/bin/env python3
+"""Lexical search over the vault's topic notes and a repo's docs/ folder.
+
+Usage: topic-recall.py [--repo <name>] [--repo-root <path>] [--top N]
+                       [--format text|json] [query words...]
+
+Exit codes:
+  0  ran, with hits or with none
+  2  ~/.claude/obsidian-sync.json missing or unreadable, or the vault root is not a directory
+  3  the run passed its internal deadline (POSIX only)
+
+Read-only against the vault and the repo. Python 3 standard library only.
+
+Vault source: <vault_path>/<root_folder>/INDEX.md, which Mission Control writes and
+the toolkit only reads. If INDEX.md is missing, unreadable, or has no topic rows, the
+script scans `type: topic` frontmatter under the root folder instead.
+Repo source: the Markdown files under <repo-root>/docs, when --repo-root is given.
+
+Embedding seam: rank() is the only function an embedding backend replaces. Loading,
+path resolution, and rendering stay as they are.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import signal
+import stat
+import sys
+from dataclasses import asdict, dataclass
+from typing import Callable
+
+TITLE_HIT = 8      # query token in the title
+REPO_MATCH = 6     # --repo named in a vault row's repos
+SUMMARY_HIT = 3    # query token in the summary
+INDEX_HIT = 2      # repo row that is docs/README.md and has a token hit
+TOKEN_MIN = 3      # shorter tokens are noise
+
+REPO_MAX_DEPTH = 4     # path components below docs/, as `find -maxdepth 4` counts them
+REPO_MAX_FILES = 400
+REPO_SUMMARY_CAP = 200
+
+CONFIG_PATH = os.path.join("~", ".claude", "obsidian-sync.json")
+INDEX_NAME = "INDEX.md"
+DOCS_DIR = "docs"
+DOCS_INDEX_NAME = "README.md"
+FALLBACK_HEADER = "source: frontmatter scan (INDEX.md unavailable)"
+SCAN_LINES = 120
+READ_CAP = 64 * 1024   # bytes read per file, before the SCAN_LINES cut
+DEADLINE_SECONDS = 3
+BLOCK_INDICATORS = {">", ">-", ">+", "|", "|-", "|+"}
+
+ROW_RE = re.compile(
+    r"^- \[\[(?P<title>[^\]]+)\]\](?: — (?P<summary>.*?))? \((?P<meta>[^()]*)\)\s*$"
+)
+TOKEN_RE = re.compile(r"[a-z0-9]+")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+class ConfigError(Exception):
+    """The vault config is missing or does not resolve to a directory."""
+
+
+class Timeout(Exception):
+    """The run passed DEADLINE_SECONDS."""
+
+
+@dataclass
+class Candidate:
+    title: str
+    summary: str
+    repos: list[str]
+    verified: str      # "verified 2026-08-10", "unverified", or "repo"
+    stale: bool
+    path: str = ""     # absolute, blank when the note file is absent
+    source: str = "vault"  # "vault" or "repo"
+
+
+def load_config() -> tuple[str, str]:
+    path = os.path.expanduser(CONFIG_PATH)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except OSError as exc:
+        raise ConfigError(f"cannot read {path}: {exc.strerror}") from exc
+    except ValueError as exc:
+        raise ConfigError(f"{path} is not valid JSON: {exc}") from exc
+    vault_path = cfg.get("vault_path") if isinstance(cfg, dict) else None
+    root_folder = cfg.get("root_folder") if isinstance(cfg, dict) else None
+    if not isinstance(vault_path, str) or not isinstance(root_folder, str):
+        raise ConfigError(f"{path} must set vault_path and root_folder as strings")
+    return os.path.expanduser(vault_path), root_folder
+
+
+def split_list(text: str) -> list[str]:
+    return [part.strip() for part in text.split(",") if part.strip()]
+
+
+def parse_row(line: str) -> Candidate | None:
+    match = ROW_RE.match(line)
+    if not match:
+        return None
+    # Segments are identified by content: the writer omits the repos segment when a topic has none.
+    repos: list[str] = []
+    verified, stale = "unverified", False
+    for part in (part.strip() for part in match.group("meta").split(";")):
+        if part.startswith(("verified", "unverified")):
+            verified = part
+        elif part.replace("⚠", "").strip() == "stale":
+            stale = True
+        elif part:
+            repos = split_list(part)
+    return Candidate(
+        title=match.group("title"),
+        summary=(match.group("summary") or "").strip(),
+        repos=repos,
+        verified=verified,
+        stale=stale,
+    )
+
+
+def read_index(index_path: str) -> list[Candidate] | None:
+    if not os.path.lexists(index_path):
+        return None
+    if not regular_file(index_path):
+        print(f"WARNING: {index_path} is not a regular file; scanning frontmatter", file=sys.stderr)
+        return None
+    try:
+        with open(index_path, encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        print(f"WARNING: cannot read {index_path}: {exc.strerror}; scanning frontmatter", file=sys.stderr)
+        return None
+    except UnicodeDecodeError:
+        print(f"WARNING: {index_path} is not UTF-8; scanning frontmatter", file=sys.stderr)
+        return None
+    rows: list[Candidate] = []
+    inside = False
+    for line in lines:
+        # Topic rows end at the next level-2 heading; the Projects section after it lists plans.
+        if line.startswith("## "):
+            inside = line.strip() == "## Topics by domain"
+            continue
+        if inside:
+            row = parse_row(line)
+            if row:
+                rows.append(row)
+    return rows or None
+
+
+def unquote(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        return value[1:-1]
+    return value
+
+
+def regular_file(path: str) -> bool:
+    """True for a regular file that is not a symlink; FIFOs and devices would block or never end."""
+    try:
+        return stat.S_ISREG(os.lstat(path).st_mode)
+    except OSError:
+        return False
+
+
+def read_head(path: str) -> list[str] | None:
+    try:
+        with open(path, "rb") as fh:
+            data = fh.read(READ_CAP)
+    except OSError:
+        return None
+    try:
+        text = data.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        # A cut at READ_CAP can split one multi-byte character; anything earlier is not UTF-8.
+        if len(data) < READ_CAP or exc.start < len(data) - 3:
+            return None
+        text = data[:exc.start].decode("utf-8-sig")
+    return [line.rstrip("\r") for line in text.split("\n")[:SCAN_LINES]]
+
+
+def split_frontmatter(head: list[str]) -> tuple[dict[str, str | list[str]], list[str]]:
+    """Return (frontmatter, body lines). Frontmatter that does not close within the head is dropped."""
+    if not head or head[0].strip() != "---":
+        return {}, head
+    data: dict[str, str | list[str]] = {}
+    key = None
+    block = None  # key whose YAML block scalar is being collected
+    for index, line in enumerate(head[1:], start=1):
+        if line.strip() == "---":
+            return data, head[index + 1:]
+        stripped = line.strip()
+        if block is not None:
+            if line[:1].isspace() or not stripped:
+                if stripped:
+                    data[block] = f"{data[block]} {stripped}".lstrip()
+                continue
+            block = None
+        if stripped.startswith("- ") and key is not None and isinstance(data.get(key), list):
+            data[key].append(unquote(stripped[2:]))
+            continue
+        if ":" not in line or line[:1].isspace():
+            continue
+        key, _, value = line.partition(":")
+        key, value = key.strip(), value.strip()
+        if value.startswith("[") and value.endswith("]"):
+            data[key] = [unquote(v) for v in split_list(value[1:-1])]
+        elif value in BLOCK_INDICATORS:
+            data[key] = ""
+            block = key
+        elif value:
+            data[key] = unquote(value)
+        else:
+            data[key] = []
+    return {}, []
+
+
+def text_field(meta: dict[str, str | list[str]], key: str) -> str:
+    value = meta.get(key)
+    return value if isinstance(value, str) else ""
+
+
+def prune_links(dirpath: str, dirs: list[str]) -> list[str]:
+    return [d for d in dirs if not os.path.islink(os.path.join(dirpath, d))]
+
+
+def scan_topics(root: str) -> list[Candidate]:
+    rows: list[Candidate] = []
+    for dirpath, dirs, files in os.walk(root):
+        dirs[:] = prune_links(dirpath, dirs)
+        for name in files:
+            path = os.path.join(dirpath, name)
+            if not name.endswith(".md") or not regular_file(path):
+                continue
+            head = read_head(path)
+            if head is None:
+                continue
+            meta, _body = split_frontmatter(head)
+            if meta.get("type") != "topic":
+                continue
+            repos = meta.get("repos")
+            verified = text_field(meta, "verified")
+            rows.append(Candidate(
+                title=name[:-3],
+                summary=text_field(meta, "summary"),
+                repos=repos if isinstance(repos, list) else split_list(repos or ""),
+                verified=f"verified {verified}" if DATE_RE.match(verified) else "unverified",
+                stale=False,
+                path=path,
+            ))
+    return rows
+
+
+def first_line(body: list[str], wanted: Callable[[str], bool]) -> str:
+    return next((line.strip() for line in body if line.strip() and wanted(line.strip())), "")
+
+
+def first_paragraph(body: list[str]) -> str:
+    """Join the first run of non-empty lines that does not start with `#` or `<!--`."""
+    lines: list[str] = []
+    for line in body:
+        text = line.strip()
+        if lines:
+            if not text:
+                break
+            lines.append(text)
+        elif text and not text.startswith(("#", "<!--")):
+            lines.append(text)
+    return " ".join(lines)
+
+
+def docs_index_path(repo_root: str) -> str:
+    return os.path.join(os.path.abspath(repo_root), DOCS_DIR, DOCS_INDEX_NAME)
+
+
+def scan_repo_docs(repo_root: str) -> list[Candidate]:
+    repo_root = os.path.abspath(repo_root)
+    docs = os.path.join(repo_root, DOCS_DIR)
+    if not os.path.isdir(docs):
+        return []
+    repo = os.path.basename(repo_root)
+    rows: list[Candidate] = []
+    for dirpath, dirs, files in os.walk(docs):
+        depth = 0 if dirpath == docs else os.path.relpath(dirpath, docs).count(os.sep) + 1
+        dirs[:] = [] if depth + 1 >= REPO_MAX_DEPTH else sorted(
+            d for d in prune_links(dirpath, dirs) if not d.startswith(".") and d != "node_modules")
+        for name in sorted(files):
+            path = os.path.join(dirpath, name)
+            if not name.endswith(".md") or name.startswith(".") or not regular_file(path):
+                continue
+            head = read_head(path)
+            if head is None:
+                continue
+            meta, body = split_frontmatter(head)
+            heading = first_line(body, lambda line: line.startswith("# "))
+            rows.append(Candidate(
+                title=text_field(meta, "title") or heading[2:].strip() or name[:-3],
+                summary=(text_field(meta, "summary") or first_paragraph(body))[:REPO_SUMMARY_CAP],
+                repos=[repo],
+                verified="repo",
+                stale=False,
+                path=path,
+                source="repo",
+            ))
+            if len(rows) >= REPO_MAX_FILES:
+                return rows
+    return rows
+
+
+def tokens(text: str) -> set[str]:
+    return {tok for tok in TOKEN_RE.findall(text.lower()) if len(tok) >= TOKEN_MIN}
+
+
+def rank(candidates: list[Candidate], query: list[str], repo: str | None,
+         docs_index: str | None = None) -> list[tuple[int, Candidate]]:
+    wanted = tokens(" ".join(query))
+    scored: list[tuple[int, Candidate]] = []
+    for cand in candidates:
+        score = TITLE_HIT * len(wanted & tokens(cand.title))
+        score += SUMMARY_HIT * len(wanted & tokens(cand.summary))
+        if cand.source == "repo":
+            # Every repo row lists the repo, so a repo match says nothing about a repo doc.
+            if score and docs_index and cand.path == docs_index:
+                score += INDEX_HIT
+        elif repo and repo in cand.repos:
+            score += REPO_MATCH
+        if score > 0:
+            scored.append((score, cand))
+    scored.sort(key=lambda pair: (-pair[0], pair[1].title))
+    return scored
+
+
+def resolve_paths(root: str, rows: list[Candidate]) -> None:
+    wanted = {f"{row.title}.md" for row in rows if not row.path}
+    if not wanted:
+        return
+    found: dict[str, str] = {}
+    for dirpath, _dirs, files in os.walk(root):
+        for name in files:
+            if name in wanted:
+                found.setdefault(name, os.path.join(dirpath, name))
+    for row in rows:
+        if not row.path:
+            row.path = found.get(f"{row.title}.md", "")
+
+
+def render(rows: list[tuple[int, Candidate]], fmt: str) -> str:
+    if fmt == "json":
+        return json.dumps([{**asdict(c), "score": s} for s, c in rows], indent=2, ensure_ascii=False)
+    lines: list[str] = []
+    for score, cand in rows:
+        repos = ", ".join(cand.repos)
+        if cand.source == "repo":
+            lines.append(f"{cand.title} [{repos}] [repo] (score {score})")
+        else:
+            state = f"{cand.verified}, stale" if cand.stale else cand.verified
+            lines.append(f"{cand.title} [{repos}] [vault] ({state}) (score {score})")
+        lines.append(f"  {cand.summary}")
+        lines.append(f"  {cand.path or '(no local file)'}")
+    return "\n".join(lines)
+
+
+def positive_int(value: str) -> int:
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be 1 or more")
+    return number
+
+
+def on_alarm(_signum: int, _frame: object) -> None:
+    raise Timeout(f"no result within {DEADLINE_SECONDS} s")
+
+
+def main(argv: list[str]) -> int:
+    if hasattr(signal, "SIGALRM"):
+        signal.signal(signal.SIGALRM, on_alarm)
+        signal.alarm(DEADLINE_SECONDS)
+    # Under a non-UTF-8 locale, a summary with a non-ASCII character would raise on print.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    try:
+        return run(argv)
+    except Timeout as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 3
+    finally:
+        if hasattr(signal, "SIGALRM"):
+            signal.alarm(0)
+
+
+def run(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description="Lexical search over the vault's topic notes and a repo's docs/.")
+    parser.add_argument("--repo", help="repo basename; vault rows that list it gain REPO_MATCH")
+    parser.add_argument("--repo-root", help="repo checkout whose docs/ joins the search; sets the --repo default")
+    parser.add_argument("--top", type=positive_int, default=10)
+    parser.add_argument("--format", choices=("text", "json"), default="text")
+    parser.add_argument("query", nargs="*")
+    args = parser.parse_args(argv)
+    repo = args.repo
+    if args.repo_root and not repo:
+        repo = os.path.basename(os.path.abspath(args.repo_root))
+
+    try:
+        vault_path, root_folder = load_config()
+    except ConfigError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    root = os.path.join(vault_path, root_folder)
+    if not os.path.isdir(root):
+        print(f"ERROR: vault root is not a directory: {root}", file=sys.stderr)
+        return 2
+
+    candidates = read_index(os.path.join(root, INDEX_NAME))
+    fallback = candidates is None
+    if fallback:
+        candidates = scan_topics(root)
+    docs_index = None
+    if args.repo_root:
+        candidates += scan_repo_docs(args.repo_root)
+        docs_index = docs_index_path(args.repo_root)
+    hits = rank(candidates, args.query, repo, docs_index)[: args.top]
+    resolve_paths(root, [cand for _score, cand in hits])
+
+    out = render(hits, args.format)
+    if fallback and hits and args.format == "text":
+        out = f"{FALLBACK_HEADER}\n{out}"
+    if out:
+        print(out)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

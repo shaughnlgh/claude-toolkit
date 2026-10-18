@@ -36,7 +36,7 @@ Capture the brief verbatim — the user's words, plus the ticket content when a 
 
 ## 2. Investigate
 
-Run topic recall first, the same recall `plan-workflow` runs (vault topic notes, prior plan folders), so the crawl never re-derives what the vault already knows.
+Run topic recall first, as `plan-workflow` step 1 does: run the toolkit's `scripts/topic-recall.py` over the vault topic notes and the repo's `docs/`, then search prior plan folders. The crawl never re-derives what the vault or the repo already knows.
 
 Then delegate an `explorer` fan-out scoped to the brief's specific claims, per the orchestration doctrine (model escalation for deep tracing; `verifier` instead when evidence needs commands run). The crawl asks two questions of every claim: is it true in the repo, and what does the brief not mention that this work will hit (adjacent modules, callers, migrations, config)?
 

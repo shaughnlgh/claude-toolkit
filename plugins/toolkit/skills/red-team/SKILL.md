@@ -9,16 +9,17 @@ description: >-
   explicitly asks to red team code or a diff, which counts as the confirmation.
   Runs the review-mr workflow's adversarial review over the local slice diff,
   delegates fixes for confirmed findings with scoped re-checks, runs the doc update
-  pass once after fixes, and ends with a commit suggestion. Do NOT fire when
-  "proceed" or "continue" advances to a next phase (approving a plan, starting
-  execution, answering a gate, moving to the next task), when changes are still
-  under active back-and-forth discussion, or when the working tree holds no
-  implementation changes from this session. Never mutates git state.
+  pass once after fixes, runs the remember pass once after it, and ends with a
+  commit suggestion. Do NOT fire when "proceed" or "continue" advances to a next
+  phase (approving a plan, starting execution, answering a gate, moving to the next
+  task), when changes are still under active back-and-forth discussion, or when the
+  working tree holds no implementation changes from this session. Never mutates git
+  state.
 ---
 
 # Red Team
 
-Red-team runs an adversarial review over a completed implementation slice's uncommitted diff, reusing the `review-mr` workflow (shipped with this plugin at `../../workflows/review-mr.js` relative to this skill's base directory) that `gitlab-mr-review` drives against MR diffs — same reviewer agents, same adversarial verify pass, aimed at the local working tree instead of a fetched MR. The main chat is the conductor: it presents the recommendation, gates the run on explicit confirmation, builds the inputs, launches the workflow, adjudicates the result, delegates fixes and re-checks to worker agents per the orchestration doctrine, runs the doc pass once, and closes with a commit suggestion. The conductor never edits a file, fixes a finding, or touches git itself — that is worker and human territory respectively.
+Red-team runs an adversarial review over a completed implementation slice's uncommitted diff, reusing the `review-mr` workflow (shipped with this plugin at `../../workflows/review-mr.js` relative to this skill's base directory) that `gitlab-mr-review` drives against MR diffs — same reviewer agents, same adversarial verify pass, aimed at the local working tree instead of a fetched MR. The main chat is the conductor: it presents the recommendation, gates the run on explicit confirmation, builds the inputs, launches the workflow, adjudicates the result, delegates fixes and re-checks to worker agents per the orchestration doctrine, runs the doc pass once, runs the remember pass once after it, and closes with a commit suggestion. The conductor never edits a file, fixes a finding, or touches git itself — that is worker and human territory respectively.
 
 ## 1. Trigger discipline
 
@@ -61,9 +62,13 @@ After all fix rounds and before the doc pass, recapture the cumulative diff by t
 
 Run `execute-workflow`'s Doc Update Pass (`../execute-workflow/SKILL.md` from this skill's base directory) exactly once, after fixes and the cold read are in and re-checks are clean, before moving to the commit suggestion. Do not run it earlier. Findings from the panel may still change what needs documenting.
 
+## 7b. Remember pass
+
+Run the remember pass from the obsidian-topic command (`../../commands/obsidian-topic.md` from this skill's base directory, § Remember pass) exactly once per slice, after the doc pass and before the commit suggestion. Recapture the cumulative diff by the step 2 method after the doc pass, and pass that file as the brief's diff. Delegate one `implementer` with the fixed brief, then run that section's gate and record steps for its proposed repo doc changes. Record the resulting `Remember:` line, in whichever of the four forms that section defines, under the plan note's Plan Changes During Execution, and repeat it in the report and in the commit suggestion. For a slice with no plan note, the line goes in the report only. That recorded line is the signal that the pass already ran, so session closure must not run it again for the slice.
+
 ## 8. Commit suggestion
 
-Close with a suggested commit message written in the repo's observed convention (read recent `git log` for tense, structure, and prefix style), the specific files to stage, and — when the current branch is a default or protected branch — a suggested branch name to use instead. Add a residual-risk line stating exactly what ran at which tree state (e.g. "full panel at hash `<a>`, scoped re-checks after the fixes"), so the human knows what is and is not covered. Per the git-safety doctrine, the human runs git: this skill never stages, commits, creates a branch, or pushes, under any circumstance.
+Close with a suggested commit message written in the repo's observed convention (read recent `git log` for tense, structure, and prefix style), the step 7b `Remember:` line, the specific files to stage, and — when the current branch is a default or protected branch — a suggested branch name to use instead. The files to stage include every repo doc the remember pass wrote after the panel. Mark each of those as written after review and read back by the conductor. Add a residual-risk line stating exactly what ran at which tree state (e.g. "full panel at hash `<a>`, scoped re-checks after the fixes"), so the human knows what is and is not covered. Per the git-safety doctrine, the human runs git: this skill never stages, commits, creates a branch, or pushes, under any circumstance.
 
 ## Boundary
 

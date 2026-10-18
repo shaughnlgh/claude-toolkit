@@ -39,7 +39,7 @@ Creates or updates a single topic note in the Obsidian vault — the vault's dis
 
 **Usage** — `/obsidian-topic <Topic Name> [repo]`. Errors with a usage message if no topic name is given.
 
-**When to run it** — ad hoc, any time a topic note needs creating or refreshing outside the normal planning/execution flow. In the normal flow, `plan-workflow` calls the same process automatically: on every plan, topic recall runs first and every topic in the plan's Related Topics either resolves to an existing note or gets a stub created; during execution, durable facts surfaced by the work get folded into the touched topic notes as part of the work itself, not a finalize step.
+**When to run it** — ad hoc, any time a topic note needs creating or refreshing outside the normal planning/execution flow. In the normal flow, `plan-workflow` calls the same process automatically: on every plan, topic recall runs first and every topic in the plan's Related Topics either resolves to an existing note or gets a stub created. During execution, workers return durable facts as Topic note material, and the remember pass routes them once per slice. It routes each durable fact to a toolkit-managed context doc under the repo's `docs/context/`, behind the repo-mode consent gate, or to the vault topic note. It never edits a hand-written repo doc.
 
 **Location** — resolved from `~/.claude/obsidian-sync.json`. New topic notes start in the current project's directory, `Projects/{repo_name}/<Topic>.md`. A topic gets promoted to `<root_folder>/Docs/` once a second project links it. Claude never writes outside `<root_folder>/`.
 
