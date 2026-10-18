@@ -92,7 +92,7 @@ brew install jq
 
 ### python3
 
-Required by the planning workflow's scripts (vault config resolution and the plan validator); no third-party packages are needed. macOS ships a python3 with the developer tools; the Homebrew one works too:
+Required by the planning workflow's scripts (vault config resolution, the plan validator, and topic recall, which the session-start hook also runs); no third-party packages are needed. macOS ships a python3 with the developer tools; the Homebrew one works too:
 
 ```sh
 brew install python3

@@ -265,7 +265,7 @@ Use plain strings in the plan frontmatter `related_topics`, and Obsidian `[[wiki
 
 For non-trivial tasks, follow these steps before writing the plan note:
 
-1. Topic recall: derive candidate topics from the task, search the vault for matching topic notes and prior plan folders, and read the hits. Validate topic notes before relying on them (see the toolkit's obsidian-topic command, `../../commands/obsidian-topic.md` from this skill's base directory, § Freshness and validation). Split the result into known facts vs gaps — only the gaps need exploration. The conductor does this directly; it is a few searches, not a delegated task.
+1. Topic recall: derive candidate topics from the task, run the toolkit's `scripts/topic-recall.py` with `--repo <repo>`, `--repo-root <repo root>`, and the task words, which reads the vault topics and the repo's `docs/` together, read the top hits, and search prior plan folders. Validate topic notes before relying on them (see the toolkit's obsidian-topic command, `../../commands/obsidian-topic.md` from this skill's base directory, § Freshness and validation). Split the result into known facts and gaps. Only the gaps need exploration. The conductor does this directly. It is one script run plus the reads, not a delegated task.
 2. Read relevant code, config, docs, and existing patterns (see Docs-First Discipline in the toolkit's CLAUDE.md doctrine).
 3. Invoke the `/testing-gate` skill to determine the required testing level.
 4. AFTER topic recall, delegate the planning-time work by shape, scoped to the gaps from step 1. Discovery and investigation (repo/doc scan, mapping how existing code works, answering factual questions from the codebase) goes to the `explorer` agent — skip it when recall and your step-2 reads closed every gap, and say so. Escalate the explorer's model per invocation for genuinely hard tracing (orchestration model policy); evidence that needs commands run (a failing test, a repro) goes to the `verifier` agent instead, since explorer is read-only. Drafting the reviewable plan itself (proposed steps, risks, verification approach) goes to the `planner` agent, fed with the recall facts and explorer findings so it does not re-derive them — except when the main challenge is choosing architecture, which the conductor keeps per orchestration doctrine. Skip delegation entirely only when the task is obviously too small, and say why.
@@ -311,7 +311,7 @@ The record of the work is the plan note (kept current during execution), git (th
 ### What Claude must do as a session ends
 
 1. Make sure the plan note is current: decisions, gaps, and deviations recorded in "Plan Changes During Execution"; Validation, Risks, and Open Questions up to date.
-2. Make sure touched topic notes reflect any durable facts surfaced (see the toolkit's obsidian-topic command).
+2. If Plan Changes During Execution holds no `Remember:` line for this slice, the remember pass has not run. Run it now (obsidian-topic command, § Remember pass) and record its `Remember:` line there. Capture the slice diff for its brief as red-team step 2 does: `git diff HEAD` plus each untracked file.
 3. Update this session's `sessions:` entry with the real one-line outcome (append one only if it is somehow missing — never a second entry for the same session id).
 4. Report that execution is complete.
 

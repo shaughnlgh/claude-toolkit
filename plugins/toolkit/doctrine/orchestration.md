@@ -57,6 +57,8 @@ Every worker task includes:
 
 Every worker result returns: `Objective`, `Files inspected`, `Files changed`, `Checks run`, `Result`, `Assumptions or blockers`, `Residual risks`, `Rules applied` (only for a free-form report, not schema-constrained structured output), and `Topic note material` (facts about stable recurring concepts with source refs, or "none"). `Rules applied` is a self-report aid for conductor acceptance, not proof.
 
+The conductor keeps every worker's Topic note material for the slice's remember pass (obsidian-topic command, § Remember pass), the one consumer of that field.
+
 Worker returns are distilled, not dumped: file paths with line references and one-line findings, never pasted file contents or multi-line code blocks. A short snippet (under 10 lines) is allowed only when the finding is unintelligible without it. Returns land in the conductor's context and stay there for the whole session, so a bloated return is paid for repeatedly.
 
 ## Acceptance and re-delegation
