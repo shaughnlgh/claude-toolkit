@@ -52,6 +52,12 @@ run "27 created one day before SINCE date is grandfathered" "$FX/2026-08-25-pls-
 run "28 blank created is NOT grandfathered" "$FX/2026-08-27-pls-unparseable-created/plan - pls-unparseable-created.md" 1 "missing required heading: ## Plain Language Summary"
 run "29 Plain Language Summary only inside a fence (plus unfenced prose mention) does not count" "$FX/2026-08-27-pls-fenced/plan - pls-fenced.md" 1 "missing required heading: ## Plain Language Summary"
 run "30 malformed non-blank created (sorts lexicographically low) is NOT grandfathered" "$FX/2026-08-27-pls-malformed-created/plan - pls-malformed-created.md" 1 "missing required heading: ## Plain Language Summary"
+run "31 completed plan with a Remember: line" "$FX/2026-10-18-completed-remembered/plan - completed-remembered.md" 0 "OK:"
+run "32 completed plan without a Remember: line" "$FX/2026-10-18-completed-unremembered/plan - completed-unremembered.md" 1 "status completed requires a Remember: line"
+run "33 completed plan created before the Remember: line date is grandfathered" "$FX/2026-01-05-completed-grandfathered/plan - completed-grandfathered.md" 0 "OK:"
+run "34 completed plan with a bare Remember: line (no bullet)" "$FX/2026-10-18-completed-bare/plan - completed-bare.md" 0 "OK:"
+run "35 Remember: line only inside a fence does not count" "$FX/2026-10-18-completed-fenced/plan - completed-fenced.md" 1 "status completed requires a Remember: line"
+run "36 Remember: line only under another heading does not count" "$FX/2026-10-18-completed-wrongsection/plan - completed-wrongsection.md" 1 "status completed requires a Remember: line"
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
