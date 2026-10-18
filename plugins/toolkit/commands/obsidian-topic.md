@@ -125,10 +125,54 @@ A topic note is a claim about the world at its `verified` time. A blank `verifie
 ## When topics are created and updated
 
 - During planning: topic recall runs first, and every topic linked from the plan's Related Topics either resolves to an existing note or gets a stub created.
-- During execution: as work surfaces durable facts (gotchas, flow changes, new surface area), fold them into the touched topic notes and bump `updated`, the same way planning does. Keeping topics current is part of the work, not a finalize step.
+- During execution: workers return durable facts as Topic note material, and the remember pass routes them once per slice (§ Remember pass).
 - Ad hoc: `/obsidian-topic <Topic Name>` creates or updates a single topic note using the full process below.
 - Topic notes are the cross-plan knowledge layer. Reviewing and maintaining them across plans is part of the work; tooling may assist.
 - Keep the bar for new topics at stable recurring concepts. One-off details belong in the plan note, not a topic.
+
+## Remember pass
+
+Runs once per implementation slice, from red-team step 7b or plan-workflow Session Closure, whichever comes first. A `Remember:` line under the plan note's Plan Changes During Execution is the signal that the pass already ran for the slice. For a slice with no plan note, the line goes in the red-team report only, and that report is the signal. The remember pass is distinct from execute-workflow's Doc Update Pass: the doc pass keeps existing docs accurate about what changed, the remember pass records what the slice learned.
+
+### Inputs
+
+The conductor gathers these before delegating:
+
+- The cumulative slice diff. Capture it by red-team step 2's method: `git diff HEAD` into a scratchpad file, plus `git diff --no-index /dev/null <file>` appended for each untracked file. Red-team step 7b captures it fresh after the doc pass. Session Closure captures it the same way when red-team has not run.
+- The files the slice touched.
+- Every Topic note material return from this slice.
+- The recall hits from `python3 <plugin-root>/scripts/topic-recall.py --repo <repo> --repo-root <repo root> <touched module and plan terms>`.
+
+### Brief
+
+The conductor delegates one `implementer` worker with this brief, verbatim apart from the bracketed values.
+
+> Objective: route the durable facts this slice surfaced. Fold the vault-bound facts into vault topic notes, and stage the repo-bound facts as proposed doc content for the conductor's consent gate.
+>
+> Scope: write only under the vault root folder [vault path]/[root folder] and the scratchpad [scratchpad path]. You must not write any repo file.
+>
+> Known evidence: the cumulative diff at [diff path], the touched files [list], the Topic note material returns from this slice [pasted], and the recall hits [pasted].
+>
+> Task-specific constraints. Resolve the plugin root with `jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json`. Before your first write, read these files under that root: `commands/obsidian-topic.md`, `doctrine/security.md`, `doctrine/repo-artifacts.md`, and the usage header of `scripts/vault-fs.sh`.
+>
+> Routing: before any write, classify each durable fact. Class (a) is shareable engineering knowledge about this repo. Class (b) is cross-repo, not about any repo, or personal workflow. A class (a) fact routes only to a `docs/context/` doc that carries the `<!-- managed-by: toolkit -->` marker: an existing one that covers the subject, else a new `docs/context/context-<kebab>.md`. Never route a fact into a hand-written repo doc. If a hand-written repo doc covers the subject, name it as the related doc on the proposal. A class (b) fact routes to the vault topic note. If a vault note carries the repo-mode banner, route its new facts to the doc the banner names, never into the note.
+>
+> Class (a) content: for each proposed repo doc, write the full proposed content to `[scratchpad path]/remember-<kebab-path>.md`, where `<kebab-path>` is the repo-relative path in kebab case. Scrub the content per `doctrine/security.md` first. For a new file, write the whole doc with the frontmatter `doctrine/repo-artifacts.md` requires and the `<!-- managed-by: toolkit -->` marker on the line after the frontmatter. For an existing managed file, write only the exact section to add and name the heading it goes under. Do not write class (a) facts into any vault note.
+>
+> Class (b) writes: for each candidate topic, fold facts under the section they belong to (Flows, Gotchas, Tasks, Related Topics). Never rewrite Overview or any prose that carries no new fact. Bump `updated`. Spot-check one `source_refs` entry against the repo, and set `verified` to today only on a clean check. Create a stub only for a concept that the plan's Related Topics or the collected material names and no existing note covers. Search by basename before creating. Write every vault file atomically: Write to `<name>.tmp.md` beside the target, then run `bash <plugin root>/scripts/vault-fs.sh mv`.
+>
+> Required checks: read back every vault file you wrote and confirm it holds the folded facts. Run no git command.
+>
+> Expected return format: the standard worker fields plus `Proposed repo doc changes`. Write one line per repo file as `<repo-relative path>, created or updated, <scratch file path>, facts from <[[Note]], ...> or none`, where the notes are the vault notes whose facts move into that doc. If a hand-written doc covers the subject, append `, related <repo-relative path>`. If there is no proposal, write `none`. End with exactly one draft line in one of these forms: `Remember: repo docs <paths>; topics updated [[A]], [[B]]`, `Remember: repo docs <paths>`, `Remember: topics updated [[A]]`, `Remember: no change (<reason>)`.
+
+### Gate and record
+
+1. If `Proposed repo doc changes` reads `none`, skip to step 6 and record the worker's `Remember:` line as it stands.
+2. Run the Repo mode preconditions for each proposal: confirm the repo is one the user actively develops, not a third-party checkout, a vendor tree, or a read-only reference clone, then run the docs-dir caution and the repo-root anchor check.
+3. Show the consent gate once. For each proposal, list the repo path, created or updated, the scratch file, the related hand-written doc when there is one, and the resulting shape of each vault note whose facts move. That shape is the hub (banner plus vault-side material only) when every fact moves, else the note without the moved facts.
+4. Delegate one `implementer` to write each accepted scratch file to its repo path: the whole file for a new doc, the section under its named heading for an existing managed doc. In that same delegation, the implementer folds each declined proposal's facts into the vault topic by the class (b) rules.
+5. Read each written repo doc back and confirm it matches its scratch file. Only then delegate the hub collapse. A vault note collapses to a hub only when every fact it holds moved to an accepted doc. A note that also holds class (b) facts does not collapse: the implementer removes only the moved facts from it and keeps the rest.
+6. Record one `Remember:` line in one of the four forms. It lists only the repo paths accepted at the gate. It lists every vault topic touched: the ones the worker updated, the ones that received declined facts, and the ones collapsed to hubs or trimmed of moved facts. Record it under the plan note's Plan Changes During Execution, and repeat it in the red-team report and the commit suggestion. For a slice with no plan note, record it in the red-team report only.
 
 ## Instructions
 
@@ -195,3 +239,4 @@ Print:
 - Do not write outside `<root_folder>/`, except that same repo-mode canonical doc (`docs/context/context-<kebab-topic>.md`) in the current repo.
 - Do not invent facts, ticket references, or test data.
 - One topic per invocation. If the deep dive surfaces sibling topic candidates, list them in the report instead of creating them.
+- These rules bind the ad hoc command. The remember pass follows the Scope in § Remember pass instead, which allows its scratchpad files, and it may touch several topics in one run.
