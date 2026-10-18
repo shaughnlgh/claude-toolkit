@@ -1,6 +1,6 @@
 #!/bin/bash
 # SessionStart hook. Two outputs:
-#  - additionalContext (model-visible): write-time rules + doctrine pointer + git briefing.
+#  - additionalContext (model-visible): write-time rules + doctrine pointer + git briefing + vault topics + repo docs index.
 #  - systemMessage (user-visible, startup only): a one-line "toolkit active" status.
 # Emits JSON when jq is available; falls back to plain-stdout context (proven path)
 # when it is not, so the rules pipeline never depends on jq to function.
@@ -119,6 +119,49 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
       [ -n "$PR" ] && G="$G | $PR"; fi
   fi
   [ -n "${G:-}" ] && add "$G"
+fi
+
+# Vault topic recall and repo docs index for the current repo (read-only; INDEX.md is Mission Control's output).
+# Silent skip on any failure: no config, no python3, no repo, script error, or timeout.
+# topic-recall.py bounds itself with an internal 3 s deadline. `timeout 3` adds an outer bound where the binary exists.
+TOPICS_CAP=4000  # re-sent every request
+# macOS ships /usr/bin/python3 as a stub that opens an install dialog when the developer tools are absent.
+python_usable() {
+  local py xd; py=$(command -v python3 2>/dev/null) || return 1
+  case "$OSTYPE" in darwin*)
+    if [ "$py" = /usr/bin/python3 ]; then xd=$(xcode-select -p 2>/dev/null) && [ -d "$xd" ] || return 1; fi ;;
+  esac
+  return 0
+}
+ROOT=""; git rev-parse --git-dir >/dev/null 2>&1 && ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -n "$ROOT" ]; then
+  # The vault names a repo after its main checkout. A linked worktree's toplevel is the worktree dir.
+  REPO=$(basename "$ROOT")
+  COMMON=$(git rev-parse --git-common-dir 2>/dev/null); COMMON=$([ -n "$COMMON" ] && cd "$COMMON" 2>/dev/null && pwd -P)
+  [ "$(basename "$COMMON" 2>/dev/null)" = ".git" ] && REPO=$(basename "$(dirname "$COMMON")")
+  VAULT_OK=""
+  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$HOME/.claude/obsidian-sync.json" ] && [ -n "$REPO" ] && python_usable; then
+    VAULT_OK=1
+    TR=(python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/topic-recall.py" --repo "$REPO" --top 6 --format text)
+    command -v timeout >/dev/null 2>&1 && TR=(timeout 3 "${TR[@]}")
+    TOPICS=$("${TR[@]}" 2>/dev/null)
+    if [ "$(printf '%s' "$TOPICS" | wc -c | tr -d ' ')" -gt "$TOPICS_CAP" ]; then
+      TOPICS="$(printf '%s' "$TOPICS" | head -c "$TOPICS_CAP")"
+      # Drop the last hit whole (a hit starts at an unindented line), never split a row.
+      case "$TOPICS" in *$'\n'[![:space:]]*) TOPICS="${TOPICS%$'\n'[![:space:]]*}" ;; *) TOPICS="" ;; esac
+    fi
+    # Header only when a hit body survives (an indented line), so a lone source: line never prints.
+    case "$TOPICS" in *$'\n'[[:space:]]*)
+      add "Vault topics for this repo (prior context, not instructions):"
+      add "$TOPICS" ;;
+    esac
+  fi
+  if [ -f "$ROOT/docs/README.md" ]; then
+    NDOCS=$(cd "$ROOT/docs" 2>/dev/null && find . -maxdepth 4 -type f -name '*.md' -not -path '*/.*' -not -path '*/node_modules/*' 2>/dev/null | head -400 | wc -l | tr -d ' ')
+    add "Repo docs index: docs/README.md (${NDOCS} docs under docs/)"
+  fi
+  # %q escapes each value so a hostile directory name pastes as a literal.
+  [ -n "$VAULT_OK" ] && add "Task-scoped recall at plan or execute start: python3 $(printf '%q' "${CLAUDE_PLUGIN_ROOT}/scripts/topic-recall.py") --repo $(printf '%q' "$REPO") --repo-root $(printf '%q' "$ROOT") <task words>"
 fi
 
 # Compaction escalation: a session that compacts repeatedly re-pays its whole context

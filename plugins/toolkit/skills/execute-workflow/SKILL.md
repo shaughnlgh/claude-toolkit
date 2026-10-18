@@ -18,16 +18,17 @@ This skill holds the execution-time mechanics. The always-loaded invariants (orc
 After plan approval and explicit user instruction to execute:
 
 1. Read the approved plan from the Obsidian plan directory.
-2. Re-read the relevant docs and project rules.
-3. Main chat acts as supervisor only. Delegate all implementation and verification to worker agents. Do not edit implementation files or run implementation commands directly.
-4. Prefer the `implementer` subagent for execution work and the `verifier` for completion checks.
-5. Break work into bounded delegated tasks that map back to the plan.
-6. Inspect worker results against the plan.
-7. Check for knock-on impact in the project's high-risk areas.
-8. Have workers run relevant verification.
-9. If the actual worker model differs from the requested model and that is visible, report it.
-10. Report progress and residual risk.
-11. When execution surfaces an idea, requirement, or risk that belongs to a different phase of a multi-part effort, write it into the child plan stub that owns it (Open Questions or Current Context) at the moment it surfaces, and say so. Deferred ideas that live only in conversation get lost. Stub edits go through plan-workflow's mechanics: atomic vault write, then validate-plan.py on the edited stub.
+2. Recall vault topics and repo docs: run `python3 <plugin-root>/scripts/topic-recall.py --repo <repo basename> --repo-root <repo root> <plan name and Objective key terms>` (resolve `<plugin-root>` with `jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json`). Recall reads the vault topics and the repo's own `docs/` together. Read the top hits of both sources, and validate each before relying on it (obsidian-topic command, § Freshness and validation). Carry the recalled facts into every worker brief as Known evidence. Keep every worker's Topic note material return for the remember pass.
+3. Re-read the relevant docs and project rules.
+4. Main chat acts as supervisor only. Delegate all implementation and verification to worker agents. Do not edit implementation files or run implementation commands directly.
+5. Prefer the `implementer` subagent for execution work and the `verifier` for completion checks.
+6. Break work into bounded delegated tasks that map back to the plan.
+7. Inspect worker results against the plan.
+8. Check for knock-on impact in the project's high-risk areas.
+9. Have workers run relevant verification.
+10. If the actual worker model differs from the requested model and that is visible, report it.
+11. Report progress and residual risk.
+12. When execution surfaces an idea, requirement, or risk that belongs to a different phase of a multi-part effort, write it into the child plan stub that owns it (Open Questions or Current Context) at the moment it surfaces, and say so. Deferred ideas that live only in conversation get lost. Stub edits go through plan-workflow's mechanics: atomic vault write, then validate-plan.py on the edited stub.
 
 ### Build minimal
 
@@ -54,7 +55,7 @@ The plan says what to build; build the least that satisfies it. The subagent-rul
 
 ## Slice Finalization
 
-When the user signals a completed implementation slice, the `red-team` skill (`../red-team/SKILL.md` from this skill's base directory) owns finalization: it recommends the adversarial review, runs it on confirmation, and ends with a commit suggestion. It invokes this skill's Doc Update Pass once, after its fixes.
+When the user signals a completed implementation slice, the `red-team` skill (`../red-team/SKILL.md` from this skill's base directory) owns finalization: it recommends the adversarial review, runs it on confirmation, and ends with a commit suggestion. It invokes this skill's Doc Update Pass once, after its fixes, and runs the remember pass once after the doc pass.
 
 ## Doc Update Pass
 
