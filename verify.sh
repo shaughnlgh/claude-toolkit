@@ -128,7 +128,7 @@ fi
 [ "$(ls $P/doctrine/*.md 2>/dev/null | wc -l)" -eq 13 ] && ok "13 doctrine files" || no "13 doctrine files"
 [ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 12 ] && ok "12 hook scripts" || no "12 hook scripts"
 [ -z "$(find "$P" -type l 2>/dev/null)" ] && ok "plugin tree ships no symlinks (the installer drops them)" || no "plugin tree ships no symlinks (the installer drops them)"
-for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js workflows/plan-flow.js \
+for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js workflows/plan-builder.js \
          skills/gitlab-mr-review/scripts/post_mr_comments.py \
          skills/grill/SKILL.md skills/plan-flow/SKILL.md \
          scripts/vault-fs.sh scripts/git-ro.sh; do
@@ -145,6 +145,13 @@ for w in "$P"/workflows/*.js; do
     no "syntax: workflows/$(basename "$w")"
   fi
 done
+# A skill and a workflow register in the same toolkit: namespace, and the workflow shadows the skill.
+wf_skill_clash=""
+for w in "$P"/workflows/*.js; do
+  wf_name="$(sed -nE "s/^[[:space:]]*name: '([^']+)'.*/\1/p" "$w" | head -1)"
+  [ -n "$wf_name" ] && [ -d "$P/skills/$wf_name" ] && wf_skill_clash="${wf_skill_clash} ${wf_name}"
+done
+[ -z "$wf_skill_clash" ] && ok "no skill shares a workflow name" || no "skill and workflow share a name:${wf_skill_clash}"
 gq_skill="$(grep -o 'Do I have permission[^?]*?' "$P/skills/plan-flow/SKILL.md" 2>/dev/null | head -1)"
 gq_doctrine="$(grep -o 'Do I have permission[^?]*?' "$P/doctrine/git-safety.md" 2>/dev/null | head -1)"
 if [ -n "$gq_skill" ] && [ "$gq_skill" = "$gq_doctrine" ]; then
@@ -273,12 +280,12 @@ suite_ok "git-ro behavior suite" "$out" 12
 python3 "$P/scripts/validate-plan.py" "$P/scripts/tests/validate-plan/fixtures/2026-01-01-example-feature/plan - example-feature.md" >/dev/null 2>&1
 code "validate-plan accepts a canonical plan" "$?" 0
 
-echo "== plan-flow control flow =="
+echo "== plan-builder control flow =="
 if command -v node >/dev/null 2>&1; then
-  out="$(bash "$P/workflows/tests/plan-flow/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "plan-flow control-flow suite" "$out" 25
+  out="$(bash "$P/workflows/tests/plan-builder/run-tests.sh" 2>/dev/null | tail -1)"
+  suite_ok "plan-builder control-flow suite" "$out" 25
 else
-  skip "skipped: node not found; plan-flow control-flow suite"
+  skip "skipped: node not found; plan-builder control-flow suite"
 fi
 
 echo "== post_mr_comments GITLAB_TOKEN guard =="
@@ -380,4 +387,4 @@ echo "RESULT: $pass passed, $skip skipped, $fail failed"
 # Floor, not just zero-failures: silently deleting real checks must not read green.
 # Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
 # no node, no local plugin install) must not read as a vanished check.
-[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 73 ]
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 74 ]
