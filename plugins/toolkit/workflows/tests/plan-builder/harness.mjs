@@ -81,7 +81,7 @@ const cases = [
   }],
   ['missing arg key throws', async () => {
     const { error } = await run({}, { ...ARGS, planName: undefined })
-    return String(error && error.message).includes('plan-flow requires args')
+    return String(error && error.message).includes('plan-builder requires args')
   }],
   ['maxRounds as the string "0" throws', async () => {
     const { error } = await run({}, { ...ARGS, maxRounds: '0' })
