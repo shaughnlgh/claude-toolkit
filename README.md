@@ -104,7 +104,7 @@ After any update — auto or manual — run `/setup` to confirm you are current:
 
 ## Verifying
 
-`bash verify.sh` runs the mechanical acceptance battery (structure, manifest, hook fixtures, script guardrails, plan validator, vault-fs containment, resolver, docs coverage) — free and fast. `bash functional-test.sh <mode>` adds live hermetic probes (real Claude calls, each in a throwaway workspace; `self-test` mode tests the harness itself for free) that prove rules injection, skill contract facts, and event-verified agent spawns against seeded fixtures. `VERIFY.md` documents what each layer proves and keeps the checklist for what only a real interactive session can show (interview loops, consent gates, live leaf-worker behavior, doctrine adherence, in-session hook enforcement).
+`bash verify.sh` runs the mechanical acceptance battery (structure, manifest, hook fixtures, script guardrails, plan validator, topic recall, vault-fs containment, resolver, docs coverage) — free and fast. `bash functional-test.sh <mode>` adds live hermetic probes (real Claude calls, each in a throwaway workspace; `self-test` mode tests the harness itself for free) that prove rules injection, skill contract facts, and event-verified agent spawns against seeded fixtures. `VERIFY.md` documents what each layer proves and keeps the checklist for what only a real interactive session can show (interview loops, consent gates, live leaf-worker behavior, doctrine adherence, in-session hook enforcement).
 
 ## Uninstall
 

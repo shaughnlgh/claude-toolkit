@@ -147,6 +147,12 @@ declare -F run_subagent_rules_dangling_symlink_checks >/dev/null || { echo "FATA
 echo "== subagent-rules dangling symlink (non-fixture) =="
 run_subagent_rules_dangling_symlink_checks
 
+# Checks that need a scratch git repo and a linked worktree, which JSON fixtures can't express.
+source "$ROOT/tests/session-start-recall-check.sh" || { echo "FATAL: cannot source session-start-recall-check.sh" >&2; exit 2; }
+declare -F run_session_start_recall_checks >/dev/null || { echo "FATAL: run_session_start_recall_checks not defined" >&2; exit 2; }
+echo "== session-start recall (non-fixture) =="
+run_session_start_recall_checks
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 if [[ $FAIL -gt 0 ]]; then
