@@ -49,7 +49,11 @@ REQUIRED_HEADINGS = [
 # no parseable `created` (e.g. a same-day skeleton mid-scaffold) is NOT grandfathered.
 PLAIN_LANGUAGE_SUMMARY_HEADING = "Plain Language Summary"
 PLAIN_LANGUAGE_SUMMARY_SINCE = "2026-08-26"
+# The completed-plan Remember: line rule is gated on `created` the same way, from the
+# date the remember pass joined the workflow.
+REMEMBER_LINE_SINCE = "2026-10-18"
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+REMEMBER_LINE_RE = re.compile(r"^[ \t]*(?:- )?Remember:", re.M)
 # Keys whose structure the validator actually checks. Anything else is unknown
 # metadata (Mission Control adds e.g. worklogs, tracking, mockups): its indented
 # block is consumed opaquely and tolerated, however it is shaped.
@@ -171,6 +175,12 @@ def strip_fences(body):
     return "\n".join(out)
 
 
+def section(body, heading):
+    """Text of the `## <heading>` section up to the next `## ` heading, or None."""
+    m = re.search(rf"^##\s+{re.escape(heading)}\s*$\n(.*?)(?=^##\s|\Z)", body, re.M | re.S)
+    return m.group(1) if m else None
+
+
 def main():
     if len(sys.argv) != 2:
         print("usage: validate-plan.py <path to 'plan - <slug>.md'>", file=sys.stderr)
@@ -279,11 +289,20 @@ def main():
 
     # -- Plain Language Summary (gated on `created`; see PLAIN_LANGUAGE_SUMMARY_SINCE) --
     created = fm.get("created")
-    grandfathered = (isinstance(created, str) and DATE_RE.match(created)
-                      and created < PLAIN_LANGUAGE_SUMMARY_SINCE)
+    created_date = created if isinstance(created, str) and DATE_RE.match(created) else None
+    grandfathered = created_date is not None and created_date < PLAIN_LANGUAGE_SUMMARY_SINCE
     if not grandfathered:
         if not re.search(rf"^##\s+{re.escape(PLAIN_LANGUAGE_SUMMARY_HEADING)}\s*$", body_nocode, re.M):
             violations.append(f"missing required heading: ## {PLAIN_LANGUAGE_SUMMARY_HEADING}")
+
+    # -- completed plans carry the remember pass's record (gated on `created`; see
+    # REMEMBER_LINE_SINCE) --
+    remember_exempt = created_date is not None and created_date < REMEMBER_LINE_SINCE
+    if status == "completed" and not remember_exempt:
+        changes = section(body_nocode, "Plan Changes During Execution") or ""
+        if not REMEMBER_LINE_RE.search(changes):
+            violations.append("status completed requires a Remember: line under "
+                              "## Plan Changes During Execution (remember pass not recorded)")
 
     # -- retired artifacts -- (tolerate whitespace; require a link-close/alias/space
     # boundary so a distinct artifact like `mr-description-notes` is not caught).

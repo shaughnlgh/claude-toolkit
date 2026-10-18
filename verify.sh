@@ -126,7 +126,7 @@ else
   no "docs/rules.md missing mention of injected rule(s):${missing_in_docs:- (rule list itself unparsed)}"
 fi
 [ "$(ls $P/doctrine/*.md 2>/dev/null | wc -l)" -eq 13 ] && ok "13 doctrine files" || no "13 doctrine files"
-[ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 11 ] && ok "11 hook scripts" || no "11 hook scripts"
+[ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 12 ] && ok "12 hook scripts" || no "12 hook scripts"
 [ -z "$(find "$P" -type l 2>/dev/null)" ] && ok "plugin tree ships no symlinks (the installer drops them)" || no "plugin tree ships no symlinks (the installer drops them)"
 for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js \
          skills/gitlab-mr-review/scripts/post_mr_comments.py \
@@ -139,6 +139,10 @@ done
 want "hooks.json wires subagent-rules.sh to SubagentStart" \
   "$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(json.dumps(d.get('hooks',{}).get('SubagentStart',[])))" "$P/hooks/hooks.json" 2>/dev/null)" \
   "subagent-rules.sh"
+# remember-guard.sh only fires if hooks.json wires it to Stop. A hook file can exist and still never run.
+want "hooks.json wires remember-guard.sh to Stop" \
+  "$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(json.dumps(d.get('hooks',{}).get('Stop',[])))" "$P/hooks/hooks.json" 2>/dev/null)" \
+  "remember-guard.sh"
 # agent-model.sh only fires if hooks.json wires it to a PreToolUse entry matched exactly
 # on "Agent". A broader or missing matcher means it never reaches an Agent-tool spawn.
 want "hooks.json wires agent-model.sh to PreToolUse matcher Agent" \
@@ -184,7 +188,7 @@ else
   # exit code is part of the pass condition and the RESULT line is picked by prefix,
   # not by trailing position: a merged stderr line must not masquerade as the verdict.
   out="$(printf '%s' "$hout" | grep -E '^RESULT: ' | tail -1)"
-  if [ "$hrc" -eq 0 ] && suite_pass "$out" 160; then
+  if [ "$hrc" -eq 0 ] && suite_pass "$out" 180; then
     ok "hook fixture suite"
   else
     no "hook fixture suite (exit $hrc, got: ${out:0:60})"
@@ -234,7 +238,7 @@ doh="$(mktemp -d)"; HOME="$doh" bash "$P/scripts/override.sh" conventions >/dev/
 
 echo "== Plan validator =="
 out="$(bash "$P/scripts/tests/validate-plan/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "plan-validator fixture suite" "$out" 24
+suite_ok "plan-validator fixture suite" "$out" 37
 
 echo "== Topic recall =="
 out="$(bash "$P/scripts/tests/topic-recall/run-tests.sh" 2>/dev/null | tail -1)"
