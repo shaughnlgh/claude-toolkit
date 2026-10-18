@@ -1,6 +1,6 @@
 # Workflows
 
-Workflows are multi-agent orchestrations the toolkit ships as scripts under `plugins/toolkit/workflows/`, run through the Workflow tool rather than a single agent turn. There are two: `review-mr`, driven by the `gitlab-mr-review` skill against fetched MR diffs and the `red-team` skill against local uncommitted slice diffs (passing `repoState`), and `plan-flow`, driven by the `plan-flow` skill to turn a brief into the body of a plan note.
+Workflows are multi-agent orchestrations the toolkit ships as scripts under `plugins/toolkit/workflows/`, run through the Workflow tool rather than a single agent turn. There are two: `review-mr`, driven by the `gitlab-mr-review` skill against fetched MR diffs and the `red-team` skill against local uncommitted slice diffs (passing `repoState`), and `plan-builder`, driven by the `plan-flow` skill to turn a brief into the body of a plan note. A workflow and a skill register in the same `toolkit:` namespace, so the script cannot share the skill's name.
 
 ## review-mr.js
 
@@ -26,7 +26,7 @@ args: {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoSt
 - `registryReviewers` (optional) — override the default set of six reviewer agent types. Names must be fully qualified as the harness registers them (plugin agents are namespaced, e.g. `toolkit:code-reviewer`).
 - `repoState` (optional) — sentence describing the state of the tree at `repoRoot`, substituted into the reviewer and verifier prompts; defaults to the current MR target-branch sentence.
 
-## plan-flow.js
+## plan-builder.js
 
 Plan flow. It turns a brief into every section of a plan note and runs five phases:
 
@@ -75,7 +75,7 @@ It returns `{plan, branch, relatedTopics, discovery, rounds, tripwires, walkAway
 
 A dead stage never fails the run. Its label (`discover:scope`, `invert:N`, `revise:N`, `red-team:cold`, `revise:cold`, `judge`) lands in `incomplete`, and a dead judge also yields `meets: false`. A dead area explorer lands in `discovery.uncovered`. The one exception is the draft: if the planner returns nothing, the script throws, because no plan exists to return.
 
-Tests: `bash plugins/toolkit/workflows/tests/plan-flow/run-tests.sh` runs 25 control-flow cases that drive the script with a scripted agent stub: dead stages, each verdict path, the cold revise paths, the stale-critique cases, and the judge prompt. The suite needs `node`, and `verify.sh` also runs it.
+Tests: `bash plugins/toolkit/workflows/tests/plan-builder/run-tests.sh` runs 25 control-flow cases that drive the script with a scripted agent stub: dead stages, each verdict path, the cold revise paths, the stale-critique cases, and the judge prompt. The suite needs `node`, and `verify.sh` also runs it.
 
 ## post_mr_comments.py
 

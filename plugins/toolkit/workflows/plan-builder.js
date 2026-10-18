@@ -1,5 +1,5 @@
 export const meta = {
-  name: 'plan-flow',
+  name: 'plan-builder',
   description: 'Plan flow: discovery, planner draft, plan-critic pre-mortem with a revise loop, cold red team, optional goal judge. Returns plan sections for the plan-flow skill to write. Writes no files, runs no git.',
   phases: [
     { title: 'Discover', detail: 'explorer scopes 2 to 5 areas, one explorer per area' },
@@ -16,10 +16,10 @@ if (typeof a === 'string') {
 }
 const REQUIRED = ['brief', 'repoRoot', 'repoName', 'planName', 'recallHits']
 if (!a || REQUIRED.some((k) => typeof a[k] !== 'string' || !a[k])) {
-  throw new Error('plan-flow requires args: {brief, repoRoot, repoName, planName, recallHits, knownEvidence?, approveIf?, maxRounds?}')
+  throw new Error('plan-builder requires args: {brief, repoRoot, repoName, planName, recallHits, knownEvidence?, approveIf?, maxRounds?}')
 }
 if (a.maxRounds != null && !(Number.isInteger(a.maxRounds) && a.maxRounds >= 0)) {
-  throw new Error(`plan-flow maxRounds must be a non-negative integer, got ${JSON.stringify(a.maxRounds)}`)
+  throw new Error(`plan-builder maxRounds must be a non-negative integer, got ${JSON.stringify(a.maxRounds)}`)
 }
 const MAX_ROUNDS = a.maxRounds ?? 2
 const incomplete = []
@@ -100,7 +100,7 @@ UNCOVERED AREAS: ${uncovered.join(', ') || 'none'}
 
 Draft the plan from the evidence above. Read the repo at ${a.repoRoot} only to close a gap the evidence leaves. ${RULES}`,
   { label: 'draft', phase: 'Draft', schema: PLAN_SCHEMA, agentType: 'toolkit:planner' })
-if (!draft) throw new Error('plan-flow: planner returned no draft')
+if (!draft) throw new Error('plan-builder: planner returned no draft')
 
 const critique = (plan, label, cold) => agent(`${cold ? 'You are a senior engineer on another team seeing only this plan.' : CONTEXT}
 
