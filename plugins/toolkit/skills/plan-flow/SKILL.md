@@ -4,7 +4,7 @@ description: >-
   Plan flow: one run that turns a brief into a validated plan note. Use only when the
   user asks for the plan flow by name ("run the plan flow", "plan flow this brief").
   Never fires from crawl. Asks the git-permission question unless an earlier
-  flow in the session recorded the answer, runs topic recall, launches the plan-flow
+  flow in the session recorded the answer, runs topic recall, launches the plan-builder
   workflow (discovery, planner draft, plan-critic pre-mortem with a revise loop, cold
   red team, optional goal judge), writes and validates the plan note in the vault, and
   gates its status on the result. Never writes repo files and never runs git. Do NOT
@@ -14,7 +14,7 @@ description: >-
 
 # Plan Flow
 
-Plan-flow is the conductor side of the `plan-flow` workflow, shipped with this plugin at `../../workflows/plan-flow.js` relative to this skill's base directory. The script runs discovery, the planner draft, the plan-critic pre-mortem with its revise loop, the cold red team, and the optional goal judge, then returns the plan sections. The conductor asks the git-permission question, runs recall, launches the script, writes and validates the plan note, and gates its status. The script writes no files and runs no git. The conductor writes only the vault note.
+Plan-flow is the conductor side of the `plan-builder` workflow, shipped with this plugin at `../../workflows/plan-builder.js` relative to this skill's base directory. The script runs discovery, the planner draft, the plan-critic pre-mortem with its revise loop, the cold red team, and the optional goal judge, then returns the plan sections. The conductor asks the git-permission question, runs recall, launches the script, writes and validates the plan note, and gates its status. The script writes no files and runs no git. The conductor writes only the vault note.
 
 ## 1. Trigger
 
@@ -46,7 +46,7 @@ On `2` or `3`, stop and report the exit code and stderr to the user. Never pass 
 
 Derive `planName` per `plan-workflow` naming and build the args: `brief`, `repoRoot` as an absolute path, `repoName`, `planName`, `recallHits`, and the optional `knownEvidence` (facts this session already verified, each with its file:line), `approveIf` (one goal sentence the plan must meet, only when the user gave one), and `maxRounds` (revise rounds, default 2).
 
-When `repoRoot` contains `plugins/toolkit/workflows/plan-flow.js`, launch `{scriptPath: "<repoRoot>/plugins/toolkit/workflows/plan-flow.js"}`, otherwise `{name: "toolkit:plan-flow"}` with the `scriptPath` fallback `red-team` uses. That fallback is `{scriptPath: "<this skill's base directory>/../../workflows/plan-flow.js"}` resolved to an absolute path, used if name resolution fails. Persist the `runId` and script path to `<scratchpad>/plan-flow-<planName>.runid` at once, before reading the result. A dead run resumes with `resumeFromRunId`. Completed agents return cached, so never relaunch a fresh run when a resume is possible.
+When `repoRoot` contains `plugins/toolkit/workflows/plan-builder.js`, launch `{scriptPath: "<repoRoot>/plugins/toolkit/workflows/plan-builder.js"}`, otherwise `{name: "toolkit:plan-builder"}` with the `scriptPath` fallback `red-team` uses. That fallback is `{scriptPath: "<this skill's base directory>/../../workflows/plan-builder.js"}` resolved to an absolute path, used if name resolution fails. The script is named `plan-builder` because a workflow and a skill cannot share a name in the plugin registry. Persist the `runId` and script path to `<scratchpad>/plan-flow-<planName>.runid` at once, before reading the result. A dead run resumes with `resumeFromRunId`. Completed agents return cached, so never relaunch a fresh run when a resume is possible.
 
 The result is `{plan, branch, relatedTopics, discovery, rounds, tripwires, walkAway, coldObjections, coldVerdict, finalVerdict, openObjections, critiqueStale, blocked, approveIf, incomplete}`:
 
