@@ -1,0 +1,96 @@
+---
+name: plan-flow
+description: >-
+  Plan flow: one run that turns a brief into a validated plan note. Use only when the
+  user asks for the plan flow by name ("run the plan flow", "plan flow this brief").
+  Never fires from crawl. Asks the git-permission question unless an earlier
+  flow in the session recorded the answer, runs topic recall, launches the plan-flow
+  workflow (discovery, planner draft, plan-critic pre-mortem with a revise loop, cold
+  red team, optional goal judge), writes and validates the plan note in the vault, and
+  gates its status on the result. Never writes repo files and never runs git. Do NOT
+  fire when a plan note already exists for the work (plan-workflow owns that) or on
+  trivial work that needs no plan.
+---
+
+# Plan Flow
+
+Plan-flow is the conductor side of the `plan-flow` workflow, shipped with this plugin at `../../workflows/plan-flow.js` relative to this skill's base directory. The script runs discovery, the planner draft, the plan-critic pre-mortem with its revise loop, the cold red team, and the optional goal judge, then returns the plan sections. The conductor asks the git-permission question, runs recall, launches the script, writes and validates the plan note, and gates its status. The script writes no files and runs no git. The conductor writes only the vault note.
+
+## 1. Trigger
+
+Fire only when the user asks for the plan flow by name. A `crawl` route never fires this skill. When a plan note already exists, load `plan-workflow` instead. Trivial work needs no plan, so it never fires this skill. The brief is the user's text for the work, quoted verbatim.
+
+## 2. Git permission
+
+Before anything else, check `<scratchpad>/flow-git-permission`. If the file exists, an earlier flow in this session recorded the answer, so read it and do not ask. If the file does not exist, this flow is the first in the session, so ask once through AskUserQuestion: "Do I have permission to run git commands on your behalf for every flow in this session?" with the options in this order:
+
+1. "No, suggest only (Recommended for a work repo)", with the description "Every flow in this session suggests git commands and runs none.", writes `none`.
+2. "Yes, commit, branch, push and open the MR or PR, never merge", with the description "Covers every flow in this session, including a later flow in this session that runs git, without asking again.", writes `push`.
+3. "Yes, through merge and tag", with the description "Covers every flow in this session, including a later flow in this session that runs git, without asking again.", writes `release`.
+
+Write the answer to `<scratchpad>/flow-git-permission` as `none`, `push`, or `release`. A missing, empty, or unrecognised file reads as `none`, so until the question is answered no flow has git permission. The answer holds for every flow run in this session, so a later flow in the same session reads the file and never re-asks. The plan flow runs no git under any answer. The `## Flows` section of the git-safety doctrine (`../../doctrine/git-safety.md` from this skill's base directory) defines what each answer unlocks.
+
+## 3. Recall
+
+Run `python3 <plugin-root>/scripts/topic-recall.py --repo <repoName> --repo-root <repoRoot> "<term one>" "<term two>"`, with each key term from the brief passed as its own quoted argument, because the terms are user text. The plugin root is `../..` from this skill's base directory, resolved to an absolute path. `<repoName>` is the basename of `<repoRoot>`. The two sources are the vault topic notes and the repo's `docs/`.
+
+Read the exit code before the output:
+
+- `0` means the search ran. Read the top hits of both sources and pass the text output as `recallHits`. If the output is empty, pass `none`, because the script rejects a blank `recallHits`.
+- `2` means `~/.claude/obsidian-sync.json` is missing or unreadable, or the vault root is not a directory.
+- `3` means the run passed its internal deadline.
+
+On `2` or `3`, stop and report the exit code and stderr to the user. Never pass `none` for a failed recall.
+
+## 4. Launch
+
+Derive `planName` per `plan-workflow` naming and build the args: `brief`, `repoRoot` as an absolute path, `repoName`, `planName`, `recallHits`, and the optional `knownEvidence` (facts this session already verified, each with its file:line), `approveIf` (one goal sentence the plan must meet, only when the user gave one), and `maxRounds` (revise rounds, default 2).
+
+When `repoRoot` contains `plugins/toolkit/workflows/plan-flow.js`, launch `{scriptPath: "<repoRoot>/plugins/toolkit/workflows/plan-flow.js"}`, otherwise `{name: "toolkit:plan-flow"}` with the `scriptPath` fallback `red-team` uses. That fallback is `{scriptPath: "<this skill's base directory>/../../workflows/plan-flow.js"}` resolved to an absolute path, used if name resolution fails. Persist the `runId` and script path to `<scratchpad>/plan-flow-<planName>.runid` at once, before reading the result. A dead run resumes with `resumeFromRunId`. Completed agents return cached, so never relaunch a fresh run when a resume is possible.
+
+The result is `{plan, branch, relatedTopics, discovery, rounds, tripwires, walkAway, coldObjections, coldVerdict, finalVerdict, openObjections, critiqueStale, blocked, approveIf, incomplete}`:
+
+- `discovery.uncovered` lists the discovery areas that no explorer covered.
+- `finalVerdict` is `proceed`, `revise`, `stop`, or `incomplete`.
+- `coldVerdict` is the cold red team's verdict string, or null.
+- `openObjections` lists the objections left unapplied, each with `section`, `claim`, `evidence`, `fix`, and `material`.
+- `critiqueStale` is true when the returned plan differs from the draft that the last returned Invert critique saw.
+- `blocked` lists plain-sentence reasons that the plan must not be auto-approved, and is empty when nothing blocks.
+
+## 5. Write the plan note
+
+Load `plan-workflow`. Create the directory and note per its naming and atomic write rules: Write the note to a `.tmp.md` file beside the destination, then move it into place with `vault-fs.sh mv`.
+
+Map each section to its heading:
+
+| `plan` key | Heading |
+|---|---|
+| `objective` | Objective |
+| `plainLanguageSummary` | Plain Language Summary |
+| `currentContext` | Current Context |
+| `assumptions` | Assumptions |
+| `affectedFiles` | Affected Files |
+| `implementationSteps` | Implementation Steps |
+| `validationSteps` | Validation Steps |
+| `risks` | Risks |
+| `rollbackNotes` | Rollback Notes |
+| `openQuestions` | Open Questions |
+| `relatedTopics` | Related Topics |
+
+Add Plan Changes During Execution and Linked Artifacts, both empty at creation as `plan-workflow` requires. Write the full frontmatter per `plan-workflow`, with `status: planning` until the gate. Before writing the frontmatter, check `branch` against the git-safety branch shape: `<type>/<TICKET>-<slug>` or `<type>/<slug>`, lowercase kebab-case apart from the ticket key. If `branch` does not match, write `feat/<planName>` and tell the user. Check that each `relatedTopics` entry is a plain name with no brackets and no slashes. If an entry carries brackets or a slash, write it without the brackets and with only its last path segment, and tell the user. Write `branch` to `branch` and `relatedTopics` to `related_topics` as plain strings.
+
+Append the tripwires to Validation Steps and the walk-away checks to Risks, one line each. If `critiqueStale` is true, end each of those tripwire and walk-away lines with the sentence "Written against an earlier draft, re-check against the final plan." List every `openObjections` entry under Risks as an open objection, one line each with its section, claim, and fix. List every `coldObjections` entry that the final plan does not resolve under Risks, one line each with its section and claim.
+
+Record the session entry per `plan-workflow`, with the id taken from the scratchpad path. When the gate in section 6 sets `status: approved`, the session summary must say that the approval came from the `approveIf` judge and quote the goal sentence, so a reader knows that a model judged the plan against a goal the user wrote and that no human read the note first. Create stubs for unresolved Related Topics per the obsidian-topic command (`../../commands/obsidian-topic.md` from this skill's base directory).
+
+Then run `python3 <plugin-root>/scripts/validate-plan.py "<plan note path>"` and require exit 0. A failure is reported with the validator output, never patched silently.
+
+## 6. Gate
+
+Set `status: approved` and `approved: <today>` only when `approveIf.meets` is true and `blocked`, `incomplete`, and `discovery.uncovered` are all empty. In every other case, set `status: review` and stop. A run without `approveIf` returns `approveIf: null`, which lands in `review`. If the status is approved, write the session summary that section 5 requires in the same change. Write the status change atomically and run `validate-plan.py` again, requiring exit 0.
+
+Whatever the gate result, state to the user the `finalVerdict`, the `coldVerdict`, every `blocked` reason, every `incomplete` marker, and every `discovery.uncovered` area. State a null `coldVerdict` and each empty list as "none". When `approveIf.meets` is false, also state its `reasons` and `unmetGoals`. If the status is approved, say that execution may follow once the user gives the instruction.
+
+## Boundary
+
+The flow never writes repo files and never runs git. Prose rules bind the note. Not for an existing plan note (`plan-workflow` owns that) and not for a standalone review of a written plan (`plan-critic` owns that). An approved status never starts execution on its own. The next step waits on the user. An approved status set by the gate records a mechanical judgement against the user's own `approveIf` sentence, not a human reading of the note. The human approval rule in `plan-workflow` still governs execution, and the user can revert the status to `review`.

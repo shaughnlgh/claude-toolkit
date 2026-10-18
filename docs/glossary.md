@@ -22,3 +22,11 @@ The once-per-slice step that routes the durable facts a slice surfaced. One `imp
 ### Remember guard
 
 The `remember-guard.sh` Stop hook. It warns the user when a reply has a line that begins `Suggested commit` while the session's in-progress plan note has no `Remember:` line under Plan Changes During Execution. It only warns and never blocks. `validate-plan.py` enforces the line at completion: it rejects a plan at status completed, created on or after 2026-10-18, that has no `Remember:` line there.
+
+### Flow
+
+A skill whose name ends in `-flow`, driven by a Workflow script under `plugins/toolkit/workflows/`. The first flow in a session asks the git-permission question once, and every later flow in that session reads the recorded answer instead of asking. The `## Flows` section of `doctrine/git-safety.md` defines what each answer permits. The toolkit ships one flow, `plan-flow`, and it runs no git under any answer.
+
+### flow-git-permission
+
+The file at `<scratchpad>/flow-git-permission` that records the session's answer to the git-permission question as `none`, `push`, or `release`. A missing, empty, or unrecognised file reads as `none`. A resumed session keeps its scratchpad and so keeps the answer. A new session asks again.
