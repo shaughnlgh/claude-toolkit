@@ -1,8 +1,8 @@
 # Hooks
 
-The toolkit ships eleven hook scripts that run automatically once the plugin is installed — no opt-in, no separate config. This page is the full accounting, in the spirit of transparency: exactly what each one checks, what it hard-blocks versus merely asks you to confirm, and every environment variable it honors. The README's Docs list links here in one line; this is the full version — the one to read before trusting the toolkit with a repo.
+The toolkit ships twelve hook scripts that run automatically once the plugin is installed — no opt-in, no separate config. This page is the full accounting, in the spirit of transparency: exactly what each one checks, what it hard-blocks versus merely asks you to confirm, and every environment variable it honors. The README's Docs list links here in one line; this is the full version — the one to read before trusting the toolkit with a repo.
 
-Two properties hold across all eleven:
+Two properties hold across all twelve:
 
 - **Fails safe.** No hook can crash or hang your session. Where "safe" lands differs by hook: `protect-files.sh` and `block-dangerous-commands.sh` require `jq` to parse the tool call, so if `jq` is missing they hard-block that one write or command rather than let a security check that can't run pass silently. `scan-secrets.sh` degrades to a no-op without `jq` (it cannot parse the write, so it does not block). `notify.sh` always fires with its fixed message and only no-ops when no OS notifier is available. `session-start.sh` and `subagent-rules.sh` both fall back to plain-stdout context. `context-sentinel.sh` is a silent no-op without `jq` or a readable transcript, and never blocks anything regardless. `conductor-guard.sh` likewise fails open without `jq` and can only ever ask, never deny. Either way, the worst case is one blocked tool call or a slightly thinner context injection — never a broken session.
 - **Reads no network** — with one narrow exception: `session-start.sh`'s verbose mode (`TOOLKIT_SESSION_VERBOSE=1`) calls `gh pr view` when the `gh` CLI is installed, which does reach GitHub's API for the current repo's PR status. Every other code path in every hook is local only: file reads, git plumbing, `jq`, and OS notification APIs.
@@ -22,6 +22,7 @@ Two properties hold across all eleven:
 | `conductor-guard.sh` | PreToolUse (`Edit\|Write\|NotebookEdit`) | Prompts for confirmation when the main conversation (the conductor, not a subagent) edits a project file directly — doctrine delegates every change to a worker; `TOOLKIT_CONDUCTOR_EDITS=1` disables for a session |
 | `design-rules-reminder.sh` | PreToolUse (`Edit\|Write\|NotebookEdit`) | When the target file matches a frontend pattern (extension or directory segment), injects a one-line pointer at the `rules/design.md` catalog into model context, once per session — advisory only, never blocks |
 | `agent-model.sh` | PreToolUse (`Agent`) | Injects the model from `~/.claude/toolkit-models.json` into an Agent call when the config names that agent and the call carries no model. Advisory, fails open; warnings surface as a user-visible `systemMessage` |
+| `remember-guard.sh` | Stop (every stop) | Warns the user, as a systemMessage, when a reply suggests a commit but the session's in-progress plan note has no Remember: line under Plan Changes During Execution. Warn-only, never blocks |
 
 ## The boundary model — what enforces what
 
@@ -197,6 +198,27 @@ Each threshold fires once per crossing: the announced tier is remembered in a pe
 **Hard blocks / asks:** none — advisory only, exits 0 always.
 
 **Failure mode:** silent no-op without `jq`, without a readable transcript, or on any parse failure. It can only ever add context, never stop a tool call.
+
+## remember-guard.sh
+
+**Event:** `Stop`, no matcher. It fires each time Claude finishes a reply.
+
+The check for the remember pass that red-team step 7b and plan-workflow Session Closure run once per slice. The pass records a `Remember:` line in the plan note, and this hook tells the user when a reply suggests a commit before that line exists. It prints a one-line user-visible `systemMessage` only when every condition holds:
+
+- (a) `stop_hook_active` is false, so a Stop that follows a stop-hook continuation never warns.
+- (e) The payload's `last_assistant_message` has a line that begins `Suggested commit`, matched case-insensitively, after an optional `#`, `*`, or `**` markdown prefix. The line can appear anywhere in the message, not only first. Red-team step 8 puts it directly after the Repo, Branch, and Scope header lines of its commit suggestion. The phrase in the middle of a line does not count.
+- (b) The payload's `cwd` is inside a git repo. The repo name comes from the main checkout, so a linked worktree resolves to the same name, as in `session-start.sh`.
+- (c) `~/.claude/obsidian-sync.json` resolves `<vault_path>/<root_folder>/Projects/<repo>` to an existing folder.
+- (d) At least one plan note in that folder has `status: in-progress` and lists this session's id under `sessions:` in its frontmatter.
+- (f) None of the plans matched in (d) has a line that starts with `Remember:` or `- Remember:` under `## Plan Changes During Execution`. Lines inside a fenced code block, fenced with backticks or tildes, never count, and a `## ` line inside a fence does not end the section.
+
+The hook checks the conditions in the order listed, cheapest first. It never reads the session transcript. The marker lives at `$TMPDIR/toolkit-remember-guard-<session_id>`, the same idiom `context-sentinel.sh` uses. The hook warns once per session when the marker directory is writable. If the marker write fails, it warns on every Stop that meets the conditions. If the marker path is a symlink, the hook exits silently and writes nothing. Open item: the hook warns only until the plan's first Remember: line exists, so it does not catch a later slice on the same plan, and keying the check per slice is a later change.
+
+**Env vars:** `TOOLKIT_REMEMBER_GUARD=0` disables the hook entirely.
+
+**Hard blocks / asks:** none. It never returns `decision: block` and exits 0 always.
+
+**Failure mode:** silent exit 0 without `jq`, without the vault config, or outside a git repo. A session id with characters outside `[A-Za-z0-9_-]` also exits silently. The hook writes nothing to stderr.
 
 ## notify.sh
 
