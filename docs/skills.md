@@ -10,6 +10,7 @@ These GIFs live in the repo (`docs/media/`) but not in the installed plugin. The
 |---|---|---|
 | `crawl` | Front door for new work: ingests a brief or ticket, validates it against the codebase (recall + explorer), then recommends a route — wayfinder, plan-workflow, or no plan — which you confirm before anything is written. | A session opens with a new piece of work and no plan note exists for it yet. |
 | `plan-workflow` | Writes a plan note to your Obsidian vault and stops for approval before any implementation. The single source of truth for artifact layout, naming, frontmatter, and the status lifecycle. | Creating, filling in, or closing out a plan note; starting a planning session. |
+| `plan-flow` | One run from brief to plan note: asks the git-permission question unless an earlier flow in the session recorded the answer, runs topic recall, launches the `plan-flow` workflow (explorer discovery, planner draft, plan-critic pre-mortem with a revise loop, cold red team, optional goal judge), then writes and validates the plan note and sets its status from the result. Never writes repo files and never runs git. | You ask for the plan flow by name. Never from crawl, and never on an existing plan note. |
 | `execute-workflow` | Execution mechanics after a plan is approved: run topic recall at start (recall reads the vault and the repo's docs), delegate to worker agents, report progress in a fixed format, run the doc-update pass, debug with runtime evidence. | Starting execution of an approved plan; debugging a runtime or integration issue. |
 | `testing-gate` | Asks once, up front, whether the task needs automated tests or manual verification is enough. | Starting a feature, bugfix, or refactor. |
 | `test-first` | The red-green-refactor loop that runs once `testing-gate` has said tests are required. Chains from the gate, never decides the gate itself. | Writing code on a task where tests were required. |
@@ -25,11 +26,11 @@ These GIFs live in the repo (`docs/media/`) but not in the installed plugin. The
 | `review-threads` | Works the reviewer threads on a pushed MR or PR (CodeRabbit, Copilot, humans): lists open threads, fixes or pushes back per thread, never comments on threads a fix resolves, reports state, and recommends merge only when every thread is resolved and the pipeline is green. glab for GitLab, gh for GitHub. | You ask to go through or address the review comments on an MR or PR. |
 | `incident-investigate` | Root-cause investigation for a production incident: fences scope to the question and items you named, checks that the project's documented evidence sources are reachable before spawning, gathers evidence in parallel with a citation per finding, adjudicates to one verdict with a provenance label, and writes a technical incident note plus a stakeholder summary. Never implements a fix, never mutates production. | You explicitly ask to investigate an incident, or paste a production alert with "find the cause". |
 
-All of the request-triggered skills (`grill`, `handoff`, `resolving-merge-conflicts`, `wayfinder`, `expedition`, `review-threads`, `incident-investigate`) fire only on an explicit ask, never on something the model infers on its own — with two narrow carve-outs: a crawl route you confirmed counts as the explicit ask for wayfinder, and a confirmed yes at an expedition's grill gate counts as the explicit ask for grill. `inversion` also fires on an evaluative question about a plan or fix ("is this a good plan", "is this ready to ship"), which counts as the ask. `crawl` is the exception in the other direction: it fires automatically on new work (a brief or ticket with no plan note), staying near-silent on trivial work. `red-team` sits between the two: the recommendation fires automatically on a closure signal, but the run itself still waits on your explicit confirmation — an explicit ask to red team a diff skips that gate and counts as the confirmation on its own.
+All of the request-triggered skills (`grill`, `handoff`, `resolving-merge-conflicts`, `wayfinder`, `expedition`, `review-threads`, `incident-investigate`, `plan-flow`) fire only on an explicit ask, never on something the model infers on its own — with two narrow carve-outs: a crawl route you confirmed counts as the explicit ask for wayfinder, and a confirmed yes at an expedition's grill gate counts as the explicit ask for grill. `inversion` also fires on an evaluative question about a plan or fix ("is this a good plan", "is this ready to ship"), which counts as the ask. `crawl` is the exception in the other direction: it fires automatically on new work (a brief or ticket with no plan note), staying near-silent on trivial work. `red-team` sits between the two: the recommendation fires automatically on a closure signal, but the run itself still waits on your explicit confirmation — an explicit ask to red team a diff skips that gate and counts as the confirmation on its own.
 
 ## Example prompts
 
-How to trigger each skill. Some you invoke directly, some fire automatically inside the plan-then-build flow.
+How to trigger each skill. Some you invoke directly, some fire automatically inside the plan-then-build pipeline.
 
 **Invoke directly:**
 
@@ -40,6 +41,10 @@ How to trigger each skill. Some you invoke directly, some fire automatically ins
 - `plan-workflow` — plan a non-trivial change:
 
       Let's plan adding rate limiting to the login endpoint.
+
+- `plan-flow` builds a complete plan note from a brief in one run, and fires only when you ask for it by name:
+
+      Run the plan flow on this: add CSV export to the reports page.
 
 - `grill` — pin down a fuzzy feature before planning:
 
