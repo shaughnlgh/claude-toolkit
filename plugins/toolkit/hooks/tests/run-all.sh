@@ -153,6 +153,13 @@ declare -F run_session_start_recall_checks >/dev/null || { echo "FATAL: run_sess
 echo "== session-start recall (non-fixture) =="
 run_session_start_recall_checks
 
+# Checks that need a scratch git repo, a vault plan note, a linked worktree, and real marker persistence,
+# which JSON fixtures cannot express.
+source "$ROOT/tests/remember-guard-check.sh" || { echo "FATAL: cannot source remember-guard-check.sh" >&2; exit 2; }
+declare -F run_remember_guard_checks >/dev/null || { echo "FATAL: run_remember_guard_checks not defined" >&2; exit 2; }
+echo "== remember-guard (non-fixture) =="
+run_remember_guard_checks
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 if [[ $FAIL -gt 0 ]]; then

@@ -317,13 +317,14 @@ The record of the work is the plan note (kept current during execution), git (th
 
 ### Finalize
 
-Mark a plan done once the MRs are merged: post a comment to the ticket, transition the ticket status, and set the plan frontmatter to `completed`. Tooling may automate these steps. Before the final MR merges, promote what outlives the plan as the handoff skill's "Promote what outlives the plan" item describes, so Linked Artifacts names each promoted path, or reads "Nothing to promote", before the plan is set to `completed`.
+Mark a plan done once the MRs are merged: post a comment to the ticket, transition the ticket status, and set the plan frontmatter to `completed`. Tooling may automate these steps. validate-plan.py rejects a completed plan whose Plan Changes During Execution has no Remember: line, so run the remember pass first. Plans created before 2026-10-18 are exempt. Before the final MR merges, promote what outlives the plan as the handoff skill's "Promote what outlives the plan" item describes, so Linked Artifacts names each promoted path, or reads "Nothing to promote", before the plan is set to `completed`.
 
 ### Do not mark a plan complete if
 
 - There is no plan for this session, or the plan is ambiguous.
 - The Obsidian config or vault is missing.
 - The MRs are not actually merged.
+- Plan Changes During Execution has no Remember: line, for a plan created on or after 2026-10-18.
 
 If completion is skipped, state exactly why.
 
