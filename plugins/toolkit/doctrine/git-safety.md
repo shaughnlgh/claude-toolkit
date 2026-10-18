@@ -3,6 +3,8 @@
 Do not run `git commit`, `git push`, `git merge`, branch operations, or open PRs.
 Suggest the branch name and commit message; the human handles git.
 
+The `## Flows` section is the single exception to the rules in this file.
+
 ## Blocked commands
 
 Do not run any of these commands unless the user explicitly asks:
@@ -65,6 +67,18 @@ A push, tag, switch, or merge handoff follows the same header with its own paste
 ## Authorization covers one operation
 
 One instruction to commit, push, merge, or tag covers that one operation. The next operation needs its own instruction, in the same session or a later one.
+
+## Flows
+
+Inside a flow with a recorded `push` or `release` answer, this section overrides three rules above: the opening rule that the human handles git, the branch check rule to stop and wait for the human to create the branch, and the rule that authorization covers one operation. A flow is a skill whose name ends in `-flow`, driven by a Workflow script under `workflows/`.
+
+The first flow that runs in a session asks one question through AskUserQuestion before anything else runs: "Do I have permission to run git commands on your behalf for every flow in this session?" The flow records the answer at `<scratchpad>/flow-git-permission` as `none`, `push`, or `release`, and the answer holds for every flow run in that session. A later flow in the same session reads the file and never re-asks, so a `push` or `release` answer given to the plan flow also covers a later flow in that session that runs git. A missing, empty, or unrecognised file reads as `none`.
+
+- `none` keeps this doctrine as written.
+- `push` permits commit, branch cut, push, and MR or PR creation.
+- `release` adds merge and tag.
+
+No answer permits a deploy, and `release` never means deploy. The plan flow and the execute flow run no git under any answer. The ship flow is the only flow that runs git, and only under `push` or `release`. The hooks apply under every answer, including the `block-dangerous-commands` hook and its protected-branch guard, and a flow never bypasses them. Outside a flow, and in every ad-hoc session, this doctrine applies unchanged and the human runs git. A resumed session keeps its scratchpad and so keeps its answer. A new session asks again.
 
 ## Branch naming
 
