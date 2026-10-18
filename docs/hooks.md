@@ -155,7 +155,7 @@ Claude Code's `PreToolUse` contract replaces `tool_input` wholesale with whateve
 
 An explicit per-call model on the tool call itself always wins over this hook; the hook only fills in a model when the call didn't already carry one. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, when Claude Code has it set, wins over both the per-call model and this hook.
 
-This hook only reaches `Agent`-tool spawns. Workflow-script `agent()` calls (the MR review engine) are not confirmed to pass through `PreToolUse`, so they keep whatever model the workflow script itself sets, unaffected by this config.
+This hook only reaches `Agent`-tool spawns. Workflow-script `agent()` calls (the `review-mr` and `plan-flow` workflows) are not confirmed to pass through `PreToolUse`, so they keep whatever model the workflow script itself sets, unaffected by this config.
 
 A configured model value containing `haiku` (case-insensitive) is refused, because the toolkit model policy runs no worker on Haiku, and the call proceeds with no model added, the same as an unlisted agent.
 

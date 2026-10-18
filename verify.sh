@@ -48,7 +48,7 @@ ok "verify helpers fail closed (reject mismatch, empty suite, and failures)"
 echo "== Structure =="
 n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
 [ "$(ls $P/agents/*.md 2>/dev/null | wc -l)" -eq 14 ] && ok "14 agents" || no "14 agents"
-[ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 16 ] && ok "16 skills" || no "16 skills"
+[ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 17 ] && ok "17 skills" || no "17 skills"
 [ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 7 ] && ok "7 commands" || no "7 commands"
 [ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 10 ] && ok "10 rules" || no "10 rules"
 # design/ catalog coverage, both directions: every rules/design/*.md concern file must be
@@ -128,12 +128,31 @@ fi
 [ "$(ls $P/doctrine/*.md 2>/dev/null | wc -l)" -eq 13 ] && ok "13 doctrine files" || no "13 doctrine files"
 [ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 12 ] && ok "12 hook scripts" || no "12 hook scripts"
 [ -z "$(find "$P" -type l 2>/dev/null)" ] && ok "plugin tree ships no symlinks (the installer drops them)" || no "plugin tree ships no symlinks (the installer drops them)"
-for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js \
+for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js workflows/plan-flow.js \
          skills/gitlab-mr-review/scripts/post_mr_comments.py \
-         skills/grill/SKILL.md \
+         skills/grill/SKILL.md skills/plan-flow/SKILL.md \
          scripts/vault-fs.sh scripts/git-ro.sh; do
   [ -f "$P/$f" ] && ok "present: $f" || no "MISSING: $f"
 done
+# node --check exits 0 on broken workflow scripts, so compile each body in an AsyncFunction, which accepts top-level await and return.
+WF_PARSE='const s = require("fs").readFileSync(process.argv[1], "utf8").replace(/^export const meta/m, "const meta"); new (Object.getPrototypeOf(async function () {}).constructor)(s)'
+for w in "$P"/workflows/*.js; do
+  if ! command -v node >/dev/null 2>&1; then
+    skip "skipped: node not found; syntax: workflows/$(basename "$w")"
+  elif node -e "$WF_PARSE" "$w" >/dev/null 2>&1; then
+    ok "syntax: workflows/$(basename "$w")"
+  else
+    no "syntax: workflows/$(basename "$w")"
+  fi
+done
+gq_skill="$(grep -o 'Do I have permission[^?]*?' "$P/skills/plan-flow/SKILL.md" 2>/dev/null | head -1)"
+gq_doctrine="$(grep -o 'Do I have permission[^?]*?' "$P/doctrine/git-safety.md" 2>/dev/null | head -1)"
+if [ -n "$gq_skill" ] && [ "$gq_skill" = "$gq_doctrine" ]; then
+  ok "plan-flow skill and git-safety carry the identical git-permission question"
+else
+  no "git-permission question drift -> skill: [${gq_skill:-<missing>}] git-safety: [${gq_doctrine:-<missing>}]"
+fi
+grep -qF '## Flows' "$P/doctrine/git-safety.md" && ok "git-safety carries the Flows section" || no "git-safety missing the Flows section"
 # subagent-rules.sh only fires if hooks.json actually wires it to SubagentStart; a hook
 # file can exist and still never run.
 want "hooks.json wires subagent-rules.sh to SubagentStart" \
@@ -254,6 +273,14 @@ suite_ok "git-ro behavior suite" "$out" 12
 python3 "$P/scripts/validate-plan.py" "$P/scripts/tests/validate-plan/fixtures/2026-01-01-example-feature/plan - example-feature.md" >/dev/null 2>&1
 code "validate-plan accepts a canonical plan" "$?" 0
 
+echo "== plan-flow control flow =="
+if command -v node >/dev/null 2>&1; then
+  out="$(bash "$P/workflows/tests/plan-flow/run-tests.sh" 2>/dev/null | tail -1)"
+  suite_ok "plan-flow control-flow suite" "$out" 25
+else
+  skip "skipped: node not found; plan-flow control-flow suite"
+fi
+
 echo "== post_mr_comments GITLAB_TOKEN guard =="
 out="$(bash "$P/scripts/tests/post-mr-comments/run-tests.sh" 2>/dev/null | tail -1)"
 suite_ok "post-mr-comments token-guard suite" "$out" 5
@@ -353,4 +380,4 @@ echo "RESULT: $pass passed, $skip skipped, $fail failed"
 # Floor, not just zero-failures: silently deleting real checks must not read green.
 # Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
 # no node, no local plugin install) must not read as a vanished check.
-[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 49 ]
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 73 ]
