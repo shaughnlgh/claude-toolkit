@@ -4,7 +4,7 @@ The toolkit shells out to a few CLIs rather than holding any credentials of its 
 
 ### gh (GitHub CLI)
 
-The official GitHub CLI. The install below pulls this plugin from a private GitHub repo over SSH, and `gh auth login` is the easiest way to generate and upload an SSH key the first time. Sessions also use it for read-only PR and CI checks on GitHub-hosted repos.
+The official GitHub CLI. The install below pulls this plugin from a private GitHub repo over SSH, and `gh auth login` is the easiest way to generate and upload an SSH key the first time. Sessions also use it for read-only PR and CI checks on GitHub-hosted repos. The ship flow uses it to open a PR, watch its checks, reply to and resolve bot review threads, and merge.
 
 Install:
 
@@ -20,7 +20,7 @@ gh auth login
 
 ### glab (GitLab CLI)
 
-The official GitLab CLI. The gitlab-mr-review skill fetches MR metadata and diffs through it and posts review comments with its token, so review sessions never handle raw GitLab credentials.
+The official GitLab CLI. The gitlab-mr-review skill fetches MR metadata and diffs through it and posts review comments with its token, so review sessions never handle raw GitLab credentials. The ship flow uses it to open an MR, watch its pipeline, reply to and resolve bot review threads, and merge.
 
 Install:
 
