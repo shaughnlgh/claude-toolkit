@@ -48,7 +48,7 @@ ok "verify helpers fail closed (reject mismatch, empty suite, and failures)"
 echo "== Structure =="
 n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
 [ "$(ls $P/agents/*.md 2>/dev/null | wc -l)" -eq 14 ] && ok "14 agents" || no "14 agents"
-[ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 18 ] && ok "18 skills" || no "18 skills"
+[ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 19 ] && ok "19 skills" || no "19 skills"
 [ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 7 ] && ok "7 commands" || no "7 commands"
 [ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 10 ] && ok "10 rules" || no "10 rules"
 # design/ catalog coverage, both directions: every rules/design/*.md concern file must be
@@ -129,9 +129,10 @@ fi
 [ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 12 ] && ok "12 hook scripts" || no "12 hook scripts"
 [ -z "$(find "$P" -type l 2>/dev/null)" ] && ok "plugin tree ships no symlinks (the installer drops them)" || no "plugin tree ships no symlinks (the installer drops them)"
 for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js workflows/plan-builder.js \
-         workflows/execute-runner.js \
+         workflows/execute-runner.js workflows/ship-runner.js \
          skills/gitlab-mr-review/scripts/post_mr_comments.py \
          skills/grill/SKILL.md skills/plan-flow/SKILL.md skills/execute-flow/SKILL.md \
+         skills/ship-flow/SKILL.md \
          scripts/vault-fs.sh scripts/git-ro.sh; do
   [ -f "$P/$f" ] && ok "present: $f" || no "MISSING: $f"
 done
@@ -166,6 +167,12 @@ if [ -n "$gq_exec" ] && [ "$gq_exec" = "$gq_doctrine" ]; then
 else
   no "git-permission question drift -> execute-flow skill: [${gq_exec:-<missing>}] git-safety: [${gq_doctrine:-<missing>}]"
 fi
+gq_ship="$(grep -o 'Do I have permission[^?]*?' "$P/skills/ship-flow/SKILL.md" 2>/dev/null | head -1)"
+if [ -n "$gq_ship" ] && [ "$gq_ship" = "$gq_doctrine" ]; then
+  ok "ship-flow skill and git-safety carry the identical git-permission question"
+else
+  no "git-permission question drift -> ship-flow skill: [${gq_ship:-<missing>}] git-safety: [${gq_doctrine:-<missing>}]"
+fi
 GQ_OPTS='^[123]\. ".*writes `(none|push|release)`\.$'
 go_plan="$(grep -E "$GQ_OPTS" "$P/skills/plan-flow/SKILL.md" 2>/dev/null)"
 go_exec="$(grep -E "$GQ_OPTS" "$P/skills/execute-flow/SKILL.md" 2>/dev/null)"
@@ -173,6 +180,12 @@ if [ "$(printf '%s\n' "$go_plan" | grep -c .)" -eq 3 ] && [ "$go_plan" = "$go_ex
   ok "plan-flow and execute-flow carry the identical three git-permission options"
 else
   no "git-permission option drift -> plan-flow: [${go_plan:-<missing>}] execute-flow: [${go_exec:-<missing>}]"
+fi
+go_ship="$(grep -E "$GQ_OPTS" "$P/skills/ship-flow/SKILL.md" 2>/dev/null)"
+if [ "$(printf '%s\n' "$go_exec" | grep -c .)" -eq 3 ] && [ "$go_exec" = "$go_ship" ]; then
+  ok "execute-flow and ship-flow carry the identical three git-permission options"
+else
+  no "git-permission option drift -> execute-flow: [${go_exec:-<missing>}] ship-flow: [${go_ship:-<missing>}]"
 fi
 grep -qF '## Flows' "$P/doctrine/git-safety.md" && ok "git-safety carries the Flows section" || no "git-safety missing the Flows section"
 # subagent-rules.sh only fires if hooks.json actually wires it to SubagentStart; a hook
@@ -312,6 +325,14 @@ if command -v node >/dev/null 2>&1; then
   suite_ok "execute-runner control-flow suite" "$out" 87
 else
   skip "skipped: node not found; execute-runner control-flow suite"
+fi
+
+echo "== ship-runner control flow =="
+if command -v node >/dev/null 2>&1; then
+  out="$(bash "$P/workflows/tests/ship-runner/run-tests.sh" 2>/dev/null | tail -1)"
+  suite_ok "ship-runner control-flow suite" "$out" 139
+else
+  skip "skipped: node not found; ship-runner control-flow suite"
 fi
 
 echo "== post_mr_comments GITLAB_TOKEN guard =="
