@@ -132,13 +132,13 @@ A topic note is a claim about the world at its `verified` time. A blank `verifie
 
 ## Remember pass
 
-Runs once per implementation slice, from red-team step 7b or plan-workflow Session Closure, whichever comes first. A `Remember:` line under the plan note's Plan Changes During Execution is the signal that the pass already ran for the slice. For a slice with no plan note, the line goes in the red-team report only, and that report is the signal. The remember pass is distinct from execute-workflow's Doc Update Pass: the doc pass keeps existing docs accurate about what changed, the remember pass records what the slice learned.
+Runs once per implementation slice, from red-team step 7b, the execute flow's `execute-runner` workflow, or plan-workflow Session Closure, whichever comes first. A `Remember:` line under the plan note's Plan Changes During Execution is the signal that the pass already ran for the slice. For a slice with no plan note, the line goes in the red-team report only, and that report is the signal. The remember pass is distinct from execute-workflow's Doc Update Pass: the doc pass keeps existing docs accurate about what changed, the remember pass records what the slice learned.
 
 ### Inputs
 
 The conductor gathers these before delegating:
 
-- The cumulative slice diff. Capture it by red-team step 2's method: `git diff HEAD` into a scratchpad file, plus `git diff --no-index /dev/null <file>` appended for each untracked file. Red-team step 7b captures it fresh after the doc pass. Session Closure captures it the same way when red-team has not run.
+- The cumulative slice diff. Capture it by red-team step 2's method: `git diff HEAD` into a scratchpad file, plus `git diff --no-index -- /dev/null <file>` appended for each untracked file. Red-team step 7b captures it fresh after the doc pass. Session Closure captures it the same way when red-team has not run.
 - The files the slice touched.
 - Every Topic note material return from this slice.
 - The recall hits from `python3 <plugin-root>/scripts/topic-recall.py --repo <repo> --repo-root <repo root> <touched module and plan terms>`.
