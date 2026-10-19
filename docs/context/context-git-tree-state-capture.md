@@ -11,6 +11,7 @@ source_refs:
   - plugins/toolkit/skills/red-team/SKILL.md
   - plugins/toolkit/commands/obsidian-topic.md
   - plugins/toolkit/doctrine/git-safety.md
+  - plugins/toolkit/workflows/ship-runner.js
 ---
 <!-- managed-by: toolkit -->
 
@@ -30,6 +31,7 @@ The `red-team` skill, the remember pass in `obsidian-topic.md`, and the execute 
 - `git status --porcelain` wraps a name that contains a space in double quotes. `git ls-files` and `git diff --name-only` print the same name bare. A comparison across these commands removes the surrounding quotes from a quoted porcelain name that holds no backslash.
 - All of these commands quote a name that contains a backslash, a double quote, or a control character, and escape those characters, even with `core.quotePath=false`. Compare such a name verbatim on both sides, quotes and escapes included.
 - A porcelain rename line holds both paths separated by ` -> `. A name that contains ` -> ` also contains a space, so git always quotes it. Split the line at the ` -> ` that falls outside double quotes. Splitting at the last ` -> ` cuts a quoted new name such as `"p -> q.txt"` in two.
+- An agent that returns `git status --porcelain` lines can trim the leading space of a status such as ` M`. `porcelainPaths()` in `ship-runner.js` therefore accepts optional leading whitespace before a status of one or two characters.
 - The `execute-runner.js` capture prompt lists paths with `git -c core.quotePath=false diff HEAD --name-only` and `git -c core.quotePath=false ls-files --others --exclude-standard`, the same `core.quotePath=false` form the `execute-flow` skill's tree check reads. Step 2 of the `red-team` skill runs a plain `git status` and builds no such listing, so its output is not interchangeable with the runner's `paths`.
 
 ## Untracked directories
@@ -40,6 +42,7 @@ The `red-team` skill, the remember pass in `obsidian-topic.md`, and the execute 
 
 - `git merge-base --is-ancestor <branch> origin/<default>` exits 0 for a branch that is already merged and also for a branch cut from the default branch with no commits of its own. The exit code cannot tell the two apart, so the `execute-flow` skill asks the user whether the branch is merged work or a fresh branch for the slice.
 - `git symbolic-ref` with one argument reads a ref, and with two arguments it writes one. A read-only command list therefore allows only the one-argument form.
+- `git ls-remote origin <name>` matches the pattern against the end of each ref, so `feat/x` also matches `refs/heads/y/feat/x`. Pass the full ref, `refs/heads/<branch>`, as `ship-runner.js` does with `REMOTE_REF` in every ls-remote call.
 
 ## Related docs
 

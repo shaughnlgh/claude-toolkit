@@ -25,7 +25,7 @@ The `remember-guard.sh` Stop hook. It warns the user when a reply has a line tha
 
 ### Flow
 
-A skill whose name ends in `-flow`, driven by a Workflow script under `plugins/toolkit/workflows/`. The first flow in a session asks the git-permission question once, and every later flow in that session reads the recorded answer instead of asking. The `## Flows` section of `doctrine/git-safety.md` defines what each answer permits. The toolkit ships two flows. `plan-flow` runs no git under any answer. `execute-flow` never mutates git state under any answer, and its agents run in the target repo only the read-only git commands that section lists.
+A skill whose name ends in `-flow`, driven by a Workflow script under `plugins/toolkit/workflows/`. The first flow in a session asks the git-permission question once, and every later flow in that session reads the recorded answer instead of asking. The `## Flows` section of `doctrine/git-safety.md` defines what each answer permits. The toolkit ships three flows. `plan-flow` runs no git under any answer. `execute-flow` never mutates git state under any answer, and its agents run in the target repo only the read-only git commands that section lists. `ship-flow` is the only flow that mutates git, only under `push` or `release`, and its agents run each stage's commands under a rule that names only that stage's commands.
 
 ### flow-git-permission
 

@@ -75,8 +75,8 @@ Inside a flow with a recorded `push` or `release` answer, this section overrides
 The first flow that runs in a session asks one question through AskUserQuestion before anything else runs: "Do I have permission to run git commands on your behalf for every flow in this session?" The flow records the answer at `<scratchpad>/flow-git-permission` as `none`, `push`, or `release`, and the answer holds for every flow run in that session. A later flow in the same session reads the file and never re-asks, so a `push` or `release` answer given to the plan flow also covers a later flow in that session that runs git. A missing, empty, or unrecognised file reads as `none`.
 
 - `none` keeps this doctrine as written.
-- `push` permits commit, branch cut, push, and MR or PR creation.
-- `release` adds merge and tag.
+- `push` permits commit, branch cut, push, and MR or PR creation. Under `push` the ship flow may also make bounded fix commits during its pipeline and thread stages, and reply to and resolve the bot threads it fixed.
+- `release` adds merge and tag. Under `release` the ship flow runs `git fetch origin <default>` before it tags.
 
 No answer permits a deploy, and `release` never means deploy. The plan flow runs no git under any answer. The execute flow never mutates git state under any answer, and its agents run only read-only git in the repo: `git status`, `git diff`, `git log`, `git ls-files`, `git branch --show-current`, `git remote get-url`, `git symbolic-ref` with one ref argument, and `git merge-base --is-ancestor`. A `-c core.quotePath=false` prefix on one of these commands keeps it read-only. The ship flow is the only flow that mutates git, and only under `push` or `release`. The hooks apply under every answer, including the `block-dangerous-commands` hook and its protected-branch guard, and a flow never bypasses them. Outside a flow, and in every ad-hoc session, this doctrine applies unchanged and the human runs git. A resumed session keeps its scratchpad and so keeps its answer. A new session asks again.
 

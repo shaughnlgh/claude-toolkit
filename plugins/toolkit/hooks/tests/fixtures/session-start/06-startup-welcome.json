@@ -10,6 +10,6 @@
   "expect_stdout_contains": [
     "systemMessage",
     "toolkit",
-    "14 agents, 18 skills"
+    "14 agents, 19 skills"
   ]
 }
