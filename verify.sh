@@ -233,6 +233,9 @@ else
     ok "hook fixture suite"
   else
     no "hook fixture suite (exit $hrc, got: ${out:0:60})"
+    # The runner names each failed case on a Failed: line. Print them, because a CI log that
+    # shows only the totals cannot say which case failed.
+    printf '%s\n' "$hout" | grep -E '^(Failed: |  FAIL  )' | sed 's/^/    /'
   fi
 fi
 # spot-confirm session-start's two injections directly (no fixture asserts the pair)
