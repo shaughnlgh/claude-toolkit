@@ -283,7 +283,7 @@ suite_ok "plan-validator fixture suite" "$out" 37
 
 echo "== Topic recall =="
 out="$(bash "$P/scripts/tests/topic-recall/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "topic-recall behavior suite" "$out" 43
+suite_ok "topic-recall behavior suite" "$out" 45
 
 echo "== vault-fs containment =="
 out="$(bash "$P/scripts/tests/vault-fs/run-tests.sh" 2>/dev/null | tail -1)"

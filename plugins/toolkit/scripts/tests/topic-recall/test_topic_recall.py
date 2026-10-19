@@ -73,9 +73,9 @@ def index(*rows: str, projects: str = "") -> str:
     return "# Vault index\n\n## Topics by domain\n\n### general\n\n" + "\n".join(rows) + f"\n\n## Projects\n\n{projects}\n"
 
 
-def run_cli(home: str, *args: str, cwd: Optional[str] = None) -> subprocess.CompletedProcess:
+def run_cli(home: str, *args: str, cwd: Optional[str] = None, script: str = SCRIPT) -> subprocess.CompletedProcess:
     env = {"HOME": home, "PATH": os.environ.get("PATH", "")}
-    return subprocess.run([sys.executable, "-I", SCRIPT, *args], env=env, cwd=cwd,
+    return subprocess.run([sys.executable, "-I", script, *args], env=env, cwd=cwd,
                           capture_output=True, text=True, timeout=10)
 
 
@@ -211,6 +211,21 @@ class TopicRecallTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 2, result.stderr)
 
+    def test_version_prints_the_resolved_version_without_config(self):
+        home = temp_dir(self)
+
+        result = run_cli(home, "--version")
+
+        self.assertEqual((result.returncode, result.stdout), (0, tr.content_version(tr.PLUGIN_ROOT) + "\n"), result.stderr)
+
+    def test_version_prints_the_install_folder_name_from_the_cache(self):
+        scripts = os.path.join(temp_dir(self), "cache", "example-market", "toolkit", "0123456789ab", "scripts")
+        os.makedirs(scripts)
+        shutil.copy(SCRIPT, scripts)
+
+        result = run_cli(temp_dir(self), "--version", script=os.path.join(scripts, "topic-recall.py"))
+
+        self.assertEqual((result.returncode, result.stdout), (0, "0123456789ab\n"), result.stderr)
 
     def test_repo_doc_title_comes_from_h1_without_frontmatter(self):
         repo = make_repo(self, {"cache.md": "# Widget cache\n\nKeeps widgets.\n"})
