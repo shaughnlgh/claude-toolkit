@@ -1,7 +1,7 @@
 export const meta = {
   name: 'review-mr',
   description: 'Multi-dimension diff review: fan out global reviewer agents + custom dimensions, adversarially verify every finding',
-  whenToUse: 'Invoked by the gitlab-mr-review skill (fetched MR diffs, target-branch checkout) or the red-team skill (local uncommitted slice diffs) with args = {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?}. Reviews a saved unified diff against the local code at repoRoot whose state repoState declares.',
+  whenToUse: 'Invoked by the gitlab-mr-review skill (fetched MR diffs, target-branch checkout) or the red-team skill (local uncommitted slice diffs), or as a child workflow by the execute-runner workflow (the slice diff of the execute flow), with args = {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?}. Reviews a saved unified diff against the local code at repoRoot whose state repoState declares.',
   phases: [
     { title: 'Review', detail: 'registry reviewer agents + custom prompt dimensions over the diff' },
     { title: 'Verify', detail: 'adversarial verification of each finding against repo truth' },
@@ -170,6 +170,10 @@ directly in the code. Default to refuted if the scenario is unreachable or specu
 )
 
 const perDim = results.filter(Boolean)
+// A registry reviewer is named by its agentType, a custom dimension by its key.
+const nameOf = (d) => d.agentType || d.key
+const dead = DIMENSIONS.filter((d, i) => !results[i]).map(nameOf)
+const ran = DIMENSIONS.filter((d, i) => results[i]).map(nameOf)
 const all = perDim.flatMap((r) => r.verified)
 const openQuestions = perDim.flatMap((r) => r.questions)
 const confirmed = all.filter((f) => f.verdict && f.verdict.isReal)
@@ -183,4 +187,6 @@ return {
   refuted: refuted.map((f) => ({ title: f.title, file: f.file, dimension: f.dimension, reason: f.verdict.reasoning })),
   unverified,
   openQuestions,
+  dead,
+  ran,
 }

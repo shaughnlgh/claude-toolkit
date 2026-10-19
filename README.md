@@ -19,7 +19,7 @@ Full transparency — what ships, what runs automatically, and why.
 - [`docs/hooks.md`](docs/hooks.md) — the twelve hooks that run automatically once installed, with no opt-in, in full: what each blocks, what it only asks, env vars, and fail-safe behavior. Read it before trusting the toolkit with a repo.
 - [`docs/rules.md`](docs/rules.md) — the write-time rules injected into every session.
 - [`docs/scripts.md`](docs/scripts.md) — the shipped scripts and their safety guardrails.
-- [`docs/workflows.md`](docs/workflows.md) — the multi-agent workflows (the MR-review engine and the plan flow).
+- [`docs/workflows.md`](docs/workflows.md) — the multi-agent workflows (the MR-review engine, the plan flow, and the execute flow).
 
 **How it works**
 
