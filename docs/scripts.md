@@ -118,10 +118,12 @@ Lexical search over the vault's topic notes and, when asked, a repo's `docs/` fo
 Invoke:
 
 ```bash
-python3 "$PLUGIN_ROOT/scripts/topic-recall.py" [--repo <name>] [--repo-root <path>] [--top N] [--format text|json] [query words...]
+python3 "$PLUGIN_ROOT/scripts/topic-recall.py" [--repo <name>] [--repo-root <path>] [--top N] [--format text|json] [--version] [query words...]
 ```
 
 Defaults are `--top 10` and `--format text`. The vault root comes from `~/.claude/obsidian-sync.json` (`vault_path` plus `root_folder`).
+
+`--version` prints the toolkit content version to stdout and exits 0 before the script reads any config. The script resolves symlinks in its own path and treats the directory above `scripts/` as the plugin root. If the parent of that root is named `toolkit`, as in the plugin cache, the script prints the name of the root directory, which is the install version. Otherwise it prints `git rev-parse --short=12 HEAD` of the root, or `unknown` if git is missing or finds no commit.
 
 Source: the script reads `<vault_path>/<root_folder>/INDEX.md`, which Mission Control writes. The toolkit never writes it. Only rows under `## Topics by domain` count, up to the next level-2 heading, so the plan links under `## Projects` stay out. The script reads the parenthesized meta of each row by content, not by position. A segment that starts with `verified` or `unverified` is the verified state, a segment that equals `stale` after the script strips the `⚠` sign and whitespace marks the row stale, and any other segment is the comma-separated repo list. Mission Control omits the repo segment when a topic has no repos, so rows ending in `(unverified)` or `(verified 2026-08-10; ⚠ stale)` parse with no repos. The script reads a regular INDEX.md whole. If INDEX.md is missing, unreadable, a symlink, not a regular file, or has no topic rows, the script walks the root folder instead and keeps files whose frontmatter says `type: topic`. If INDEX.md exists but is a symlink, is not a regular file, or cannot be read, the script prints one line naming the path to stderr before it falls back. Text output from the fallback starts with `source: frontmatter scan (INDEX.md unavailable)`, and every fallback row reports `stale` as false.
 
@@ -133,11 +135,11 @@ Scoring: the script lower-cases the query, splits it on `[a-z0-9]+`, and drops t
 
 Output: text prints three lines per hit. The first line is the title, the repos in brackets, then `[vault]` and the verified state for a vault row, or `[repo]` for a repo row, and it ends with `(score N)`. The summary and the absolute note path follow. JSON prints a list of objects with `title`, `summary`, `repos`, `verified`, `stale`, `path`, `source`, and `score`. The path is blank in JSON, and `(no local file)` in text, when no `<Title>.md` exists under the root folder, for example when iCloud has evicted the note. The script writes stdout as UTF-8 whatever the locale, and replaces any character it cannot encode.
 
-Exit codes: `0` with hits or with none, `2` if `~/.claude/obsidian-sync.json` is missing or unreadable, or the vault root is not a directory, and `3` if the run passes its internal 3-second deadline. The script sets that deadline with `SIGALRM`, so a platform without `SIGALRM` has no exit 3. On exit 2 or 3 the reason goes to stderr and nothing goes to stdout.
+Exit codes: `0` with hits or with none, or after `--version`, `2` if `~/.claude/obsidian-sync.json` is missing or unreadable, or the vault root is not a directory, and `3` if the run passes its internal 3-second deadline. The script sets that deadline with `SIGALRM`, so a platform without `SIGALRM` has no exit 3. On exit 2 or 3 the reason goes to stderr and nothing goes to stdout.
 
 Embedding seam: `rank()` is the only function an embedding backend replaces. It receives the candidates, the query words, the repo name, and the docs index path. Loading, path resolution, and rendering stay as they are, so the CLI and its output do not change.
 
-Tests: `bash plugins/toolkit/scripts/tests/topic-recall/run-tests.sh` (43 behavior cases in temporary vaults and repos with an overridden HOME). `verify.sh` also runs it.
+Tests: `bash plugins/toolkit/scripts/tests/topic-recall/run-tests.sh` (45 behavior cases in temporary vaults and repos with an overridden HOME). `verify.sh` also runs it.
 
 ## obsidian-sync.json.template
 
