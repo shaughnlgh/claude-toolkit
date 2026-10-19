@@ -7,9 +7,11 @@ description: >-
   earlier flow in the session recorded the answer, checks the tree and the branch, runs
   topic recall, moves the plan note to in-progress, launches the execute-runner workflow
   (one implementer per Implementation Step, the plan's Validation Steps with one fix
-  round, the review-mr panel with a bounded fix loop, a cold read, and the Doc Update
-  Pass and the remember pass when nothing blocked), records the result on the plan note, and
-  closes with a report that carries a commit suggestion only when nothing blocked. Never
+  round, the review-mr panel with a bounded fix loop, a cold read whose verified findings
+  do not block, and the Doc Update Pass and the remember pass when nothing blocked), records
+  the result on the plan note, asks the user to dismiss, fix, or hold each verified
+  cold-read finding, and closes with a report that carries a commit suggestion only when
+  nothing blocked and every such finding is dismissed or fixed. Never
   mutates git state and runs read-only git only through its agents. Do NOT fire when no
   plan note exists for the work (plan-flow or plan-workflow owns that), when the plan
   note's status is neither approved nor an in-progress state this flow resumes or
@@ -18,7 +20,7 @@ description: >-
 
 # Execute Flow
 
-Execute-flow is the conductor side of the `execute-runner` workflow, shipped with this plugin at `../../workflows/execute-runner.js` relative to this skill's base directory. The script runs a baseline check, one implementer per Implementation Step in order, the plan's Validation Steps with one fix round, a diff capture, the `review-mr` child workflow as the panel, a bounded fix loop, a second capture, a cold read, and, only when nothing blocked, the Doc Update Pass, a final validation, a post-doc capture, and the remember pass. The conductor asks the git-permission question, checks the tree and the branch, runs recall, moves the plan note to in-progress, launches the script, records the result, runs the consent gate, writes the slice marker, and closes with the report. The script writes no vault note and runs no mutating git command. The conductor writes only the vault note and scratchpad files.
+Execute-flow is the conductor side of the `execute-runner` workflow, shipped with this plugin at `../../workflows/execute-runner.js` relative to this skill's base directory. The script runs a baseline check, one implementer per Implementation Step in order, the plan's Validation Steps with one fix round, a diff capture, the `review-mr` child workflow as the panel, a bounded fix loop, a second capture, a cold read, and, only when nothing blocked, the Doc Update Pass, a final validation, a post-doc capture, and the remember pass. A verified cold-read finding does not block those passes. The conductor asks the git-permission question, checks the tree and the branch, runs recall, moves the plan note to in-progress, launches the script, records the result, runs the consent gate, adjudicates the verified cold-read findings with the user, writes the slice marker, and closes with the report. The script writes no vault note and runs no mutating git command. The conductor writes only the vault note and scratchpad files.
 
 ## 1. Trigger
 
@@ -28,7 +30,8 @@ The plan note must exist. `planName` is its `plan` frontmatter value. Read its `
 
 - `status: approved` starts a fresh run.
 - `status: in-progress` with a last entry summary that begins `execute-flow blocked:` starts a fresh run. A blocked run keeps the note at in-progress, so this is how the user reruns the slice after settling the blocked reasons. A rerun needs the earlier run's changes committed or discarded first (section 3).
-- `status: in-progress` with a last entry summary of `execute-flow run started` under another session id starts a fresh run, because that run died before section 6 recorded it.
+- `status: in-progress` with a last entry summary that begins `execute-flow adjudicating:` resumes at section 8 from the findings, hashes, and report inputs that sections 6 and 7 recorded on the note, with no new run and no recall. Section 8 checks the tree by capture before it asks. Sections 2 to 7 do not run, and sections 8 to 10 read the run's result from the note. The `<scratchpad>/execute-flow-<planName>.runid` file still names the run for the marker. If that file is gone, section 9 skips the marker and the report says so.
+- `status: in-progress` with a last entry summary of `execute-flow run started` under another session id starts a fresh run, because that run died before section 6 or section 7 recorded its outcome.
 - `status: in-progress` with a last entry summary of `execute-flow run started` under this session's id resumes that run with `resumeFromRunId` when `<scratchpad>/execute-flow-<planName>.runid` exists, and completed agents replay from cache. Section 5 writes that file only after the Workflow tool returned a `runId` and deletes it before each fresh launch, so it always names the latest run. Without that file, the launch never happened, so it starts a fresh run.
 
 If the note matches none of these, state the status and stop.
@@ -60,7 +63,7 @@ On a resume, skip the dirty-tree question, because the tree holds the run's own 
 1. "Hold (Recommended)", with the description "Workers are guarded by prompt text only, so the run would expose these changes to them. Settle the changes yourself, then ask for the execute flow again."
 2. "Proceed, the foreign paths are named in the report and left out of the staging list", with the description "The diff captures the whole tree, so the panel and the cold read review these paths with the slice. The report names them and never stages them."
 
-If the answer is Hold, stop with the plan note untouched. If the answer is Proceed, keep the foreign paths for section 9.
+If the answer is Hold, stop with the plan note untouched. If the answer is Proceed, keep the foreign paths for section 10.
 
 ## 4. Recall
 
@@ -94,14 +97,14 @@ The result is `{baseline, steps, validation, review, coldResidual, coldUnverifie
 - `steps` holds one entry per Implementation Step implementer that returned, each with `changedPaths`, `deviations`, `checksRun`, `result`, `blockers`, and `topicMaterial`.
 - `validation` is `{results, runs, allPass, manualChecks, preExisting}`. It is null when the build stopped before `verify:validation` returned, including when that verifier died. When the run stopped after it returned, it holds the latest results. For a plan with no Validation Steps, it is `{results: [], runs: 0, allPass: false, manualChecks: [], preExisting: []}`, and `blocked` carries the no-Validation-Steps sentence.
 - `review` is `{panel, dimensions, dead, confirmed, fixed, open, refuted, unverified, openQuestions, rounds}`, or null when the child workflow did not run or did not return. `dead` lists the reviewer names and dimension keys that died, and the script blocks when it is not empty.
-- `coldResidual` lists the cold read's verified findings, and `coldUnverified` lists the findings the cold read could not verify. Both are null when the cold read did not run or returned nothing.
+- `coldResidual` lists the cold read's verified findings, which section 8 adjudicates with the user, and `coldUnverified` lists the findings the cold read could not verify. Both are null when the cold read did not run or returned nothing.
 - `docPass` is the Doc Update Pass return, or null when it did not run, including when the slice was already blocked.
 - `remember` is `{ran, material, proposals, topicsUpdated, rememberLine}`.
 - `diffHashes` and `diffPaths` are `{redTeam, final, postDoc}`, with null for a capture that failed or did not run. `diffFiles` has the same keys, each the repo-relative paths that capture holds, or null.
 - `blocked` lists one plain sentence per reason the slice is not done, and is empty when nothing blocks.
 - `incomplete` lists the labels of the stages that died.
 
-A run is blocked when `blocked` or `incomplete` is not empty.
+A run is blocked when `blocked` or `incomplete` is not empty. A `coldResidual` entry is never a blocked reason.
 
 ## 6. Record
 
@@ -112,46 +115,78 @@ Record the result under the plan note's Plan Changes During Execution, one line 
 - every `validation.manualChecks` entry, under a line that reads "Manual checks for you".
 - every `validation.preExisting` entry.
 - every `review.dead` entry, as a reviewer or dimension the panel lost.
-- every `review.open`, `review.unverified`, and `review.openQuestions` entry and every `coldResidual` and `coldUnverified` finding, for the user to settle.
+- every `review.open`, `review.unverified`, and `review.openQuestions` entry and every `coldResidual` and `coldUnverified` finding, for the user to settle. Section 8 adds each `coldResidual` outcome.
+- on an unblocked run whose `coldResidual` is not empty, the section 3 branch and remote URL, the section 3 foreign paths, every `diffFiles.postDoc` path, and every `docPass.changedPaths` entry, so a resume at section 8 builds the report from the note.
 - the three `diffHashes`, with "none" for a null hash.
 
-Update this session's entry summary to the run's one-line outcome. On a blocked run, the summary begins `execute-flow blocked:` followed by the first blocked reason, and the status stays in-progress, so section 1 starts a fresh run when the user asks again. When the slice is already blocked at the doc pass phase, the runner skips the doc pass, the final validation, and the post-doc capture, so `docPass` and `diffHashes.postDoc` are null and the record shows "none" for that hash. On an unblocked run, the summary begins `execute-flow finished:`. Write the change atomically and run `validate-plan.py` again, requiring exit 0. Never set `status: completed`.
+Update this session's entry summary to the run's one-line outcome, except on an unblocked run whose `coldResidual` is not empty, where section 7 writes the summary. On a blocked run, the summary begins `execute-flow blocked:` followed by the first blocked reason, and the status stays in-progress, so section 1 starts a fresh run when the user asks again. When the slice is already blocked at the doc pass phase, the runner skips the doc pass, the final validation, and the post-doc capture, so `docPass` and `diffHashes.postDoc` are null and the record shows "none" for that hash. On an unblocked run whose `coldResidual` is null or empty, the summary begins `execute-flow finished:`. Write the change atomically and run `validate-plan.py` again, requiring exit 0. Never set `status: completed`.
 
 ## 7. Remember
 
-If `remember.ran` is false, write each `remember.material` entry as one line to `<scratchpad>/remember-material-<planName>.md`, or the single line `none` when the material is empty. Record a line under Plan Changes During Execution that names that path, so session closure can run the pass from it. Write the note atomically and run `validate-plan.py` again, requiring exit 0. Tell the user that the remember pass did not run, that its material is in that file, and that session closure runs the pass once the blocked reasons are settled. If `remember.ran` is true, run the gate and record steps of the obsidian-topic command's Remember pass (`../../commands/obsidian-topic.md` from this skill's base directory) on `remember.proposals`, starting from `remember.rememberLine`. If a proposal's path is also in `docPass.changedPaths`, name it at the gate. Record the resulting `Remember:` line under Plan Changes During Execution, write the note atomically, and run `validate-plan.py` again, requiring exit 0.
+If `remember.ran` is false, write each `remember.material` entry as one line to `<scratchpad>/remember-material-<planName>.md`, or the single line `none` when the material is empty. Record a line under Plan Changes During Execution that names that path, so session closure can run the pass from it. Write the note atomically and run `validate-plan.py` again, requiring exit 0. Tell the user that the remember pass did not run, that its material is in that file, and that session closure runs the pass once the blocked reasons are settled. If `remember.ran` is true, run the gate and record steps of the obsidian-topic command's Remember pass (`../../commands/obsidian-topic.md` from this skill's base directory) on `remember.proposals`, starting from `remember.rememberLine`. If a proposal's path is also in `docPass.changedPaths`, name it at the gate. Record the resulting `Remember:` line and each repo doc accepted at the gate under Plan Changes During Execution, write the note atomically, and run `validate-plan.py` again, requiring exit 0.
 
-## 8. Slice marker
+On an unblocked run whose `coldResidual` is not empty, update this session's entry summary only after the `Remember:` line is recorded. The summary is `execute-flow adjudicating: N verified cold-read findings`, with N the entry count, and section 8 rewrites it to begin `execute-flow finished:` only once every entry is dismissed or fixed and no Validation Step is held. Write the note atomically and run `validate-plan.py` again, requiring exit 0. The `Remember:` line and the accepted docs that this section records count as recorded report inputs, so a resume at section 8 reads them from the note.
 
-Write the marker only when `review` is not null, `review.dead` is empty, `diffHashes.postDoc` is not null, and `blocked` is empty. A blocked run writes no marker. The marker is `<scratchpad>/slice-<diffHashes.postDoc>.runid`, holding the `runId`, the panel hash `diffHashes.redTeam`, and the cold read hash `diffHashes.final`. The `red-team` skill keys its runid file the same way, so a later red team on the tree at the postDoc hash finds the marker and runs no second full panel. Repo docs accepted at the section 7 consent gate land after that hash. After an accepted doc, a later red-team capture therefore hashes differently, and red-team's rule that a runid file with another hash never suppresses a panel applies. If any condition fails, write no marker and tell the user which one.
+## 8. Adjudicate the cold read
 
-## 9. Report
+Skip this section on a blocked run (section 5) and when `coldResidual` is null or empty. A briefing in this section that names a runner constant carries that constant's text from the `execute-runner.js` that section 5 resolves. The constants are template literals, so substitute `<repoRoot>` for `${a.repoRoot}`, the scratchpad path for `${S}`, and `<plugin-root>` for `${a.pluginRoot}` in the text. The capture is one `toolkit:verifier` briefed with the runner's `CAPTURE_PROMPT`, including its step 4 path listing with `core.quotePath=false`, so a non-ASCII path matches the section 3 foreign-path comparison. It returns the `hash12` and the paths that step 4 printed. The validation verifier is one `toolkit:verifier` that runs the plan's Validation Steps on the tree, as the runner's final validation does, with the runner's `STDIN_RULE`, `HOOK_RULE`, and `GIT_RULE` text, and returns one result per step: pass or fail with evidence, or manual with a reason. A manual result joins the "Manual checks for you" list.
 
-Close in the shape of `red-team` section 8 (`../red-team/SKILL.md` from this skill's base directory). The shape depends on whether the run is blocked (section 5).
+On a resume from section 1, run the capture first and compare its `hash12` with the last recorded hash: the section 8 capture hash when the note records one, otherwise `diffHashes.postDoc`. If the hashes differ, or the note records neither hash, stop. Rewrite the summary to `execute-flow blocked: the tree changed since the run`, write the note atomically, run `validate-plan.py` again, requiring exit 0, and tell the user that the tree changed since the run and that the slice needs a rerun. If the hashes match and the note records a held Validation Step, run the validation verifier, and record one line per held step that now passes, which clears its hold.
+
+Ask one question per `coldResidual` entry through AskUserQuestion, in the cold read's order, then one question per held Validation Step that still fails, in batches of up to four questions per call. A batch in one call counts as one gate. On a resume from section 1, ask only about the entries the note does not record as dismissed or fixed. Each finding question reads "The cold read verified a finding in <file>: <issue>. Its fix: <fix>. Dismiss it, fix it now, or hold the run?" with the finding's file, issue, and fix quoted, and with the options in this order:
+
+1. "Dismiss", with " (Recommended)" appended when the finding maps to one of the plan's Assumptions or Risks, which the question then names. Its description is "Records the finding on the plan note with the settled decision it restates, or no mapped decision."
+2. "Fix now", with the description "One implementer applies every Fix now finding and one verifier re-checks them, once for the whole list."
+3. "Hold", with the description "Ends the flow in the blocked report shape with no commit suggestion."
+
+When the finding maps to no Assumption or Risk, append " (Recommended)" to "Fix now" instead and list it first, because the recommended option comes first.
+
+Each held Validation Step question reads "Validation Step <step> failed after the section 8 fix: <evidence>. Fix it again or hold the run?" with the options in this order:
+
+1. "Fix again (Recommended)", with the description "The step and its evidence join the fix round below."
+2. "Hold", with the description "Ends the flow in the blocked report shape with no commit suggestion."
+
+Ask every batch before acting on any answer. For each Dismiss, record one line under Plan Changes During Execution with the finding's file and issue and the Assumption or Risk it maps to, or `no mapped decision` when it maps to none.
+
+If any answer is Hold, run no fix. Record each held finding and each held Validation Step under Plan Changes During Execution and keep the `execute-flow adjudicating:` summary, so asking for the execute flow again resumes this section on the same tree through section 1. Close in the blocked report shape (section 10) with no commit suggestion. Write no marker.
+
+If no answer is Hold and at least one is Fix now or Fix again, run one fix round for the whole list, never a second in one pass through this section. Delegate one `toolkit:implementer` with every Fix now finding (file, issue, and fix), every Fix again Validation Step with its evidence, the plan's Objective, and the runner's `DOCTRINE`, `GIT_RULE`, `BLOCKER_RULE`, `HOOK_RULE`, and `HOOK_WRITE_RULE` text, the rules the runner's `SHARED` constant joins. Then delegate one `toolkit:verifier` that re-checks each Fix now finding over the implementer's `changedPaths` and returns one `resolved` result per finding. Then run the validation verifier on the fixed tree. Then run the capture. Record one line under Plan Changes During Execution per fixed finding, with the implementer's `changedPaths`, the re-check result, and the validation results. Record the capture `hash12` and its paths on one line that names them the replacements for `diffHashes.postDoc` and `diffFiles.postDoc`, so the report and a later resume read them from the note. The doc pass does not run again for the fix. If the implementer returns blockers or a re-check result is not resolved, treat each unresolved finding as held, as above. Record each failing Validation Step as a held entry under Plan Changes During Execution, and close as above. If the capture fails, record that and hold the run whatever the re-check results, with every Fix now finding held. Section 8 ran a fix when the note records any section 8 fix for this run, from this pass or an earlier one, so a resume after a partial fix still writes no marker and still reports that no panel reviewed the fix.
+
+Once every `coldResidual` entry is dismissed or fixed and no Validation Step is held, rewrite the `execute-flow adjudicating:` summary to begin `execute-flow finished:` followed by the run's one-line outcome. Write every change to the plan note atomically and run `validate-plan.py` again, requiring exit 0. The marker and the commit suggestion wait until every `coldResidual` entry is dismissed or fixed and no Validation Step is held. `coldUnverified` entries are not adjudicated here and stay under "To settle".
+
+## 9. Slice marker
+
+Write the marker only when `review` is not null, `review.dead` is empty, `diffHashes.postDoc` is not null, `blocked` is empty, section 8 left every `coldResidual` entry dismissed or fixed and no Validation Step held, and section 8 ran no fix. A blocked run writes no marker. A run with a section 8 fix writes no marker, because no panel reviewed the fix. On a resume from section 1, the `runId` comes from `<scratchpad>/execute-flow-<planName>.runid`, and without that file no marker is written. The marker is `<scratchpad>/slice-<diffHashes.postDoc>.runid`, holding the `runId`, the panel hash `diffHashes.redTeam`, and the cold read hash `diffHashes.final`. The `red-team` skill keys its runid file the same way, so a later red team on the tree at the marker hash finds the marker and runs no second full panel. Repo docs accepted at the section 7 consent gate land after that hash. After an accepted doc, a later red-team capture therefore hashes differently, and red-team's rule that a runid file with another hash never suppresses a panel applies. If any condition fails, write no marker and tell the user which one.
+
+## 10. Report
+
+Close in the shape of `red-team` section 8 (`../red-team/SKILL.md` from this skill's base directory). The shape depends on whether the run is blocked (section 5). A run held in section 8 takes the blocked shape.
 
 On a blocked run:
 
-- Open with every `blocked` reason and every `incomplete` label, one per line.
+- Open with every `blocked` reason and every `incomplete` label, one per line. After a Hold in section 8, open with each held finding and each held Validation Step instead.
 - Then state what the user settles: each of those reasons, and every `review.dead`, `review.open`, `review.unverified`, `review.openQuestions`, `coldResidual`, `coldUnverified`, and `validation.manualChecks` entry.
 - If `docPass` is null, say that the doc pass is deferred until the blocked reasons are settled. If `docPass` is not null, say that the doc pass ran and list each `docPass.changedPaths` entry on its own line.
-- Say that the remember pass is deferred until the blocked reasons are settled, that session closure or the `red-team` skill runs the deferred passes, and that the commit suggestion comes after they have run. Name the remember material file from section 7.
-- Write no header lines, no commit message, no `Remember:` line, and no staging list. Never begin a line with the words `Suggested commit` in any case, with or without a leading `#` heading marker or a `*` or `**` bold or emphasis marker, because the remember-guard Stop hook matches any such line and the remember pass has not run.
+- If `remember.ran` is false, say that the remember pass is deferred until the blocked reasons are settled, that session closure or the `red-team` skill runs the deferred passes, and that the commit suggestion comes after they have run. Name the remember material file from section 7.
+- After a Hold in section 8, say that the remember pass ran, that the commit suggestion waits until the held findings and held Validation Steps are settled, and that asking for the execute flow again resumes the adjudication on the same tree.
+- Write no header lines, no commit message, no `Remember:` line, and no staging list. Never begin a line with the words `Suggested commit` in any case, with or without a leading `#` heading marker or a `*` or `**` bold or emphasis marker, because the remember-guard Stop hook matches any such line and a blocked run offers no commit.
 
 On an unblocked run:
 
 - Open with the Repo, Branch, and Scope header lines from the git-safety Commit handoff section. `Repo:` is the remote path from the section 3 remote URL, `Branch:` is the section 3 branch, and `Scope:` names the slice and the count of files to stage.
 - Put a line that begins `Suggested commit` directly after those three lines, because the remember-guard Stop hook keys on that line. Write the message in the repo's observed convention.
 - Add the `Remember:` line from section 7.
-- List each file to stage on its own line: every path in `diffFiles.postDoc`, which is the reviewed diff, plus every repo doc accepted at the gate, minus the foreign paths from section 3. Remove a path when it equals a foreign path or starts with a foreign path that ends in `/`. Mark each accepted doc as written after review. Then give the paste-ready block from the git-safety Commit handoff section with each path named. Never suggest `git add -A`.
+- List each file to stage on its own line: every path in `diffFiles.postDoc`, which is the reviewed diff, or in the section 8 capture paths that the note records when section 8 ran a fix, plus every repo doc accepted at the gate, minus the foreign paths from section 3. Remove a path when it equals a foreign path or starts with a foreign path that ends in `/`. Mark each accepted doc as written after review. Then give the paste-ready block from the git-safety Commit handoff section with each path named. Never suggest `git add -A`.
 - Under a line that reads "To settle", list every `validation.manualChecks`, `review.unverified`, `review.openQuestions`, and `coldUnverified` entry, one per line, or "none" when all four are empty.
+- If section 8 ran a fix, say that it ran after the doc pass, list its changed paths and the validation results, and say whether it touched a public surface that the doc pass did not see. Say that a later red team on this tree runs a full panel, because no panel reviewed the fix.
 
 In both shapes:
 
 - If the user chose Proceed in section 3, list the foreign paths under a line that reads "Not staged, not this slice", and state that the reviewed diff included them. A foreign path that also appears in a step's `changedPaths` stays off the staging list, and the report names it as changed by the run too.
-- End with a residual-risk line that names the panel and the hashes: the panel and the two cold dimensions at `diffHashes.redTeam`, every `review.dead` entry, the fix rounds, the cold read at `diffHashes.final` before the doc edits, and the slice marker at `diffHashes.postDoc`, or that no marker was written.
+- End with a residual-risk line that names the panel and the hashes: the panel and the two cold dimensions at `diffHashes.redTeam`, every `review.dead` entry, the fix rounds, the cold read at `diffHashes.final` before the doc edits, and the slice marker at `diffHashes.postDoc`, or that no marker was written and why. On an unblocked run, follow the residual-risk line with one line per `coldResidual` finding dismissed in section 8, naming its file and the decision it restates, or `no mapped decision`.
 
 The flow never runs the suggested commands. The user runs git.
 
 ## Boundary
 
-The conductor never edits repo files, never mutates git state, and never sets `status: completed`. Repo writes come only from the script's workers and from the implementer that the consent gate delegates. Not for a plan note that section 1 does not accept (`plan-workflow` owns that) and not for a standalone review of an uncommitted slice (`red-team` owns that). A clean run never marks the plan complete. The human approval rule in `plan-workflow` still governs: the flow runs only on a note that section 1 accepts and on the user's ask, and completion stays the user's word.
+The conductor never edits repo files, never mutates git state, and never sets `status: completed`. Repo writes come only from the script's workers, from the implementer that the consent gate delegates, and from the section 8 fix implementer. Not for a plan note that section 1 does not accept (`plan-workflow` owns that) and not for a standalone review of an uncommitted slice (`red-team` owns that). A clean run never marks the plan complete. The human approval rule in `plan-workflow` still governs: the flow runs only on a note that section 1 accepts and on the user's ask, and completion stays the user's word.

@@ -8,12 +8,15 @@ const flow = new AsyncFunction('args', 'agent', 'workflow', 'phase', 'log', sour
 const FENCE = '`'.repeat(3)
 const FENCE4 = '`'.repeat(4)
 const VALIDATION_LINES = ['1. Run the unit tests.', '2. Export one widget by hand.']
+const ASSUMPTION = '- The export covers active widgets only.'
+const RISK = '- A large export holds the request open.'
 const plan = (implLines, validationLines = VALIDATION_LINES) => [
   '---', 'type: plan', 'status: approved', '---', '',
   '## Objective', '', 'Export widgets as CSV.', '',
+  '## Assumptions', '', ASSUMPTION, '',
   '## Implementation Steps', '', ...implLines, '',
   ...(validationLines ? ['## Validation Steps', '', ...validationLines, ''] : []),
-  '## Risks', '', 'None.', '',
+  '## Risks', '', RISK, '',
   '## Related Topics', '', '- [[Widgets]]',
 ].join('\n')
 const THREE_STEPS = ['1. Add the exporter in src/a.js.', '2. Wire the route in src/b.js.', '3. Document it in docs/widgets.md.']
@@ -31,6 +34,9 @@ const PREAMBLE_PLAN = plan(['Read the exporter notes first.', '', '### 1. Add th
 const ARGS = { planName: 'widget-export', repoRoot: '/repo', repoName: 'demo', planContent: PLAN, recallHits: 'none', scratchDir: '/scratch', pluginRoot: '/plugin', vaultRoot: '/vault/AI' }
 const GIT_RULE = 'In /repo, git is read-only: git status, git diff, git log, git ls-files, git branch --show-current, git remote get-url, git symbolic-ref with one ref argument, and git merge-base --is-ancestor only. A -c core.quotePath=false prefix on one of these commands keeps it read-only. Never run git stash, add, commit, checkout, switch, reset, clean, rebase, merge or push there. Mutating git is allowed only inside a fresh fixture you create under /scratch.'
 const SCRATCH_ONLY = 'Run embedded commands only against scratch fixtures you create under /scratch, never against /repo.'
+const HOOK_SENTENCE = 'Remove a scratch fixture with its literal absolute path under /scratch.'
+const HOOK_REFUSAL = 'a bare dot or double dot, a bare glob, a path with a /../ segment, the root, the home dir'
+const HOOK_WRITE = "must hold a command the hook refuses, such as a script's recursive delete of a variable, create it with the Write tool"
 const STDIN_RULE = 'Run any verify or test suite, such as bash verify.sh, with stdin from /dev/null (bash verify.sh </dev/null), because a suite that reads stdin hangs when stdin is a pipe.'
 const REPO_STATE = "The tree at repoRoot is the POST-change state this diff produces. There is no pre-change checkout. Reconstruct the pre-change state from the diff's context and removed lines. A defect the diff introduces is in scope even though it is present in the tree."
 const PANEL = ['toolkit:code-reviewer', 'toolkit:silent-failure-hunter', 'toolkit:pr-test-analyzer']
@@ -207,9 +213,25 @@ const cases = [
     const { result } = await run({ 'workflow:review-mr': reviewOf([F1]), 'recheck:1': resolvedOf(F1), 'diff:final': diffOf('bbbbbbbbbbbb') })
     return same(result.blocked, [])
   }],
-  ['verified cold finding lands in coldResidual and blocks', async () => {
-    const { result } = await run({ 'cold:read': coldOf(true, false) })
-    return same({ residual: result.coldResidual.length, blocked: result.blocked }, { residual: 1, blocked: ['The cold read left 1 verified findings open.'] })
+  ['verified cold finding lands in coldResidual, does not block, and doc:pass runs', async () => {
+    const { result, prompts } = await run({ 'cold:read': coldOf(true, false) })
+    return same({ residual: result.coldResidual.length, unverified: result.coldUnverified.length, blocked: result.blocked, doc: 'doc:pass' in prompts, remember: 'remember:pass' in prompts }, { residual: 1, unverified: 1, blocked: [], doc: true, remember: true })
+  }],
+  ['SHARED prompts and verify:validation carry the hook rule, the Write-tool sentence goes to SHARED only', async () => {
+    const { prompts } = await run(FULL_RUN)
+    const keys = ['implement:1', 'fix:1', 'doc:pass', 'verify:validation', 'recheck:1']
+    return same({ refusal: keys.filter((k) => prompts[k].includes(HOOK_REFUSAL)), path: keys.filter((k) => prompts[k].includes(HOOK_SENTENCE)), write: keys.filter((k) => prompts[k].includes(HOOK_WRITE)) }, { refusal: ['implement:1', 'fix:1', 'doc:pass', 'verify:validation'], path: ['implement:1', 'fix:1', 'doc:pass', 'verify:validation'], write: ['implement:1', 'fix:1', 'doc:pass'] })
+  }],
+  ['panel contextBlock carries the settled decisions with Assumptions and Risks', async () => {
+    const { calls } = await run()
+    const c = calls[0].args.contextBlock
+    return same(['SETTLED DECISIONS:', 'is not a finding', 'unless the tree contradicts the decision', ASSUMPTION, RISK].filter((s) => !c.includes(s)), [])
+  }],
+  ['panel contextBlock falls back to none for a plan with no Assumptions or Risks', async () => {
+    const bare = PLAN.replace(`## Assumptions\n\n${ASSUMPTION}\n\n`, '').replace(`## Risks\n\n${RISK}\n\n`, '')
+    const { calls } = await run({}, { ...ARGS, planContent: bare })
+    const c = calls[0].args.contextBlock
+    return same(['ASSUMPTIONS:\nnone', 'RISKS:\nnone'].filter((s) => !c.includes(s)), [])
   }],
   ['doc:pass changedPaths trigger verify:final, runs 2', async () => {
     const { result, prompts } = await run({ 'doc:pass': docPassOf({ changedPaths: ['docs/widgets.md'] }) })
@@ -224,7 +246,7 @@ const cases = [
     return same({ blocked: result.blocked, ran: result.remember.ran, changedPaths: result.changedPaths }, { blocked: [], ran: true, changedPaths: ['src/a.js', 'src/b.js', 'src/c.js', 'docs/widgets.md'] })
   }],
   ['blocked run skips remember:pass and returns ran false with the material', async () => {
-    const { result, prompts } = await run({ 'cold:read': coldOf(true) })
+    const { result, prompts } = await run({ 'prep:baseline': null })
     return same({ called: 'remember:pass' in prompts, remember: result.remember }, { called: false, remember: { ran: false, material: ['The exporter streams rows (src/a.js:4).'], proposals: [], topicsUpdated: [], rememberLine: '' } })
   }],
   ['FENCED_PLAN yields three steps despite a fenced Validation Steps heading', async () => {
@@ -386,8 +408,8 @@ const cases = [
     return same({ blocked: result.blocked, hash: result.diffHashes.postDoc, paths: result.diffFiles.postDoc, remember: 'remember:pass' in prompts }, { blocked: ['The verifier diff:post-doc returned nothing.'], hash: null, paths: null, remember: false })
   }],
   ['blocked before the doc pass skips doc:pass, verify:final and diff:post-doc and adds no sentence', async () => {
-    const { result, prompts } = await run({ 'workflow:review-mr': reviewOf([F1]), 'recheck:1': resolvedOf(F1), 'cold:read': coldOf(true) })
-    return same({ ran: ['doc:pass', 'verify:final', 'diff:post-doc'].filter((k) => k in prompts), docPass: result.docPass, blocked: result.blocked }, { ran: [], docPass: null, blocked: ['The cold read left 1 verified findings open.'] })
+    const { result, prompts } = await run({ 'workflow:review-mr': { ...reviewOf([F1]), dead: ['cold-read'] }, 'recheck:1': resolvedOf(F1) })
+    return same({ ran: ['doc:pass', 'verify:final', 'diff:post-doc'].filter((k) => k in prompts), docPass: result.docPass, blocked: result.blocked }, { ran: [], docPass: null, blocked: ['The review panel lost 1 reviewers: cold-read.'] })
   }],
   ['clean run still runs doc:pass and diff:post-doc', async () => {
     const { result, prompts } = await run()
