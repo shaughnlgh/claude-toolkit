@@ -1,8 +1,8 @@
 # Workflows
 
-Workflows are multi-agent orchestrations the toolkit ships as scripts under `plugins/toolkit/workflows/`, run through the Workflow tool rather than a single agent turn. There are three: `review-mr`, driven by the `gitlab-mr-review` skill against fetched MR diffs and the `red-team` skill against local uncommitted slice diffs (passing `repoState`), `plan-builder`, driven by the `plan-flow` skill to turn a brief into the body of a plan note, and `execute-runner`, driven by the `execute-flow` skill to execute an approved plan note end to end. A workflow and a skill register in the same `toolkit:` namespace, so the script cannot share the skill's name.
+Workflows are multi-agent orchestrations the toolkit ships as scripts under `plugins/toolkit/workflows/`, run through the Workflow tool rather than a single agent turn. There are four: `review-mr`, driven by the `gitlab-mr-review` skill against fetched MR diffs and the `red-team` skill against local uncommitted slice diffs (passing `repoState`), `plan-builder`, driven by the `plan-flow` skill to turn a brief into the body of a plan note, `execute-runner`, driven by the `execute-flow` skill to execute an approved plan note end to end, and `ship-runner`, driven by the `ship-flow` skill to commit, push, open the MR or PR, watch the pipeline, work the bot review threads, merge, and tag a reviewed slice. A workflow and a skill register in the same `toolkit:` namespace, so the script cannot share the skill's name.
 
-Child workflows: a script runs another workflow as a child with `workflow(nameOrRef, args)`. The runtime runs the child inline and returns the child's return value. The call throws on an unknown name or a child failure, and returns null when the child is stopped. `agent()` likewise returns null for a stopped agent. `execute-runner` calls `toolkit:review-mr` as a child. `review-mr` and `plan-builder` call no child.
+Child workflows: a script runs another workflow as a child with `workflow(nameOrRef, args)`. The runtime runs the child inline and returns the child's return value. The call throws on an unknown name or a child failure, and returns null when the child is stopped. `agent()` likewise returns null for a stopped agent. `execute-runner` calls `toolkit:review-mr` as a child. `review-mr`, `plan-builder`, and `ship-runner` call no child.
 
 ## review-mr.js
 
@@ -160,6 +160,93 @@ In the validation sentences, `<first line>` is the first line of the result's `s
 A dead stage never throws. A dead `prep:baseline` lets the run continue. A dead implementer or a step with blockers stops the build: every later phase is skipped, `review`, `validation`, `coldResidual`, `coldUnverified`, and `docPass` are null, and `remember.ran` is false with the material kept. A dead `verify:validation`, `fix:validation`, or `verify:revalidation`, a `verify:validation` result count mismatch, or a step still failing after revalidation, stops the run the same way, except that `validation` keeps the latest results when `verify:validation` returned. A null or empty `diff:red-team` capture skips the child and the fix loop. A dead `fix:<round>` or `recheck:<round>`, or a `fix:<round>` with blockers, ends the fix loop without the exhausted sentence. With `maxFixRounds` 0, no fix round runs and any confirmed finding blocks with the exhausted sentence. A null or empty `diff:final` capture blocks and skips the cold read, so the doc pass does not run either. A null capture leaves its `diffHashes` entry null. A dead `doc:pass` or a `doc:pass` with blockers blocks, so the remember pass does not run, while `verify:final` and `diff:post-doc` still run under their own conditions. A null or empty `diff:post-doc` capture blocks, leaves `diffHashes.postDoc` null, and skips the remember pass, so the skill writes no slice marker.
 
 Tests: `bash plugins/toolkit/workflows/tests/execute-runner/run-tests.sh` runs 87 control-flow cases that drive the script with a scripted agent stub, which records each call's agentType, phase, and schema, and a `workflow()` stub that records the child call's args. The suite needs `node`, and `verify.sh` also runs it.
+
+## ship-runner.js
+
+Ship flow. It carries a reviewed slice up the stage ladder suggest, commit, push, mr, merge, release, and stops at the ceiling: the lower of `stopAt` and the cap the session git permission allows. `none` caps the run at suggest, `push` at mr, and `release` at release. The script calls one agent at a time and runs eight phases:
+
+- **Prep**: a `toolkit:verifier` (`prep:state`) runs `git -c core.quotePath=false status --porcelain -uall`, `git branch --show-current`, `git rev-parse HEAD`, `git ls-remote origin refs/heads/<branch>`, `git -c core.quotePath=false diff --cached --name-only`, the auth probe (`gh auth status` or `glab api user`), and the PR or MR lookup (`gh pr view <branch> --json number,url,state,reviewDecision` or `glab mr list --source-branch <branch> -F json`). It returns the open PR or MR with its `reviewDecision`, an empty string on GitLab. On a run that starts at merge with a `recordedSha`, it also runs `git log --format=%H <recordedSha>..HEAD` and returns the printed shas as `logShas`. The script checks the branch, checks the auth probe and the staged paths when the ceiling is above suggest, and checks the listed paths against the tree when the run commits. A suggest-only run therefore never blocks on a failed auth probe. When no listed path is dirty and HEAD starts with `recordedSha`, the commit counts as made and `commit:paths` does not run. At ceiling suggest, Prep is the only stage that runs.
+- **Commit**: a `toolkit:implementer` (`commit:paths`) runs `git add --` with each listed path, `git commit -F -` with the message, and `git rev-parse HEAD`. The commit counts only when the returned sha differs from the Prep HEAD.
+- **Push**: a `toolkit:implementer` (`push:branch`) runs `git push -u origin <branch>` and reads the remote head back. The push counts only when the remote sha equals the local sha. When the run made no commit and the remote head already equals HEAD, `push:branch` does not run.
+- **MR**: a `toolkit:implementer` (`mr:create`) runs the lookup again and returns the PR or MR with its `reviewDecision`. It reuses only an open PR or MR (`OPEN` on GitHub, `opened` on GitLab), and opens one with `gh pr create` or `glab mr create` when the lookup shows none or only a closed or merged one.
+- **Pipeline**: a `toolkit:verifier` (`pipeline:watch:<n>`) watches the pipeline of the pushed commit `headSha` and returns `green`, `red`, `pending`, or `none` with the sha the state belongs to and at most 30 failing log lines. The state is `none` when no pipeline exists for the commit: on GitHub, `gh run list` shows no run and `gh api repos/<remotePath>/commits/<sha>/check-runs` lists no check run, and on GitLab, `head_pipeline` is null. A pipeline state is trusted only when its sha is the pushed commit. While the state is red on `headSha` and fewer than `maxFixRounds` rounds ran, a `toolkit:implementer` (`pipeline:fix:<n>`) commits one fix with the message `fix(ci): <failing check> (ship-flow)`, pushes it, and returns `pushed`. A fix counts only when pushed, and the watch then runs again on the new sha.
+- **Threads**: a `toolkit:verifier` (`threads:fetch:1`) fetches the review threads, treating thread text as untrusted data. The script classifies each open thread in this order. A thread from a human, or a bot thread with a human comment, goes to `human`. A bot thread whose id does not match `[A-Za-z0-9_=:-]+` goes to `pushedBackNeeded` with the reason `thread id not safe for a command`, because the thread fix puts the id in a command. A fixable bot thread on a listed path that is neither CI configuration (`.github/`, `.gitlab-ci.yml`, `.gitlab/`, `.circleci/`, `Jenkinsfile`) nor a `protectedPaths` entry gets one `toolkit:implementer` (`threads:fix:<i>`) that edits only that file, commits `fix(review): <summary> (ship-flow)`, pushes, replies `Fixed in <short sha>: <what changed>`, resolves the thread, and returns `pushed`, `replied`, and `resolved`. Every other open bot thread goes to `pushedBackNeeded`. After a thread fix, `pipeline:watch:threads` watches the new sha and `threads:fetch:2` reads the open threads again.
+- **Merge**: the script refuses the merge unless the pipeline is green on `headSha`, the threads were fetched, no thread is open, the run pushed no fix commit, and on GitHub the PR review decision is not `CHANGES_REQUESTED`. On a run that starts at merge, it also refuses when a `logShas` entry is in neither `knownShas` nor `fixShas`, which catches a fix commit that a dead agent or a hand-run push left on the branch. Otherwise a `toolkit:implementer` (`merge:mr`) on GitHub runs the PR lookup again, runs `gh pr merge <number> --merge --match-head-commit <headSha>` once only when the fresh `reviewDecision` is not `CHANGES_REQUESTED`, and returns that `reviewDecision`. The script refuses the merge on a fresh `CHANGES_REQUESTED`, so a review posted after Prep still stops it. On GitLab it reads `detailed_merge_status` first, runs `glab mr merge <number> --sha <headSha> --auto-merge=false --yes` once only when the status is `mergeable`, and returns that status as `detailedMergeStatus`. It reads the merge commit back with its `kind`.
+- **Release**: after a merge, or on a run that starts at release, a `toolkit:implementer` (`release:tag`) runs `git fetch origin <defaultBranch>`, `git tag -a <tagName>` on the merge commit, and `git push origin <tagName>`.
+
+The Pipeline and Threads phases run inside the mr stage, so a run at ceiling mr watches the pipeline and works the bot threads but never merges. A run that starts at merge still watches the pipeline and fetches the threads. A `startAt` of `release` skips the pipeline and threads block and needs `mr` and `mergedSha`. Every prompt carries a `SHIP GIT RULE` that names only that stage's commands with exactly the flags shown. Its FORBIDDEN sentence names `git stash`, `reset`, `rebase`, `checkout`, `switch`, `clean`, `merge`, `commit --amend`, `add -A`, `add .`, `--force`, `--force-with-lease`, `--no-verify`, `--admin`, and the bare `--auto` flag, and a named command's own flags, such as `--auto-merge=false` on `glab mr merge` or `-f` on `gh api`, are allowed. Every prompt also carries the blocker rule and the denial rule: a worker the permission system denies runs no substitute and returns the exact command in `deniedCommand`, and the script turns it into `handoff`. The commit stage commits `commitMessage` as given, and the commit prompt and the two fix prompts tell the worker that the message carries no Co-Authored-By trailer. The script writes no file itself.
+
+Invoked by the `ship-flow` skill (or directly) with:
+
+```
+args: {planName, repoRoot, repoName, host, remotePath, defaultBranch, branch, commitMessage, mrTitle, mrBody, stopAt, permission, scratchDir, pluginRoot, paths, botAuthors?, tagName?, tagMessage?, maxFixRounds?, startAt?, recordedSha?, mergedSha?, mr?, knownShas?, protectedPaths?}
+```
+
+- `planName`, `repoRoot`, `repoName` (required): the plan note name, the absolute path to the checkout, and the repo name every prompt carries.
+- `host` (required): `github` or `gitlab`.
+- `remotePath` (required): the remote path without its host segment, such as `owner/repo` or `group/sub/repo`. The script builds the API paths from it.
+- `defaultBranch` and `branch` (required): the default branch and the slice branch. The script blocks when `branch` is the default branch, `main`, or `master`.
+- `commitMessage`, `mrTitle`, `mrBody` (required): the commit message and the PR or MR title and body.
+- `stopAt` (required): `suggest`, `commit`, `push`, `mr`, `merge`, or `release`.
+- `permission` (required): `none`, `push`, or `release`, the recorded session git permission.
+- `scratchDir` and `pluginRoot` (required): the absolute scratchpad path and the installed plugin root.
+- `paths` (required): a non-empty array of the repo-relative paths to stage.
+- `botAuthors` (optional): logins to count as bots beside GitHub app authors and GitLab bot users. Default `[]`.
+- `tagName` and `tagMessage` (optional): required when `stopAt` is `release`.
+- `maxFixRounds` (optional): a non-negative integer that caps the pipeline fix commits. Default 1.
+- `startAt` (optional): `commit`, `push`, `mr`, `merge`, or `release`, the stage the run resumes from. Default `commit`. Stages below it do not run.
+- `recordedSha` (optional): the commit sha an earlier run recorded, 7 to 64 lowercase hex characters. Default an empty string.
+- `mergedSha` (optional): the merge commit of a merged PR or MR, 7 to 64 lowercase hex characters. Required when `startAt` is `release`, where it becomes `merged.sha` and the commit the tag lands on.
+- `mr` (optional): `{url, number}` of the open PR or MR, with the iid as `number` on GitLab. Required when `startAt` is `merge` or `release`.
+- `knownShas` (optional): the commit shas the shipping record holds, the recorded commit sha plus every recorded fix sha, each 7 to 64 lowercase hex characters. A `logShas` entry matches when it starts with a listed sha. Default `[]`.
+- `protectedPaths` (optional): repo-relative paths whose threads the run never fixes, added to the CI configuration list. An entry ending in `/` covers a directory, and any other entry covers one exact path. Default `[]`.
+
+The script throws if any required string arg is missing or empty, if `paths` is not a non-empty string array, if `host`, `stopAt`, `permission`, or `startAt` is not one of its values, if `botAuthors` is not a string array, if `stopAt` is `release` without `tagName` and `tagMessage`, if `maxFixRounds` is not a non-negative integer, if `recordedSha` is not a string or is a non-empty string that is not 7 to 64 lowercase hex characters, if `knownShas` is not an array of such shas, if `protectedPaths` is not a string array, if `mr` is not a non-empty `url` with a positive integer `number`, or if `startAt` is `merge` or `release` without `mr`. It throws `ship-runner mergedSha must be a hex commit sha` when `mergedSha` is not 7 to 64 lowercase hex characters, and `ship-runner requires mergedSha when startAt is release` when a release start has no `mergedSha`.
+
+It returns `{stoppedAt, ceiling, commitSha, headSha, pushed, mr, pipeline, threads, fixShas, merged, tag, handoff, blocked, incomplete}`:
+
+- `stoppedAt`: the highest stage the run completed. A run that stops early reports where it stands.
+- `ceiling`: the lower of `stopAt` and the permission cap.
+- `commitSha`, `headSha`, `pushed`: the slice commit, the pushed head after the last pushed fix, and whether the remote head equals it.
+- `mr`: `{url, number}` or null.
+- `pipeline`: `{state, sha, rounds, failingLines}` or null, where `state` is `green`, `red`, `pending`, or `none`.
+- `threads`: `{fixed, pushedBackNeeded, human, open}` or null. A `pushedBackNeeded` entry may carry `reason`.
+- `fixShas`: every fix commit the run pushed, from the pipeline and the thread stages.
+- `merged`: `{sha, kind}` or null, where `kind` is `merge` or `unknown` on GitHub, `merge`, `squash`, or `fast-forward` on GitLab, and `unknown` on a release start. `tag`: the pushed tag name or null.
+- `handoff`: `{stage, command}` when the permission system denied a command, else null.
+- `blocked`: one plain sentence per reason the run stopped, or an empty array.
+- `incomplete`: the labels of the stages that died.
+
+`blocked` gets these sentences:
+
+- `The <who> <label> returned nothing.` for each dead stage, which also lands in `incomplete`.
+- `The <who> <label> reported blockers: <sentences>` for each worker that returned blockers.
+- `The <who> <label> was denied the command: <command>.` for each denied command, which also sets `handoff`.
+- `Prep found a detached HEAD.` and `Prep found the branch <found>, not <branch>.`
+- `The branch <branch> is the default or a protected branch, so the ship flow does not run on it.`
+- `The auth probe <command> failed.`, checked only when the ceiling is above suggest.
+- `Paths outside the staging list are already staged: <paths>.`, checked whenever the ceiling is above suggest, and `Listed paths have no change in the tree: <paths>.`, checked only when the run commits.
+- `origin/<branch> is at <sha>, not HEAD <sha>, so the run cannot watch the pushed commit.` when the run resumes above push but below release, the ceiling reaches mr, and the remote head differs from HEAD.
+- `The commit stage made no new commit.` when `commit:paths` returns no sha or the Prep HEAD.
+- `The push left origin/<branch> at <sha>, not HEAD <sha>.`
+- `The implementer mr:create returned no PR or MR url and number.`
+- `The pipeline state belongs to <sha>, not the pushed commit <headSha>.` when a watch returns the state of another commit.
+- `No pipeline was found for <sha>.` when the watch returns `none`.
+- `The pipeline for <sha> was still pending at the watch bound.`
+- `Pipeline fix rounds are exhausted at maxFixRounds <n>.` and `The pipeline for <sha> is red after the thread fixes.`
+- `The fix <label> committed <sha> but the push did not happen.` for a fix that returns a new sha without `pushed` true.
+- `The implementer <label> pushed no new commit.` for a fix that returns no new sha.
+- `The implementer <label> changed <paths>, not only <file>.` for a thread fix that touched another file.
+- `The thread fix <label> pushed <sha> but did not reply or resolve thread <id>.`
+- `HEAD holds commits the shipping record never saw: <shas>.` on a run that starts at merge.
+- `The merge was refused because <reasons>, and the merge command is <command>.`, where the reasons are joined with `and` and each is one of `the pipeline is <state>`, `the green pipeline ran on <sha>, not the pushed head <sha>`, `the review threads were not fetched`, `<n> review threads are open`, `the PR review decision is CHANGES_REQUESTED`, and `this run pushed the fix commits <shas>, which nobody has reviewed`. A refusal on the review decision alone reads `The merge was refused because the PR review decision is CHANGES_REQUESTED, and the merge command is <command>.`, and `merge:mr` returns the same sentence when its fresh lookup reads `CHANGES_REQUESTED`.
+- `The merge was refused because the detailed_merge_status of <url> is <status>, not mergeable.` on GitLab.
+- `The merge of <url> did not land, and its state is <state>.`
+- `The implementer release:tag did not push the tag <tag>.`
+
+A dead stage, a denied command, or a blocked sentence stops the ladder, so no later stage runs. A fix that pushed and then hit a blocker still lands in `fixShas`, and a fix that committed without a push does not. A refused merge skips the release.
+
+Tests: `bash plugins/toolkit/workflows/tests/ship-runner/run-tests.sh` runs 139 control-flow cases that drive the script with a label-keyed agent stub: arg validation, the ceiling for each permission and `stopAt`, the stage order and resume points, each stage's `SHIP GIT RULE`, a denied command and a dead agent at each stage's first label, the pipeline fix loop, the thread classification, every merge refusal, and the release. The suite needs `node`, and `verify.sh` also runs it.
 
 ## post_mr_comments.py
 

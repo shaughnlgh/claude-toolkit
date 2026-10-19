@@ -20,7 +20,7 @@ The scripts under `plugins/toolkit/workflows/` run through the Workflow tool. Wh
 
 ## Naming a script
 
-- A skill and a workflow script cannot share a name, because both register in the same `toolkit:` namespace and the workflow shadows the skill. The `plan-flow` skill therefore launches the `plan-builder` script, and the `execute-flow` skill launches the `execute-runner` script.
+- A skill and a workflow script cannot share a name, because both register in the same `toolkit:` namespace and the workflow shadows the skill. The `plan-flow` skill therefore launches the `plan-builder` script, the `execute-flow` skill launches the `execute-runner` script, and the `ship-flow` skill launches the `ship-runner` script.
 
 ## Parsing a script
 
@@ -76,13 +76,14 @@ The scripts under `plugins/toolkit/workflows/` run through the Workflow tool. Wh
 - `verify.sh` runs the hook fixture suite as one check, so a fixture failure costs one pass, not one per fixture.
 - The agent and skill counts are hardcoded in two places: the Structure checks in `verify.sh` and the expected welcome line in `hooks/tests/fixtures/session-start/06-startup-welcome.json`. [agents.md](../agents.md) states the agent count too. Adding or removing an agent or a skill means updating all of them.
 - Three files state the case count of each behavior suite. `verify.sh` passes it to `suite_ok` as the minimum passed count, section 1 of `VERIFY.md` gives it after the suite name, and the suite's Tests line in [scripts.md](../scripts.md) or [workflows.md](../workflows.md) gives it too. Adding or removing a case means updating all three.
-- A check that two files carry the same sentence must extract the sentence from both files and compare them, not hardcode it. The git-permission checks grep `Do I have permission[^?]*?` from `doctrine/git-safety.md` and from each of `skills/plan-flow/SKILL.md` and `skills/execute-flow/SKILL.md`, and require each skill match to equal the doctrine match and be non-empty. The option check greps the numbered option lines that end in writes `none`, `push`, or `release` from both skills, and requires `plan-flow` to carry exactly three such lines and `execute-flow` to carry the same three.
+- A check that two files carry the same sentence must extract the sentence from both files and compare them, not hardcode it. The git-permission checks grep `Do I have permission[^?]*?` from `doctrine/git-safety.md` and from each of `skills/plan-flow/SKILL.md`, `skills/execute-flow/SKILL.md`, and `skills/ship-flow/SKILL.md`, and require each skill match to equal the doctrine match and be non-empty. The option checks grep the numbered option lines that end in writes `none`, `push`, or `release` from the three skills, and require `plan-flow` to carry exactly three such lines, `execute-flow` to carry the same three, and `ship-flow` to carry the same three as `execute-flow`.
 - Every doctrine index line in `plugins/toolkit/CLAUDE.md` opens with a bold file name followed by an em dash. Any edit to such a line puts that existing em dash on an added line of the diff. A check for "no em dash on added lines" must compare each added line with the line it replaced.
 - To exercise a run without `node` on a machine that has it, build a scratch directory of symlinks to every PATH tool except `node`, and run `verify.sh` with that directory as PATH. Build the directory under `/bin/bash -c`, because zsh does not word-split an unquoted `$PATH` expansion, so a loop written for bash sees one word.
 
 ## Related docs
 
-- [workflows.md](../workflows.md) for what `review-mr.js`, `plan-builder.js`, and `execute-runner.js` take and return.
+- [workflows.md](../workflows.md) for what `review-mr.js`, `plan-builder.js`, `execute-runner.js`, and `ship-runner.js` take and return.
 - [VERIFY.md](../../VERIFY.md) for running `verify.sh` and the suites.
 - [context-plan-note-section-checks.md](context-plan-note-section-checks.md) for how the validator and hooks read plan note sections.
 - [context-git-tree-state-capture.md](context-git-tree-state-capture.md) for the git output quirks the diff captures handle.
+- [context-ship-flow-constraints.md](context-ship-flow-constraints.md) for the invariants `ship-runner.js` and its suite keep.
