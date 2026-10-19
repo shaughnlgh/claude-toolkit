@@ -233,6 +233,9 @@ else
     ok "hook fixture suite"
   else
     no "hook fixture suite (exit $hrc, got: ${out:0:60})"
+    # The runner names each failed case on a Failed: line. Print them, because a CI log that
+    # shows only the totals cannot say which case failed.
+    printf '%s\n' "$hout" | grep -E '^(Failed: |  FAIL  )' | sed 's/^/    /'
   fi
 fi
 # spot-confirm session-start's two injections directly (no fixture asserts the pair)
@@ -283,7 +286,7 @@ suite_ok "plan-validator fixture suite" "$out" 37
 
 echo "== Topic recall =="
 out="$(bash "$P/scripts/tests/topic-recall/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "topic-recall behavior suite" "$out" 43
+suite_ok "topic-recall behavior suite" "$out" 45
 
 echo "== vault-fs containment =="
 out="$(bash "$P/scripts/tests/vault-fs/run-tests.sh" 2>/dev/null | tail -1)"

@@ -2,10 +2,10 @@
 """Lexical search over the vault's topic notes and a repo's docs/ folder.
 
 Usage: topic-recall.py [--repo <name>] [--repo-root <path>] [--top N]
-                       [--format text|json] [query words...]
+                       [--format text|json] [--version] [query words...]
 
 Exit codes:
-  0  ran, with hits or with none
+  0  ran, with hits or with none, or printed the --version output
   2  ~/.claude/obsidian-sync.json missing or unreadable, or the vault root is not a directory
   3  the run passed its internal deadline (POSIX only)
 
@@ -27,6 +27,7 @@ import os
 import re
 import signal
 import stat
+import subprocess
 import sys
 from dataclasses import asdict, dataclass
 from typing import Callable
@@ -50,6 +51,7 @@ SCAN_LINES = 120
 READ_CAP = 64 * 1024   # bytes read per file, before the SCAN_LINES cut
 DEADLINE_SECONDS = 3
 BLOCK_INDICATORS = {">", ">-", ">+", "|", "|-", "|+"}
+PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 ROW_RE = re.compile(
     r"^- \[\[(?P<title>[^\]]+)\]\](?: — (?P<summary>.*?))? \((?P<meta>[^()]*)\)\s*$"
@@ -370,6 +372,18 @@ def positive_int(value: str) -> int:
     return number
 
 
+def content_version(plugin_root: str) -> str:
+    # The plugin cache installs at cache/<marketplace>/toolkit/<version>/, and a checkout has no version segment.
+    if os.path.basename(os.path.dirname(plugin_root)) == "toolkit":
+        return os.path.basename(plugin_root)
+    try:
+        result = subprocess.run(["git", "-C", plugin_root, "rev-parse", "--short=12", "HEAD"],
+                                capture_output=True, text=True)
+    except OSError:
+        return "unknown"
+    return result.stdout.strip() if result.returncode == 0 else "unknown"
+
+
 def on_alarm(_signum: int, _frame: object) -> None:
     raise Timeout(f"no result within {DEADLINE_SECONDS} s")
 
@@ -397,8 +411,12 @@ def run(argv: list[str]) -> int:
     parser.add_argument("--repo-root", help="repo checkout whose docs/ joins the search; sets the --repo default")
     parser.add_argument("--top", type=positive_int, default=10)
     parser.add_argument("--format", choices=("text", "json"), default="text")
+    parser.add_argument("--version", action="store_true", help="print the toolkit content version and exit")
     parser.add_argument("query", nargs="*")
     args = parser.parse_args(argv)
+    if args.version:
+        print(content_version(PLUGIN_ROOT))
+        return 0
     repo = args.repo
     if args.repo_root and not repo:
         repo = os.path.basename(os.path.abspath(args.repo_root))
