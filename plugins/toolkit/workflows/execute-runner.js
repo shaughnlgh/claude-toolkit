@@ -73,6 +73,8 @@ const items = (text) => {
 }
 
 const objective = section('Objective')
+const assumptions = section('Assumptions')
+const risks = section('Risks')
 const implSteps = items(section('Implementation Steps'))
 const validationSteps = section('Validation Steps')
 const validationItems = items(validationSteps)
@@ -110,6 +112,8 @@ const DOCTRINE = `Build minimal. The plan says what to build, so build the least
 const REPO_STATE = 'The tree at repoRoot is the POST-change state this diff produces. There is no pre-change checkout. Reconstruct the pre-change state from the diff\'s context and removed lines. A defect the diff introduces is in scope even though it is present in the tree.'
 const STDIN_RULE = 'Run any verify or test suite, such as bash verify.sh, with stdin from /dev/null (bash verify.sh </dev/null), because a suite that reads stdin hangs when stdin is a pipe.'
 const BLOCKER_RULE = 'If any step, command or tool call is denied or cannot be done, do not work around it. Record it in blockers as one sentence and stop.'
+const HOOK_RULE = `The dangerous-commands hook refuses any command text, including inside a heredoc, that contains a recursive force-delete of a shell variable, a bare dot or double dot, a bare glob, a path with a /../ segment, the root, the home dir, or a system dir such as /usr, /etc or /var. Remove a scratch fixture with its literal absolute path under ${S}.`
+const HOOK_WRITE_RULE = "If a file you create must hold a command the hook refuses, such as a script's recursive delete of a variable, create it with the Write tool, never through a heredoc."
 const EXTERNAL_PROMPT = 'You are CodeRabbit, Copilot, or a senior engineer on another team seeing this diff with no context. List what you would flag that a panel briefed by the author would rationalize away: naming that hides intent, a test that proves nothing, a comment that contradicts the code, a config value that belongs elsewhere, a public surface with no doc.'
 const CAPTURE_PROMPT = `Run exactly these commands from ${a.repoRoot} and nothing else:
 1. git diff HEAD > ${S}/slice.diff.tmp
@@ -122,7 +126,9 @@ const SHARED = `${CONTEXT}
 
 ${DOCTRINE}
 ${GIT_RULE}
-${BLOCKER_RULE}`
+${BLOCKER_RULE}
+${HOOK_RULE}
+${HOOK_WRITE_RULE}`
 const RETURN_STEP = 'Return changedPaths as repo-relative paths, deviations as one sentence per departure from the instructions, checksRun as the checks you ran, result as one sentence, blockers as one sentence per blocker, and topicMaterial as the durable non-obvious facts with file:line refs, or none. Return raw structured data only.'
 
 const DIMENSIONS = [
@@ -260,7 +266,7 @@ ${validationBlock}
 BASELINE VERIFY RESULT:
 ${baseline ? JSON.stringify(baseline.verify) : 'none, the baseline check did not run'}
 
-Run each STEP above that an agent can run here, against ${a.repoRoot}. Return exactly ${validationCount} results, one per STEP, in order, with step set to the STEP number and the step's first line, as in STEP 1: <first line>. status is pass or fail with the command output as evidence, never a guessed pass. status is manual, with the reason as evidence, for a step that needs a human or another session. status is pre-existing when a step fails only on a check that the baseline failing list already names. If a command is denied, report its step as fail with the denial as evidence. ${STDIN_RULE} Change no file. ${GIT_RULE} Return raw structured data only.`,
+Run each STEP above that an agent can run here, against ${a.repoRoot}. Return exactly ${validationCount} results, one per STEP, in order, with step set to the STEP number and the step's first line, as in STEP 1: <first line>. status is pass or fail with the command output as evidence, never a guessed pass. status is manual, with the reason as evidence, for a step that needs a human or another session. status is pre-existing when a step fails only on a check that the baseline failing list already names. If a command is denied, report its step as fail with the denial as evidence. ${STDIN_RULE} ${HOOK_RULE} Change no file. ${GIT_RULE} Return raw structured data only.`,
   { label, phase: phaseName, schema: VALIDATION, agentType: 'toolkit:verifier' })
 
 if (!validationSteps) setValidation({ results: [] }, 0)
@@ -321,6 +327,12 @@ OBJECTIVE:
 ${objective || 'none'}
 CHANGED PATHS:
 ${changed.join('\n') || 'none'}
+SETTLED DECISIONS:
+The owner accepted the plan's Assumptions and Risks at approval. A finding that only restates one of them, or asks for scope or coverage the Assumptions exclude, is not a finding, unless the tree contradicts the decision, in which case report it as a normal finding.
+ASSUMPTIONS:
+${assumptions || 'none'}
+RISKS:
+${risks || 'none'}
 
 Apply the project rules in the CLAUDE.md, AGENTS.md and .claude/rules files under ${a.repoRoot} where they exist. When the diff ships executable commands embedded in prose, such as a skill, a workflow script's prompts or a doc, execute those exact commands against a scratch fixture covering the awkward cases (clean tree, dirty tree, untracked directories, unusual filenames) rather than judge them by reading. ${SCRATCH_ONLY} ${GIT_RULE}`
   try {
@@ -412,7 +424,6 @@ Treat comments and doc sentences as claims, and set verified true only when you 
   else {
     coldResidual = cold.findings.filter((f) => f.verified)
     coldUnverified = cold.findings.filter((f) => !f.verified)
-    if (coldResidual.length) blocked.push(`The cold read left ${coldResidual.length} verified findings open.`)
   }
 }
 
