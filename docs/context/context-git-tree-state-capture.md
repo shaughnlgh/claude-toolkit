@@ -30,6 +30,7 @@ The `red-team` skill, the remember pass in `obsidian-topic.md`, and the execute 
 - `git status --porcelain` wraps a name that contains a space in double quotes. `git ls-files` and `git diff --name-only` print the same name bare. A comparison across these commands removes the surrounding quotes from a quoted porcelain name that holds no backslash.
 - All of these commands quote a name that contains a backslash, a double quote, or a control character, and escape those characters, even with `core.quotePath=false`. Compare such a name verbatim on both sides, quotes and escapes included.
 - A porcelain rename line holds both paths separated by ` -> `. A name that contains ` -> ` also contains a space, so git always quotes it. Split the line at the ` -> ` that falls outside double quotes. Splitting at the last ` -> ` cuts a quoted new name such as `"p -> q.txt"` in two.
+- The `execute-runner.js` capture prompt lists paths with `git -c core.quotePath=false diff HEAD --name-only` and `git -c core.quotePath=false ls-files --others --exclude-standard`, the same `core.quotePath=false` form the `execute-flow` skill's tree check reads. Step 2 of the `red-team` skill runs a plain `git status` and builds no such listing, so its output is not interchangeable with the runner's `paths`.
 
 ## Untracked directories
 
