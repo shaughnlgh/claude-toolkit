@@ -28,6 +28,7 @@ Full transparency — what ships, what runs automatically, and why.
 - [`docs/overrides.md`](docs/overrides.md) — how to override any default (doctrine, rules, agents, skills) with your own, and how `/override` works.
 - [`docs/context-economics.md`](docs/context-economics.md) — how prompt-cache mechanics drive cost, and the practices (and doctrine) that follow from it.
 - [`VERIFY.md`](VERIFY.md) — the live-session verification checklist (the mechanical battery is `verify.sh`).
+- [`REVIEW.md`](REVIEW.md): the review rules the review panel reads from the default branch, and the high-risk paths that pick the full six-reviewer panel.
 
 ## Prerequisites
 
