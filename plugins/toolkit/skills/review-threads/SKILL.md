@@ -11,10 +11,10 @@ description: >-
   thread itself, and via the discussions API on GitLab, because CodeRabbit resolves a
   thread only when it withdraws its own finding after a push-back reply, never after a
   plain fix push. Reports thread state after and states the merge gate: all threads
-  resolved and pipeline green, otherwise no merge recommendation. Never mutates git
-  state and never posts without the user's request in this session. Do not fire for
-  reviewing an MR from scratch (gitlab-mr-review) or for an uncommitted local diff
-  (red-team).
+  resolved and pipeline green, otherwise no merge recommendation. Never posts without
+  the user's request in this session. The ship flow works bot threads itself through the
+  ship-runner script. This skill still never mutates git. Do not fire for reviewing an MR from scratch (gitlab-mr-review) or for
+  an uncommitted local diff (red-team).
 ---
 
 # Review threads
@@ -63,4 +63,4 @@ Recommend merge only when every thread is resolved and the pipeline is green. Ot
 
 ## Boundary
 
-`gitlab-mr-review` reviews an MR from scratch. `red-team` reviews the local uncommitted slice. This skill runs after push and works the reviewer's threads. It never stages, commits, pushes, or merges. Posting a reply is an external side effect and follows the execution guardrails: preview, then post only on the user's request.
+`gitlab-mr-review` reviews an MR from scratch. `red-team` reviews the local uncommitted slice. This skill runs after push and works the reviewer's threads. It never stages, commits, pushes, or merges. The ship flow works bot threads itself through the ship-runner script. This skill still never mutates git. Posting a reply is an external side effect and follows the execution guardrails: preview, then post only on the user's request.
