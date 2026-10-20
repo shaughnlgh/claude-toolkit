@@ -55,7 +55,7 @@ Every worker task includes:
 - **Expected return format.** The fields and level of detail the report must use.
 - **Known evidence.** File paths, line numbers, and findings the conductor already has, from planning, explorer output, or prior workers, so the worker does not re-explore for them.
 
-Every worker result returns: `Objective`, `Files inspected`, `Files changed`, `Checks run`, `Result`, `Assumptions or blockers`, `Residual risks`, `Rules applied` (only for a free-form report, not schema-constrained structured output), and `Topic note material` (facts about stable recurring concepts with source refs, or "none"). `Rules applied` is a self-report aid for conductor acceptance, not proof.
+Every worker result returns: `Objective`, `Files inspected`, `Files changed`, `Checks run`, `Result`, `Assumptions`, `Blockers`, `Residual risks`, `Rules applied` (only for a free-form report, not schema-constrained structured output), and `Topic note material` (facts about stable recurring concepts with source refs, or "none"). `Rules applied` is a self-report aid for conductor acceptance, not proof.
 
 The conductor keeps every worker's Topic note material for the slice's remember pass (obsidian-topic command, § Remember pass), the one consumer of that field.
 
