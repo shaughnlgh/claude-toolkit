@@ -19,12 +19,15 @@ if (typeof a === 'string') {
 }
 const REQUIRED = ['planName', 'repoRoot', 'repoName', 'planContent', 'recallHits', 'scratchDir', 'pluginRoot', 'vaultRoot']
 if (!a || REQUIRED.some((k) => typeof a[k] !== 'string' || !a[k])) {
-  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planContent, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, maxFixRounds?, reviewRules?, reviewMr?}')
+  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planContent, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, baselineFailing?, priorChangedPaths?, maxFixRounds?, reviewRules?, reviewMr?}')
 }
 if (a.maxFixRounds != null && !(Number.isInteger(a.maxFixRounds) && a.maxFixRounds >= 0)) {
   throw new Error(`execute-runner maxFixRounds must be a non-negative integer, got ${JSON.stringify(a.maxFixRounds)}`)
 }
 if (a.reviewRules != null && typeof a.reviewRules !== 'string') throw new Error('execute-runner reviewRules must be a string when given')
+const isStrList = (v) => Array.isArray(v) && v.every((s) => typeof s === 'string')
+if (a.baselineFailing != null && !isStrList(a.baselineFailing)) throw new Error(`execute-runner baselineFailing must be an array of strings when given, got ${JSON.stringify(a.baselineFailing)}`)
+if (a.priorChangedPaths != null && !isStrList(a.priorChangedPaths)) throw new Error(`execute-runner priorChangedPaths must be an array of strings when given, got ${JSON.stringify(a.priorChangedPaths)}`)
 const refOk = (r) => typeof r === 'string' ? r.length > 0 : !!(r && typeof r === 'object' && typeof r.scriptPath === 'string' && r.scriptPath.length > 0)
 if (a.reviewMr != null && !refOk(a.reviewMr)) throw new Error('execute-runner reviewMr must be a workflow name or {scriptPath} when given')
 const MAX_FIX_ROUNDS = a.maxFixRounds ?? 1
@@ -139,7 +142,7 @@ ${a.knownEvidence || 'none'}`
 const DOCTRINE = `Build minimal. The plan says what to build, so build the least that satisfies it: shortest working diff, no unrequested abstractions, reuse before adding, and trace and grep the callers before changing a shared function. Prefer deleting code to adding it. Mark any deliberate shortcut with a greppable TODO(author): comment naming the ceiling and the upgrade path. See ${a.pluginRoot}/doctrine/minimalism.md.`
 const REPO_STATE = 'The tree at repoRoot is the POST-change state this diff produces. There is no pre-change checkout. Reconstruct the pre-change state from the diff\'s context and removed lines. A defect the diff introduces is in scope even though it is present in the tree.'
 const STDIN_RULE = 'Run any verify or test suite, such as bash verify.sh, with stdin from /dev/null (bash verify.sh </dev/null), because a suite that reads stdin hangs when stdin is a pipe.'
-const BLOCKER_RULE = 'If any step, command or tool call is denied or cannot be done, do not work around it. Record it in blockers as one sentence and stop.'
+const BLOCKER_RULE = 'If any step, command or tool call is denied or cannot be done, do not work around it. Record it in blockers as one sentence and stop. The runner stops on any blockers entry, so blockers holds only work you could not do and is empty when the work is done.'
 const HOOK_RULE = `The dangerous-commands hook refuses any command text, including inside a heredoc, that contains a recursive force-delete of a shell variable, a bare dot or double dot, a bare glob, a path with a /../ segment, the root, the home dir, or a system dir such as /usr, /etc or /var. Remove a scratch fixture with its literal absolute path under ${S}.`
 const HOOK_WRITE_RULE = "If a file you create must hold a command the hook refuses, such as a script's recursive delete of a variable, create it with the Write tool, never through a heredoc."
 const EXTERNAL_PROMPT = 'You are CodeRabbit, Copilot, or a senior engineer on another team seeing this diff with no context. List what you would flag that a panel briefed by the author would rationalize away: naming that hides intent, a test that proves nothing, a comment that contradicts the code, a config value that belongs elsewhere, a public surface with no doc.'
@@ -157,7 +160,7 @@ ${GIT_RULE}
 ${BLOCKER_RULE}
 ${HOOK_RULE}
 ${HOOK_WRITE_RULE}`
-const RETURN_STEP = 'Return changedPaths as repo-relative paths, deviations as one sentence per departure from the instructions, checksRun as the checks you ran, result as one sentence, blockers as one sentence per blocker, and topicMaterial as the durable non-obvious facts with file:line refs, or none. Return raw structured data only.'
+const RETURN_STEP = 'Return changedPaths as repo-relative paths, deviations as one sentence per departure from the instructions and one per caveat or follow-up you want recorded, checksRun as the checks you ran, result as one sentence, blockers as one sentence per step you could not do or empty, and topicMaterial as the durable non-obvious facts with file:line refs, or none. Return raw structured data only.'
 
 const DIMENSIONS = [
   { key: 'cold-read', cold: true, prompt: `Re-derive what the diff does from the diff alone. Read every instruction and embedded command literally and adversarially, and report each place where the literal reading differs from what the diff appears to intend. ${SCRATCH_ONLY} ${GIT_RULE}` },
@@ -169,7 +172,7 @@ const blocked = []
 const planChanges = []
 const steps = []
 const rounds = []
-const changed = []
+const changed = [...(a.priorChangedPaths || [])]
 const material = []
 let baseline = null
 let validation = null
@@ -264,6 +267,7 @@ baseline = await agent(`${CONTEXT}
 In ${a.repoRoot}, run git branch --show-current and git status --porcelain, then ${verifyLine}. ${STDIN_RULE} Return branch, status as the git status --porcelain lines, and verify with the command you ran, its exit code, and failing as the names of the checks it reported as failed. Change no file. ${GIT_RULE} Return raw structured data only.`,
   { label: 'prep:baseline', phase: 'Prep', schema: BASELINE, agentType: 'toolkit:verifier' })
 if (!baseline) dead('verifier', 'prep:baseline')
+else if (a.baselineFailing) baseline.verify = { ...baseline.verify, failing: a.baselineFailing }
 if (!validationSteps) blocked.push('The plan has no Validation Steps, so nothing proves the slice.')
 
 phase('Implement')
@@ -494,7 +498,7 @@ ${a.planContent}
 CHANGED PATHS:
 ${changed.join('\n') || 'none'}
 
-Read the section headed Doc Update Pass in ${a.pluginRoot}/skills/execute-workflow/SKILL.md and apply it to this slice in ${a.repoRoot}. Return docsUpdated as the repo-relative docs you edited, deferred as one sentence per doc update you leave undone, distributed as one sentence per affected doc that lives in another repo, changedPaths as every repo-relative path you changed, blockers as one sentence per blocker, and topicMaterial as the durable non-obvious facts with file:line refs, or none. Return raw structured data only.`,
+Read the section headed Doc Update Pass in ${a.pluginRoot}/skills/execute-workflow/SKILL.md and apply it to this slice in ${a.repoRoot}. Return docsUpdated as the repo-relative docs you edited, deferred as one sentence per doc update you leave undone, distributed as one sentence per affected doc that lives in another repo, changedPaths as every repo-relative path you changed, blockers as one sentence per step you could not do or empty, and topicMaterial as the durable non-obvious facts with file:line refs, or none. Return raw structured data only.`,
     { label: 'doc:pass', phase: 'Doc pass', schema: DOCPASS, agentType: 'toolkit:implementer' })
   if (!docPass) dead('implementer', 'doc:pass')
   else {
@@ -540,7 +544,7 @@ Class (b) writes: for each candidate topic, fold facts under the section they be
 
 Required checks: read back every vault file you wrote and confirm it holds the folded facts. Run no git command. ${BLOCKER_RULE}
 
-Expected return format: proposals holds one entry per proposed repo doc, with path as the repo-relative path, action as created or updated, scratch as the scratch file path, and factsFrom as the [[Note]] names whose facts move into that doc. If a hand-written doc covers the subject, add one factsFrom entry that reads related <repo-relative path>. proposals is empty when there is no proposal. topicsUpdated lists every vault note you touched. rememberLine is exactly one draft line in one of these forms: Remember: repo docs <paths>; topics updated [[A]], [[B]] or Remember: repo docs <paths> or Remember: topics updated [[A]] or Remember: no change (<reason>). blockers holds one sentence per blocker. Return raw structured data only.`,
+Expected return format: proposals holds one entry per proposed repo doc, with path as the repo-relative path, action as created or updated, scratch as the scratch file path, and factsFrom as the [[Note]] names whose facts move into that doc. If a hand-written doc covers the subject, add one factsFrom entry that reads related <repo-relative path>. proposals is empty when there is no proposal. topicsUpdated lists every vault note you touched. rememberLine is exactly one draft line in one of these forms: Remember: repo docs <paths>; topics updated [[A]], [[B]] or Remember: repo docs <paths> or Remember: topics updated [[A]] or Remember: no change (<reason>). blockers holds one sentence per step you could not do and is empty otherwise. Return raw structured data only.`,
     { label: 'remember:pass', phase: 'Remember', schema: REMEMBER, agentType: 'toolkit:implementer' })
   if (!rem) dead('implementer', 'remember:pass')
   else if (blockersOf('implementer', 'remember:pass', rem)) remember = { ran: false, material, proposals: [], topicsUpdated: rem.topicsUpdated || [], rememberLine: '' }

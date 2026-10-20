@@ -23,6 +23,8 @@ The `ship-flow` skill launches the `ship-runner` workflow to carry a reviewed sl
 ## Stopping a run
 
 - `halted()` checks a dead agent first, then a denied command, then the worker's blockers. Denial comes before blockers, so a worker that was denied a command ends the run with `handoff` set to the paste-ready command even when it also reported blockers.
+- `BLOCKER_RULE` in `ship-runner.js` is a copy of `BLOCKER_RULE` in `execute-runner.js`, and the two lines must stay byte-identical. A change to the rule in one runner must be made in the other in the same slice.
+- `RETURN_STOP` asks for `blockers` and `deniedCommand` and has no `deviations` field, so a ship stage prompt carries no sentence that routes a caveat. A ship prompt must not name `deviations` while its schema lacks the field.
 
 ## Fix commits
 
