@@ -1,12 +1,12 @@
 export const meta = {
   name: 'execute-runner',
-  description: 'Execute flow: runs an approved plan note through a baseline check, one implementer per Implementation Step, the Validation Steps with one fix round, the review-mr panel with a bounded fix loop, a cold read and, when nothing blocked, the Doc Update Pass and the remember pass, and returns the result for the execute-flow skill to record. The script writes no file itself: its verifiers write the diff captures under scratchDir and the remember worker writes vault notes. No worker runs mutating git in repoRoot.',
+  description: 'Execute flow: runs an approved plan note through a baseline check, one implementer per Implementation Step, the Validation Steps with one fix round, the review-mr panel chosen by changed path with one fix round over the confirmed findings and the nits carried along, a cold read told what the panel already reported and, when nothing blocked, the Doc Update Pass and the remember pass, and returns the result for the execute-flow skill to record. The script writes no file itself: its verifiers write the diff captures under scratchDir and the remember worker writes vault notes. No worker runs mutating git in repoRoot.',
   phases: [
     { title: 'Prep', detail: 'verifier records the branch, the tree status and the baseline verify result' },
     { title: 'Implement', detail: 'one implementer per Implementation Step, in order' },
     { title: 'Verify', detail: 'verifier runs the Validation Steps, one implementer fix round on a failure' },
-    { title: 'Red team', detail: 'verifier captures the diff, the review-mr child runs the panel and two cold dimensions' },
-    { title: 'Fix', detail: 'implementer fixes the confirmed findings, verifier rechecks, bounded by maxFixRounds' },
+    { title: 'Red team', detail: 'verifier captures the diff, the review-mr child runs the panel chosen by changed path and two cold dimensions' },
+    { title: 'Fix', detail: 'one round over the confirmed findings with the nits carried along, verifier rechecks, bounded by maxFixRounds' },
     { title: 'Cold read', detail: 'verifier recaptures the diff, one cold code-reviewer reads it' },
     { title: 'Doc pass', detail: 'implementer runs the Doc Update Pass, verifier revalidates and captures the post-doc diff' },
     { title: 'Remember', detail: 'implementer routes the durable facts, only when nothing blocked' },
@@ -19,13 +19,27 @@ if (typeof a === 'string') {
 }
 const REQUIRED = ['planName', 'repoRoot', 'repoName', 'planContent', 'recallHits', 'scratchDir', 'pluginRoot', 'vaultRoot']
 if (!a || REQUIRED.some((k) => typeof a[k] !== 'string' || !a[k])) {
-  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planContent, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, maxFixRounds?}')
+  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planContent, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, maxFixRounds?, reviewRules?, reviewMr?}')
 }
 if (a.maxFixRounds != null && !(Number.isInteger(a.maxFixRounds) && a.maxFixRounds >= 0)) {
   throw new Error(`execute-runner maxFixRounds must be a non-negative integer, got ${JSON.stringify(a.maxFixRounds)}`)
 }
+if (a.reviewRules != null && typeof a.reviewRules !== 'string') throw new Error('execute-runner reviewRules must be a string when given')
+const refOk = (r) => typeof r === 'string' ? r.length > 0 : !!(r && typeof r === 'object' && typeof r.scriptPath === 'string' && r.scriptPath.length > 0)
+if (a.reviewMr != null && !refOk(a.reviewMr)) throw new Error('execute-runner reviewMr must be a workflow name or {scriptPath} when given')
 const MAX_FIX_ROUNDS = a.maxFixRounds ?? 1
-const PANEL = ['toolkit:code-reviewer', 'toolkit:silent-failure-hunter', 'toolkit:pr-test-analyzer']
+const REVIEW_RULES = (a.reviewRules || '').trim()
+const REVIEW_MR = a.reviewMr ?? 'toolkit:review-mr'
+const STANDING = ['toolkit:code-reviewer', 'toolkit:silent-failure-hunter', 'toolkit:pr-test-analyzer']
+const FULL = STANDING.concat(['toolkit:security-reviewer', 'toolkit:performance-reviewer', 'toolkit:coupling-reviewer'])
+const DOCS_ONLY = ['toolkit:code-reviewer']
+const HIGH_RISK = ['plugins/toolkit/hooks/', 'plugins/toolkit/scripts/', 'plugins/toolkit/workflows/', '.github/']
+const panelFor = (paths, extra) => {
+  const risky = HIGH_RISK.concat(extra)
+  if (paths.some((p) => risky.some((h) => p === h || p.startsWith(h)))) return { panel: FULL, rule: 'high-risk path' }
+  if (paths.length && paths.every((p) => p.startsWith('docs/') || (p.endsWith('.md') && !p.includes('/')))) return { panel: DOCS_ONLY, rule: 'docs only' }
+  return { panel: STANDING, rule: 'standing' }
+}
 
 // Same fence rule as scripts/validate-plan.py strip_fences: 3+ backticks or tildes, closed only by the same char at least as long with no info string.
 const FENCE = /^[ \t]*(`{3,}|~{3,})[ \t]*(\S*)[ \t]*$/
@@ -41,18 +55,23 @@ const outsideFence = (lines) => {
 }
 const planLines = a.planContent.split('\n')
 const planOutside = outsideFence(planLines)
-const section = (name) => {
+const sectionIn = (lines, outside, name) => {
   const out = []
   let inSection = false
-  for (let i = 0; i < planLines.length; i += 1) {
-    const line = planLines[i]
-    if (planOutside[i] && line.startsWith('## ')) {
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]
+    if (outside[i] && line.startsWith('## ')) {
       if (inSection) break
       inSection = line.trim() === '## ' + name
     } else if (inSection) out.push(line)
   }
   return out.join('\n').trim()
 }
+const section = (name) => sectionIn(planLines, planOutside, name)
+const rulesLines = REVIEW_RULES.split('\n')
+const bullets = (text) => text.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('- '))
+  .map((l) => l.slice(2).trim().split(/\s/)[0].replace(/^[`'"]+/, '').replace(/[`'".,:;]+$/, '')).filter(Boolean)
+const extraHighRisk = REVIEW_RULES ? bullets(sectionIn(rulesLines, outsideFence(rulesLines), 'High-risk paths')) : []
 const STEP_HEADING = /^###\s+\d+[.)]/
 const items = (text) => {
   if (!text) return []
@@ -89,13 +108,22 @@ const bool = { type: 'boolean' }
 const strList = { type: 'array', items: str }
 const list = (itemSchema) => ({ type: 'array', items: itemSchema })
 const obj = (properties) => ({ type: 'object', properties, required: Object.keys(properties) })
+// Duplicated in review-mr.js: workflow scripts share no module.
+const unit = { type: 'number', minimum: 0, maximum: 1 }
+const TAG = { type: 'string', enum: ['important', 'nit', 'pre-existing'] }
+const clamp = (n) => Math.min(1, Math.max(0, Number(n) || 0))
+const round2 = (n) => Math.round(clamp(n) * 100) / 100
+const scoreOf = (f) => round2(0.5 * clamp(f.impact) + 0.3 * clamp(f.likelihood) + 0.2 * clamp(f.confidence))
+const cited = (f) => typeof f.citation === 'string' && f.citation.trim().length > 0
 
 const BASELINE = obj({ branch: str, status: strList, verify: obj({ command: str, exitCode: num, failing: strList }) })
 const STEP = obj({ changedPaths: strList, deviations: strList, checksRun: strList, result: str, blockers: strList, topicMaterial: str })
 const VALIDATION = obj({ results: list(obj({ step: str, status: { type: 'string', enum: ['pass', 'fail', 'manual', 'pre-existing'] }, evidence: str })) })
 const DIFF = obj({ diffPath: str, hash12: str, empty: bool, paths: strList })
 const RECHECK = obj({ results: list(obj({ file: str, title: str, resolved: bool, evidence: str })) })
-const COLD = obj({ findings: list(obj({ file: str, issue: str, fix: str, verified: bool })) })
+const COLD = { type: 'object', properties: { findings: list({ type: 'object',
+  properties: { file: str, title: str, issue: str, fix: str, tag: TAG, impact: unit, likelihood: unit, confidence: unit, citation: str, verified: bool },
+  required: ['file', 'title', 'issue', 'fix', 'tag', 'impact', 'likelihood', 'confidence', 'verified'] }) }, required: ['findings'] }
 const DOCPASS = obj({ docsUpdated: strList, deferred: strList, distributed: strList, changedPaths: strList, blockers: strList, topicMaterial: str })
 const REMEMBER = obj({ proposals: list(obj({ path: str, action: str, scratch: str, factsFrom: strList })), topicsUpdated: strList, rememberLine: str, blockers: strList })
 const key = (f) => `${f.file}: ${f.title}`
@@ -146,6 +174,8 @@ const material = []
 let baseline = null
 let validation = null
 let review = null
+let panel = STANDING
+let panelRule = 'standing'
 let fixed = []
 let open = []
 let coldResidual = null
@@ -195,15 +225,20 @@ const finish = () => {
     steps,
     validation,
     review: review ? {
-      panel: PANEL,
+      panel,
+      panelRule,
       dimensions: ['cold-read', 'external-reviewer'],
       confirmed: review.confirmed || [],
+      nits: review.nits || [],
+      preExisting: review.preExisting || [],
       fixed,
       open,
       refuted: review.refuted || [],
       unverified: review.unverified || [],
+      dropped: review.dropped || [],
       openQuestions: review.openQuestions || [],
       dead: Array.isArray(review.dead) ? review.dead : [],
+      verifierDead: Array.isArray(review.verifierDead) ? review.verifierDead : [],
       rounds,
     } : null,
     coldResidual,
@@ -322,6 +357,10 @@ if (!diffRed) dead('verifier', 'diff:red-team')
 else if (diffRed.empty) blocked.push('The diff after implementation is empty.')
 
 if (diffRed && !diffRed.empty) {
+  const reviewPaths = [...new Set((diffRed.paths || []).concat(changed))]
+  const picked = panelFor(reviewPaths, extraHighRisk)
+  panel = picked.panel
+  panelRule = picked.rule
   const contextBlock = `Repo: ${a.repoName} at ${a.repoRoot}. Plan name: ${a.planName}.
 OBJECTIVE:
 ${objective || 'none'}
@@ -334,9 +373,9 @@ ${assumptions || 'none'}
 RISKS:
 ${risks || 'none'}
 
-Apply the project rules in the CLAUDE.md, AGENTS.md and .claude/rules files under ${a.repoRoot} where they exist. When the diff ships executable commands embedded in prose, such as a skill, a workflow script's prompts or a doc, execute those exact commands against a scratch fixture covering the awkward cases (clean tree, dirty tree, untracked directories, unusual filenames) rather than judge them by reading. ${SCRATCH_ONLY} ${GIT_RULE}`
+Apply the project rules in the CLAUDE.md, AGENTS.md and .claude/rules files under ${a.repoRoot} where they exist. When the diff ships executable commands embedded in prose, such as a skill, a workflow script's prompts or a doc, execute those exact commands against a scratch fixture covering the awkward cases (clean tree, dirty tree, untracked directories, unusual filenames) rather than judge them by reading. ${SCRATCH_ONLY} ${GIT_RULE}${REVIEW_RULES ? `\n\nREVIEW RULES (REVIEW.md on the default branch):\n${REVIEW_RULES}` : ''}`
   try {
-    review = await workflow('toolkit:review-mr', { diffPath: diffRed.diffPath, repoRoot: a.repoRoot, contextBlock, repoState: REPO_STATE, dimensions: DIMENSIONS, registryReviewers: PANEL })
+    review = await workflow(REVIEW_MR, { diffPath: diffRed.diffPath, repoRoot: a.repoRoot, contextBlock, repoState: REPO_STATE, dimensions: DIMENSIONS, registryReviewers: panel })
     if (review == null) {
       review = null
       blocked.push('The review-mr child workflow returned nothing.')
@@ -345,6 +384,7 @@ Apply the project rules in the CLAUDE.md, AGENTS.md and .claude/rules files unde
     } else if (review.dead.length) {
       blocked.push(`The review panel lost ${review.dead.length} reviewers: ${review.dead.join(', ')}.`)
     }
+    if (review && Array.isArray(review.verifierDead) && review.verifierDead.length) blocked.push(`The review panel lost the verifier for ${review.verifierDead.length} dimensions: ${review.verifierDead.join(', ')}.`)
   } catch (e) {
     review = null
     blocked.push(`The review-mr child workflow failed: ${e && e.message ? e.message : 'no message'}.`)
@@ -353,19 +393,27 @@ Apply the project rules in the CLAUDE.md, AGENTS.md and .claude/rules files unde
 
 if (review) {
   phase('Fix')
-  open = review.confirmed || []
+  const confirmedOpen = (review.confirmed || []).map((f) => ({ ...f, bucket: 'confirmed' }))
+  const nitsOpen = (review.nits || []).map((f) => ({ ...f, bucket: 'nit' }))
+  open = confirmedOpen.length ? confirmedOpen.concat(nitsOpen) : []
   let stageDead = false
-  for (let round = 1; round <= MAX_FIX_ROUNDS && open.length; round += 1) {
+  for (let round = 1; round <= MAX_FIX_ROUNDS && open.some((f) => f.bucket === 'confirmed'); round += 1) {
     const findings = open.map((f) => `${key(f)}\nDETAIL: ${f.detail}\nFAILURE SCENARIO: ${f.failure_scenario || 'none given'}`).join('\n\n')
+    const entry = (f) => `${key(f)} [${f.finalTag || f.tag}, final score ${f.finalScore}, ${f.reproduced ? 'reproduced' : 'not reproduced'}]\nCITATION: ${f.citation || 'none'}\nDETAIL: ${f.detail}\nFAILURE SCENARIO: ${f.failure_scenario || 'none given'}`
+    const confirmedBlock = open.filter((f) => f.bucket === 'confirmed').map(entry).join('\n\n') || 'none'
+    const nitBlock = open.filter((f) => f.bucket === 'nit').map(entry).join('\n\n') || 'none'
     const fix = await agent(`${SHARED}
 
 PLAN:
 ${a.planContent}
 
 CONFIRMED FINDINGS:
-${findings}
+${confirmedBlock}
 
-Fix each confirmed finding above in ${a.repoRoot} with the smallest change that removes the defect. ${RETURN_STEP}`,
+NITS:
+${nitBlock}
+
+Fix each confirmed finding above in ${a.repoRoot} with the smallest change that removes the defect, and fix every instance of that class of defect in the slice, not one line. For each nit, fix only the cited line, and only when the tree confirms the nit. ${RETURN_STEP}`,
       { label: `fix:${round}`, phase: 'Fix', schema: STEP, agentType: 'toolkit:implementer' })
     fixAttempts += 1
     if (!fix) {
@@ -403,7 +451,8 @@ Check in the tree at ${a.repoRoot} whether each finding above is resolved. Retur
     open = open.filter((f) => !resolved.has(key(f)))
     if (now.length) planChanges.push(`Fix round ${round} resolved: ${record.resolved.join('; ')}`)
   }
-  if (open.length && !stageDead) blocked.push(`Fix rounds are exhausted at maxFixRounds ${MAX_FIX_ROUNDS} with ${open.length} confirmed findings open.`)
+  const openConfirmed = open.filter((f) => f.bucket === 'confirmed')
+  if (openConfirmed.length && !stageDead) blocked.push(`Fix rounds are exhausted at maxFixRounds ${MAX_FIX_ROUNDS} with ${openConfirmed.length} confirmed findings open, so step back and reconsider the approach rather than run another round.`)
 }
 
 phase('Cold read')
@@ -414,16 +463,23 @@ if (diffRed && diffFinal && !fixAttempts && diffRed.hash12 !== diffFinal.hash12)
   blocked.push(`The diff hash changed from ${diffRed.hash12} to ${diffFinal.hash12} with no fix round.`)
 }
 if (diffFinal && !diffFinal.empty) {
+  const posted = review ? ['confirmed', 'nits', 'preExisting'].flatMap((k) => review[k] || []).map(key) : []
   const cold = await agent(`Read the full unified diff at ${diffFinal.diffPath}. ${REPO_STATE} repoRoot is ${a.repoRoot}.
 
 ${EXTERNAL_PROMPT}
 
-Treat comments and doc sentences as claims, and set verified true only when you confirmed the finding in the tree. Return one finding per issue with its file, the issue, the fix, and verified. Change no file. ${SCRATCH_ONLY} ${GIT_RULE} Return raw structured data only.`,
+ALREADY REPORTED BY THE PANEL:
+${posted.join('\n') || 'none'}
+
+A finding already in that list, by file and title, is not reported again. A finding the panel never confirmed or kept is reported even when a reviewer may have raised it, because a refuted or dropped claim is not settled.
+
+Treat comments and doc sentences as claims, and set verified true only when you confirmed the finding in the tree. Return one finding per issue with its file, a short title, the issue, the fix, the tag (important, nit or pre-existing), impact, likelihood and confidence each from 0 to 1, a citation as a file:line you read, and verified. Change no file. ${SCRATCH_ONLY} ${GIT_RULE} Return raw structured data only.`,
     { label: 'cold:read', phase: 'Cold read', schema: COLD, agentType: 'toolkit:code-reviewer' })
   if (!cold) dead('code-reviewer', 'cold:read')
   else {
-    coldResidual = cold.findings.filter((f) => f.verified)
-    coldUnverified = cold.findings.filter((f) => !f.verified)
+    const coldAll = cold.findings.map((f) => ({ ...f, score: scoreOf(f) }))
+    coldResidual = coldAll.filter((f) => f.verified && cited(f))
+    coldUnverified = coldAll.filter((f) => !(f.verified && cited(f)))
   }
 }
 

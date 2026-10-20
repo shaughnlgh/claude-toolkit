@@ -322,7 +322,7 @@ fi
 echo "== execute-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/execute-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "execute-runner control-flow suite" "$out" 87
+  suite_ok "execute-runner control-flow suite" "$out" 126
 else
   skip "skipped: node not found; execute-runner control-flow suite"
 fi
@@ -333,6 +333,14 @@ if command -v node >/dev/null 2>&1; then
   suite_ok "ship-runner control-flow suite" "$out" 139
 else
   skip "skipped: node not found; ship-runner control-flow suite"
+fi
+
+echo "== review-mr control flow =="
+if command -v node >/dev/null 2>&1; then
+  out="$(bash "$P/workflows/tests/review-mr/run-tests.sh" 2>/dev/null | tail -1)"
+  suite_ok "review-mr control-flow suite" "$out" 46
+else
+  skip "skipped: node not found; review-mr control-flow suite"
 fi
 
 echo "== post_mr_comments GITLAB_TOKEN guard =="
@@ -428,6 +436,16 @@ print("MISSING:"+("; ".join(missing) if missing else "NONE"))
 PY
 )"
 case "$cov" in *"MISSING:NONE"*) ok "docs reference every shipped skill/agent/command/hook/rule/doctrine/script/workflow";; *) no "undocumented -> ${cov#*MISSING:}";; esac
+
+echo "== REVIEW.md high-risk paths =="
+if [ ! -f "$ROOT/REVIEW.md" ]; then
+  no "REVIEW.md missing at the repo root"
+else
+  hr="$(awk '$0 == "## High-risk paths"{f=1;next} /^## /{f=0} f && /^- /{print $2}' "$ROOT/REVIEW.md" | tr -d '\140\042\047' | sed 's/[.,:;]*$//')"
+  bad="$(printf '%s\n' "$hr" | while read -r p; do [ -n "$p" ] && [ ! -e "$ROOT/$p" ] && echo "$p"; done)"
+  if [ -z "$hr" ]; then no "REVIEW.md High-risk paths section missing or empty"
+  elif [ -z "$bad" ]; then ok "every REVIEW.md high-risk path exists"; else no "REVIEW.md high-risk path missing -> $bad"; fi
+fi
 
 echo
 echo "RESULT: $pass passed, $skip skipped, $fail failed"
