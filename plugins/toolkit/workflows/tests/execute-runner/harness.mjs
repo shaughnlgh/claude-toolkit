@@ -37,6 +37,7 @@ const SCRATCH_ONLY = 'Run embedded commands only against scratch fixtures you cr
 const HOOK_SENTENCE = 'Remove a scratch fixture with its literal absolute path under /scratch.'
 const HOOK_REFUSAL = 'a bare dot or double dot, a bare glob, a path with a /../ segment, the root, the home dir'
 const HOOK_WRITE = "must hold a command the hook refuses, such as a script's recursive delete of a variable, create it with the Write tool"
+const BLOCKERS_ONLY = 'The runner stops on any blockers entry, so blockers holds only work you could not do and is empty when the work is done.'
 const STDIN_RULE = 'Run any verify or test suite, such as bash verify.sh, with stdin from /dev/null (bash verify.sh </dev/null), because a suite that reads stdin hangs when stdin is a pipe.'
 const REPO_STATE = "The tree at repoRoot is the POST-change state this diff produces. There is no pre-change checkout. Reconstruct the pre-change state from the diff's context and removed lines. A defect the diff introduces is in scope even though it is present in the tree."
 const STANDING = ['toolkit:code-reviewer', 'toolkit:silent-failure-hunter', 'toolkit:pr-test-analyzer']
@@ -138,6 +139,23 @@ const cases = [
     const { error } = await run({}, { ...ARGS, maxFixRounds: '1' })
     return String(error && error.message).includes('maxFixRounds must be a non-negative integer')
   }],
+  ['baselineFailing as a string throws', async () => {
+    const { error } = await run({}, { ...ARGS, baselineFailing: 'lint' })
+    return String(error && error.message).includes('baselineFailing must be an array of strings')
+  }],
+  ['baselineFailing replaces the failing list the validation prompt shows', async () => {
+    const { result, prompts } = await run({}, { ...ARGS, baselineFailing: ['lint'] })
+    return same({ shown: prompts['verify:validation'].includes('"failing":["lint"]'), failing: result.baseline.verify.failing }, { shown: true, failing: ['lint'] })
+  }],
+  ['priorChangedPaths as a string throws', async () => {
+    const { error } = await run({}, { ...ARGS, priorChangedPaths: 'src/z.js' })
+    return String(error && error.message).includes('priorChangedPaths must be an array of strings')
+  }],
+  ['priorChangedPaths seed ALREADY CHANGED, the doc pass and changedPaths', async () => {
+    const { result, prompts } = await run({}, { ...ARGS, priorChangedPaths: ['src/z.js'] })
+    return same({ implement: prompts['implement:1'].includes('ALREADY CHANGED:\nsrc/z.js\n'), doc: prompts['doc:pass'].includes('CHANGED PATHS:\nsrc/z.js\n'), changedPaths: result.changedPaths },
+      { implement: true, doc: true, changedPaths: ['src/z.js', 'src/a.js', 'src/b.js', 'src/c.js'] })
+  }],
   ['plan with no Validation Steps blocks and still runs implement:1', async () => {
     const { result, prompts } = await run({}, { ...ARGS, planContent: plan(THREE_STEPS, null) })
     return same({ blocked: result.blocked, ran: 'implement:1' in prompts }, { blocked: ['The plan has no Validation Steps, so nothing proves the slice.'], ran: true })
@@ -157,6 +175,11 @@ const cases = [
   ['implement:2 blockers block and skip implement:3', async () => {
     const { result, prompts } = await run({ 'implement:2': stepOf(['src/b.js'], { blockers: ['The test run was denied.'] }) })
     return same({ blocked: result.blocked, ran: 'implement:3' in prompts }, { blocked: ['The implementer implement:2 reported blockers: The test run was denied.'], ran: false })
+  }],
+  ['every implementer prompt says blockers holds only work the worker could not do', async () => {
+    const { prompts } = await run(FULL_RUN)
+    const missing = Object.keys(prompts).filter((k) => AGENT_TYPES[k] === I && !prompts[k].includes(BLOCKERS_ONLY))
+    return same(missing, [])
   }],
   ['failing validation step runs fix:validation then verify:revalidation, runs 2, child called', async () => {
     const { result, prompts, calls } = await run({ 'verify:validation': FAIL })
