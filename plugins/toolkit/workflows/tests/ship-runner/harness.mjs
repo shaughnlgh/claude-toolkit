@@ -304,6 +304,11 @@ const cases = [
     const { prompts } = await run({ ...RED, ...BOT_THREAD })
     return same(['commit:paths', 'pipeline:fix:1', 'threads:fix:1'].map((k) => prompts[k].includes(NO_TRAILER)), [true, true, true])
   }],
+  ['every stage prompt says blockers holds only work the worker could not do', async () => {
+    const { prompts } = await run({ ...RED, ...BOT_THREAD })
+    const missing = labels(prompts).filter((k) => !prompts[k].includes('The runner stops on any blockers entry, so blockers holds only work you could not do and is empty when the work is done.'))
+    return same(missing, [])
+  }],
   ['a red then green pipeline runs one fix, rewatches the fix sha, and refuses the merge naming it', async () => {
     const { result, prompts } = await run(RED)
     return same({ fixes: labels(prompts).filter((k) => k.startsWith('pipeline:fix:')), rewatch: prompts['pipeline:watch:2'].includes(`pipeline of the pushed commit ${D}`), blocked: result.blocked },

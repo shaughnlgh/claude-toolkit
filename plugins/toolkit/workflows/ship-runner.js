@@ -77,7 +77,7 @@ const ceilingRank = Math.min(RANK[a.stopAt], CAP[a.permission])
 const ceiling = Object.keys(RANK).find((k) => RANK[k] === ceilingRank)
 const startRank = RANK[START]
 
-const BLOCKER_RULE = 'If any step, command or tool call is denied or cannot be done, do not work around it. Record it in blockers as one sentence and stop.'
+const BLOCKER_RULE = 'If any step, command or tool call is denied or cannot be done, do not work around it. Record it in blockers as one sentence and stop. The runner stops on any blockers entry, so blockers holds only work you could not do and is empty when the work is done.'
 const FORBIDDEN = 'Never run git stash, git reset, git rebase, git checkout, git switch, git clean, git merge, git commit --amend, git add -A or git add ., never pass --force, --force-with-lease, --no-verify, --admin or the bare --auto flag, never run a command this rule does not name, and run each named command with exactly the flags shown.'
 const gitRule = (allowed) => `SHIP GIT RULE. In ${a.repoRoot} run only these commands: ${allowed}. ${FORBIDDEN}`
 const DENIAL_RULE = 'If the permission system denies a command, run no substitute: return the exact command text in deniedCommand and stop.'
@@ -119,7 +119,7 @@ const TAG = stage({ tagged: bool, pushed: bool })
 
 const CONTEXT = `Repo: ${a.repoName} at ${a.repoRoot}. Plan name: ${a.planName}. Host: ${a.host}. Remote path: ${a.remotePath}. Branch: ${a.branch}. Default branch: ${a.defaultBranch}.`
 const NO_TRAILER = 'The commit message carries no Co-Authored-By trailer.'
-const RETURN_STOP = 'blockers as one sentence per blocker, and deniedCommand as the exact denied command text or an empty string. Return raw structured data only.'
+const RETURN_STOP = 'blockers as one sentence per step you could not do or empty, and deniedCommand as the exact denied command text or an empty string. Return raw structured data only.'
 const AUTH_CMD = GH ? 'gh auth status' : 'glab api user'
 const MR_LOOKUP = GH ? `gh pr view ${a.branch} --json number,url,state,reviewDecision` : `glab mr list --source-branch ${a.branch} -F json`
 const MR_VIEW = MR_LOOKUP
