@@ -4,12 +4,14 @@ summary: How the execute-flow skill stops, resumes, and settles unreproduced pan
 type: context
 status: active
 owner: Shaughn Le Grange - Hatlen
-last_reviewed: 2026-10-19
+last_reviewed: 2026-10-20
 source_refs:
   - plugins/toolkit/skills/execute-flow/SKILL.md
   - plugins/toolkit/skills/red-team/SKILL.md
   - plugins/toolkit/workflows/execute-runner.js
   - plugins/toolkit/skills/ship-flow/SKILL.md
+  - plugins/toolkit/workflows/ship-runner.js
+  - plugins/toolkit/agents/
 ---
 <!-- managed-by: toolkit -->
 
@@ -25,6 +27,12 @@ The `execute-flow` skill launches the `execute-runner` workflow and settles with
 
 - Section 1 of the skill starts a fresh run on an in-progress plan note only when the last `sessions` summary begins `execute-flow blocked:`, and resumes at section 8 only when it begins `execute-flow adjudicating:`. A new stop path must leave a summary that begins with one of those prefixes, or section 1 refuses the next request to run the flow.
 - The ship-flow skill writes summaries that begin `ship-flow stopped:` or `ship-flow finished:`. Section 1 of the ship-flow skill accepts an in-progress plan note only when the last summary begins `execute-flow finished:`, `ship-flow stopped:`, or `ship-flow finished:`. A change to the `execute-flow finished:` prefix must change that list too, or the ship flow refuses every slice the execute flow finished.
+- Section 6 writes one `Changed path:` line per path a blocked run left in the tree, taken from `git status` with the section 3 foreign paths removed, and one `Baseline:` line. Section 3 continues a rerun only when every dirty path equals a recorded path. The record comes from the tree and not from the workers' `changedPaths`, because a dead implementer's edits are never collected and a worker can report a foreign path. A blocked stop path that skips the section 6 record forces the user to commit or discard the slice before the rerun, and a WIP commit removes the slice from the `git diff HEAD` capture the panel reviews.
+- A continued rerun passes the recorded paths as `priorChangedPaths` and the recorded failing names as `baselineFailing`, an empty list when no clean baseline exists. `prep:baseline` runs over the half-built slice and the validation verifier reads pre-existing status from the baseline failing list it is shown, so dropping `baselineFailing` makes a check the blocked run broke look pre-existing. The doc pass reads `CHANGED PATHS` from the runner's changed list, so dropping `priorChangedPaths` leaves the earlier run's files out of the doc pass.
+- `blockersOf` in `execute-runner.js` and `ship-runner.js` stops on any `blockers` entry. The implementer and verifier agent definitions and the runner prompts say `blockers` holds only work the worker could not do. The `execute-runner.js` step prompts route a caveat to `deviations`, and the `ship-runner.js` stage schemas have no `deviations` field, so a ship stage prompt carries no caveat routing. A text filter on `blockers` is not used, because a false pass continues over a denied step and nothing reports it.
+- The four leaf agents, `implementer`, `verifier`, `explorer`, and `browser-driver`, name the `Blockers` return heading in their opening sentence and in their return list, and `doctrine/orchestration.md` lists the same heading in the worker return contract. A rename of that heading must change all five files, or a worker reads two names for one field.
+- A runner prompt routes a caveat only to a field its schema has. `RETURN_STEP` in `execute-runner.js` sends caveats and follow-ups to `deviations`. The doc pass and remember pass schemas have no `deviations` field, so their blockers sentence says only "one sentence per step you could not do". The verifier definition says a caveat goes in a schema field that holds it or is left out. A new prompt must not name `deviations` unless its schema declares it.
+- The runner seeds its changed list from `priorChangedPaths` before any worker runs, and each later path is added only when the list does not already hold it. The recorded paths therefore stay first in `changedPaths` and never repeat. The `baselineFailing` override replaces the failing list only when `prep:baseline` returned a result, so a dead baseline verifier still blocks the run. [workflows.md](../workflows.md) gives the arg contracts.
 
 ## Adjudicated findings
 
