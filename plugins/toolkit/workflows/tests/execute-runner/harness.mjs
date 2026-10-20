@@ -39,7 +39,9 @@ const HOOK_REFUSAL = 'a bare dot or double dot, a bare glob, a path with a /../ 
 const HOOK_WRITE = "must hold a command the hook refuses, such as a script's recursive delete of a variable, create it with the Write tool"
 const STDIN_RULE = 'Run any verify or test suite, such as bash verify.sh, with stdin from /dev/null (bash verify.sh </dev/null), because a suite that reads stdin hangs when stdin is a pipe.'
 const REPO_STATE = "The tree at repoRoot is the POST-change state this diff produces. There is no pre-change checkout. Reconstruct the pre-change state from the diff's context and removed lines. A defect the diff introduces is in scope even though it is present in the tree."
-const PANEL = ['toolkit:code-reviewer', 'toolkit:silent-failure-hunter', 'toolkit:pr-test-analyzer']
+const STANDING = ['toolkit:code-reviewer', 'toolkit:silent-failure-hunter', 'toolkit:pr-test-analyzer']
+const FULL = STANDING.concat(['toolkit:security-reviewer', 'toolkit:performance-reviewer', 'toolkit:coupling-reviewer'])
+const DOCS_ONLY = ['toolkit:code-reviewer']
 
 const stepOf = (changedPaths, extra = {}) => ({ changedPaths, deviations: [], checksRun: ['unit tests'], result: 'Done.', blockers: [], topicMaterial: 'none', ...extra })
 const resultOf = (status) => ({ step: '1. Run the unit tests.', status, evidence: `unit tests: ${status}` })
@@ -47,14 +49,17 @@ const validationOf = (status) => ({ results: [resultOf(status), { step: '2. Expo
 const PASS = validationOf('pass')
 const FAIL = validationOf('fail')
 const diffOf = (hash12, empty = false, paths = ['src/a.js']) => ({ diffPath: `/scratch/slice-${hash12}.diff`, hash12, empty, paths })
-const finding = (file, title) => ({ title, file, dimension: 'code-reviewer', severity: 'high', detail: 'Evidence at the line.', failure_scenario: 'A null widget throws.', verdict: { isReal: true, confidence: 'confirmed', reasoning: 'Reproduced.' } })
+const finding = (file, title, extra = {}) => ({ title, file, line: 4, dimension: 'code-reviewer', tag: 'important', finalTag: 'important', impact: 0.8, likelihood: 0.6, confidence: 0.5, citation: `${file}:4`, score: 0.68, finalScore: 0.7, reproduction: 'node fixture.js printed TypeError at a.js:4', reproduced: true, verdict: 'real', reasoning: 'Reproduced.', detail: 'Evidence at the line.', failure_scenario: 'A null widget throws.', ...extra })
+const nit = (file, title) => finding(file, title, { tag: 'nit', finalTag: 'nit', finalScore: 0.4, reproduction: '', reproduced: false })
+const unreproduced = (file, title) => finding(file, title, { finalScore: 0.7, reproduction: '', reproduced: false, reason: 'not reproduced' })
 const F1 = finding('src/a.js', 'Null widget crashes the export')
 const F2 = finding('src/b.js', 'Route skips the auth check')
 const F3 = finding('src/c.js', 'Null widget crashes the export')
-const reviewOf = (confirmed) => ({ confirmed, refuted: [], unverified: [], openQuestions: [], dead: [], ran: [...PANEL, 'cold-read', 'external-reviewer'] })
+const N1 = nit('src/d.js', 'Name hides intent')
+const reviewOf = (confirmed, extra = {}) => ({ confirmed, nits: [], preExisting: [], refuted: [], unverified: [], dropped: [], openQuestions: [], dead: [], verifierDead: [], panel: STANDING, dimensions: ['cold-read', 'external-reviewer'], ...extra })
 const resolvedOf = (...fs) => ({ results: fs.map((f) => ({ file: f.file, title: f.title, resolved: true, evidence: 'Guard added.' })) })
 const docPassOf = (extra = {}) => ({ docsUpdated: [], deferred: [], distributed: [], changedPaths: [], blockers: [], topicMaterial: 'none', ...extra })
-const coldOf = (...verified) => ({ findings: verified.map((v, i) => ({ file: 'src/a.js', issue: `issue ${i}`, fix: 'Rename it.', verified: v })) })
+const coldOf = (...verified) => ({ findings: verified.map((v, i) => ({ file: 'src/a.js', title: `title ${i}`, issue: `issue ${i}`, fix: 'Rename it.', tag: 'important', impact: 0.8, likelihood: 0.6, confidence: 0.5, citation: 'src/a.js:4', verified: v })) })
 
 const DEFAULTS = {
   'prep:baseline': { branch: 'feat/widget-export', status: [], verify: { command: 'npm test', exitCode: 0, failing: [] } },
@@ -82,7 +87,9 @@ const I = 'toolkit:implementer'
 const AGENT_TYPES = { 'cold:read': 'toolkit:code-reviewer', 'diff:final': V, 'diff:post-doc': V, 'diff:red-team': V, 'doc:pass': I, 'fix:1': I, 'fix:validation': I, 'implement:1': I, 'implement:2': I, 'implement:3': I, 'prep:baseline': V, 'recheck:1': V, 'remember:pass': I, 'verify:final': V, 'verify:revalidation': V, 'verify:validation': V }
 const PHASES = { 'cold:read': 'Cold read', 'diff:final': 'Cold read', 'diff:post-doc': 'Doc pass', 'diff:red-team': 'Red team', 'doc:pass': 'Doc pass', 'fix:1': 'Fix', 'fix:validation': 'Verify', 'implement:1': 'Implement', 'implement:2': 'Implement', 'implement:3': 'Implement', 'prep:baseline': 'Prep', 'recheck:1': 'Fix', 'remember:pass': 'Remember', 'verify:final': 'Doc pass', 'verify:revalidation': 'Verify', 'verify:validation': 'Verify' }
 const RETURN_KEYS = ['baseline', 'steps', 'validation', 'review', 'coldResidual', 'coldUnverified', 'docPass', 'remember', 'changedPaths', 'planChanges', 'diffHashes', 'diffPaths', 'diffFiles', 'blocked', 'incomplete']
-const REVIEW_KEYS = ['panel', 'dimensions', 'confirmed', 'fixed', 'open', 'refuted', 'unverified', 'openQuestions', 'dead', 'rounds']
+const REVIEW_KEYS = ['panel', 'panelRule', 'dimensions', 'confirmed', 'nits', 'preExisting', 'fixed', 'open', 'refuted', 'unverified', 'dropped', 'openQuestions', 'dead', 'verifierDead', 'rounds']
+const STEP_BACK = (n, rounds = 1) => `Fix rounds are exhausted at maxFixRounds ${rounds} with ${n} confirmed findings open, so step back and reconsider the approach rather than run another round.`
+const rulesOf = (bullet) => `# Review rules\n## Paths to skip\n- LICENSE\n## High-risk paths\n- ${bullet}\n## Always check\n- docs/x.md`
 
 // Runs the flow with per-label overrides. A null override is a dead stage, an Error makes the child workflow throw.
 async function run(overrides = {}, args = ARGS) {
@@ -114,6 +121,9 @@ const implementLabels = (prompts) => Object.keys(prompts).filter((k) => k.starts
 const stepText = (prompts, n) => prompts[`implement:${n}`].split('YOUR STEP:\n')[1].split('\n\nALREADY CHANGED:')[0]
 const byLabel = (agents, field) => Object.fromEntries(Object.keys(agents).sort().map((k) => [k, agents[k][field]]))
 const labelsWhere = (prompts, test) => Object.keys(prompts).filter((k) => test(prompts[k])).sort()
+const key = (f) => `${f.file}: ${f.title}`
+// Runs with the given capture paths and no implementer paths, so the panel rule sees only these.
+const onPaths = (paths, args = ARGS) => run({ 'diff:red-team': diffOf('aaaaaaaaaaaa', false, paths), 'implement:1': stepOf([]), 'implement:2': stepOf([]), 'implement:3': stepOf([]) }, args)
 
 const cases = [
   ['missing arg key throws', async () => {
@@ -189,19 +199,19 @@ const cases = [
     const { result } = await run({ 'workflow:review-mr': reviewOf([F1]), 'recheck:1': resolvedOf(F1) })
     return same({ open: result.review.open, blocked: result.blocked }, { open: [], blocked: [] })
   }],
-  ['one of two findings resolved at maxFixRounds 1 reports the exhausted sentence', async () => {
+  ['one of two findings resolved at maxFixRounds 1 reports the step-back sentence', async () => {
     const { result } = await run({ 'workflow:review-mr': reviewOf([F1, F2]), 'recheck:1': resolvedOf(F1) })
-    return same(result.blocked, ['Fix rounds are exhausted at maxFixRounds 1 with 1 confirmed findings open.'])
+    return same(result.blocked, [STEP_BACK(1)])
   }],
   ['maxFixRounds 0 runs no fix:1 and blocks', async () => {
     const { result, prompts } = await run({ 'workflow:review-mr': reviewOf([F1]) }, { ...ARGS, maxFixRounds: 0 })
-    return same({ fix: 'fix:1' in prompts, blocked: result.blocked }, { fix: false, blocked: ['Fix rounds are exhausted at maxFixRounds 0 with 1 confirmed findings open.'] })
+    return same({ fix: 'fix:1' in prompts, blocked: result.blocked }, { fix: false, blocked: [STEP_BACK(1, 0)] })
   }],
-  ['dead fix:1 blocks without the exhausted sentence', async () => {
+  ['dead fix:1 blocks without the step-back sentence', async () => {
     const { result } = await run({ 'workflow:review-mr': reviewOf([F1]), 'fix:1': null })
     return same(result.blocked, ['The implementer fix:1 returned nothing.'])
   }],
-  ['dead recheck:1 blocks without the exhausted sentence', async () => {
+  ['dead recheck:1 blocks without the step-back sentence', async () => {
     const { result } = await run({ 'workflow:review-mr': reviewOf([F1]), 'recheck:1': null })
     return same(result.blocked, ['The verifier recheck:1 returned nothing.'])
   }],
@@ -292,7 +302,7 @@ const cases = [
   ['child call carries the diff path, repo, context rules, repoState, dimensions and panel', async () => {
     const { calls } = await run()
     const c = calls[0].args
-    return same({ diffPath: c.diffPath, repoRoot: c.repoRoot, rules: c.contextBlock.includes(SCRATCH_ONLY) && c.contextBlock.includes(GIT_RULE), repoState: c.repoState, keys: c.dimensions.map((d) => d.key), reviewers: c.registryReviewers }, { diffPath: '/scratch/slice-aaaaaaaaaaaa.diff', repoRoot: '/repo', rules: true, repoState: REPO_STATE, keys: ['cold-read', 'external-reviewer'], reviewers: PANEL })
+    return same({ diffPath: c.diffPath, repoRoot: c.repoRoot, rules: c.contextBlock.includes(SCRATCH_ONLY) && c.contextBlock.includes(GIT_RULE), repoState: c.repoState, keys: c.dimensions.map((d) => d.key), reviewers: c.registryReviewers }, { diffPath: '/scratch/slice-aaaaaaaaaaaa.diff', repoRoot: '/repo', rules: true, repoState: REPO_STATE, keys: ['cold-read', 'external-reviewer'], reviewers: STANDING })
   }],
   ['the scratch-only rule reaches cold:read and both cold dimensions, no other agent prompt', async () => {
     const { prompts, calls } = await run(FULL_RUN)
@@ -473,6 +483,169 @@ const cases = [
   ['text before ### 1. joins step 1', async () => {
     const { prompts } = await run({}, { ...ARGS, planContent: PREAMBLE_PLAN })
     return same({ labels: implementLabels(prompts), step1: stepText(prompts, 1) }, { labels: ['implement:1', 'implement:2'], step1: 'Read the exporter notes first.\n\n### 1. Add the exporter\nWrite src/a.js.' })
+  }],
+  ['a reviewRules value that is not a string throws', async () => {
+    const { error } = await run({}, { ...ARGS, reviewRules: 5 })
+    return String(error && error.message).includes('execute-runner reviewRules must be a string when given')
+  }],
+  ['a reviewMr value that is neither a name nor {scriptPath} throws', async () => {
+    const { error } = await run({}, { ...ARGS, reviewMr: { path: '/repo/review-mr.js' } })
+    return String(error && error.message).includes('execute-runner reviewMr must be a workflow name or {scriptPath} when given')
+  }],
+  ['without reviewMr the child ref is toolkit:review-mr', async () => {
+    const { calls } = await run()
+    return calls[0].ref === 'toolkit:review-mr'
+  }],
+  ['a reviewMr name is the child ref', async () => {
+    const { calls } = await run({}, { ...ARGS, reviewMr: 'x:review-mr' })
+    return calls[0].ref === 'x:review-mr'
+  }],
+  ['a reviewMr {scriptPath} is the child ref', async () => {
+    const ref = { scriptPath: '/repo/plugins/toolkit/workflows/review-mr.js' }
+    const { calls } = await run({}, { ...ARGS, reviewMr: ref })
+    return same(calls[0].ref, ref)
+  }],
+  ['reviewRules text reaches the contextBlock under its heading', async () => {
+    const { calls } = await run({}, { ...ARGS, reviewRules: 'Nit cap five.' })
+    return calls[0].args.contextBlock.includes('REVIEW RULES (REVIEW.md on the default branch):\nNit cap five.')
+  }],
+  ['without reviewRules the contextBlock carries no review rules heading', async () => {
+    const { calls } = await run()
+    return !calls[0].args.contextBlock.includes('REVIEW RULES')
+  }],
+  ['docs/a.md and README.md pick the docs-only panel', async () => {
+    const { result, calls } = await onPaths(['docs/a.md', 'README.md'])
+    return same({ reviewers: calls[0].args.registryReviewers, rule: result.review.panelRule }, { reviewers: DOCS_ONLY, rule: 'docs only' })
+  }],
+  ['a SKILL.md path alone picks the standing panel', async () => {
+    const { result, calls } = await onPaths(['plugins/toolkit/skills/x/SKILL.md'])
+    return same({ reviewers: calls[0].args.registryReviewers, rule: result.review.panelRule }, { reviewers: STANDING, rule: 'standing' })
+  }],
+  ['a hooks path picks the full panel', async () => {
+    const { result, calls } = await onPaths(['plugins/toolkit/hooks/x.sh'])
+    return same({ reviewers: calls[0].args.registryReviewers, rule: result.review.panelRule }, { reviewers: FULL, rule: 'high-risk path' })
+  }],
+  ['a scripts path alone picks the full panel', async () => {
+    const { result, calls } = await onPaths(['plugins/toolkit/scripts/x.sh'])
+    return same({ reviewers: calls[0].args.registryReviewers, rule: result.review.panelRule }, { reviewers: FULL, rule: 'high-risk path' })
+  }],
+  ['a workflows path alone picks the full panel', async () => {
+    const { result, calls } = await onPaths(['plugins/toolkit/workflows/x.js'])
+    return same({ reviewers: calls[0].args.registryReviewers, rule: result.review.panelRule }, { reviewers: FULL, rule: 'high-risk path' })
+  }],
+  ['a .github markdown path picks the full panel, so high risk beats docs only', async () => {
+    const { calls } = await onPaths(['.github/workflows/docs.md'])
+    return same(calls[0].args.registryReviewers, FULL)
+  }],
+  ['a REVIEW.md High-risk paths bullet makes a skill path pick the full panel', async () => {
+    const { calls } = await onPaths(['plugins/toolkit/skills/x/SKILL.md'], { ...ARGS, reviewRules: rulesOf('plugins/toolkit/skills/') })
+    return same(calls[0].args.registryReviewers, FULL)
+  }],
+  ['a backticked High-risk paths bullet also picks the full panel', async () => {
+    const { calls } = await onPaths(['plugins/toolkit/skills/x/SKILL.md'], { ...ARGS, reviewRules: rulesOf('`plugins/toolkit/skills/`') })
+    return same(calls[0].args.registryReviewers, FULL)
+  }],
+  ['a src path picks the standing panel', async () => {
+    const { result, calls } = await onPaths(['src/a.js'])
+    return same({ reviewers: calls[0].args.registryReviewers, rule: result.review.panelRule }, { reviewers: STANDING, rule: 'standing' })
+  }],
+  ['a docs path beside a src path picks the standing panel', async () => {
+    const { calls } = await onPaths(['docs/a.md', 'src/a.js'])
+    return same(calls[0].args.registryReviewers, STANDING)
+  }],
+  ['an empty path list picks the standing panel', async () => {
+    const { calls } = await onPaths([])
+    return same(calls[0].args.registryReviewers, STANDING)
+  }],
+  ['a Paths to skip bullet in REVIEW.md does not pick the full panel', async () => {
+    const { calls } = await onPaths(['LICENSE'], { ...ARGS, reviewRules: rulesOf('plugins/toolkit/skills/') })
+    return same(calls[0].args.registryReviewers, STANDING)
+  }],
+  ['an Always check bullet in REVIEW.md does not pick the full panel', async () => {
+    const { calls } = await onPaths(['docs/x.md'], { ...ARGS, reviewRules: rulesOf('plugins/toolkit/skills/') })
+    return same(calls[0].args.registryReviewers, DOCS_ONLY)
+  }],
+  ['result.review reports the chosen panel and rule', async () => {
+    const { result } = await onPaths(['plugins/toolkit/hooks/x.sh'])
+    return same({ panel: result.review.panel, rule: result.review.panelRule }, { panel: FULL, rule: 'high-risk path' })
+  }],
+  ['a lost verifier blocks with its dimensions and cold:read still runs', async () => {
+    const { result, prompts } = await run({ 'workflow:review-mr': reviewOf([], { verifierDead: ['toolkit:code-reviewer'] }) })
+    return same({ blocked: result.blocked, cold: 'cold:read' in prompts }, { blocked: ['The review panel lost the verifier for 1 dimensions: toolkit:code-reviewer.'], cold: true })
+  }],
+  ['a lost reviewer and a lost verifier report both sentences', async () => {
+    const { result } = await run({ 'workflow:review-mr': reviewOf([], { dead: ['cold-read'], verifierDead: ['toolkit:code-reviewer'] }) })
+    return same(result.blocked, ['The review panel lost 1 reviewers: cold-read.', 'The review panel lost the verifier for 1 dimensions: toolkit:code-reviewer.'])
+  }],
+  ['a child without a verifierDead array does not block on it and reports an empty list', async () => {
+    const { result } = await run({ 'workflow:review-mr': reviewOf([], { verifierDead: undefined }) })
+    return same({ blocked: result.blocked, verifierDead: result.review.verifierDead }, { blocked: [], verifierDead: [] })
+  }],
+  ['nits with no confirmed finding run no fix round and pass through', async () => {
+    const { result, prompts } = await run({ 'workflow:review-mr': reviewOf([], { nits: [N1] }) })
+    return same({ fix: 'fix:1' in prompts, open: result.review.open, nits: result.review.nits.map(key), blocked: result.blocked }, { fix: false, open: [], nits: [key(N1)], blocked: [] })
+  }],
+  ['fix:1 lists the confirmed finding and the nit under their own headings with tag, final score and reproduced state', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([F1], { nits: [N1] }), 'recheck:1': resolvedOf(F1, N1) })
+    const p = prompts['fix:1']
+    return same([`CONFIRMED FINDINGS:\n${key(F1)} [important, final score 0.7, reproduced]`, `NITS:\n${key(N1)} [nit, final score 0.4, not reproduced]`].filter((s) => !p.includes(s)), [])
+  }],
+  ['fix:1 carries the class sentence and the cited-line nit sentence', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([F1], { nits: [N1] }), 'recheck:1': resolvedOf(F1, N1) })
+    const p = prompts['fix:1']
+    return same(['fix every instance of that class of defect in the slice, not one line', 'For each nit, fix only the cited line'].filter((s) => !p.includes(s)), [])
+  }],
+  ['a nit left open at maxFixRounds 1 does not block and stays open with bucket nit', async () => {
+    const { result } = await run({ 'workflow:review-mr': reviewOf([F1], { nits: [N1] }), 'recheck:1': resolvedOf(F1) })
+    return same({ blocked: result.blocked, open: result.review.open.map((f) => [key(f), f.bucket]) }, { blocked: [], open: [[key(N1), 'nit']] })
+  }],
+  ['a nit left open after the confirmed findings resolve at maxFixRounds 2 runs no fix:2', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([F1], { nits: [N1] }), 'recheck:1': resolvedOf(F1), 'fix:2': stepOf(['src/d.js']) }, { ...ARGS, maxFixRounds: 2 })
+    return !('fix:2' in prompts)
+  }],
+  ['recheck:1 asks about the nit as well as the confirmed finding', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([F1], { nits: [N1] }), 'recheck:1': resolvedOf(F1, N1) })
+    return prompts['recheck:1'].includes(`FINDINGS:\n${key(F1)}\nDETAIL: ${F1.detail}\nFAILURE SCENARIO: ${F1.failure_scenario}\n\n${key(N1)}\nDETAIL:`)
+  }],
+  ['a confirmed finding and a nit left open count only the confirmed one in the step-back sentence', async () => {
+    const { result } = await run({ 'workflow:review-mr': reviewOf([F1], { nits: [N1] }) })
+    return same(result.blocked, [STEP_BACK(1)])
+  }],
+  ['a not-reproduced unverified entry passes through with its reason and adds no blocked sentence', async () => {
+    const { result } = await run({ 'workflow:review-mr': reviewOf([], { unverified: [unreproduced('src/e.js', 'Race on the export lock')] }) })
+    return same({ unverified: result.review.unverified.map((f) => [key(f), f.reason]), blocked: result.blocked }, { unverified: [['src/e.js: Race on the export lock', 'not reproduced']], blocked: [] })
+  }],
+  ['cold:read lists the confirmed, nit and pre-existing keys and the no-repeat sentence', async () => {
+    const pre = finding('src/f.js', 'Old export leaks a handle', { tag: 'pre-existing', finalTag: 'pre-existing' })
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([F1], { nits: [N1], preExisting: [pre] }), 'recheck:1': resolvedOf(F1, N1) })
+    return prompts['cold:read'].includes(`ALREADY REPORTED BY THE PANEL:\n${key(F1)}\n${key(N1)}\n${key(pre)}\n\nA finding already in that list, by file and title, is not reported again.`)
+  }],
+  ['a refuted key is absent from the cold:read prompt', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([], { refuted: [{ title: 'Export skips paging', file: 'src/g.js', reason: 'The caller pages.' }] }) })
+    return !prompts['cold:read'].includes('src/g.js: Export skips paging')
+  }],
+  ['nit-cap and no-citation drops and unverified entries are absent from the cold:read prompt', async () => {
+    const dropped = [{ title: 'Spacing drifts', file: 'src/h.js', reason: 'nit cap' }, { title: 'Export may leak', file: 'src/i.js', reason: 'no citation' }]
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([], { dropped, unverified: [unreproduced('src/e.js', 'Race on the export lock')] }) })
+    return same(['src/h.js: Spacing drifts', 'src/i.js: Export may leak', 'src/e.js: Race on the export lock'].filter((k) => prompts['cold:read'].includes(k)), [])
+  }],
+  ['cold:read schema requires the scored fields and not citation', async () => {
+    const { agents } = await run()
+    return same(agents['cold:read'].schema.properties.findings.items.required, ['file', 'title', 'issue', 'fix', 'tag', 'impact', 'likelihood', 'confidence', 'verified'])
+  }],
+  ['a verified cold finding with a citation lands in coldResidual with score 0.68', async () => {
+    const { result } = await run({ 'cold:read': coldOf(true) })
+    return same(result.coldResidual.map((f) => [f.title, f.score]), [['title 0', 0.68]])
+  }],
+  ['a verified cold finding without a citation lands in coldUnverified', async () => {
+    const { result } = await run({ 'cold:read': { findings: [{ ...coldOf(true).findings[0], citation: '' }] } })
+    return same({ residual: result.coldResidual, unverified: result.coldUnverified.map((f) => f.title) }, { residual: [], unverified: ['title 0'] })
+  }],
+  ['nits, preExisting and dropped pass through to result.review', async () => {
+    const pre = finding('src/f.js', 'Old export leaks a handle', { finalTag: 'pre-existing' })
+    const dropped = [{ title: 'Spacing drifts', file: 'src/h.js', reason: 'nit cap' }]
+    const { result } = await run({ 'workflow:review-mr': reviewOf([], { nits: [N1], preExisting: [pre], dropped }) })
+    return same({ nits: result.review.nits, preExisting: result.review.preExisting, dropped: result.review.dropped }, { nits: [N1], preExisting: [pre], dropped })
   }],
 ]
 
