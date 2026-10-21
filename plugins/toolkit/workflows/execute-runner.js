@@ -63,9 +63,9 @@ const sectionIn = (lines, outside, name) => {
   let inSection = false
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i]
-    if (outside[i] && line.startsWith('## ')) {
+    if (outside[i] && /^##\s/.test(line)) {
       if (inSection) break
-      inSection = line.trim() === '## ' + name
+      inSection = line.slice(2).trim() === name
     } else if (inSection) out.push(line)
   }
   return out.join('\n').trim()
@@ -75,34 +75,50 @@ const rulesLines = REVIEW_RULES.split('\n')
 const bullets = (text) => text.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('- '))
   .map((l) => l.slice(2).trim().split(/\s/)[0].replace(/^[`'"]+/, '').replace(/[`'".,:;]+$/, '')).filter(Boolean)
 const extraHighRisk = REVIEW_RULES ? bullets(sectionIn(rulesLines, outsideFence(rulesLines), 'High-risk paths')) : []
+const firstLine = (s) => String(s || '').split('\n')[0].trim().replace(/\.$/, '')
 const STEP_HEADING = /^###\s+\d+[.)]/
+const SUBHEADING = /^###\s/
+const NUMBERED = /^\d+[.)]\s/
 const items = (text) => {
   if (!text) return []
   const lines = text.split('\n')
   const outside = outsideFence(lines)
-  const headed = lines.some((line, i) => outside[i] && STEP_HEADING.test(line))
-  const marker = headed ? STEP_HEADING : /^\d+[.)]\s/
+  const at = (re) => [...lines.keys()].filter((i) => outside[i] && re.test(lines[i]))
+  const heads = at(SUBHEADING)
+  const nums = at(NUMBERED)
+  const numberOf = (i) => parseInt(lines[i], 10)
+  const headingsBefore = (i) => heads.filter((h) => h < i).length
+  const oneList = nums.length > 0 && nums.every((i, k) => numberOf(i) === k + 1)
+  const listCrossesHeading = oneList && headingsBefore(nums[0]) !== headingsBefore(nums[nums.length - 1])
+  const byHeading = heads.length > 1 && nums.every((i) => i > heads[0]) && !listCrossesHeading
+  // A numbered line that does not top every number before it, such as a restarted sub-list, stays inside the step.
+  const rising = nums.filter((i, k) => nums.slice(0, k).every((j) => numberOf(j) < numberOf(i)))
+  const stepHeads = at(STEP_HEADING)
+  const starts = new Set(stepHeads.length ? stepHeads : byHeading ? heads : rising)
   const groups = []
   const preamble = []
   lines.forEach((line, i) => {
-    if (outside[i] && marker.test(line)) groups.push([line])
+    if (starts.has(i)) groups.push([line])
     else if (groups.length) groups[groups.length - 1].push(line)
     else preamble.push(line)
   })
-  if (!groups.length) return [text]
-  groups[0] = preamble.concat(groups[0])
-  return groups.map((g) => g.join('\n').trim())
+  if (!groups.length) return [{ heading: firstLine(text), text }]
+  return groups.map((g, i) => ({ heading: g[0].trim().replace(/^###\s+/, ''), text: (i ? g : preamble.concat(g)).join('\n').trim() }))
 }
 
 const objective = section('Objective')
 const assumptions = section('Assumptions')
 const risks = section('Risks')
-const implSteps = items(section('Implementation Steps'))
+const implItems = items(section('Implementation Steps'))
+const implSteps = implItems.map((s) => s.text)
 const validationSteps = section('Validation Steps')
-const validationItems = items(validationSteps)
+const validationItems = items(validationSteps).map((s) => s.text)
 const validationCount = validationItems.length
 const validationBlock = validationItems.map((s, i) => `STEP ${i + 1}:\n${s}`).join('\n\n')
 const relatedTopics = section('Related Topics')
+const currentContext = section('Current Context')
+const affectedFiles = section('Affected Files')
+const planChangesSection = section('Plan Changes During Execution')
 if (!implSteps.length) throw new Error('execute-runner: the plan has no Implementation Steps')
 
 const str = { type: 'string' }
@@ -139,7 +155,7 @@ TOPIC RECALL HITS:
 ${a.recallHits}
 KNOWN EVIDENCE:
 ${a.knownEvidence || 'none'}`
-const DOCTRINE = `Build minimal. The plan says what to build, so build the least that satisfies it: shortest working diff, no unrequested abstractions, reuse before adding, and trace and grep the callers before changing a shared function. Prefer deleting code to adding it. Mark any deliberate shortcut with a greppable TODO(author): comment naming the ceiling and the upgrade path. See ${a.pluginRoot}/doctrine/minimalism.md.`
+const DOCTRINE = `Build minimal. The brief says what to build, so build the least that satisfies it: shortest working diff, no unrequested abstractions, reuse before adding, and trace and grep the callers before changing a shared function. Prefer deleting code to adding it. Mark any deliberate shortcut with a greppable TODO(author): comment naming the ceiling and the upgrade path. See ${a.pluginRoot}/doctrine/minimalism.md.`
 const REPO_STATE = 'The tree at repoRoot is the POST-change state this diff produces. There is no pre-change checkout. Reconstruct the pre-change state from the diff\'s context and removed lines. A defect the diff introduces is in scope even though it is present in the tree.'
 const STDIN_RULE = 'Run any verify or test suite, such as bash verify.sh, with stdin from /dev/null (bash verify.sh </dev/null), because a suite that reads stdin hangs when stdin is a pipe.'
 const BLOCKER_RULE = 'If any step, command or tool call is denied or cannot be done, do not work around it. Record it in blockers as one sentence and stop. The runner stops on any blockers entry, so blockers holds only work you could not do and is empty when the work is done.'
@@ -202,7 +218,13 @@ const collect = (paths, topicMaterial) => {
   for (const p of paths || []) if (!changed.includes(p)) changed.push(p)
   if (topicMaterial && topicMaterial.trim() && topicMaterial.trim().toLowerCase() !== 'none') material.push(topicMaterial.trim())
 }
-const firstLine = (s) => String(s || '').split('\n')[0].trim().replace(/\.$/, '')
+// Each worker carries only the plan sections its job acts on; the other steps travel as headings so a worker sees its boundary without their bodies.
+const stepMap = (current) => implItems.map((s, i) => `${s.heading}${i === current ? ' (your step)' : ''}`).join('\n')
+const block = (title, body) => `${title}:\n${body || 'none'}`
+const changedBlock = (title) => block(title, changed.join('\n'))
+const SCOPE = [block('OBJECTIVE', objective), block('ASSUMPTIONS', assumptions)].join('\n\n')
+const implementBrief = (i) => [block('OBJECTIVE', objective), block('CURRENT CONTEXT', currentContext), block('ASSUMPTIONS', assumptions), block('AFFECTED FILES', affectedFiles),
+  block('VALIDATION STEPS', validationSteps), block('RISKS', risks), block('PLAN CHANGES DURING EXECUTION', planChangesSection), block('STEPS', stepMap(i)), block('YOUR STEP', implSteps[i]), changedBlock('ALREADY CHANGED')].join('\n\n')
 const failingOf = (v) => v.results.filter((r) => r.status === 'fail')
 const lineOf = (r) => `${firstLine(r.step)}: ${r.evidence}`
 const setValidation = (v, runs) => {
@@ -275,16 +297,9 @@ for (let i = 0; i < implSteps.length; i += 1) {
   const label = `implement:${i + 1}`
   const r = await agent(`${SHARED}
 
-PLAN:
-${a.planContent}
+${implementBrief(i)}
 
-YOUR STEP:
-${implSteps[i]}
-
-ALREADY CHANGED:
-${changed.join('\n') || 'none'}
-
-Implement YOUR STEP of the plan in ${a.repoRoot} and nothing beyond it. Earlier steps already ran, and their changes are the paths under ALREADY CHANGED. ${RETURN_STEP}`,
+Implement YOUR STEP in ${a.repoRoot} and nothing beyond it. STEPS lists every step of the plan by heading so you can see where your step ends, and the other steps are not your work. Earlier steps already ran, and their changes are the paths under ALREADY CHANGED. ${RETURN_STEP}`,
     { label, phase: 'Implement', schema: STEP, agentType: 'toolkit:implementer' })
   if (!r) {
     dead('implementer', label)
@@ -324,8 +339,11 @@ else {
   if (failing.length) {
     const fix = await agent(`${SHARED}
 
-PLAN:
-${a.planContent}
+${SCOPE}
+
+${block('PLAN CHANGES DURING EXECUTION', planChangesSection)}
+
+${changedBlock('CHANGED PATHS')}
 
 FAILING VALIDATION STEPS:
 ${failing.map((r) => `${r.step}\nEVIDENCE: ${r.evidence}`).join('\n\n')}
@@ -408,8 +426,9 @@ if (review) {
     const nitBlock = open.filter((f) => f.bucket === 'nit').map(entry).join('\n\n') || 'none'
     const fix = await agent(`${SHARED}
 
-PLAN:
-${a.planContent}
+${SCOPE}
+
+${changedBlock('CHANGED PATHS')}
 
 CONFIRMED FINDINGS:
 ${confirmedBlock}
@@ -492,11 +511,13 @@ phase('Doc pass')
 if (!blocked.length) {
   docPass = await agent(`${SHARED}
 
-PLAN:
-${a.planContent}
+${block('OBJECTIVE', objective)}
 
-CHANGED PATHS:
-${changed.join('\n') || 'none'}
+${block('AFFECTED FILES', affectedFiles)}
+
+${block('RELATED TOPICS', relatedTopics)}
+
+${changedBlock('CHANGED PATHS')}
 
 Read the section headed Doc Update Pass in ${a.pluginRoot}/skills/execute-workflow/SKILL.md and apply it to this slice in ${a.repoRoot}. Return docsUpdated as the repo-relative docs you edited, deferred as one sentence per doc update you leave undone, distributed as one sentence per affected doc that lives in another repo, changedPaths as every repo-relative path you changed, blockers as one sentence per step you could not do or empty, and topicMaterial as the durable non-obvious facts with file:line refs, or none. Return raw structured data only.`,
     { label: 'doc:pass', phase: 'Doc pass', schema: DOCPASS, agentType: 'toolkit:implementer' })
