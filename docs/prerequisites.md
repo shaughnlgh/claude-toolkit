@@ -84,7 +84,7 @@ Never commit or print the token; the toolkit references it by name only.
 
 ### jq
 
-Optional; some hooks and scripts prefer it and degrade gracefully without it.
+Required by `watch-mr.sh`, the ship flow's pipeline and review watcher. Some hooks and other scripts prefer it and degrade gracefully without it.
 
 ```sh
 brew install jq
