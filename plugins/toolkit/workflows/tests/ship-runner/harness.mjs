@@ -48,6 +48,7 @@ const DEFAULTS = {
   'pipeline:watch:1': watchOf('green', C),
   'pipeline:fix:1': { sha: D, pushed: true, changedPaths: ['src/a.js'], ...ok },
   'pipeline:watch:2': watchOf('green', D),
+  'threads:wait': { landed: true, ...ok },
   'threads:fetch:1': threadsOf(),
   'threads:fix:1': threadFixOf(['src/a.js']),
   'pipeline:watch:threads': watchOf('green', E),
@@ -62,10 +63,16 @@ const glMerge = (kind) => ({ 'merge:mr': { state: 'merged', mergedSha: M, kind, 
 const GL = { 'mr:create': { url: MR_URL, number: 7, reviewDecision: '', ...ok }, ...glMerge('merge') }
 const V = 'toolkit:verifier'
 const I = 'toolkit:implementer'
-const AGENT_TYPES = { 'commit:paths': I, 'merge:mr': I, 'mr:create': I, 'pipeline:fix:1': I, 'pipeline:watch:1': V, 'pipeline:watch:2': V, 'pipeline:watch:threads': V, 'prep:state': V, 'push:branch': I, 'release:tag': I, 'threads:fetch:1': V, 'threads:fetch:2': V, 'threads:fix:1': I }
-const PHASES = { 'commit:paths': 'Commit', 'merge:mr': 'Merge', 'mr:create': 'MR', 'pipeline:fix:1': 'Pipeline', 'pipeline:watch:1': 'Pipeline', 'pipeline:watch:2': 'Pipeline', 'pipeline:watch:threads': 'Threads', 'prep:state': 'Prep', 'push:branch': 'Push', 'release:tag': 'Release', 'threads:fetch:1': 'Threads', 'threads:fetch:2': 'Threads', 'threads:fix:1': 'Threads' }
+const AGENT_TYPES = { 'commit:paths': I, 'merge:mr': I, 'mr:create': I, 'pipeline:fix:1': I, 'pipeline:watch:1': V, 'pipeline:watch:2': V, 'pipeline:watch:threads': V, 'prep:state': V, 'push:branch': I, 'release:tag': I, 'threads:fetch:1': V, 'threads:fetch:2': V, 'threads:fix:1': I, 'threads:wait': V }
+const PHASES = { 'commit:paths': 'Commit', 'merge:mr': 'Merge', 'mr:create': 'MR', 'pipeline:fix:1': 'Pipeline', 'pipeline:watch:1': 'Pipeline', 'pipeline:watch:2': 'Pipeline', 'pipeline:watch:threads': 'Threads', 'prep:state': 'Prep', 'push:branch': 'Push', 'release:tag': 'Release', 'threads:fetch:1': 'Threads', 'threads:fetch:2': 'Threads', 'threads:fix:1': 'Threads', 'threads:wait': 'Threads' }
 const RETURN_KEYS = ['stoppedAt', 'ceiling', 'commitSha', 'headSha', 'pushed', 'mr', 'pipeline', 'threads', 'fixShas', 'merged', 'tag', 'handoff', 'blocked', 'incomplete']
 const MERGE_CMD = (sha) => `gh pr merge 7 --merge --match-head-commit ${sha}`
+const GH_WATCH = `bash /plugin/scripts/watch-mr.sh github o/r 7 pipeline --sha ${C} --bound 9`
+const GL_WATCH = `bash /plugin/scripts/watch-mr.sh gitlab g/r 7 pipeline --sha ${C} --bound 9`
+const GH_WAIT = `bash /plugin/scripts/watch-mr.sh github o/r 7 threads --sha ${C} --bound 9`
+const GL_WAIT = `bash /plugin/scripts/watch-mr.sh gitlab g/r 7 threads --sha ${C} --bound 9`
+const BOTS = { ...ARGS, botAuthors: ['coderabbitai'] }
+const NOT_LANDED = { 'threads:wait': { landed: false, ...ok } }
 
 // Runs the flow with per-label overrides. A null override is a dead stage.
 async function run(overrides = {}, args = ARGS) {
@@ -114,7 +121,7 @@ const CEILINGS = {
   release: STOPS,
 }
 
-// One row per stage label: the overrides that reach it, the labels that run before it, its stage name and its git rule.
+// One row per stage label: the overrides and extra args that reach it, the labels that run before it, its stage name and its git rule.
 // gl holds the GitLab allowed list and own commands where they differ from GitHub.
 const MUTATING = ['git add --', 'git commit -F -', 'git push -u origin', 'git push origin feat/x', 'gh pr create', 'addPullRequestReviewThreadReply', 'resolveReviewThread', 'gh pr merge', 'git tag -a', 'git push origin v1.2.0']
 const GL_MUTATING = ['git add --', 'git commit -F -', 'git push -u origin', 'git push origin feat/x', 'glab mr create', '--method POST', '--method PUT', 'glab mr merge', 'git tag -a', 'git push origin v1.2.0']
@@ -133,10 +140,12 @@ const STAGES = [
     allowed: 'gh pr view feat/x --json number,url,state,reviewDecision, and gh pr create --base main --head feat/x --title --body-file',
     gl: { allowed: `${GL_LOOKUP}, glab mr create --source-branch feat/x --target-branch main --title --description --yes, and glab mr view -F json`, own: ['glab mr create'] } },
   { label: 'pipeline:watch:1', who: 'verifier', stage: 'pipeline', overrides: {}, before: BASE, own: [],
-    allowed: `gh run list --commit ${C} --json databaseId,status,conclusion, gh run watch <id> --exit-status, gh run view <id> --log-failed, and gh api repos/o/r/commits/${C}/check-runs`,
-    gl: { allowed: `${GL_API}, glab ci status --branch feat/x --live, glab api projects/g%2Fr/pipelines/<id>/jobs, and glab api projects/g%2Fr/jobs/<id>/trace` } },
+    allowed: `${GH_WATCH}, gh run list --commit ${C} --json databaseId,status,conclusion, and gh run view <id> --log-failed`,
+    gl: { allowed: `${GL_WATCH}, ${GL_API}, glab api projects/g%2Fr/pipelines/<id>/jobs, and glab api projects/g%2Fr/jobs/<id>/trace` } },
   { label: 'pipeline:fix:1', who: 'implementer', stage: 'pipeline', overrides: RED, before: WATCHED, own: ['git add --', 'git commit -F -', 'git push origin feat/x'],
     allowed: 'file edits, git add -- with the paths you changed, git commit -F -, git push origin feat/x, and git rev-parse HEAD', gl: {} },
+  { label: 'threads:wait', who: 'verifier', stage: 'threads', overrides: {}, args: { botAuthors: ['coderabbitai'] }, before: WATCHED, own: [],
+    allowed: `${GH_WAIT} --bot "coderabbitai"`, gl: { allowed: `${GL_WAIT} --bot "coderabbitai"` } },
   { label: 'threads:fetch:1', who: 'verifier', stage: 'threads', overrides: {}, before: WATCHED, own: [],
     allowed: `gh api graphql -f query='${GH_THREADS_QUERY}' -f owner=o -f name=r -F number=7, repeated with -f after=<endCursor> while pageInfo.hasNextPage is true`,
     gl: { allowed: 'glab api --paginate "projects/g%2Fr/merge_requests/7/discussions"' } },
@@ -168,6 +177,7 @@ const cases = [
   ['startAt merge without mr throws', () => throwsWith({ ...ARGS, startAt: 'merge' }, 'requires mr {url, number} when startAt is merge')],
   ['maxFixRounds -1 throws', () => throwsWith({ ...ARGS, maxFixRounds: -1 }, 'ship-runner maxFixRounds must be a non-negative integer, got -1')],
   ['botAuthors that is not an array throws', () => throwsWith({ ...ARGS, botAuthors: 'coderabbitai' }, 'ship-runner botAuthors must be an array of strings, got "coderabbitai"')],
+  ['a botAuthors entry that is not a host login throws', () => throwsWith({ ...ARGS, botAuthors: ['coderabbitai', 'x; rm -rf /'] }, 'ship-runner botAuthors must be host logins, got "x; rm -rf /"')],
   ['recordedSha that is not a string throws', () => throwsWith({ ...ARGS, recordedSha: 7 }, 'ship-runner recordedSha must be a string, got 7')],
   ['mr with number 0 throws', () => throwsWith({ ...ARGS, mr: { url: PR_URL, number: 0 } }, 'ship-runner mr must be {url, number}, got')],
   ['empty paths throws', () => throwsWith({ ...ARGS, paths: [] }, 'ship-runner requires args')],
@@ -258,12 +268,12 @@ const cases = [
     return same({ release: 'release:tag' in prompts, tag: result.tag, blocked: result.blocked }, { release: true, tag: 'v1.2.0', blocked: [] })
   }],
   ...STAGES.map((s) => [`the ${s.label} prompt carries its own SHIP GIT RULE and no other stage's mutating command`, async () => {
-    const { prompts } = await run(s.overrides)
+    const { prompts } = await run(s.overrides, { ...ARGS, ...s.args })
     const p = prompts[s.label]
     return same({ rule: p.includes(rule(s.allowed)), foreign: MUTATING.filter((m) => !s.own.includes(m) && p.includes(m)) }, { rule: true, foreign: [] })
   }]),
   ...STAGES.map((s) => [`under gitlab the ${s.label} prompt carries its own SHIP GIT RULE and no other stage's mutating command`, async () => {
-    const { prompts } = await run({ ...GL, ...s.overrides }, GL_ARGS)
+    const { prompts } = await run({ ...GL, ...s.overrides }, { ...GL_ARGS, ...s.args })
     const p = prompts[s.label]
     const own = s.gl.own ?? s.own
     return same({ rule: p.includes(rule(s.gl.allowed ?? s.allowed)), foreign: GL_MUTATING.filter((m) => !own.includes(m) && p.includes(m)) }, { rule: true, foreign: [] })
@@ -271,12 +281,13 @@ const cases = [
   ['every label runs as its expected agentType and phase', async () => {
     const fixPath = await run({ ...RED, ...BOT_THREAD })
     const clean = await run()
-    const all = { ...fixPath.agents, ...clean.agents }
+    const waited = await run({}, BOTS)
+    const all = { ...fixPath.agents, ...clean.agents, ...waited.agents }
     const pick = (field) => Object.fromEntries(Object.keys(all).sort().map((k) => [k, all[k][field]]))
     return same({ types: pick('agentType'), phases: pick('phase') }, { types: AGENT_TYPES, phases: PHASES })
   }],
   ...STAGES.map((s) => [`a denied command at ${s.label} hands off and runs no later label`, async () => {
-    const { result, prompts } = await run({ ...s.overrides, [s.label]: { blockers: [], deniedCommand: DENIED } })
+    const { result, prompts } = await run({ ...s.overrides, [s.label]: { blockers: [], deniedCommand: DENIED } }, { ...ARGS, ...s.args })
     return same({ handoff: result.handoff, blocked: result.blocked, labels: labels(prompts) },
       { handoff: { stage: s.stage, command: DENIED }, blocked: [`The ${s.who} ${s.label} was denied the command: ${DENIED}.`], labels: [...s.before, s.label] })
   }]),
@@ -296,9 +307,17 @@ const cases = [
     const { prompts } = await run()
     return prompts['mr:create'].includes('If it shows a PR or MR for feat/x whose state is OPEN, return that one and create nothing. If it shows none, or only one whose state is not OPEN, run gh pr create')
   }],
-  ['the gh watch prompt names --exit-status and the 600000 timeout', async () => {
+  ['the gh watch prompt runs watch-mr.sh as one Bash call with the 600000 timeout', async () => {
     const { prompts } = await run()
-    return prompts['pipeline:watch:1'].includes('gh run watch <id> --exit-status as its own Bash call with the timeout parameter set to 600000')
+    return prompts['pipeline:watch:1'].includes(`Run ${GH_WATCH} as one Bash call with the timeout parameter set to 600000.`)
+  }],
+  ['the gitlab watch prompt runs watch-mr.sh as one Bash call with the 600000 timeout', async () => {
+    const { prompts } = await run(GL, GL_ARGS)
+    return prompts['pipeline:watch:1'].includes(`Run ${GL_WATCH} as one Bash call with the timeout parameter set to 600000.`)
+  }],
+  ["the watch prompt's SHIP GIT RULE names the watch-mr.sh call first", async () => {
+    const { prompts } = await run()
+    return prompts['pipeline:watch:1'].includes(`SHIP GIT RULE. In /repo run only these commands: ${GH_WATCH}, `)
   }],
   ['the commit, pipeline fix and thread fix prompts carry the no-trailer sentence', async () => {
     const { prompts } = await run({ ...RED, ...BOT_THREAD })
@@ -344,9 +363,49 @@ const cases = [
     const { result } = await run({ 'pipeline:watch:1': watchOf('pending', C) })
     return same(result.blocked, [`The pipeline for ${C} was still pending at the watch bound.`])
   }],
+  ['the watch prompt maps exit 11 to pending and names no stuck state', async () => {
+    const { prompts } = await run()
+    const p = prompts['pipeline:watch:1']
+    return same({ pending: p.includes('11 or 12 pending'), stuck: p.includes('stuck') }, { pending: true, stuck: false })
+  }],
+  ['a pending watch on a moved head blocks with the sha-mismatch sentence', async () => {
+    const { result } = await run({ 'pipeline:watch:1': watchOf('pending', F) })
+    return same(result.blocked, [`The pipeline state belongs to ${F}, not the pushed commit ${C}.`])
+  }],
   ['a green pipeline on another sha blocks in the pipeline stage before the merge', async () => {
     const { result } = await run({ 'pipeline:watch:1': watchOf('green', F) })
     return same(result.blocked, [`The pipeline state belongs to ${F}, not the pushed commit ${C}.`])
+  }],
+  ['a run without botAuthors spawns no threads:wait', async () => {
+    const { prompts } = await run()
+    return !('threads:wait' in prompts)
+  }],
+  ['botAuthors runs threads:wait immediately before threads:fetch:1', async () => {
+    const { prompts } = await run({}, BOTS)
+    const order = labels(prompts)
+    return order.indexOf('threads:wait') + 1 === order.indexOf('threads:fetch:1')
+  }],
+  ['the threads:wait prompt runs watch-mr.sh in threads mode with --bot and names only that call', async () => {
+    const { prompts } = await run({}, BOTS)
+    const cmd = `${GH_WAIT} --bot "coderabbitai"`
+    return same({ run: prompts['threads:wait'].includes(`Run ${cmd} as one Bash call with the timeout parameter set to 600000.`), rule: prompts['threads:wait'].includes(rule(cmd)) }, { run: true, rule: true })
+  }],
+  ['two botAuthors put one --bot flag each on the threads:wait call', async () => {
+    const { prompts } = await run({}, { ...ARGS, botAuthors: ['coderabbitai', 'reviewbot'] })
+    return prompts['threads:wait'].includes(`${GH_WAIT} --bot "coderabbitai" --bot "reviewbot"`)
+  }],
+  ['a [bot] login passes the args check and lands double-quoted on the threads:wait call', async () => {
+    const { prompts } = await run({}, { ...ARGS, botAuthors: ['coderabbitai[bot]'] })
+    return prompts['threads:wait'].includes(`${GH_WAIT} --bot "coderabbitai[bot]" as one Bash call`)
+  }],
+  ['a review that has not landed blocks with the no-review sentence, fetches nothing and never merges', async () => {
+    const { result, prompts } = await run(NOT_LANDED, BOTS)
+    return same({ blocked: result.blocked, fetch: 'threads:fetch:1' in prompts, merge: 'merge:mr' in prompts, threads: result.threads },
+      { blocked: [`No review from coderabbitai has landed on ${PR_URL} for ${C} at the watch bound.`], fetch: false, merge: false, threads: null })
+  }],
+  ['a landed review fetches the threads and merges', async () => {
+    const { result, prompts } = await run({}, BOTS)
+    return same({ fetch: 'threads:fetch:1' in prompts, blocked: result.blocked, merged: result.merged }, { fetch: true, blocked: [], merged: { sha: M, kind: 'merge' } })
   }],
   ['push permission at stopAt mr watches, fixes a bot thread, and never merges', async () => {
     const { result, prompts } = await run(BOT_THREAD, { ...ARGS, stopAt: 'mr', permission: 'push' })
@@ -472,7 +531,7 @@ const cases = [
     return same({ blocked: result.blocked, tag: result.tag }, { blocked: ['The implementer release:tag did not push the tag v1.2.0.'], tag: null })
   }],
   ...STAGES.map((s) => [`a dead ${s.label} blocks, lands in incomplete, and runs no later label`, async () => {
-    const { result, prompts } = await run({ ...s.overrides, [s.label]: null })
+    const { result, prompts } = await run({ ...s.overrides, [s.label]: null }, { ...ARGS, ...s.args })
     return same({ blocked: result.blocked, incomplete: result.incomplete, labels: labels(prompts) },
       { blocked: [`The ${s.who} ${s.label} returned nothing.`], incomplete: [s.label], labels: [...s.before, s.label] })
   }]),
@@ -507,13 +566,13 @@ const cases = [
     const { prompts } = await run(GL, GL_ARGS)
     return prompts['threads:fetch:1'].includes('glab api --paginate "projects/g%2Fr/merge_requests/7/discussions"')
   }],
-  ['the gitlab watch runs glab ci status --branch feat/x --live', async () => {
+  ['the gitlab watch maps each watch-mr.sh exit code to its state and keeps headSha but on a move', async () => {
     const { prompts } = await run(GL, GL_ARGS)
-    return prompts['pipeline:watch:1'].includes('glab ci status --branch feat/x --live')
+    return prompts['pipeline:watch:1'].includes(`0 is green, 10 red, 11 or 12 pending, 13 none, and 14 pending. If it exits 14, return sha as the new head its MOVED line names, else return sha ${C}.`)
   }],
-  ['the gitlab watch says a null head pipeline means state none for the pushed commit', async () => {
+  ['the gitlab watch reads the failed job traces only on red', async () => {
     const { prompts } = await run(GL, GL_ARGS)
-    return prompts['pipeline:watch:1'].includes(`If head_pipeline is null, return state none and sha ${C}`)
+    return prompts['pipeline:watch:1'].includes(`If the state is red, run ${GL_API} and read head_pipeline.id, then glab api projects/g%2Fr/pipelines/<pipeline id>/jobs`)
   }],
   ['the gitlab thread fix resolves the discussion with --field resolved=true', async () => {
     const { prompts } = await run({ ...GL, ...BOT_THREAD }, GL_ARGS)
