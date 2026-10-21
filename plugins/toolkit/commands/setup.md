@@ -42,19 +42,20 @@ Check `~/.claude/obsidian-sync.json`:
 ### 5. Other tooling
 
 - `gh` present? (Optional; the SSH-based install path and read-only GitHub checks use it.)
-- `jq` present? (Optional; some scripts prefer it and degrade without it.)
+- `jq` present? (Required by the ship flow's `watch-mr.sh` watcher; other scripts prefer it and degrade without it.)
 - `python3` present? (Required by the planning workflow's scripts.)
 
 ### 6. Permissions and environment (optional, consent-gated)
 
 Five optional additions, shown verbatim, explained in one line, and applied only on an explicit yes. They span the user's `~/.claude/settings.json` (merge into the existing `permissions.allow` / `env` / `extraKnownMarketplaces` objects, never replacing them, always leaving valid JSON) and the global `~/.claude/CLAUDE.md`.
 
-- **Prompt-free toolkit scripts.** The plugin's vault and git scripts are invoked by its skills from the plugin cache. Offer these allow rules, written with the user's absolute home path (mid-path wildcards are supported and make the rules survive plugin updates):
+- **Prompt-free toolkit scripts.** The plugin's vault, git, and MR-watch scripts are invoked by its skills from the plugin cache. Offer these allow rules, written with the user's absolute home path (mid-path wildcards are supported and make the rules survive plugin updates):
 
       Bash(bash <home>/.claude/plugins/cache/shaughn-toolkit/toolkit/*/scripts/vault-fs.sh *)
       Bash(bash <home>/.claude/plugins/cache/shaughn-toolkit/toolkit/*/scripts/git-ro.sh *)
+      Bash(bash <home>/.claude/plugins/cache/shaughn-toolkit/toolkit/*/scripts/watch-mr.sh *)
 
-  Explain the trade honestly: without them, the first vault write per repo prompts once ("always allow" works but embeds the version hash, so it re-prompts after updates). Both scripts are guard-railed (relative-path-only vault ops; read-only git) and reviewable in the plugin. When the rules are accepted, ALSO offer to append this usage block to the user's global `~/.claude/CLAUDE.md` (they are one unit — the rules only match invocations written this way):
+  Explain the trade honestly: without them, the first vault write per repo prompts once and the ship flow's background watcher prompts before it starts ("always allow" works but embeds the version hash, so it re-prompts after updates). The vault and git scripts are guard-railed (relative-path-only vault ops; read-only git) and reviewable in the plugin. `watch-mr.sh` only reads an MR or PR through `gh` or `glab` and exits with a status, so the ship flow can wait on a pipeline in the background without a prompt. When the rules are accepted, ALSO offer to append this usage block to the user's global `~/.claude/CLAUDE.md` (they are one unit, because the rules only match invocations written this way):
 
       ## Toolkit Scripts
       Invoke via the CURRENT installed plugin root: resolve it first, e.g.
@@ -65,6 +66,8 @@ Five optional additions, shown verbatim, explained in one line, and applied only
         Vault root resolves from `~/.claude/obsidian-sync.json`.
       - `bash <plugin-root>/scripts/git-ro.sh <dir> <status|diff|log|show>` -
         read-only git anywhere; mutation subcommands refused.
+      - `bash <plugin-root>/scripts/watch-mr.sh <host> <remotePath> <number> pipeline|threads --sha <sha> [--bound <n>]` -
+        waits on an MR or PR pipeline or bot review and exits with one status line. The ship flow starts it in the background.
 - **Read-only command allowlist.** The workflows lean on read-only `gh`/`glab`/`jira` calls that otherwise prompt on every new machine. Offer these `permissions.allow` rules (all inherently read-only subcommands — never offer mutating ones like `gh api -X`, `gh pr merge`, or `glab mr merge`, which must keep prompting):
 
       Bash(gh pr view:*)

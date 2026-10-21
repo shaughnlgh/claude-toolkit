@@ -133,7 +133,7 @@ for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js workflows/p
          skills/gitlab-mr-review/scripts/post_mr_comments.py \
          skills/grill/SKILL.md skills/plan-flow/SKILL.md skills/execute-flow/SKILL.md \
          skills/ship-flow/SKILL.md \
-         scripts/vault-fs.sh scripts/git-ro.sh; do
+         scripts/vault-fs.sh scripts/git-ro.sh scripts/watch-mr.sh; do
   [ -f "$P/$f" ] && ok "present: $f" || no "MISSING: $f"
 done
 # node --check exits 0 on broken workflow scripts, so compile each body in an AsyncFunction, which accepts top-level await and return.
@@ -311,6 +311,10 @@ suite_ok "git-ro behavior suite" "$out" 12
 python3 "$P/scripts/validate-plan.py" "$P/scripts/tests/validate-plan/fixtures/2026-01-01-example-feature/plan - example-feature.md" >/dev/null 2>&1
 code "validate-plan accepts a canonical plan" "$?" 0
 
+echo "== watch-mr watcher =="
+out="$(bash "$P/scripts/tests/watch-mr/run-tests.sh" 2>/dev/null | tail -1)"
+suite_ok "watch-mr behavior suite" "$out" 52
+
 echo "== plan-builder control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/plan-builder/run-tests.sh" 2>/dev/null | tail -1)"
@@ -330,7 +334,7 @@ fi
 echo "== ship-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/ship-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "ship-runner control-flow suite" "$out" 140
+  suite_ok "ship-runner control-flow suite" "$out" 156
 else
   skip "skipped: node not found; ship-runner control-flow suite"
 fi

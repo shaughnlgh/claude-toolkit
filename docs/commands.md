@@ -17,7 +17,7 @@ Checks this machine's toolkit setup and guides the user through anything missing
 3. **GitLab tooling** (needed by `gitlab-mr-review` only) — whether `glab` is installed and, if so, its per-host auth status. Never prints a token value.
 4. **Other tooling** — whether `gh`, `jq`, and `python3` are present.
 5. **Permissions and environment** (optional, consent-gated) — five separate offers, each applied only on an explicit yes:
-   - Prompt-free allow rules for the plugin's `vault-fs.sh` and `git-ro.sh` scripts in `~/.claude/settings.json`.
+   - Prompt-free allow rules for the plugin's `vault-fs.sh`, `git-ro.sh`, and `watch-mr.sh` scripts in `~/.claude/settings.json`.
    - A read-only command allowlist (`gh`/`glab`/`jira` view/list/diff subcommands) in `~/.claude/settings.json`.
    - Setting `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1` in the `env` block (reports, never overwrites, a conflicting existing value).
    - A pointer to the plugin's doctrine (`CLAUDE.md` + `README.md`) and write-time rules directory (`rules/`) appended to the user's global `~/.claude/CLAUDE.md`.
