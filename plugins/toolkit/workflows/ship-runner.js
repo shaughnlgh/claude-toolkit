@@ -7,7 +7,7 @@ export const meta = {
     { title: 'Push', detail: 'implementer pushes the branch and reads the remote head' },
     { title: 'MR', detail: 'implementer reuses or opens the PR or MR' },
     { title: 'Pipeline', detail: 'verifier watches the pipeline of the pushed commit, implementer fixes, bounded by maxFixRounds' },
-    { title: 'Threads', detail: 'verifier fetches the review threads, implementer fixes each fixable bot thread' },
+    { title: 'Threads', detail: 'verifier waits for a bot review when botAuthors is set and fetches the review threads, implementer fixes each fixable bot thread' },
     { title: 'Merge', detail: 'implementer merges the exact pushed commit when green, with no open thread and no fix commit' },
     { title: 'Release', detail: 'implementer tags the merge commit and pushes the tag' },
   ],
@@ -34,6 +34,10 @@ oneOf('permission', a.permission, Object.keys(CAP))
 oneOf('startAt', START, ['commit', 'push', 'mr', 'merge', 'release'])
 if (a.botAuthors != null && !isStrList(a.botAuthors)) {
   throw new Error(`ship-runner botAuthors must be an array of strings, got ${JSON.stringify(a.botAuthors)}`)
+}
+const badLogin = (a.botAuthors ?? []).find((b) => !/^[A-Za-z0-9][A-Za-z0-9._-]*(\[bot\])?$/.test(b))
+if (badLogin !== undefined) {
+  throw new Error(`ship-runner botAuthors must be host logins, got ${JSON.stringify(badLogin)}`)
 }
 if (a.stopAt === 'release' && ['tagName', 'tagMessage'].some((k) => typeof a[k] !== 'string' || !a[k])) {
   throw new Error('ship-runner requires tagName and tagMessage when stopAt is release')
@@ -112,6 +116,7 @@ const WATCH = stage({ state: { type: 'string', enum: ['green', 'red', 'pending',
 const FIX = stage({ sha: str, pushed: bool, changedPaths: strList })
 const THREAD = obj({ id: str, author: str, isBot: bool, hasHumanComment: bool, resolved: bool, file: str, line: num, summary: str, fixable: bool, fix: str, commentId: str })
 const THREADS = stage({ threads: list(THREAD) })
+const WAIT = stage({ landed: bool })
 const THREAD_FIX = stage({ sha: str, shortSha: str, pushed: bool, changedPaths: strList, replied: bool, resolved: bool })
 const MERGE_KINDS = GH ? ['merge', 'unknown'] : ['merge', 'squash', 'fast-forward']
 const MERGE = stage({ state: str, mergedSha: str, kind: { type: 'string', enum: MERGE_KINDS }, ...(GH ? { reviewDecision: str } : { detailedMergeStatus: str }) })
@@ -309,17 +314,19 @@ In ${a.repoRoot}: ${how} Change no file. ${gitRule(MR_CMDS)} ${BLOCKER_RULE} ${D
   }
 }
 
-const checkRuns = () => `gh api repos/${a.remotePath}/commits/${headSha}/check-runs`
+// The bound stays under the ten-minute harness cap on a foreground Bash call so the script exits before the harness kills it.
+const watchMr = (mode) => `bash ${a.pluginRoot}/scripts/watch-mr.sh ${a.host} ${a.remotePath} ${mrRef.number} ${mode} --sha ${headSha} --bound 9`
+const WATCH_CALL = 'as one Bash call with the timeout parameter set to 600000. It prints one status line and exits with a code.'
 const watchPrompt = () => {
-  const how = GH
-    ? `Run gh run list --commit ${headSha} --json databaseId,status,conclusion. For each run it lists, run gh run watch <id> --exit-status as its own Bash call with the timeout parameter set to 600000, then gh run view <id> --log-failed for each run that did not conclude success, skipped or neutral. A watch that exits non-zero on a failed run is not a blocker. If gh run list shows no run for ${headSha}, run ${checkRuns()} once. If that lists no check run either, return state none and sha ${headSha}, else read the state from the check runs it lists. The state belongs to ${headSha}.`
-    : `Run ${mrApi()} and read head_pipeline with its id and its sha. If head_pipeline is null, return state none and sha ${headSha} and run nothing more. Run glab ci status --branch ${a.branch} --live as one Bash call with the timeout parameter set to 600000, then run ${mrApi()} again. If the pipeline failed, run glab api projects/${PROJECT}/pipelines/<pipeline id>/jobs, then glab api projects/${PROJECT}/jobs/<id>/trace for each failed job. The state belongs to the head_pipeline sha.`
+  const logs = GH
+    ? `run gh run list --commit ${headSha} --json databaseId,status,conclusion, then gh run view <id> --log-failed for each run that did not conclude success, skipped or neutral`
+    : `run ${mrApi()} and read head_pipeline.id, then glab api projects/${PROJECT}/pipelines/<pipeline id>/jobs, then glab api projects/${PROJECT}/jobs/<id>/trace for each failed job`
   const cmds = GH
-    ? `gh run list --commit ${headSha} --json databaseId,status,conclusion, gh run watch <id> --exit-status, gh run view <id> --log-failed, and ${checkRuns()}`
-    : `${mrApi()}, glab ci status --branch ${a.branch} --live, glab api projects/${PROJECT}/pipelines/<id>/jobs, and glab api projects/${PROJECT}/jobs/<id>/trace`
+    ? `${watchMr('pipeline')}, gh run list --commit ${headSha} --json databaseId,status,conclusion, and gh run view <id> --log-failed`
+    : `${watchMr('pipeline')}, ${mrApi()}, glab api projects/${PROJECT}/pipelines/<id>/jobs, and glab api projects/${PROJECT}/jobs/<id>/trace`
   return `${CONTEXT}
 
-Watch the pipeline of the pushed commit ${headSha} for ${mrRef.url}, from ${a.repoRoot}. ${how} Return state green when every run or job finished as success, skipped or neutral, red when any finished as failed, cancelled or timed out, pending when one was still running at the timeout, and none only when no pipeline was found as above. Change no file. ${gitRule(cmds)} ${BLOCKER_RULE} ${DENIAL_RULE} Return sha as the commit the state belongs to, failingLines as at most 30 log lines that name each failing check and its error or an empty list, ${RETURN_STOP}`
+Watch the pipeline of the pushed commit ${headSha} for ${mrRef.url}, from ${a.repoRoot}. Run ${watchMr('pipeline')} ${WATCH_CALL} Map the exit code to state: 0 is green, 10 red, 11 or 12 pending, 13 none, and 14 pending. If it exits 14, return sha as the new head its MOVED line names, else return sha ${headSha}. An exit from 10 to 14 is a result, not a blocker. If it exits 2 or 3, record a blocker sentence that carries its stderr text. If the state is red, ${logs}. Change no file. ${gitRule(cmds)} ${BLOCKER_RULE} ${DENIAL_RULE} Return state and sha as above, failingLines as at most 30 log lines that name each failing check and its error or an empty list, ${RETURN_STOP}`
 }
 const watch = async (label, phaseName) => {
   const r = await run('verifier', label, phaseName, WATCH, watchPrompt())
@@ -364,6 +371,14 @@ Fetch the review threads of ${mrRef.url} from ${a.repoRoot}. Run ${fetchCmd()}. 
   if (halted('verifier', label, 'threads', r)) return null
   return (r.threads || []).map((t) => ({ ...t, isBot: Boolean(t.isBot) || BOT_AUTHORS.includes(t.author) }))
 }
+const waitForReview = async () => {
+  const cmd = `${watchMr('threads')}${BOT_AUTHORS.map((b) => ` --bot "${b}"`).join('')}`
+  const r = await run('verifier', 'threads:wait', 'Threads', WAIT, `${CONTEXT}
+
+Wait for a review from ${BOT_AUTHORS.join(', ')} on ${mrRef.url} for the pushed commit ${headSha}, from ${a.repoRoot}. Run ${cmd} ${WATCH_CALL} If it exits 0, return landed true. If it exits 12, return landed false. If it exits 14, record a blocker sentence naming the new head its MOVED line names. If it exits 2 or 3, record a blocker sentence that carries its stderr text. Change no file. ${gitRule(cmd)} ${BLOCKER_RULE} ${DENIAL_RULE} Return landed as above, ${RETURN_STOP}`)
+  if (halted('verifier', 'threads:wait', 'threads', r)) return
+  if (!r.landed) blocked.push(`No review from ${BOT_AUTHORS.join(', ')} has landed on ${mrRef.url} for ${headSha} at the watch bound.`)
+}
 const threadFixPrompt = (t, index) => {
   const reply = GH
     ? `gh api graphql -f query='mutation($id:ID!,$body:String!){addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$id,body:$body}){comment{id}}}' -f id=${t.id} -f body='Fixed in <short sha>: <what changed>', then gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -f id=${t.id}`
@@ -403,7 +418,8 @@ The pipeline for ${headSha} is red. In ${a.repoRoot}, fix the cause with the sma
 
   if (open()) {
     phase('Threads')
-    const first = await fetchThreads(1)
+    if (BOT_AUTHORS.length) await waitForReview()
+    const first = open() ? await fetchThreads(1) : null
     if (first) {
       threads = { fixed: [], pushedBackNeeded: [], human: [], open: first.filter((t) => !t.resolved) }
       const toFix = []

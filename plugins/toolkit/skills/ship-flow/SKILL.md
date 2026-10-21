@@ -9,9 +9,10 @@ description: >-
   where to stop, shows every external side effect at one confirmation gate, then launches
   the ship-runner workflow (commit, push, MR or PR, a pipeline watch pinned to the pushed
   commit with a bounded fix loop, bot review threads, merge of that exact commit, tag),
-  stopping at the ceiling, the lower of the chosen stage and the cap the session
+  waits in the background for a slow pipeline or a pending bot review and relaunches
+  itself, stopping at the ceiling, the lower of the chosen stage and the cap the session
   permission allows. Records the result on the plan note and closes with a report. The
-  conductor never runs git or a host command. Do NOT fire on a plan note whose last session summary
+  conductor never runs git or a host command beyond its read-only background watcher. Do NOT fire on a plan note whose last session summary
   does not begin execute-flow finished:, ship-flow stopped: or ship-flow finished:, on a
   completed note or one whose PR or MR already merged unless only its tag remains, on
   an uncommitted slice no execute flow reviewed, or for working review threads by hand
@@ -20,7 +21,7 @@ description: >-
 
 # Ship Flow
 
-Ship-flow is the conductor side of the `ship-runner` workflow, shipped with this plugin at `../../workflows/ship-runner.js` relative to this skill's base directory. The script runs Prep, then Commit, Push, MR, the pipeline watch with its fix loop, the bot review threads, Merge, and Release, each up to the ceiling, and every git and host mutation runs inside its agents under a per-stage rule. The conductor asks the git-permission question, reads the host and the tree through one verifier, plus a capture verifier before a commit, reads the staging list, asks where to stop, runs the confirmation gate, launches the script, records the result on the plan note, and closes with the report. The conductor writes only the vault note and scratchpad files.
+Ship-flow is the conductor side of the `ship-runner` workflow, shipped with this plugin at `../../workflows/ship-runner.js` relative to this skill's base directory. The script runs Prep, then Commit, Push, MR, the pipeline watch with its fix loop, the bot review threads, Merge, and Release, each up to the ceiling, and every git and host mutation runs inside its agents under a per-stage rule. The conductor asks the git-permission question, reads the host and the tree through one verifier, plus a capture verifier before a commit, reads the staging list, asks where to stop, runs the confirmation gate, launches the script, records the result on the plan note, starts the background watcher and relaunches the script when a run stopped only to wait, and closes with the report. The conductor writes only the vault note and scratchpad files.
 
 ## 1. Trigger
 
@@ -109,6 +110,7 @@ Print the preview in chat:
   - the reply template `Fixed in <short sha>: <what changed>`, one reply and one resolve per fixed bot thread.
 - that no commit carries a Co-Authored-By trailer and that human threads are never touched.
 - the tag name and message when the ceiling is release, and every CI tag trigger sentence from section 3.
+- when `startAt` is `merge` and Plan Changes During Execution records fix shas from earlier ship-flow runs, the heading `Fix commits to read before Go` with each of those shas on its own line, because the run merges over every fix sha the note records.
 
 Then ask once through AskUserQuestion: "Ship <planName> from <branch> to <remotePath> on <host>, ceiling <ceiling>. Everything the run may send out is shown above. Go, edit, or stop?" with the options in this order:
 
@@ -134,7 +136,7 @@ Build the args:
 - `protectedPaths`: the repo-specific paths that a bot-thread fix must never touch, empty unless the plan note names them.
 - `scratchDir`: the absolute scratchpad path. `pluginRoot`: `<plugin-root>`.
 
-When `repoRoot` contains `plugins/toolkit/workflows/ship-runner.js`, launch `{scriptPath: "<repoRoot>/plugins/toolkit/workflows/ship-runner.js"}`, otherwise `{name: "toolkit:ship-runner"}`. If name resolution fails, launch `{scriptPath: "<this skill's base directory>/../../workflows/ship-runner.js"}` resolved to an absolute path. The script is named `ship-runner` because a workflow and a skill cannot share a name in the plugin registry. If the Workflow tool refuses a `scriptPath` as outside the working directory, copy the script byte-identical to `<scratchpad>/ship-runner.js`, take the first 12 characters of `shasum -a 256` for the source and for the copy, require the two to match, and launch `{scriptPath: "<scratchpad>/ship-runner.js"}`. A run that dies is not resumed: every stage is idempotent, so asking for the ship flow again derives `startAt` from the tree and the host.
+When `repoRoot` contains `plugins/toolkit/workflows/ship-runner.js`, launch `{scriptPath: "<repoRoot>/plugins/toolkit/workflows/ship-runner.js"}`, otherwise `{name: "toolkit:ship-runner"}`. If name resolution fails, launch `{scriptPath: "<this skill's base directory>/../../workflows/ship-runner.js"}` resolved to an absolute path. The script is named `ship-runner` because a workflow and a skill cannot share a name in the plugin registry. If the Workflow tool refuses a `scriptPath` as outside the working directory, copy the script byte-identical to `<scratchpad>/ship-runner.js`, take the first 12 characters of `shasum -a 256` for the source and for the copy, require the two to match, and launch `{scriptPath: "<scratchpad>/ship-runner.js"}`. A run that dies is not resumed: every stage is idempotent, so asking for the ship flow again derives `startAt` from the tree and the host. The section 7b relaunch is that same mechanism, driven by the watcher's exit instead of the user's ask.
 
 The result is `{stoppedAt, ceiling, commitSha, headSha, pushed, mr, pipeline, threads, fixShas, merged, tag, handoff, blocked, incomplete}`:
 
@@ -144,11 +146,31 @@ The result is `{stoppedAt, ceiling, commitSha, headSha, pushed, mr, pipeline, th
 - `handoff` is `{stage, command}` when the permission system denied a command, else null.
 - `blocked` lists one sentence per reason the run stopped, and `incomplete` lists the labels of the stages that died.
 
+## 7b. Wait
+
+The runner ends its run at its nine-minute watch bound, because a blocking call inside an agent is capped at ten minutes, so the conductor owns any longer wait. Wait only when the result has `handoff` null, `incomplete` empty, and `blocked` holding exactly one sentence, which is either the pending sentence `The pipeline for <sha> was still pending at the watch bound.` or the no-review sentence `No review from <bots> has landed on <url> for <sha> at the watch bound.` Every other result goes to sections 8 and 9.
+
+Run section 8 for the returned result before starting the watcher, so the plan note is right if the session ends during the wait.
+
+Start the watcher with the Bash tool and `run_in_background: true`. For the pending sentence, run `bash <plugin-root>/scripts/watch-mr.sh <host> <remotePath> <number> pipeline --sha <sha> --bound 180`. For the no-review sentence, run `bash <plugin-root>/scripts/watch-mr.sh <host> <remotePath> <number> threads --sha <sha> --bound 180` with one `--bot "<login>"` per `botAuthors` entry. `<number>` is `mr.number` and `<sha>` is the sha in the sentence. The watcher runs from the repo's working directory, which a ship-flow session already uses, and `glab` reads the GitLab host from the git remote there. Say in one chat line what the watcher waits for and that the run resumes on its own when the watcher exits, then end the turn. The harness wakes the conductor when the command exits. Never poll, never spawn an agent to wait, and never run the watcher in the foreground. Run one watcher at a time.
+
+On the completion notification, read the exit code and the status line that `watch-mr.sh` prints:
+
+- `GREEN` or `LANDED` (exit 0), or `RED` (exit 10): spawn the section 3 verifier again and derive `startAt` again. If `startAt` is `merge` and the branch, the MR url and number, and the gate's ceiling are unchanged, rebuild the args per section 7 with the same `paths`, `botAuthors`, and `protectedPaths`, with `stopAt` and `maxFixRounds` set by the two relaunch rules below, and with `knownShas` updated from the note. Then relaunch per section 7 without the section 6 gate, because the Go answer covered this run to the same ceiling and nothing the preview showed has changed. Any other `startAt` means the tree or the host changed during the wait, so report per section 9 and stop.
+- `STUCK` (exit 11): report per section 9 with the line `The pipeline for <sha> is stuck: every job finished but the pipeline has not settled for <minutes> minutes.` and stop, because unsticking an external job is the user's call.
+- `BOUND` (exit 12), `NONE` (exit 13), `MOVED` (exit 14), or exit 2 or 3: report the status line, or the stderr text for exit 2 or 3, per section 9 and stop.
+
+If the run that stopped to wait, or any earlier run of this ship-flow ask, returned a non-empty `fixShas`, the relaunch passes `stopAt` as `mr`, because section 7 builds `knownShas` from the fix shas that section 8 records and the runner refuses a merge only for fix commits its own launch pushed. That relaunch watches the pipeline and works the bot threads but never merges, and section 9 hands the merge to the user.
+
+The relaunch passes `maxFixRounds` as the gate's value minus the sum of `pipeline.rounds` across this ask's runs, never below zero, so all relaunches together push no more pipeline fix commits than the gate approved.
+
+Start at most three watchers per ship-flow ask. When the third relaunch returns a result that would need a fourth watcher, report per section 9 and stop.
+
 ## 8. Record
 
 Load `plan-workflow`. Set the `mr` frontmatter from `mr.url` when it is not null. Under Plan Changes During Execution, record one line each for the commit sha, each `fixShas` entry with its reason, so a later run's `knownShas` holds every fix sha, the merge sha, the tag, the `threads` lists, and every `blocked` sentence and `incomplete` label.
 
-Record this session's entry per the plan-workflow session rules, which reuse the entry when execute-flow ran in this session. The summary begins `ship-flow stopped: at <stoppedAt>` when `blocked` or `incomplete` is not empty, when `handoff` is not null, or when `stoppedAt` is below the ceiling. It begins `ship-flow finished: <ceiling>` only on a clean run that reached the ceiling. A `ship-flow finished:` summary keeps `status: in-progress` unless the merge rule below sets `status: completed`, so section 1 accepts the note again for a run above a capped ceiling. When `merged.sha` is set, a `Remember:` line under Plan Changes During Execution still sets `status: completed`, and section 1 accepts that note again for the release-only run. Without that line, keep `status: in-progress` and tell the user that the remember pass has not run. A release-only run on a `status: completed` note leaves the status as it is.
+Record this session's entry per the plan-workflow session rules, which reuse the entry when execute-flow ran in this session. A section 7b relaunch reuses the entry the first launch in this session wrote. The summary begins `ship-flow stopped: at <stoppedAt>` when `blocked` or `incomplete` is not empty, when `handoff` is not null, or when `stoppedAt` is below the ceiling. It begins `ship-flow finished: <ceiling>` only on a clean run that reached the ceiling. The summary compares `stoppedAt` with the ceiling the section 6 gate approved, not the ceiling a section 7b relaunch returns, so a relaunch that section 7b capped at `mr` records `ship-flow stopped: at mr`. A `ship-flow finished:` summary keeps `status: in-progress` unless the merge rule below sets `status: completed`, so section 1 accepts the note again for a run above a capped ceiling. When `merged.sha` is set, a `Remember:` line under Plan Changes During Execution still sets `status: completed`, and section 1 accepts that note again for the release-only run. Without that line, keep `status: in-progress` and tell the user that the remember pass has not run. A release-only run on a `status: completed` note leaves the status as it is.
 
 Write the change atomically: Write the note to a `.tmp.md` file beside it, then move it into place with `vault-fs.sh mv`. Then run `python3 <plugin-root>/scripts/validate-plan.py "<plan note path>"` and require exit 0. If the validator fails, report its output and stop. Never patch a failure silently.
 
@@ -160,15 +182,18 @@ Open with the Repo, Branch, and Scope header lines from the git-safety Commit ha
 - when `pipeline.state` is `none`, that no pipeline was found for the pushed commit, and that asking for the ship flow again after the host registers the pipeline rewatches it.
 - `stoppedAt` and why: the ceiling, the chosen stop, or the first `blocked` sentence.
 - when `handoff` is not null, the handoff block from the git-safety Commit handoff section, with `cd "<repoRoot>"` on its own line and `handoff.command` on the next.
-- when `fixShas` refused the merge, each fix sha and the merge command from the refusal sentence (`gh pr merge <number> --merge --match-head-commit <headSha>` on GitHub, `glab mr merge <number> --sha <headSha> --auto-merge=false --yes` on GitLab), and that asking for the ship flow again after reading the fixes merges them.
+- when any run of this ship-flow ask returned a non-empty `fixShas` and `merged` is null, each of those fix shas, that the user must read them before asking for the ship flow again, and the merge command (`gh pr merge <number> --merge --match-head-commit <headSha>` on GitHub, `glab mr merge <number> --sha <headSha> --auto-merge=false --yes` on GitLab), and that asking for the ship flow again after reading the fixes merges them.
 - when a `blocked` sentence refuses the merge for commits no run recorded, each of those commits, and that the user must read them and then ask for the ship flow again.
 - each `pushedBackNeeded` thread with the review-threads push-back recipe (`../review-threads/SKILL.md` section 3), and each `human` thread for the user to settle.
 - when the permission capped the ceiling below `stopAt`, the next command for the user to run.
 - after a merge, the undo command for `merged.kind`: `git revert -m 1 <mergeSha>` for `merge`, `git revert <mergeSha>` for `squash`, and `git revert <base>..<mergeSha>` for `fast-forward`, where `<base>` is the default branch tip before the merge, the parent of the first commit in the range, because a fast-forward may carry several commits. For `unknown`, tell the user to check the parent count with `git cat-file -p <mergeSha>` before choosing between the two.
 - after a tag, the undo command `git push origin :refs/tags/<tag>`.
+- when the watcher exits `STUCK`, the stuck line from section 7b, and that the user settles the external job and then asks for the ship flow again.
+- when a wait ends without a relaunch, the watcher's status line or stderr text and the user's next step: after `BOUND` or `NONE`, ask for the ship flow again once the host shows a result for the commit. After `MOVED`, read the new head commit and then ask again. After exit 2 or 3, fix the cause the stderr text names and then ask again. After a changed `startAt`, ask again to resume from it.
+- when any section 7b relaunch ran, how many ran.
 
 At ceiling `suggest`, the report is the git-safety commit handoff: the three header lines, then a line that begins `Suggested commit`, then the paste-ready block with each path in `paths` named. Never suggest `git add -A`.
 
 ## Boundary
 
-The conductor never runs git or a host command. Every mutation runs in the runner's agents, no stage runs above the ceiling, and no merge happens over a fix commit this run pushed. The conductor never fixes, replies to, or resolves a human reviewer's thread. Not for a slice no execute flow reviewed (`execute-flow` owns that) and not for working review threads outside a ship run (`review-threads` owns that).
+The conductor never runs git or a host command beyond the read-only `watch-mr.sh` watcher in section 7b. Every mutation runs in the runner's agents, no stage runs above the ceiling, and no merge happens over a fix commit this run pushed. The conductor never fixes, replies to, or resolves a human reviewer's thread. Not for a slice no execute flow reviewed (`execute-flow` owns that) and not for working review threads outside a ship run (`review-threads` owns that).
