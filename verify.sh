@@ -322,7 +322,7 @@ fi
 echo "== execute-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/execute-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "execute-runner control-flow suite" "$out" 131
+  suite_ok "execute-runner control-flow suite" "$out" 153
 else
   skip "skipped: node not found; execute-runner control-flow suite"
 fi
