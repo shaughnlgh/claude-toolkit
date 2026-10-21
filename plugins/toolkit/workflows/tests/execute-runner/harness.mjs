@@ -30,6 +30,21 @@ const INFO_FENCE_PLAN = plan(['1. Add the exporter.', '2. Add the doc snippet:',
 const PROSE_PLAN = plan(['Add the exporter in src/a.js and wire the route.', '', 'Then document it.'])
 const PAREN_PLAN = plan(['1) Add the exporter.', '2) Wire the route.'])
 const PREAMBLE_PLAN = plan(['Read the exporter notes first.', '', '### 1. Add the exporter', 'Write src/a.js.', '### 2. Wire the route', 'Edit src/b.js.'])
+const FENCED_PREAMBLE_PLAN = plan([FENCE, '### 1. not a step', FENCE, '', '### 1. Add the exporter', 'Write src/a.js.', '### 2. Wire the route', 'Edit src/b.js.'])
+const LISTED_PREAMBLE_PLAN = plan(['1. Read the notes first.', '', '### 1. Add the exporter', 'Write src/a.js.', '### 2. Wire the route', 'Edit src/b.js.'])
+const TIGHT_HEADING_PLAN = plan(['### 1. Add the exporter', 'Write src/a.js.', '### 2.Wire the route', '', '1. Add the handler.', '2. Register it.'])
+const STEP_HEADED_PLAN = plan(['### Step 1: Skeleton', '', '1. Create src/a.js.', '2. Export the module.', '', '### Step 2: Schema', '', '1. Add the widgets table.', '2. Seed one widget.'])
+const PHASE_PLAN = plan(['### Phase A', '', 'Build the exporter.', '', '### Phase B', '', 'Wire the route.'])
+const SUBSTEP_PLAN = plan(['### Step 1: Skeleton', '', '1. Create src/a.js.', '2. Export the module.', '', '### Step 2: Route', '', 'Wire the route in src/b.js.'])
+const TRIPWIRE_LINES = [...VALIDATION_LINES, '3. Import the export back.', '', '### Tripwires', '', '1. The export writes no rows.', '2. The import rejects the header row.']
+const TRIPWIRE_STEP_3 = '3. Import the export back.\n\n### Tripwires\n\n1. The export writes no rows.\n2. The import rejects the header row.'
+const BULLET_HEADED_LINES = ['### Automated', '', '- Run the unit tests.', '', '### Manual', '', '- Export one widget by hand.']
+const INTRO_HEADING_PLAN = plan(['### Overview', '', 'The exporter streams rows.', '', ...THREE_STEPS])
+const MIXED_HEADING_PLAN = plan(['### 1. Add the exporter', '', '### Notes', '', 'Keep rows streamed.', '', '### 2. Wire the route', '', 'Edit src/b.js.'])
+const TWO_TRAILERS_PLAN = plan([...THREE_STEPS, '', '### Tripwires', '', '1. The export writes no rows.', '', '### Rollback', '', '1. Revert src/b.js.'])
+const SPACED_HEADING_PLAN = PLAN.replace('## Assumptions', '##  Affected Files\n\n- src/a.js: exporter\n\n## Assumptions')
+const TAB_HEADING_PLAN = PLAN.replace('## Risks', '##\tRisks')
+const SECTIONED_PLAN = PLAN.replace('## Assumptions', '## Current Context\n\nThe exporter lives in src/a.js.\n\n## Affected Files\n\n- src/a.js: exporter\n\n## Plan Changes During Execution\n\n- Step 1: streamed rows instead.\n\n## Assumptions')
 
 const ARGS = { planName: 'widget-export', repoRoot: '/repo', repoName: 'demo', planContent: PLAN, recallHits: 'none', scratchDir: '/scratch', pluginRoot: '/plugin', vaultRoot: '/vault/AI' }
 const GIT_RULE = 'In /repo, git is read-only: git status, git diff, git log, git ls-files, git branch --show-current, git remote get-url, git symbolic-ref with one ref argument, and git merge-base --is-ancestor only. A -c core.quotePath=false prefix on one of these commands keeps it read-only. Never run git stash, add, commit, checkout, switch, reset, clean, rebase, merge or push there. Mutating git is allowed only inside a fresh fixture you create under /scratch.'
@@ -420,6 +435,44 @@ const cases = [
     const { prompts } = await run({}, { ...ARGS, planContent: REFERENCE_PLAN })
     return same({ labels: implementLabels(prompts), step1: stepText(prompts, 1).includes('### Directory layout') && stepText(prompts, 1).includes('### Reference') }, { labels: ['implement:1', 'implement:2', 'implement:3'], step1: true })
   }],
+  ['### Step headings over numbered sub-lists split one step per heading', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: STEP_HEADED_PLAN })
+    return same({ labels: implementLabels(prompts), steps: prompts['implement:1'].includes('\n\nSTEPS:\nStep 1: Skeleton (your step)\nStep 2: Schema\n\n'), step2: stepText(prompts, 2) }, { labels: ['implement:1', 'implement:2'], steps: true, step2: '### Step 2: Schema\n\n1. Add the widgets table.\n2. Seed one widget.' })
+  }],
+  ['### Phase headings with no numbered lines split one step per phase', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: PHASE_PLAN })
+    return same({ labels: implementLabels(prompts), steps: prompts['implement:1'].includes('\n\nSTEPS:\nPhase A (your step)\nPhase B\n\n') }, { labels: ['implement:1', 'implement:2'], steps: true })
+  }],
+  ['### headings over a numbered list under the first heading split one step per heading', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: SUBSTEP_PLAN })
+    return same({ labels: implementLabels(prompts), steps: prompts['implement:1'].includes('\n\nSTEPS:\nStep 1: Skeleton (your step)\nStep 2: Route\n\n') }, { labels: ['implement:1', 'implement:2'], steps: true })
+  }],
+  ['numbered Validation Steps with a trailing ### Tripwires list render three STEPs with the tripwires in STEP 3', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: plan(THREE_STEPS, TRIPWIRE_LINES) })
+    const p = prompts['verify:validation']
+    return same({ step3: p.includes(`STEP 3:\n${TRIPWIRE_STEP_3}`), count: p.includes('Return exactly 3 results, one per STEP, in order') }, { step3: true, count: true })
+  }],
+  ['numbered Implementation Steps with a trailing ### Tripwires list run three implementers with the tripwires in step 3', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: plan(TRIPWIRE_LINES) })
+    return same({ labels: implementLabels(prompts), step3: stepText(prompts, 3) }, { labels: ['implement:1', 'implement:2', 'implement:3'], step3: TRIPWIRE_STEP_3 })
+  }],
+  ['bullets under two ### headings in Validation Steps render two STEPs', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: plan(THREE_STEPS, BULLET_HEADED_LINES) })
+    const p = prompts['verify:validation']
+    return same({ steps: p.includes('STEP 1:\n### Automated\n\n- Run the unit tests.\n\nSTEP 2:\n### Manual\n\n- Export one widget by hand.'), count: p.includes('Return exactly 2 results, one per STEP, in order') }, { steps: true, count: true })
+  }],
+  ['one intro ### heading over a numbered list splits on the numbered lines', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: INTRO_HEADING_PLAN })
+    return same({ labels: implementLabels(prompts), step1: stepText(prompts, 1) }, { labels: ['implement:1', 'implement:2', 'implement:3'], step1: `### Overview\n\nThe exporter streams rows.\n\n${THREE_STEPS[0]}` })
+  }],
+  ['an unnumbered ### heading between numbered ### headings stays inside its step', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: MIXED_HEADING_PLAN })
+    return same({ labels: implementLabels(prompts), step1: stepText(prompts, 1) }, { labels: ['implement:1', 'implement:2'], step1: '### 1. Add the exporter\n\n### Notes\n\nKeep rows streamed.' })
+  }],
+  ['numbered steps before two ### blocks with their own lists split on the numbered steps', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: TWO_TRAILERS_PLAN })
+    return same(implementLabels(prompts), ['implement:1', 'implement:2', 'implement:3'])
+  }],
   ['prose-only Implementation Steps run as one step holding the whole text', async () => {
     const { prompts } = await run({}, { ...ARGS, planContent: PROSE_PLAN })
     return same({ labels: implementLabels(prompts), step: stepText(prompts, 1) }, { labels: ['implement:1'], step: 'Add the exporter in src/a.js and wire the route.\n\nThen document it.' })
@@ -669,6 +722,72 @@ const cases = [
     const dropped = [{ title: 'Spacing drifts', file: 'src/h.js', reason: 'nit cap' }]
     const { result } = await run({ 'workflow:review-mr': reviewOf([], { nits: [N1], preExisting: [pre], dropped }) })
     return same({ nits: result.review.nits, preExisting: result.review.preExisting, dropped: result.review.dropped }, { nits: [N1], preExisting: [pre], dropped })
+  }],
+  ['implement:2 carries its own step in full, the other steps as headings, and not the plan', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: HEADED_PLAN })
+    const p = prompts['implement:2']
+    const present = ['STEPS:\n1. Add the exporter\n2. Wire the route (your step)\n3. Document it\n', 'YOUR STEP:\n### 2. Wire the route\n\n1. Add the handler.\n2. Register it.\n', 'OBJECTIVE:\nExport widgets as CSV.', `ASSUMPTIONS:\n${ASSUMPTION}`, `VALIDATION STEPS:\n${VALIDATION_LINES.join('\n')}`, `RISKS:\n${RISK}`, 'CURRENT CONTEXT:\nnone', 'AFFECTED FILES:\nnone', 'PLAN CHANGES DURING EXECUTION:\nnone']
+    const absent = ['PLAN:', 'type: plan', 'Write src/a.js.', 'Edit docs/widgets.md.', '[[Widgets]]']
+    return same({ missing: present.filter((s) => !p.includes(s)), leaked: absent.filter((s) => p.includes(s)) }, { missing: [], leaked: [] })
+  }],
+  ['implement brief carries Current Context, Affected Files and Plan Changes when the plan has them', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: SECTIONED_PLAN })
+    const p = prompts['implement:1']
+    return same(['CURRENT CONTEXT:\nThe exporter lives in src/a.js.', 'AFFECTED FILES:\n- src/a.js: exporter', 'PLAN CHANGES DURING EXECUTION:\n- Step 1: streamed rows instead.'].filter((s) => !p.includes(s)), [])
+  }],
+  ['a section heading with two spaces after ## still reads its section', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: SPACED_HEADING_PLAN })
+    return prompts['implement:1'].includes('AFFECTED FILES:\n- src/a.js: exporter')
+  }],
+  ['a section heading with a tab after ## ends the section before it and reads its own', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: TAB_HEADING_PLAN })
+    const p = prompts['implement:1']
+    return same({ risks: p.includes(`RISKS:\n${RISK}`), validation: p.split('VALIDATION STEPS:\n')[1].split('\n\nRISKS:')[0] }, { risks: true, validation: VALIDATION_LINES.join('\n') })
+  }],
+  ['PREAMBLE_PLAN maps step 1 by its marker line, not the preamble', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: PREAMBLE_PLAN })
+    return prompts['implement:1'].includes('STEPS:\n1. Add the exporter (your step)\n2. Wire the route\n')
+  }],
+  ['a numbered line in a fenced preamble does not take step 1\'s heading', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: FENCED_PREAMBLE_PLAN })
+    return prompts['implement:1'].includes('STEPS:\n1. Add the exporter (your step)\n')
+  }],
+  ['a plain numbered preamble line does not take step 1\'s heading in a headed plan', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: LISTED_PREAMBLE_PLAN })
+    return prompts['implement:1'].includes('STEPS:\n1. Add the exporter (your step)\n')
+  }],
+  ['a headed marker with no space after the number is the step heading, not a sub-step', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: TIGHT_HEADING_PLAN })
+    return prompts['implement:2'].includes('STEPS:\n1. Add the exporter\n2.Wire the route (your step)\n')
+  }],
+  ['PROSE_PLAN maps its single step by its first line', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: PROSE_PLAN })
+    return prompts['implement:1'].includes('STEPS:\nAdd the exporter in src/a.js and wire the route (your step)\n')
+  }],
+  ['fix:validation carries the objective, assumptions, plan changes, changed paths and failing steps, not the plan', async () => {
+    const { prompts } = await run({ 'verify:validation': FAIL }, { ...ARGS, planContent: SECTIONED_PLAN })
+    const p = prompts['fix:validation']
+    const present = ['OBJECTIVE:\nExport widgets as CSV.', `ASSUMPTIONS:\n${ASSUMPTION}`, 'PLAN CHANGES DURING EXECUTION:\n- Step 1: streamed rows instead.', 'CHANGED PATHS:\nsrc/a.js\nsrc/b.js\nsrc/c.js\n', 'FAILING VALIDATION STEPS:\n1. Run the unit tests.\nEVIDENCE: unit tests: fail']
+    const absent = ['PLAN:', 'type: plan', THREE_STEPS[1], RISK]
+    return same({ missing: present.filter((s) => !p.includes(s)), leaked: absent.filter((s) => p.includes(s)) }, { missing: [], leaked: [] })
+  }],
+  ['fix:1 carries the objective, assumptions and changed paths, not the plan', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([F1]), 'recheck:1': resolvedOf(F1) })
+    const p = prompts['fix:1']
+    const present = ['OBJECTIVE:\nExport widgets as CSV.', `ASSUMPTIONS:\n${ASSUMPTION}`, 'CHANGED PATHS:\nsrc/a.js\nsrc/b.js\nsrc/c.js\n', `CONFIRMED FINDINGS:\n${key(F1)}`]
+    const absent = ['PLAN:', 'type: plan', THREE_STEPS[1], RISK]
+    return same({ missing: present.filter((s) => !p.includes(s)), leaked: absent.filter((s) => p.includes(s)) }, { missing: [], leaked: [] })
+  }],
+  ['doc:pass carries the objective, affected files, related topics and changed paths, not the plan', async () => {
+    const { prompts } = await run({}, { ...ARGS, planContent: SECTIONED_PLAN })
+    const p = prompts['doc:pass']
+    const present = ['OBJECTIVE:\nExport widgets as CSV.', 'AFFECTED FILES:\n- src/a.js: exporter', 'RELATED TOPICS:\n- [[Widgets]]', 'CHANGED PATHS:\nsrc/a.js\nsrc/b.js\nsrc/c.js\n']
+    const absent = ['PLAN:', 'type: plan', THREE_STEPS[1], ASSUMPTION, RISK]
+    return same({ missing: present.filter((s) => !p.includes(s)), leaked: absent.filter((s) => p.includes(s)) }, { missing: [], leaked: [] })
+  }],
+  ['no agent prompt carries the plan note whole', async () => {
+    const { prompts } = await run(FULL_RUN)
+    return same(labelsWhere(prompts, (p) => p.includes('type: plan') || p.includes('## Objective') || p.includes('PLAN:\n')), [])
   }],
 ]
 
