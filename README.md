@@ -74,7 +74,7 @@ Then the errors, in the order a fresh machine hits them:
 After installing, run `/setup` in any Claude Code session — it checks everything below, guides you through the vault config, and prints a readiness report.
 
 - **CLI tooling** — gh, glab, jira, jq, python3: see [`docs/prerequisites.md`](docs/prerequisites.md) for what each is for and the install and auth commands. `/setup` reports the readiness of each.
-- **Planning workflow** (optional; required only for plan-workflow / obsidian-topic): plan and topic notes are written into an Obsidian vault you control. If you don't have Obsidian yet, download it from [obsidian.md](https://obsidian.md/), open it, and follow its prompts to create a vault (any name and location work — you'll point the toolkit at it next). `/setup` then creates `~/.claude/obsidian-sync.json` from the shipped template; all docs and scripts resolve your vault location and root folder from that file.
+- **Planning workflow** (optional; required only for plan-guide / obsidian-topic): plan and topic notes are written into an Obsidian vault you control. If you don't have Obsidian yet, download it from [obsidian.md](https://obsidian.md/), open it, and follow its prompts to create a vault (any name and location work — you'll point the toolkit at it next). `/setup` then creates `~/.claude/obsidian-sync.json` from the shipped template; all docs and scripts resolve your vault location and root folder from that file.
 
 ## Updating
 

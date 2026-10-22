@@ -13,7 +13,7 @@ description: >-
 
 This skill writes a session continuation note into the Obsidian vault: a compressed, plain-language snapshot of the current work so someone else, or a later session, can pick it up cold without re-reading the whole transcript. It is not automatic. It fires only when the user explicitly asks to hand off, or to write a handoff or continuation note.
 
-It does not duplicate `plan-workflow`'s frontmatter session history (the `sessions:` list on the plan note). That stays, and this complements it: the `sessions:` entry is a one-line record that a session happened, this note is the fuller narrative of what to do next. Handoff does not mark a plan complete or change its `status`. Handoff never writes to the project repo. See Boundary below.
+It does not duplicate `plan-guide`'s frontmatter session history (the `sessions:` list on the plan note). That stays, and this complements it: the `sessions:` entry is a one-line record that a session happened, this note is the fuller narrative of what to do next. Handoff does not mark a plan complete or change its `status`. Handoff never writes to the project repo. See Boundary below.
 
 ## Trigger and scope
 
@@ -21,16 +21,16 @@ Fire only on an explicit request (e.g. "write a handoff note", "hand this off", 
 
 ## Placement rules
 
-Decide placement before writing. Check whether an active plan note exists for the current work in the vault (per `plan-workflow`'s canonical layout).
+Decide placement before writing. Check whether an active plan note exists for the current work in the vault (per `plan-guide`'s canonical layout).
 
 1. **Active plan exists.** Write the note as `handoff - <plan-name>.md` into that plan's directory (the same directory as `plan - <plan-name>.md`). Then edit the plan note's Linked Artifacts section to add a link to the new note (`[[handoff - <plan-name>]]`). Read the plan note first (recall-before-write) before editing it.
-2. **No active plan.** Write into a `_handoffs/` bucket at the vault root, resolved from `~/.claude/obsidian-sync.json` as `vault_path` + `root_folder` (`<vault_path>/<root_folder>/_handoffs/`). Filename: `handoff - <short-kebab-topic>-<YYYY-MM-DD>.md`. The topic is a short kebab-case description of the work, derived the same way `plan-workflow` derives plan names.
+2. **No active plan.** Write into a `_handoffs/` bucket at the vault root, resolved from `~/.claude/obsidian-sync.json` as `vault_path` + `root_folder` (`<vault_path>/<root_folder>/_handoffs/`). Filename: `handoff - <short-kebab-topic>-<YYYY-MM-DD>.md`. The topic is a short kebab-case description of the work, derived the same way `plan-guide` derives plan names.
 
 If it is ambiguous whether an active plan exists (more than one candidate, or the plan directory cannot be found), ask the user rather than guessing.
 
 ## Writing mechanics
 
-Use atomic writes, the same as `plan-workflow`: write the note to a `.tmp.md` file beside the destination first, then move it into place with the toolkit's `scripts/vault-fs.sh mv`. The vault path contains spaces and lives in iCloud Drive, so writing directly (instead of write-then-move) risks a partial file if iCloud syncs mid-write. Never write directly to the final path in the vault.
+Use atomic writes, the same as `plan-guide`: write the note to a `.tmp.md` file beside the destination first, then move it into place with the toolkit's `scripts/vault-fs.sh mv`. The vault path contains spaces and lives in iCloud Drive, so writing directly (instead of write-then-move) risks a partial file if iCloud syncs mid-write. Never write directly to the final path in the vault.
 
 ## Content of the note
 
@@ -66,4 +66,4 @@ Writing style for the note: plain sentences. Never use em dashes or semicolons t
 
 ## Boundary
 
-Handoff complements `plan-workflow`'s session closure, it does not replace it. It does not fire in place of recording a `sessions:` entry on the plan note, that still happens per `plan-workflow`'s Session Closure rules. Handoff writes only to the vault, never to the project repo. Handoff never changes a plan note's `status` and never marks a plan complete, it only adds links to the plan's Linked Artifacts section when case 1 applies.
+Handoff complements `plan-guide`'s session closure, it does not replace it. It does not fire in place of recording a `sessions:` entry on the plan note, that still happens per `plan-guide`'s Session Closure rules. Handoff writes only to the vault, never to the project repo. Handoff never changes a plan note's `status` and never marks a plan complete, it only adds links to the plan's Linked Artifacts section when case 1 applies.

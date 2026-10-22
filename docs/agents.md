@@ -48,7 +48,7 @@ Post-hoc quality review of a diff, each via `git diff --name-only`, each with a 
 
 ## Example invocations
 
-Most of these you never invoke by hand — the conductor spawns them for you. The plan-then-build pipeline (`explorer` → `planner` → `plan-critic` → `implementer` → `verifier`) runs through `plan-workflow` / `execute-workflow`, and the review agents fire when there is a diff to check. You can also call any of them directly by scoped name:
+Most of these you never invoke by hand — the conductor spawns them for you. The plan-then-build pipeline (`explorer` → `planner` → `plan-critic` → `implementer` → `verifier`) runs through `plan-guide` / `execution-guide`, and the review agents fire when there is a diff to check. You can also call any of them directly by scoped name:
 
 - **Build or restyle UI** (the one you will reach for most):
 
@@ -65,7 +65,7 @@ Most of these you never invoke by hand — the conductor spawns them for you. Th
 
       Use the toolkit:explorer to find every place we resolve the vault path.
 
-The workflow agents (`planner`, `implementer`, `verifier`, `plan-critic`) are normally driven by the plan/execute workflow rather than invoked by hand — start a planning or execution session and they spawn at the right step.
+The workflow agents (`planner`, `implementer`, `verifier`, `plan-critic`) are normally driven by the plan and execute skills rather than invoked by hand: `plan-guide` and `execution-guide` when a session follows the steps itself, or `plan-flow` and `execute-flow` when a flow runs them. Start a planning or execution session and they spawn at the right step.
 
 ## Why leaf-only
 

@@ -309,11 +309,11 @@ probe_skills() {
   skill_probe "testing-gate states its one question" \
     "Invoke the testing-gate skill. Without waiting for my reply, report as the answer the exact question it asks." \
     "'manual verification' in a and 'test' in a"
-  skill_probe "plan-workflow knows its lifecycle + naming" \
-    "Load the plan-workflow skill. Report as the answer: the canonical plan note filename pattern, and every status lifecycle value it defines." \
+  skill_probe "plan-guide knows its lifecycle + naming" \
+    "Load the plan-guide skill. Report as the answer: the canonical plan note filename pattern, and every status lifecycle value it defines." \
     "'plan - ' in a and 'in-progress' in a and 'abandoned' in a"
-  skill_probe "execute-workflow knows its progress sections" \
-    "Load the execute-workflow skill. Report as the answer the exact headings of its progress-report format." \
+  skill_probe "execution-guide knows its progress sections" \
+    "Load the execution-guide skill. Report as the answer the exact headings of its progress-report format." \
     "'files inspected' in a and 'checks performed' in a"
   skill_probe "gitlab-mr-review knows its tooling" \
     "Load the gitlab-mr-review skill. Report as the answer the CLI tool it depends on for API access." \
