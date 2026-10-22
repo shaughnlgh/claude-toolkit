@@ -60,7 +60,7 @@ After all fix rounds and before the doc pass, recapture the cumulative diff by t
 
 ## 7. Doc pass
 
-Run `execute-workflow`'s Doc Update Pass (`../execute-workflow/SKILL.md` from this skill's base directory) exactly once, after fixes and the cold read are in and re-checks are clean, before moving to the commit suggestion. Do not run it earlier. Findings from the panel may still change what needs documenting.
+Run `execution-guide`'s Doc Update Pass (`../execution-guide/SKILL.md` from this skill's base directory) exactly once, after fixes and the cold read are in and re-checks are clean, before moving to the commit suggestion. Do not run it earlier. Findings from the panel may still change what needs documenting.
 
 ## 7b. Remember pass
 

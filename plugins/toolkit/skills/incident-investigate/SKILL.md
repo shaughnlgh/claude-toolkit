@@ -10,7 +10,7 @@ description: >-
   root-cause verdict with a provenance label, writes a technical incident note and a
   plain-language stakeholder summary behind the vault consent list, and hands a
   needed fix to crawl. Never fires on its own, never implements a fix, never mutates
-  production. Do not fire for debugging a local runtime issue (execute-workflow owns
+  production. Do not fire for debugging a local runtime issue (execution-guide owns
   that) or for reviewing a diff.
 ---
 
@@ -24,7 +24,7 @@ Restate the question asked and the named items in one line, and commit to answer
 
 ## 1. Topic recall and preflight
 
-Recall vault topic notes and repo docs for the subsystem (plan-workflow's topic recall step). Then, before spawning any worker, list the evidence sources the project documents for this subsystem: log search, database, third-party service, metrics. Read them from the project's docs or company slice. This skill names no source itself. For each source, check that its credentials are exported in the session (`[ -n "${NAME:-}" ] && echo set || echo missing`, which never prints the value) and that the network path is up (read the reachability probe from the user's global instructions when one exists, otherwise ask). Report a missing source and ask the user to export or connect. Never work around a missing source. If the project documents no evidence source, stop before spawning anything, name the source classes this skill needs (log search, database, third-party service, metrics), ask the user to name the project's sources or point at the doc, and wait. Never infer a source from the codebase.
+Recall vault topic notes and repo docs for the subsystem (plan-guide's topic recall step). Then, before spawning any worker, list the evidence sources the project documents for this subsystem: log search, database, third-party service, metrics. Read them from the project's docs or company slice. This skill names no source itself. For each source, check that its credentials are exported in the session (`[ -n "${NAME:-}" ] && echo set || echo missing`, which never prints the value) and that the network path is up (read the reachability probe from the user's global instructions when one exists, otherwise ask). Report a missing source and ask the user to export or connect. Never work around a missing source. If the project documents no evidence source, stop before spawning anything, name the source classes this skill needs (log search, database, third-party service, metrics), ask the user to name the project's sources or point at the doc, and wait. Never infer a source from the codebase.
 
 ## 2. Parallel evidence gathering
 
@@ -36,7 +36,7 @@ The conductor reconciles conflicting findings against the cited evidence. Produc
 
 ## 4. Artifacts
 
-Derive the incident name per plan-workflow's name derivation (ticket key first). Write into that name's plan directory with the atomic write, subject to plan-workflow's "Do not write if" list, whose exception names the incident note:
+Derive the incident name per plan-guide's name derivation (ticket key first). Write into that name's plan directory with the atomic write, subject to plan-guide's "Do not write if" list, whose exception names the incident note:
 
 - `incident - <name>.md`: the technical writeup. Scope fence, evidence sources checked, findings per source with citations, verdict and provenance, chain of events, outside-scope list. Redact customer PII before writing. Keep item ids, timestamps, and error codes. Where a finding cannot be written without PII, cite its location (table and key, log source and timestamp) instead of quoting it.
 - The stakeholder summary, as a section at the top of the same note under "Summary for stakeholders": plain language, short, Slack-ready, domain nouns kept, uncertainty stated directly with the verdict's provenance label (verified, derived, or judgment), never softened or padded with filler.

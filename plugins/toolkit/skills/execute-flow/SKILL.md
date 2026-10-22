@@ -3,7 +3,8 @@ name: execute-flow
 description: >-
   Execute flow: one run that executes an approved plan note end to end. Use only when
   the user asks for the execute flow by name ("run the execute flow", "execute flow
-  this plan"). Never fires from crawl. Asks the git-permission question unless an
+  this plan", "run the execute workflow"). Never fires from crawl.
+  Asks the git-permission question unless an
   earlier flow in the session recorded the answer, checks the tree and the branch, runs
   topic recall, moves the plan note to in-progress, launches the execute-runner workflow
   (one implementer per Implementation Step, the plan's Validation Steps with one fix
@@ -14,9 +15,9 @@ description: >-
   as fix now, wrong, leave it, or hold, and closes with a report that carries a commit
   suggestion only when nothing blocked and every such entry is settled. Never
   mutates git state and runs read-only git only through its agents. Do NOT fire when no
-  plan note exists for the work (plan-flow or plan-workflow owns that), when the plan
+  plan note exists for the work (plan-flow or plan-guide owns that), when the plan
   note's status is neither approved nor an in-progress state this flow resumes or
-  reruns, or on a slice already under execute-workflow by hand.
+  reruns, or on a slice already under execution-guide by hand.
 ---
 
 # Execute Flow
@@ -25,7 +26,7 @@ Execute-flow is the conductor side of the `execute-runner` workflow, shipped wit
 
 ## 1. Trigger
 
-Fire only when the user asks for the execute flow by name. A `crawl` route never fires this skill. If the slice is already under `execute-workflow` by hand, do not fire. When the installed plugin does not carry this skill, the conductor reads `plugins/toolkit/skills/execute-flow/SKILL.md` from the toolkit checkout by path and follows it as written.
+Fire only when the user asks for the execute flow by name. Asking for "the execute workflow" counts as asking by name. A `crawl` route never fires this skill. If the slice is already under `execution-guide` by hand, do not fire. When the installed plugin does not carry this skill, the conductor reads `plugins/toolkit/skills/execute-flow/SKILL.md` from the toolkit checkout by path and follows it as written.
 
 The plan note must exist. `planName` is its `plan` frontmatter value. Read its `status` and the summary of its last `sessions` entry, then pick the run:
 
@@ -74,7 +75,7 @@ Before any status change, run recall as `plan-flow` section 3 describes (`../pla
 
 Before launch, count the steps the way the script parses them. The Implementation Steps section runs from its section heading to the next section heading outside a fence. A section heading is a line outside a fence that starts with `##` followed by a space or tab, and it names a section when the text after `##`, trimmed, equals the section name. A `###` line is not a section heading. A fence opens on a line of 3 or more backticks or tildes with an optional info string, and it closes only on a line of the same character at least as long with nothing else on it. A numbered line is a line outside a fence that opens with a number followed by `.` or `)` and a space. A subheading is a line outside a fence that starts with `###` followed by a space or tab. The numbered lines form a single list when their numbers, in order, run 1, 2, 3 with no restart and no gap. Inside Implementation Steps, the first of three rules that applies splits the steps. First, if at least one subheading starts with a number followed by `.` or `)` after `###`, those numbered subheadings split the steps and every other line stays inside its step. Second, every subheading starts a step, and its heading is the text after `###`, when all of these hold: the section has at least two subheadings and none of them is numbered, no numbered line comes before the first subheading, and the numbered lines do not form a single list that runs across a subheading. A single list that sits entirely under one subheading, a section with no numbered lines, and numbered lines that restart or skip a number all meet the last condition. Third, otherwise a numbered line starts a step when its number is greater than every number before it, so a list that restarts at 1, such as a Tripwires list under its own subheading, stays inside the step before it. Text before the first step joins step 1. A section with no step marker is one step for one implementer. Tell the user the step count, the first line of each step, and that a permission prompt pauses the run until the user answers it.
 
-On a fresh run, first delete any `<scratchpad>/execute-flow-<planName>.runid` left by an earlier run, so a later resume can only pick up the latest run. Move the status only when the launch is about to happen. Load `plan-workflow`. On a fresh run, set `status: in-progress` if the note is not already there, and record this session's entry per its session rules with the summary `execute-flow run started`, with the id taken from the scratchpad path. On a resume, leave the status and the entry as they are. Write the change atomically: Write the note to a `.tmp.md` file beside it, then move it into place with `vault-fs.sh mv`. Then run `python3 <plugin-root>/scripts/validate-plan.py "<plan note path>"` and require exit 0. If the validator fails, report its output and stop. Never patch a failure silently.
+On a fresh run, first delete any `<scratchpad>/execute-flow-<planName>.runid` left by an earlier run, so a later resume can only pick up the latest run. Move the status only when the launch is about to happen. Load `plan-guide`. On a fresh run, set `status: in-progress` if the note is not already there, and record this session's entry per its session rules with the summary `execute-flow run started`, with the id taken from the scratchpad path. On a resume, leave the status and the entry as they are. Write the change atomically: Write the note to a `.tmp.md` file beside it, then move it into place with `vault-fs.sh mv`. Then run `python3 <plugin-root>/scripts/validate-plan.py "<plan note path>"` and require exit 0. If the validator fails, report its output and stop. Never patch a failure silently.
 
 Build the args:
 
@@ -207,4 +208,4 @@ The flow never runs the suggested commands. The user runs git.
 
 ## Boundary
 
-The conductor never edits repo files, never mutates git state, and never sets `status: completed`. Repo writes come only from the script's workers, from the implementer that the consent gate delegates, and from the section 8 fix implementer. Not for a plan note that section 1 does not accept (`plan-workflow` owns that) and not for a standalone review of an uncommitted slice (`red-team` owns that). A clean run never marks the plan complete. The human approval rule in `plan-workflow` still governs: the flow runs only on a note that section 1 accepts and on the user's ask, and completion stays the user's word.
+The conductor never edits repo files, never mutates git state, and never sets `status: completed`. Repo writes come only from the script's workers, from the implementer that the consent gate delegates, and from the section 8 fix implementer. Not for a plan note that section 1 does not accept (`plan-guide` owns that) and not for a standalone review of an uncommitted slice (`red-team` owns that). A clean run never marks the plan complete. The human approval rule in `plan-guide` still governs: the flow runs only on a note that section 1 accepts and on the user's ask, and completion stays the user's word.

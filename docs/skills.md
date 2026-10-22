@@ -6,12 +6,14 @@ These GIFs live in the repo (`docs/media/`) but not in the installed plugin. The
 
 ## The set
 
+A skill whose name ends in `-flow` runs the work for you. A skill whose name ends in `-guide` is the manual a session follows by hand.
+
 | Skill | What it does | Fires when |
 |---|---|---|
-| `crawl` | Front door for new work: ingests a brief or ticket, validates it against the codebase (recall + explorer), then recommends a route — wayfinder, plan-workflow, or no plan — which you confirm before anything is written. | A session opens with a new piece of work and no plan note exists for it yet. |
-| `plan-workflow` | Writes a plan note to your Obsidian vault and stops for approval before any implementation. The single source of truth for artifact layout, naming, frontmatter, and the status lifecycle. | Creating, filling in, or closing out a plan note; starting a planning session. |
+| `crawl` | Front door for new work: ingests a brief or ticket, validates it against the codebase (recall + explorer), then recommends a route — wayfinder, plan-guide, or no plan — which you confirm before anything is written. | A session opens with a new piece of work and no plan note exists for it yet. |
+| `plan-guide` | Writes a plan note to your Obsidian vault and stops for approval before any implementation. The single source of truth for artifact layout, naming, frontmatter, and the status lifecycle. | Creating, filling in, or closing out a plan note; starting a planning session. |
 | `plan-flow` | One run from brief to plan note: asks the git-permission question unless an earlier flow in the session recorded the answer, runs topic recall, launches the `plan-builder` workflow (explorer discovery, planner draft, plan-critic pre-mortem with a revise loop, cold red team, optional goal judge), then writes and validates the plan note and sets its status from the result. Never writes repo files and never runs git. | You ask for the plan flow by name. Never from crawl, and never on an existing plan note. |
-| `execute-workflow` | Execution mechanics after a plan is approved: run topic recall at start (recall reads the vault and the repo's docs), delegate to worker agents, report progress in a fixed format, run the doc-update pass, debug with runtime evidence. | Starting execution of an approved plan; debugging a runtime or integration issue. |
+| `execution-guide` | Execution mechanics after a plan is approved: run topic recall at start (recall reads the vault and the repo's docs), delegate to worker agents, report progress in a fixed format, run the doc-update pass, debug with runtime evidence. | Starting execution of an approved plan; debugging a runtime or integration issue. |
 | `execute-flow` | One run that executes an approved plan note end to end: asks the git-permission question unless an earlier flow in the session recorded the answer, stops on `main`, `master`, the repo's default branch, or a detached HEAD and hands you the branch command to run, asks whether a branch with no commits beyond the default branch is merged work or fresh and stops on Merged, asks Hold or Proceed when the tree holds changes that are not the slice (Proceed names them in the report and leaves them off the staging list, and a rerun of a blocked run continues over the paths that run recorded from the tree and offers no Proceed for any other), runs topic recall, moves the note to in-progress, launches the `execute-runner` workflow (one implementer per Implementation Step, the plan's Validation Steps with one fix round, a `review-mr` panel chosen by the changed paths that returns scored findings and a list of at most five nits, one fix round over the confirmed findings, a cold read, and the Doc Update Pass and the remember pass when nothing blocked), records the result on the note, runs the consent gate, adjudicates with you, before the commit suggestion, every entry on the adjudication list, the panel findings the verifier could not reproduce and the verified cold-read findings (fix now, wrong, leave it, or hold), and closes with a report. Only a run with nothing blocked and no held finding gets a commit suggestion. A blocked run's report opens with the blocked reasons and the note stays in-progress for a rerun. Never mutates git state and runs read-only git only through its agents. | You ask for the execute flow by name on an approved plan note, or on an in-progress note it left blocked, mid-run, or adjudicating its findings. Never from crawl. |
 | `ship-flow` | One run that carries a reviewed slice toward production: asks the git-permission question unless an earlier flow in the session recorded the answer, reads the host, the tree, and where to resume through one verifier, plus a capture verifier before a commit, asks once where to stop, shows every external side effect at one confirmation gate, then launches the `ship-runner` workflow (commit, push, MR or PR, a pipeline watch pinned to the pushed commit with a bounded fix loop, bot review threads, a merge of that exact commit, and a tag). When a run stops only on a slow pipeline or a pending bot review, it waits in the background and relaunches itself. It stops at the lower of the stage you chose and the cap the session permission allows. A command the permission system denies ends the run with a paste-ready handoff. It refuses a merge over a fix commit the run pushed, a commit the shipping record never saw, an open thread, a stale pipeline that did not run on the commit being merged, or a requested-changes review. The conductor runs no git, and every mutation runs in the runner's agents. | You ask for the ship flow by name after an execute-flow report, or on an in-progress plan note whose branch exists. Never from crawl. |
 | `testing-gate` | Asks once, up front, whether the task needs automated tests or manual verification is enough. | Starting a feature, bugfix, or refactor. |
@@ -40,7 +42,7 @@ How to trigger each skill. Some you invoke directly, some fire automatically ins
 
       Run the expedition on this: <ticket link or brief>.
 
-- `plan-workflow` — plan a non-trivial change:
+- `plan-guide` — plan a non-trivial change:
 
       Let's plan adding rate limiting to the login endpoint.
 
@@ -104,7 +106,7 @@ How to trigger each skill. Some you invoke directly, some fire automatically ins
 
 - `test-first` — takes over once `testing-gate` decides tests are required, running the red-green-refactor loop as the code is written. No separate prompt.
 
-- `execute-workflow` — loads when you start executing an approved plan:
+- `execution-guide` — loads when you start executing an approved plan:
 
       The plan is approved, go ahead and implement it.
 
@@ -134,12 +136,12 @@ One explicit ask writes a single continuation note into the vault — into the a
 
 ### wayfinder
 
-Point it at a large, fuzzy effort (a migration, an incident) and it investigates, builds an issue register, then emits a parent umbrella plan plus a child plan stub per task, each ready to flow through `plan-workflow` on its own.
+Point it at a large, fuzzy effort (a migration, an incident) and it investigates, builds an issue register, then emits a parent umbrella plan plus a child plan stub per task, each ready to flow through `plan-guide` on its own.
 
 ![decomposing a large effort into a plan tree](media/wayfinder-demo.gif)
 
 ### grill
 
-An explicit request to grill starts a requirements interview: one question at a time, each with a recommended answer, self-answering from the code whatever the code can settle. After a single consent gate it writes a canonical glossary (`docs/glossary.md`) and any ADRs (`docs/decisions/`) into the repo, then hands off to `plan-workflow`.
+An explicit request to grill starts a requirements interview: one question at a time, each with a recommended answer, self-answering from the code whatever the code can settle. After a single consent gate it writes a canonical glossary (`docs/glossary.md`) and any ADRs (`docs/decisions/`) into the repo, then hands off to `plan-guide`.
 
 ![grilling requirements before a plan](media/grill-demo.gif)
