@@ -9,13 +9,13 @@ description: >-
   answer instead of asking, and once the user confirms shared understanding, writes a
   canonical glossary and Nygard-style ADRs into the project repo (location per
   doctrine/repo-artifacts.md) behind a single consent gate, then hands off to
-  plan-workflow. Do not invoke on task fuzziness the model detects on its own. Only an
+  plan-guide. Do not invoke on task fuzziness the model detects on its own. Only an
   explicit grill, elicit, or interview request should trigger this.
 ---
 
 # Grill
 
-This skill runs before planning, only when the user explicitly asks to grill, elicit, or interview requirements. It is the requirements-elicitation front end that feeds the existing plan-first workflow: it extracts fuzzy requirements from the user interactively, pins vague language into canonical terms, and records durable, repo-owned artifacts before a plan exists. `plan-workflow` is conductor-driven (Claude reads the code and lists Open Questions at the end of a drafted plan). Grill inverts that by interviewing the user up front. See Boundary below for what grill does not do.
+This skill runs before planning, only when the user explicitly asks to grill, elicit, or interview requirements. It is the requirements-elicitation front end that feeds the existing plan-first workflow: it extracts fuzzy requirements from the user interactively, pins vague language into canonical terms, and records durable, repo-owned artifacts before a plan exists. `plan-guide` is conductor-driven (Claude reads the code and lists Open Questions at the end of a drafted plan). Grill inverts that by interviewing the user up front. See Boundary below for what grill does not do.
 
 A skill is markdown instructions the model follows, not deterministic code. The behaviors below that can be made mechanical (the git precondition, the sentinel marker, the single end-of-interview consent gate for grill's own new artifacts with its one named exception for deferred out-of-phase items, the separate `docs/adr/` migration gate when an older layout is found, the explicit-request trigger) are stated as hard rules. The rest (one question at a time, recommending before deciding, keeping ADRs rare) are discipline: follow them carefully, but they are not enforced by tooling.
 
@@ -44,7 +44,7 @@ An existing `docs/adr/` directory is never folded into that gate. Ask about it s
 
 - One question at a time, in dependency order. Sequence questions so that an early answer can resolve, remove, or reshape several later ones. Do not ask a question whose answer depends on a question not yet asked.
 - Dependency order means the alignment layer comes first: the intended outcome, the definition of success, and the rough sequencing are the answers everything else depends on, along with which future axes the parent plan or roadmap has committed to and whether the layout gives each one a seam. When those settle and the evidence says the work is really several phases (multiple independent workstreams), pause at that depth and surface the split decision (in an expedition, that is the expedition's gate; standalone, recommend wayfinder) instead of grilling phase-5 detail that will be stale before phase 5 starts. A pause at alignment depth ends the interview at this altitude, so run the consent gate then for whatever glossary or ADR material the alignment layer produced, before handing off — wayfinder consumes the agreed outcome from the conversation and the umbrella plan, not from unwritten notes. If the work stays one plan, continue to full depth as normal.
-- The deferred-ideas exception (the one named exception to the consent gate): an answer that surfaces material belonging to a different phase gets recorded outside the conversation at the moment it surfaces, not held for the write gate — deferred ideas that live only in conversation get lost. The target is the wayfinder child stub that owns it (Open Questions or Current Context) when stubs exist, or the expedition work note's Parked Items section before they do. These are vault plan artifacts, so the write goes through plan-workflow's mechanics (load plan-workflow, atomic write via vault-fs.sh, validate-plan.py after a stub edit) — this exception updates existing pipeline artifacts and never touches grill's own repo artifacts, which stay behind the consent gate. Announce each such write as it happens.
+- The deferred-ideas exception (the one named exception to the consent gate): an answer that surfaces material belonging to a different phase gets recorded outside the conversation at the moment it surfaces, not held for the write gate — deferred ideas that live only in conversation get lost. The target is the wayfinder child stub that owns it (Open Questions or Current Context) when stubs exist, or the expedition work note's Parked Items section before they do. These are vault plan artifacts, so the write goes through plan-guide's mechanics (load plan-guide, atomic write via vault-fs.sh, validate-plan.py after a stub edit) — this exception updates existing pipeline artifacts and never touches grill's own repo artifacts, which stay behind the consent gate. Announce each such write as it happens.
 - Offer a recommended answer with every question (recommend, then confirm, never decide silently). State the recommendation and the reasoning in one line, then ask for a yes, a correction, or a different answer. Confirm-or-correct questions use the AskUserQuestion form per the communication doctrine; open-ended elicitation stays prose.
 - Before asking, check what the codebase can already settle (existing code, config, naming, docs, prior ADRs). State the settled answer instead of asking, and let the user correct it if it is wrong. Only ask what the codebase genuinely cannot answer.
 - Let each answer reshape the remaining queue. Re-derive the next question from the running state rather than working through a fixed list.
@@ -147,7 +147,7 @@ Missing any one of the three: no ADR. Most decisions surfaced during an intervie
 
 ## Writes go into the project repo, never the vault
 
-Grill is the first toolkit skill that writes into the project repo's working directory instead of the vault other toolkit skills use for plan and topic notes. After the consent gate, `toolkit:implementer` writes the settled content: the conductor hands over the exact glossary and ADR text agreed to at the gate, verbatim, at the locations `doctrine/repo-artifacts.md` defines, then reads the written files back to confirm they match — the conductor never calls Write/Edit on these artifacts itself. Nothing grill produces (glossary, ADRs) goes into the vault, and grill never reads or writes the vault's sync config. The deferred-ideas exception is not a grill artifact: it updates existing pipeline notes (wayfinder stubs, an expedition work note) that live in the vault, and exactly those writes use plan-workflow's vault mechanics (atomic write via vault-fs.sh) rather than plain Write.
+Grill is the first toolkit skill that writes into the project repo's working directory instead of the vault other toolkit skills use for plan and topic notes. After the consent gate, `toolkit:implementer` writes the settled content: the conductor hands over the exact glossary and ADR text agreed to at the gate, verbatim, at the locations `doctrine/repo-artifacts.md` defines, then reads the written files back to confirm they match — the conductor never calls Write/Edit on these artifacts itself. Nothing grill produces (glossary, ADRs) goes into the vault, and grill never reads or writes the vault's sync config. The deferred-ideas exception is not a grill artifact: it updates existing pipeline notes (wayfinder stubs, an expedition work note) that live in the vault, and exactly those writes use plan-guide's vault mechanics (atomic write via vault-fs.sh) rather than plain Write.
 
 ## Report step
 
@@ -158,20 +158,20 @@ After writing, print exactly what happened:
 - Migrated, and the old and new paths, for anything moved out of an older layout.
 - The terms added or updated, and the ADR titles, in one short list each.
 
-## Done signal and handoff to plan-workflow
+## Done signal and handoff to plan-guide
 
 The interview's stop point is the same as the consent gate: explicit user confirmation of shared understanding, followed by the write and the report above. Once reported, name the exact artifacts for the next step:
 
 ```
-Handoff to plan-workflow:
+Handoff to plan-guide:
 - Glossary: docs/glossary.md
 - ADRs: docs/decisions/0007-cache-invalidation-strategy.md
 ```
 
-Tell the user that `plan-workflow` (`../plan-workflow/SKILL.md` from this skill's base directory) should feed these paths into its Current Context and Related Topics, and skip re-deriving the terms and decisions already pinned here.
+Tell the user that `plan-guide` (`../plan-guide/SKILL.md` from this skill's base directory) should feed these paths into its Current Context and Related Topics, and skip re-deriving the terms and decisions already pinned here.
 
 Then stop. Grill does not continue into planning, does not loop back into another round of questions, and does not start drafting a plan in the same turn.
 
 ## Boundary
 
-Grill does not write plan notes. Grill does not duplicate `plan-workflow`'s Open Questions section, it produces a different artifact (a glossary and ADRs, not a plan). Grill does not invoke `plan-critic`. Those stay `plan-workflow`'s job, started fresh by the user or conductor after grill hands off.
+Grill does not write plan notes. Grill does not duplicate `plan-guide`'s Open Questions section, it produces a different artifact (a glossary and ADRs, not a plan). Grill does not invoke `plan-critic`. Those stay `plan-guide`'s job, started fresh by the user or conductor after grill hands off.

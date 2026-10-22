@@ -14,7 +14,7 @@ Before writing new code, walk this ladder and stop at the first rung that holds:
 6. Can it be a few lines in the right place?
 7. Only then, write the minimum that works.
 
-State the result of this check when you plan (see `plan-workflow`) so a reviewer can see why each new file or abstraction earns its place.
+State the result of this check when you plan (see `plan-guide`) so a reviewer can see why each new file or abstraction earns its place.
 
 ## Shape of the change
 

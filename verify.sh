@@ -402,10 +402,10 @@ PY
 )"
 case "$inv" in *"BAD  NONE  HAIKU"*) ok "no agent can spawn sub-agents (leaf), none omits allowlist, none on Haiku";; *) no "orchestration invariant broken: $inv";; esac
 if grep -qF 'Tripwires:' "$P/agents/plan-critic.md" && grep -qF 'Walk-away checks:' "$P/agents/plan-critic.md" && grep -qF '60 lines' "$P/agents/plan-critic.md" \
-   && grep -qF 'Tripwires block' "$P/skills/plan-workflow/SKILL.md" && grep -qF 'Walk-away checks block' "$P/skills/plan-workflow/SKILL.md"; then
-  ok "plan-critic's Tripwires:/Walk-away checks:/60-line return contract is referenced by plan-workflow"
+   && grep -qF 'Tripwires block' "$P/skills/plan-guide/SKILL.md" && grep -qF 'Walk-away checks block' "$P/skills/plan-guide/SKILL.md"; then
+  ok "plan-critic's Tripwires:/Walk-away checks:/60-line return contract is referenced by plan-guide"
 else
-  no "plan-critic / plan-workflow Tripwires-Walk-away contract broken"
+  no "plan-critic / plan-guide Tripwires-Walk-away contract broken"
 fi
 
 echo "== Docs coverage (every shipped component is documented) =="

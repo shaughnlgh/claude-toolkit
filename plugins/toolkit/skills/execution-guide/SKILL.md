@@ -1,17 +1,19 @@
 ---
-name: execute-workflow
+name: execution-guide
 description: >-
   MANDATORY companion for execution work. Invoke when starting to execute an approved
   plan, and when debugging runtime/integration issues or finishing implementation work.
   Contains the execution workflow steps, progress report format, the doc update pass
   (run before declaring any task done), and the runtime-evidence debugging method.
-  Also invoke plan-workflow at execution start for the plan note spec, status
-  lifecycle, and session recording rules.
+  Also invoke plan-guide at execution start for the plan note spec, status
+  lifecycle, and session recording rules. A request naming the execute flow or the
+  execute workflow goes to the execute-flow skill, whose runner reads this guide's Doc
+  Update Pass.
 ---
 
-# Execute Workflow
+# Execution Guide
 
-This skill holds the execution-time mechanics. The always-loaded invariants (orchestration rules, execution guardrails, git safety, validation honesty) live in the toolkit's CLAUDE.md doctrine and your global config. The plan note spec, status lifecycle, session recording, and session closure live in the `plan-workflow` skill — invoke that too at execution start.
+This skill holds the execution-time mechanics. The always-loaded invariants (orchestration rules, execution guardrails, git safety, validation honesty) live in the toolkit's CLAUDE.md doctrine and your global config. The plan note spec, status lifecycle, session recording, and session closure live in the `plan-guide` skill — invoke that too at execution start.
 
 ## Execution Workflow
 
@@ -28,7 +30,7 @@ After plan approval and explicit user instruction to execute:
 9. Have workers run relevant verification.
 10. If the actual worker model differs from the requested model and that is visible, report it.
 11. Report progress and residual risk.
-12. When execution surfaces an idea, requirement, or risk that belongs to a different phase of a multi-part effort, write it into the child plan stub that owns it (Open Questions or Current Context) at the moment it surfaces, and say so. Deferred ideas that live only in conversation get lost. Stub edits go through plan-workflow's mechanics: atomic vault write, then validate-plan.py on the edited stub.
+12. When execution surfaces an idea, requirement, or risk that belongs to a different phase of a multi-part effort, write it into the child plan stub that owns it (Open Questions or Current Context) at the moment it surfaces, and say so. Deferred ideas that live only in conversation get lost. Stub edits go through plan-guide's mechanics: atomic vault write, then validate-plan.py on the edited stub.
 
 ### Build minimal
 
