@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only validator for the canonical plan-note contract (plan-workflow skill).
+"""Read-only validator for the canonical plan-note contract (plan-guide skill).
 
 Usage: validate-plan.py <path to "plan - <slug>.md">
 
@@ -11,7 +11,7 @@ Exit codes:
 Never writes. No network, no vault config, no third-party packages.
 
 Parser scope (deliberate, documented): this is NOT a YAML parser. It parses
-exactly the frontmatter subset the plan-workflow skill and Mission Control
+exactly the frontmatter subset the plan-guide skill and Mission Control
 scaffolds produce — top-level "key: value" scalars, bare "key:" (blank), lists
 of scalars ("- item"), and lists of flat dicts ("- k: v" with indented "k: v"
 continuations, one level deep). Anything else (block scalars, flow style on
@@ -27,7 +27,7 @@ FILENAME_RE = re.compile(r"^plan - (.+)\.md$")
 KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):(.*)$")
 ITEM_KEY_RE = re.compile(r"^- (?:([A-Za-z_][A-Za-z0-9_-]*):(.*))?$")
 
-# Contract, from plan-workflow SKILL.md (Required plan frontmatter / status lifecycle
+# Contract, from plan-guide SKILL.md (Required plan frontmatter / status lifecycle
 # / Required plan sections). All 18 keys must be PRESENT; `modules` and `repos`
 # are validly BLANK for single-repo plans ("leave blank", not "leave out").
 REQUIRED_KEYS = [

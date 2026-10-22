@@ -203,7 +203,7 @@ Each threshold fires once per crossing: the announced tier is remembered in a pe
 
 **Event:** `Stop`, no matcher. It fires each time Claude finishes a reply.
 
-The check for the remember pass that red-team step 7b and plan-workflow Session Closure run once per slice. The pass records a `Remember:` line in the plan note, and this hook tells the user when a reply suggests a commit before that line exists. It prints a one-line user-visible `systemMessage` only when every condition holds:
+The check for the remember pass that red-team step 7b and plan-guide Session Closure run once per slice. The pass records a `Remember:` line in the plan note, and this hook tells the user when a reply suggests a commit before that line exists. It prints a one-line user-visible `systemMessage` only when every condition holds:
 
 - (a) `stop_hook_active` is false, so a Stop that follows a stop-hook continuation never warns.
 - (e) The payload's `last_assistant_message` has a line that begins `Suggested commit`, matched case-insensitively, after an optional `#`, `*`, or `**` markdown prefix. The line can appear anywhere in the message, not only first. Red-team step 8 puts it directly after the Repo, Branch, and Scope header lines of its commit suggestion. The phrase in the middle of a line does not count.

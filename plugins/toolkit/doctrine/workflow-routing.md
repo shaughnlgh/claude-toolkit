@@ -5,12 +5,12 @@ For non-trivial development tasks, use a plan-first workflow: the plan note is w
 | Moment | Invoke first |
 |---|---|
 | New work arriving as a brief, ticket reference, or stated task with no plan note yet | `crawl` skill |
-| Creating, filling in, updating, or closing out any plan note | `plan-workflow` skill |
-| Starting a planning session (incl. pre-scaffolded plan notes) | `plan-workflow` skill |
+| Creating, filling in, updating, or closing out any plan note | `plan-guide` skill |
+| Starting a planning session (incl. pre-scaffolded plan notes) | `plan-guide` skill |
 | Deciding testing level for a feature/bugfix/refactor | `testing-gate` skill |
 | Writing or editing code when testing-gate determined tests are required | `test-first` skill |
-| Starting execution of an approved plan | `execute-workflow` + `plan-workflow` skills |
-| Debugging runtime/integration issues; finishing implementation (doc pass) | `execute-workflow` skill |
+| Starting execution of an approved plan | `execution-guide` + `plan-guide` skills |
+| Debugging runtime/integration issues; finishing implementation (doc pass) | `execution-guide` skill |
 | User signals a completed implementation slice (recommend red team, run only on confirmation) | `red-team` skill |
 | Creating or updating a topic note or stub | `obsidian-topic` command |
 | Reviewing a GitLab MR | `gitlab-mr-review` skill |
@@ -22,12 +22,12 @@ For non-trivial development tasks, use a plan-first workflow: the plan note is w
 | (opt-in, not blocking) User asks whether a plan, decision, or fix is good, or invokes a pre-mortem by name | `inversion` skill |
 | (opt-in, not blocking) User asks to work through review threads on a pushed MR or PR | `review-threads` skill |
 | (opt-in, not blocking) User asks to investigate a production incident or pastes an alert with "find the cause" | `incident-investigate` skill |
-| (opt-in, not blocking) User asks for the plan flow by name | `plan-flow` skill |
-| (opt-in, not blocking) User asks for the execute flow by name on an approved plan note | `execute-flow` skill |
+| (opt-in, not blocking) User asks for the plan flow or the plan workflow by name | `plan-flow` skill |
+| (opt-in, not blocking) User asks for the execute flow or the execute workflow by name on an approved plan note | `execute-flow` skill |
 | (opt-in, not blocking) User asks for the ship flow by name after an execute-flow report, or on an in-progress plan note with a built branch | `ship-flow` skill |
 
-The `grill`, `handoff`, `resolving-merge-conflicts`, `wayfinder`, `expedition`, `inversion`, `review-threads`, `incident-investigate`, `plan-flow`, `execute-flow`, and `ship-flow` rows are guidance, not a blocking requirement like the rows above them. Each fires only on an explicit user request, never on task fuzziness or size the model detects on its own. Two carve-outs apply: a `crawl` route the user has confirmed counts as the explicit request for `wayfinder`, and a confirmed yes at an expedition's grill gate counts as the explicit request for `grill`. The plan flow, the execute flow, and the ship flow run only on an explicit ask and never from a `crawl` route. An evaluative question about a plan or fix ("is this a good plan", "is this ready to ship") counts as the explicit request for `inversion`. When uncommitted implementation changes are present, a closure-shaped utterance routes to `red-team`, not `inversion`. The `crawl` row is the front door for new work: it investigates the brief and routes to `wayfinder`, `plan-workflow`, or no plan; on routes that write artifacts the user confirms the route first, while the trivial no-plan route states its routing in one sentence and proceeds.
+The `grill`, `handoff`, `resolving-merge-conflicts`, `wayfinder`, `expedition`, `inversion`, `review-threads`, `incident-investigate`, `plan-flow`, `execute-flow`, and `ship-flow` rows are guidance, not a blocking requirement like the rows above them. Each fires only on an explicit user request, never on task fuzziness or size the model detects on its own. Two carve-outs apply: a `crawl` route the user has confirmed counts as the explicit request for `wayfinder`, and a confirmed yes at an expedition's grill gate counts as the explicit request for `grill`. The plan flow, the execute flow, and the ship flow run only on an explicit ask and never from a `crawl` route. An evaluative question about a plan or fix ("is this a good plan", "is this ready to ship") counts as the explicit request for `inversion`. When uncommitted implementation changes are present, a closure-shaped utterance routes to `red-team`, not `inversion`. The `crawl` row is the front door for new work: it investigates the brief and routes to `wayfinder`, `plan-guide`, or no plan; on routes that write artifacts the user confirms the route first, while the trivial no-plan route states its routing in one sentence and proceeds.
 
-The `red-team` row is blocking for the recommendation only, not the run — at a closure signal, saying so in one line is mandatory, while the review itself runs only on the user's explicit confirmation; an explicit red-team request invokes the skill directly at any time, bypassing the recommendation. At slice closure, `red-team` owns finalization and invokes `execute-workflow`'s doc pass exactly once after its own fixes, then the `obsidian-topic` remember pass once after it; the finishing-implementation row above continues to cover doc-pass mechanics outside a red-teamed closure.
+The `red-team` row is blocking for the recommendation only, not the run — at a closure signal, saying so in one line is mandatory, while the review itself runs only on the user's explicit confirmation; an explicit red-team request invokes the skill directly at any time, bypassing the recommendation. At slice closure, `red-team` owns finalization and invokes `execution-guide`'s doc pass exactly once after its own fixes, then the `obsidian-topic` remember pass once after it; the finishing-implementation row above continues to cover doc-pass mechanics outside a red-teamed closure.
 
-Never write or edit a plan note without `plan-workflow` loaded — its frontmatter and naming rules are a contract that plan-tracking tooling parses, and improvising them breaks that contract. Keep this discipline for real planned work, not trivial Q&A or explanation-only sessions.
+Never write or edit a plan note without `plan-guide` loaded — its frontmatter and naming rules are a contract that plan-tracking tooling parses, and improvising them breaks that contract. Keep this discipline for real planned work, not trivial Q&A or explanation-only sessions.

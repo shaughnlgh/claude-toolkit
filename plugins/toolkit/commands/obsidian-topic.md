@@ -5,7 +5,7 @@ argument-hint: <topic name> [repo hint]
 
 # Obsidian Topic
 
-Create or update a topic's canonical knowledge: in the vault, or — per Repo mode below — in the project repo when the topic qualifies. This file is the single source of truth for topic notes and repo-mode context docs alike (mode choice, location, frontmatter, structure, content rules, freshness, and the build/update process) — the plan-workflow skill and CLAUDE.md point here.
+Create or update a topic's canonical knowledge: in the vault, or — per Repo mode below — in the project repo when the topic qualifies. This file is the single source of truth for topic notes and repo-mode context docs alike (mode choice, location, frontmatter, structure, content rules, freshness, and the build/update process) — the plan-guide skill and CLAUDE.md point here.
 
 ## Usage
 
@@ -132,7 +132,7 @@ A topic note is a claim about the world at its `verified` time. A blank `verifie
 
 ## Remember pass
 
-Runs once per implementation slice, from red-team step 7b, the execute flow's `execute-runner` workflow, or plan-workflow Session Closure, whichever comes first. A `Remember:` line under the plan note's Plan Changes During Execution is the signal that the pass already ran for the slice. For a slice with no plan note, the line goes in the red-team report only, and that report is the signal. The remember pass is distinct from execute-workflow's Doc Update Pass: the doc pass keeps existing docs accurate about what changed, the remember pass records what the slice learned.
+Runs once per implementation slice, from red-team step 7b, the execute flow's `execute-runner` workflow, or plan-guide Session Closure, whichever comes first. A `Remember:` line under the plan note's Plan Changes During Execution is the signal that the pass already ran for the slice. For a slice with no plan note, the line goes in the red-team report only, and that report is the signal. The remember pass is distinct from execution-guide's Doc Update Pass: the doc pass keeps existing docs accurate about what changed, the remember pass records what the slice learned.
 
 ### Inputs
 
