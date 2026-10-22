@@ -1,5 +1,5 @@
 ---
-name: plan-workflow
+name: plan-guide
 description: >-
   MANDATORY companion for plan work. Invoke BEFORE creating, filling in, updating, or
   closing out any plan note (plan - <name>.md) in the Obsidian vault — including
@@ -7,10 +7,11 @@ description: >-
   execution session tied to a plan. Contains the canonical artifact locations, naming
   rules, plan frontmatter and sections, planning steps, status lifecycle, session
   recording, and session closure rules. Do not write or edit
-  a plan note without this loaded.
+  a plan note without this loaded. A request naming the plan flow or the plan workflow
+  goes to the plan-flow skill, which loads this guide for the plan note contract.
 ---
 
-# Plan Workflow
+# Plan Guide
 
 This skill is the single source of truth for the plan-first workflow: where artifacts live, how they are named, what a plan note contains, the planning steps, the status lifecycle, and session closure. The always-loaded invariants (plan-first, approval gate, orchestration rules, git safety) live in the toolkit's CLAUDE.md doctrine and your global config; this file holds the mechanics.
 
@@ -289,7 +290,7 @@ Drive the plan note's frontmatter `status` through its lifecycle so plan-trackin
 
 - `planning` — actively being planned (scaffold/start state).
 - `review` — planning is complete and the plan is awaiting human review. **When you finish a planning session and stop for approval, set `status: review`** (this is the signal plan-tracking tooling watches for). Do this whether or not the plan was scaffolded.
-- `approved` — approved by the human, or by the plan flow's `approveIf` gate; ready to execute. A gate approval records a mechanical judgement against a goal sentence the user wrote, the session entry says so, and execute-workflow still waits for the user's instruction before it runs. Approval also stamps the frontmatter `approved:` date. Approval sets both fields (`status: approved` + `approved: <date>`); tooling may automate this and attach the plan note to the ticket. Only an `approved` plan should be worked: while a plan is in `review`, the only actions are approve and time tracking. The FIRST action after approval, before touching any file, is invoking the execute-workflow skill — non-negotiable, and doubly so right after a /compact, which can summarize away previously loaded doctrine: the conductor supervises and delegates, it never implements directly, and execute-workflow is where that contract lives. When the user asks for the execute flow by name, the execute-flow skill drives the run instead and loads execute-workflow for the doc pass.
+- `approved` — approved by the human, or by the plan flow's `approveIf` gate; ready to execute. A gate approval records a mechanical judgement against a goal sentence the user wrote, the session entry says so, and execution-guide still waits for the user's instruction before it runs. Approval also stamps the frontmatter `approved:` date. Approval sets both fields (`status: approved` + `approved: <date>`); tooling may automate this and attach the plan note to the ticket. Only an `approved` plan should be worked: while a plan is in `review`, the only actions are approve and time tracking. The FIRST action after approval, before touching any file, is invoking the execution-guide skill — non-negotiable, and doubly so right after a /compact, which can summarize away previously loaded doctrine: the conductor supervises and delegates, it never implements directly, and execution-guide is where that contract lives. When the user asks for the execute flow by name, the execute-flow skill drives the run instead and loads execution-guide for the doc pass.
 - `in-progress` → `completed` (or `blocked` / `abandoned`) as execution proceeds.
 
 ### Record the session on the plan

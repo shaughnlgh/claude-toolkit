@@ -44,4 +44,4 @@ Give one measurable signal per Autopsy failure mode and the moment to check it (
 
 ## Rules
 
-No generic advice. Every sentence names a detail of this subject. Never reassure and never balance the picture with what might go right. When the output runs past a page, write it to the session scratchpad only, never the vault or the repo, per the communication doctrine, and summarize in chat. Inside plan-workflow, the `plan-critic` agent runs this structure on the plan note, and plan-workflow copies the Tripwires and the walk-away checks into the plan's Validation Steps and Risks.
+No generic advice. Every sentence names a detail of this subject. Never reassure and never balance the picture with what might go right. When the output runs past a page, write it to the session scratchpad only, never the vault or the repo, per the communication doctrine, and summarize in chat. Inside plan-guide, the `plan-critic` agent runs this structure on the plan note, and plan-guide copies the Tripwires and the walk-away checks into the plan's Validation Steps and Risks.

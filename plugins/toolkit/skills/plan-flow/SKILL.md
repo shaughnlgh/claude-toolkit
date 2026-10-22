@@ -2,13 +2,14 @@
 name: plan-flow
 description: >-
   Plan flow: one run that turns a brief into a validated plan note. Use only when the
-  user asks for the plan flow by name ("run the plan flow", "plan flow this brief").
+  user asks for the plan flow by name ("run the plan flow", "plan flow this brief",
+  "run the plan workflow").
   Never fires from crawl. Asks the git-permission question unless an earlier
   flow in the session recorded the answer, runs topic recall, launches the plan-builder
   workflow (discovery, planner draft, plan-critic pre-mortem with a revise loop, cold
   red team, optional goal judge), writes and validates the plan note in the vault, and
   gates its status on the result. Never writes repo files and never runs git. Do NOT
-  fire when a plan note already exists for the work (plan-workflow owns that) or on
+  fire when a plan note already exists for the work (plan-guide owns that) or on
   trivial work that needs no plan.
 ---
 
@@ -18,7 +19,7 @@ Plan-flow is the conductor side of the `plan-builder` workflow, shipped with thi
 
 ## 1. Trigger
 
-Fire only when the user asks for the plan flow by name. A `crawl` route never fires this skill. When a plan note already exists, load `plan-workflow` instead. Trivial work needs no plan, so it never fires this skill. The brief is the user's text for the work, quoted verbatim.
+Fire only when the user asks for the plan flow by name. Asking for "the plan workflow" counts as asking by name. A `crawl` route never fires this skill. When a plan note already exists, load `plan-guide` instead. Trivial work needs no plan, so it never fires this skill. The brief is the user's text for the work, quoted verbatim.
 
 ## 2. Git permission
 
@@ -44,7 +45,7 @@ On `2` or `3`, stop and report the exit code and stderr to the user. Never pass 
 
 ## 4. Launch
 
-Derive `planName` per `plan-workflow` naming and build the args: `brief`, `repoRoot` as an absolute path, `repoName`, `planName`, `recallHits`, and the optional `knownEvidence` (facts this session already verified, each with its file:line), `approveIf` (one goal sentence the plan must meet, only when the user gave one), and `maxRounds` (revise rounds, default 2).
+Derive `planName` per `plan-guide` naming and build the args: `brief`, `repoRoot` as an absolute path, `repoName`, `planName`, `recallHits`, and the optional `knownEvidence` (facts this session already verified, each with its file:line), `approveIf` (one goal sentence the plan must meet, only when the user gave one), and `maxRounds` (revise rounds, default 2).
 
 When `repoRoot` contains `plugins/toolkit/workflows/plan-builder.js`, launch `{scriptPath: "<repoRoot>/plugins/toolkit/workflows/plan-builder.js"}`, otherwise `{name: "toolkit:plan-builder"}` with the `scriptPath` fallback `red-team` uses. That fallback is `{scriptPath: "<this skill's base directory>/../../workflows/plan-builder.js"}` resolved to an absolute path, used if name resolution fails. The script is named `plan-builder` because a workflow and a skill cannot share a name in the plugin registry. Persist the `runId` and script path to `<scratchpad>/plan-flow-<planName>.runid` at once, before reading the result. A dead run resumes with `resumeFromRunId`. Completed agents return cached, so never relaunch a fresh run when a resume is possible.
 
@@ -59,7 +60,7 @@ The result is `{plan, branch, relatedTopics, discovery, rounds, tripwires, walkA
 
 ## 5. Write the plan note
 
-Load `plan-workflow`. Create the directory and note per its naming and atomic write rules: Write the note to a `.tmp.md` file beside the destination, then move it into place with `vault-fs.sh mv`.
+Load `plan-guide`. Create the directory and note per its naming and atomic write rules: Write the note to a `.tmp.md` file beside the destination, then move it into place with `vault-fs.sh mv`.
 
 Map each section to its heading:
 
@@ -77,11 +78,11 @@ Map each section to its heading:
 | `openQuestions` | Open Questions |
 | `relatedTopics` | Related Topics |
 
-Add Plan Changes During Execution and Linked Artifacts, both empty at creation as `plan-workflow` requires. Write the full frontmatter per `plan-workflow`, with `status: planning` until the gate. Before writing the frontmatter, check `branch` against the git-safety branch shape: `<type>/<TICKET>-<slug>` or `<type>/<slug>`, lowercase kebab-case apart from the ticket key. If `branch` does not match, write `feat/<planName>` and tell the user. Check that each `relatedTopics` entry is a plain name with no brackets and no slashes. If an entry carries brackets or a slash, write it without the brackets and with only its last path segment, and tell the user. Write `branch` to `branch` and `relatedTopics` to `related_topics` as plain strings.
+Add Plan Changes During Execution and Linked Artifacts, both empty at creation as `plan-guide` requires. Write the full frontmatter per `plan-guide`, with `status: planning` until the gate. Before writing the frontmatter, check `branch` against the git-safety branch shape: `<type>/<TICKET>-<slug>` or `<type>/<slug>`, lowercase kebab-case apart from the ticket key. If `branch` does not match, write `feat/<planName>` and tell the user. Check that each `relatedTopics` entry is a plain name with no brackets and no slashes. If an entry carries brackets or a slash, write it without the brackets and with only its last path segment, and tell the user. Write `branch` to `branch` and `relatedTopics` to `related_topics` as plain strings.
 
 Append the tripwires to Validation Steps and the walk-away checks to Risks, one line each. If `critiqueStale` is true, end each of those tripwire and walk-away lines with the sentence "Written against an earlier draft, re-check against the final plan." List every `openObjections` entry under Risks as an open objection, one line each with its section, claim, and fix. List every `coldObjections` entry that the final plan does not resolve under Risks, one line each with its section and claim.
 
-Record the session entry per `plan-workflow`, with the id taken from the scratchpad path. When the gate in section 6 sets `status: approved`, the session summary must say that the approval came from the `approveIf` judge and quote the goal sentence, so a reader knows that a model judged the plan against a goal the user wrote and that no human read the note first. Create stubs for unresolved Related Topics per the obsidian-topic command (`../../commands/obsidian-topic.md` from this skill's base directory).
+Record the session entry per `plan-guide`, with the id taken from the scratchpad path. When the gate in section 6 sets `status: approved`, the session summary must say that the approval came from the `approveIf` judge and quote the goal sentence, so a reader knows that a model judged the plan against a goal the user wrote and that no human read the note first. Create stubs for unresolved Related Topics per the obsidian-topic command (`../../commands/obsidian-topic.md` from this skill's base directory).
 
 Then run `python3 <plugin-root>/scripts/validate-plan.py "<plan note path>"` and require exit 0. A failure is reported with the validator output, never patched silently.
 
@@ -93,4 +94,4 @@ Whatever the gate result, state to the user the `finalVerdict`, the `coldVerdict
 
 ## Boundary
 
-The flow never writes repo files and never runs git. Prose rules bind the note. Not for an existing plan note (`plan-workflow` owns that) and not for a standalone review of a written plan (`plan-critic` owns that). An approved status never starts execution on its own. The next step waits on the user. An approved status set by the gate records a mechanical judgement against the user's own `approveIf` sentence, not a human reading of the note. The human approval rule in `plan-workflow` still governs execution, and the user can revert the status to `review`.
+The flow never writes repo files and never runs git. Prose rules bind the note. Not for an existing plan note (`plan-guide` owns that) and not for a standalone review of a written plan (`plan-critic` owns that). An approved status never starts execution on its own. The next step waits on the user. An approved status set by the gate records a mechanical judgement against the user's own `approveIf` sentence, not a human reading of the note. The human approval rule in `plan-guide` still governs execution, and the user can revert the status to `review`.

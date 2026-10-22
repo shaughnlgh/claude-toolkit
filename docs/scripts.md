@@ -20,7 +20,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved this way.
 | `watch-mr.sh` | Waits on one GitLab MR or GitHub PR until its pipeline settles or a bot review lands, then prints one status line | Reads only, through `gh` and `glab`, which hold their own auth; never reads or prints a token; validates every argument; exits on a wall-clock bound |
 | `override.sh` | Copy a plugin doctrine, rule, agent, or skill into `~/.claude/` to override it (drives `/override`) | Name only (no paths); refuses unknown/ambiguous names; won't clobber an existing override |
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
-| `validate-plan.py` | Validates a plan note against the plan-workflow contract | Read-only — never edits the note; no network, no config, stdlib only |
+| `validate-plan.py` | Validates a plan note against the plan-guide contract | Read-only — never edits the note; no network, no config, stdlib only |
 | `topic-recall.py` | Lexical topic search over the vault index, with a frontmatter fallback and an optional repo `docs/` source | Read-only against the vault and the repo, stdlib only, skips symlinks and non-regular files, INDEX.md included, reads at most 64 KiB of each scanned note or doc, stops at a 3-second deadline |
 | `obsidian-sync.json.template` | Vault config template `setup` instantiates to `~/.claude/obsidian-sync.json` | n/a — config, not an executable |
 | `toolkit-models.json.template` | Per-agent model routing config template `setup` instantiates to `~/.claude/toolkit-models.json` | n/a, config, not an executable |
@@ -28,7 +28,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved this way.
 
 ## vault-fs.sh
 
-Atomic file ops (`rm`, `mv`) scoped to the Obsidian vault, so skills like `plan-workflow` and `handoff` never touch the filesystem with a raw shell command.
+Atomic file ops (`rm`, `mv`) scoped to the Obsidian vault, so skills like `plan-guide` and `handoff` never touch the filesystem with a raw shell command.
 
 Invoke:
 
@@ -133,7 +133,7 @@ Notes:
 
 ## validate-plan.py
 
-Read-only validator for the canonical plan-note contract defined by the `plan-workflow` skill. Takes exactly one plan-note path; never writes; needs no network, vault config, or packages (python3 standard library only).
+Read-only validator for the canonical plan-note contract defined by the `plan-guide` skill. Takes exactly one plan-note path; never writes; needs no network, vault config, or packages (python3 standard library only).
 
     python3 <plugin-root>/scripts/validate-plan.py "<vault>/.../plan - my-slug.md"
 
@@ -145,13 +145,13 @@ Exit codes: `0` valid, `1` contract violation(s) (each printed as `VIOLATION: ..
 
 **Parser note:** the frontmatter parser is deliberately narrow — the exact subset the toolkit and Mission Control produce (top-level scalars, lists of scalars, lists of flat mappings). Unsupported structure under a *validated* key fails loudly with exit 2 instead of being silently misparsed.
 
-When it runs: the `plan-workflow` skill requires a passing validation after every plan-note write, before presenting a plan for approval, before starting execution, and at session closure.
+When it runs: the `plan-guide` skill requires a passing validation after every plan-note write, before presenting a plan for approval, before starting execution, and at session closure.
 
 Tests: `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` (37 behavior cases over 36 fixtures plus a direct nonexistent-path case; also run by `verify.sh`).
 
 ## topic-recall.py
 
-Lexical search over the vault's topic notes and, when asked, a repo's `docs/` folder. Session start, plan-workflow, crawl, and execute-workflow run it to recall what earlier sessions recorded about a repo or a task.
+Lexical search over the vault's topic notes and, when asked, a repo's `docs/` folder. Session start, plan-guide, crawl, and execution-guide run it to recall what earlier sessions recorded about a repo or a task.
 
 Invoke:
 
