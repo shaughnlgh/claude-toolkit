@@ -5,14 +5,14 @@ description: >-
   brief, a ticket reference, or a stated task — and no plan note exists for it yet.
   Ingests the brief, validates it against the codebase (topic recall + explorer
   fan-out), then recommends a route: wayfinder for genuinely multi-part efforts,
-  plan-workflow for a single coherent change, or no plan at all below the planning
+  plan-guide for a single coherent change, or no plan at all below the planning
   threshold. On routes that write artifacts, the user confirms the route first; the
   trivial no-plan route states its routing in one sentence and proceeds. Fires on new
   work whether it arrives at session start or mid-session. Crawl runs BEFORE
   testing-gate when both match — route first, then the gate decides testing on the
   chosen route. Do not fire when a plan note (including a pre-scaffolded one) already
   exists for the work, when the user explicitly invokes any skill by name (grill,
-  wayfinder, plan-workflow, expedition, gitlab-mr-review, handoff, or any other), or
+  wayfinder, plan-guide, expedition, gitlab-mr-review, handoff, or any other), or
   on trivial Q&A and explanation-only sessions.
 ---
 
@@ -24,7 +24,7 @@ Crawl is read-only against the repo. It writes nothing anywhere until the user c
 
 ## Trigger and scope
 
-Fire when new work arrives — a brief, a ticket link, a dictated task — at session start or mid-session, and no plan note exists for it. Do not fire when the prompt points at an existing or pre-scaffolded plan note (that is `plan-workflow`), when the user explicitly invokes any skill by name — grill, wayfinder, plan-workflow, expedition, gitlab-mr-review, handoff, or any other (their explicit trigger wins) — or on Q&A that plainly needs no plan. When both crawl and `testing-gate` match a prompt, crawl runs first: route, then gate testing on the chosen route.
+Fire when new work arrives — a brief, a ticket link, a dictated task — at session start or mid-session, and no plan note exists for it. Do not fire when the prompt points at an existing or pre-scaffolded plan note (that is `plan-guide`), when the user explicitly invokes any skill by name — grill, wayfinder, plan-guide, expedition, gitlab-mr-review, handoff, or any other (their explicit trigger wins) — or on Q&A that plainly needs no plan. When both crawl and `testing-gate` match a prompt, crawl runs first: route, then gate testing on the chosen route.
 
 Thin-crawl skip: when the brief already names exact files and functions and those facts are verified (a bug the user already diagnosed), or topic recall shows a prior crawl or plan covering the same ground, skip the investigation, say why, and route directly. Skipping requires a stated reason, the same discipline as every other gate in this toolkit.
 
@@ -36,7 +36,7 @@ Capture the brief verbatim — the user's words, plus the ticket content when a 
 
 ## 2. Investigate
 
-Run topic recall first, as `plan-workflow` step 1 does: run the toolkit's `scripts/topic-recall.py` over the vault topic notes and the repo's `docs/`, then search prior plan folders. The crawl never re-derives what the vault or the repo already knows.
+Run topic recall first, as `plan-guide` step 1 does: run the toolkit's `scripts/topic-recall.py` over the vault topic notes and the repo's `docs/`, then search prior plan folders. The crawl never re-derives what the vault or the repo already knows.
 
 Then delegate an `explorer` fan-out scoped to the brief's specific claims, per the orchestration doctrine (model escalation for deep tracing; `verifier` instead when evidence needs commands run). The crawl asks two questions of every claim: is it true in the repo, and what does the brief not mention that this work will hit (adjacent modules, callers, migrations, config)?
 
@@ -47,17 +47,17 @@ Assemble, in conversation: verified facts with file:line refs, corrections (the 
 Apply the rubric to the evidence, not to the brief:
 
 - **wayfinder** — the evidence shows multiple independent workstreams: several subsystems or repos, an issue list rather than one issue, work that cannot be one branch and one plan.
-- **plan-workflow** — one coherent change with a single decision surface, however large.
+- **plan-guide** — one coherent change with a single decision surface, however large.
 - **no plan** — below the planning threshold: a trivial bounded change. Run `testing-gate` and do it.
 
 Present to the user in one block: the evidence summary, the corrections to the brief, the open questions, and the recommended route with the one-line reason. Present the route confirmation itself via the AskUserQuestion form per the communication doctrine, recommended route first. Proceed only on explicit confirmation — except the no-plan route on trivial work, which writes nothing, so there is nothing to gate: state the one-line routing and proceed. A crawl route the user has confirmed counts as the explicit request that wayfinder's own trigger requires — the user said yes to the decomposition, so nothing fires automatically.
 
 ## 4. Hand off with the evidence
 
-- **plan-workflow route:** load `plan-workflow` (`../plan-workflow/SKILL.md` from this skill's base directory), create the plan directory per its canonical layout, write `brief - <plan-name>.md` beside the plan note (the verbatim brief plus its source reference — ticket URL or "dictated"), and scaffold the plan note with the crawl's evidence pre-filled into Current Context, Assumptions, and Open Questions, `status: planning`. Planning continues under plan-workflow as normal, treating the crawl-filled sections as this session's ground truth rather than re-deriving them.
+- **plan-guide route:** load `plan-guide` (`../plan-guide/SKILL.md` from this skill's base directory), create the plan directory per its canonical layout, write `brief - <plan-name>.md` beside the plan note (the verbatim brief plus its source reference — ticket URL or "dictated"), and scaffold the plan note with the crawl's evidence pre-filled into Current Context, Assumptions, and Open Questions, `status: planning`. Planning continues under plan-guide as normal, treating the crawl-filled sections as this session's ground truth rather than re-deriving them.
 - **wayfinder route:** load `wayfinder` (`../wayfinder/SKILL.md` from this skill's base directory) and hand it the brief and the full evidence. Wayfinder's alignment step presents the lay of the land from this evidence instead of re-investigating, and wayfinder itself writes the `brief - <plan-name>.md` file beside the parent plan when it emits it (that write is wayfinder's, per its step 4).
 - **no-plan route:** no artifacts. Proceed directly under `testing-gate`.
 
 ## Boundary
 
-Crawl does not plan (plan-workflow's job), does not decompose (wayfinder's job), does not interview requirements (grill's job — crawl surfaces open questions but never runs the one-question-at-a-time elicitation; when the open questions need real elicitation, recommend a grill and stop), does not run `plan-critic`, and does not implement anything. It reads the repo, builds evidence, and routes.
+Crawl does not plan (plan-guide's job), does not decompose (wayfinder's job), does not interview requirements (grill's job — crawl surfaces open questions but never runs the one-question-at-a-time elicitation; when the open questions need real elicitation, recommend a grill and stop), does not run `plan-critic`, and does not implement anything. It reads the repo, builds evidence, and routes.

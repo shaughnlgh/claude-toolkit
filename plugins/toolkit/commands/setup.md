@@ -18,7 +18,7 @@ No arguments. Run the checks below in order, then print the readiness report.
 
 Report the toolkit's install location (this command's base directory) and content version (the version segment in the base directory path, or `git -C` describe if available; otherwise "unknown").
 
-### 2. Vault config (needed by plan-workflow and obsidian-topic only)
+### 2. Vault config (needed by plan-guide and obsidian-topic only)
 
 Check `~/.claude/obsidian-sync.json`:
 
@@ -152,7 +152,7 @@ End with a table:
 | Review capability (reviewer agents, testing-gate skill) | always ready | — |
 | gitlab-mr-review | ready / not ready | glab auth |
 | jira skill (ticket to brief) | ready / not ready | jira-cli + JIRA_API_TOKEN |
-| Planning workflow (plan-workflow, obsidian-topic) | ready / not ready | vault config |
+| Planning workflow (plan-guide, obsidian-topic) | ready / not ready | vault config |
 | Write-time rules | main: always ready (session start); subagents: configured / offered / declined | subagents only: check 6 |
 | Prompt-free scripts + orchestration env | configured / offered / declined | check 6 |
 | Auto-update | on / offered / declined | check 6 |

@@ -13,11 +13,11 @@ A skill that turns an external ticket reference into a brief. Read-only by defau
 
 ### Topic recall
 
-The lookup `scripts/topic-recall.py` runs over the vault's topic notes and, when given `--repo-root`, the repo's `docs/` folder. It ranks hits by the query words found in each title and summary. The session-start hook injects the top hits for the current repo. `plan-workflow`, `execute-workflow`, and `crawl` run it with the task words before they read code.
+The lookup `scripts/topic-recall.py` runs over the vault's topic notes and, when given `--repo-root`, the repo's `docs/` folder. It ranks hits by the query words found in each title and summary. The session-start hook injects the top hits for the current repo. `plan-guide`, `execution-guide`, and `crawl` run it with the task words before they read code.
 
 ### Remember pass
 
-The once-per-slice step that routes the durable facts a slice surfaced. One `implementer` stages shareable facts about the repo as proposed `docs/context/` content behind the conductor's consent gate, and folds every other fact into vault topic notes. `red-team` step 7b runs it after the doc pass, or `plan-workflow` Session Closure runs it if red-team has not. A `Remember:` line records that it ran. The Doc Update Pass keeps existing docs accurate about what changed. The remember pass records what the slice learned.
+The once-per-slice step that routes the durable facts a slice surfaced. One `implementer` stages shareable facts about the repo as proposed `docs/context/` content behind the conductor's consent gate, and folds every other fact into vault topic notes. `red-team` step 7b runs it after the doc pass, or `plan-guide` Session Closure runs it if red-team has not. A `Remember:` line records that it ran. The Doc Update Pass keeps existing docs accurate about what changed. The remember pass records what the slice learned.
 
 ### Remember guard
 
@@ -26,6 +26,10 @@ The `remember-guard.sh` Stop hook. It warns the user when a reply has a line tha
 ### Flow
 
 A skill whose name ends in `-flow`, driven by a Workflow script under `plugins/toolkit/workflows/`. The first flow in a session asks the git-permission question once, and every later flow in that session reads the recorded answer instead of asking. The `## Flows` section of `doctrine/git-safety.md` defines what each answer permits. The toolkit ships three flows. `plan-flow` runs no git under any answer. `execute-flow` never mutates git state under any answer, and its agents run in the target repo only the read-only git commands that section lists. `ship-flow` is the only flow that mutates git, only under `push` or `release`, and its agents run each stage's commands under a rule that names only that stage's commands.
+
+### Guide
+
+A skill whose name ends in `-guide`, the manual a session follows by hand. `plan-guide` holds the plan note contract: artifact locations, naming, frontmatter and sections, the planning steps, the status lifecycle, session recording, and session closure. `execution-guide` holds the execution steps, the progress report format, the Doc Update Pass, and the runtime-evidence debugging method. The flows run the same work for you, and `plan-flow` and `execute-flow` read these guides where they need the contract.
 
 ### flow-git-permission
 
