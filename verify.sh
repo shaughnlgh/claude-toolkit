@@ -267,6 +267,18 @@ want "session-start injects the override rule body (not just the banner)" "$rvou
 avh="$(mktemp -d)"; mkdir -p "$avh/.claude/agents"; : > "$avh/.claude/agents/code-reviewer.md"
 avout="$(echo '{}' | HOME="$avh" bash "$P/hooks/session-start.sh" 2>/dev/null)"; rm -rf "$avh"
 want "session-start announces an agent override" "$avout" "Agent/skill overrides active"
+# auto mode: missing mutating git rules and an environment block naming another host are announced (isolated temp HOME)
+amh="$(mktemp -d)"; mkdir -p "$amh/.claude"
+printf '{"permissions":{"defaultMode":"auto","allow":["Bash(git push:*)"]},"autoMode":{"environment":["- Trusted repo: gitlab.example.com only"]}}\n' > "$amh/.claude/settings.json"
+amout="$(echo '{"source":"startup"}' | HOME="$amh" bash "$P/hooks/session-start.sh" 2>/dev/null)"
+want "session-start announces missing auto mode git rules" "$amout" "lacks these allow rules: Bash(git add:*) Bash(git commit:*)"
+want "session-start announces an environment block that omits this repo's host" "$amout" "does not name this repo's remote host"
+want "session-start status line points auto mode gaps at /setup" "$amout" "auto mode: git rules or trusted repos missing, run /setup"
+printf '{"permissions":{"defaultMode":"default","allow":[]}}\n' > "$amh/.claude/settings.json"
+amout="$(echo '{"source":"startup"}' | HOME="$amh" bash "$P/hooks/session-start.sh" 2>/dev/null)"; rm -rf "$amh"
+case "$amout" in *"Auto mode is on"*) no "session-start stays silent on auto mode outside auto mode" ;; *) ok "session-start stays silent on auto mode outside auto mode" ;; esac
+want "setup offers the auto mode git rules" "$(cat "$P/commands/setup.md")" "Bash(git push:*)"
+want "git-safety carries the classifier command-shape section" "$(cat "$P/doctrine/git-safety.md")" "## Command shape under the permission classifier"
 
 echo "== Scripts (guardrails) =="
 vfh="$(mktemp -d)"; mkdir -p "$vfh/.claude" "$vfh/vault/notes"

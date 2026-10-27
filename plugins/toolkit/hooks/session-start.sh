@@ -121,6 +121,38 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
   [ -n "${G:-}" ] && add "$G"
 fi
 
+# Auto mode check. Under auto mode every command no allow rule matches goes to the classifier,
+# which never sees a flow's git-permission answer (a tool result). Announce missing mutating git
+# rules, and an autoMode environment block that does not name this repo's remote host.
+AUTO_NOTE=""; AUTO_STATUS=""
+SETTINGS="$HOME/.claude/settings.json"
+if command -v jq >/dev/null 2>&1 && [ -f "$SETTINGS" ] && [ "$(jq -r '.permissions.defaultMode // empty' "$SETTINGS" 2>/dev/null)" = "auto" ]; then
+  ORIGIN_HOST=""
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    ORIGIN_HOST=$(git remote get-url origin 2>/dev/null | sed -E 's#^[a-z+]+://##; s#^[^@/]+@##; s#[:/].*$##')
+  fi
+  WANT_RULES=('Bash(git add:*)' 'Bash(git commit:*)' 'Bash(git push:*)')
+  case "$ORIGIN_HOST" in
+    '') ;;
+    github.com) WANT_RULES+=('Bash(gh pr create:*)') ;;
+    *) WANT_RULES+=('Bash(glab mr create:*)') ;;
+  esac
+  MISSING=""
+  for rule in "${WANT_RULES[@]}"; do
+    jq -e --arg r "$rule" '(.permissions.allow // []) | index($r) != null' "$SETTINGS" >/dev/null 2>&1 || MISSING="${MISSING} ${rule}"
+  done
+  [ -n "$MISSING" ] && AUTO_NOTE="Auto mode is on and ~/.claude/settings.json lacks these allow rules:${MISSING}. Every commit, push and MR or PR creation goes to the classifier, which cannot see the flow's recorded git-permission answer, so a push answer does not stop denials. /setup check 6 offers the rules."
+  if [ -n "$ORIGIN_HOST" ] && jq -e '(.autoMode.environment // []) | length > 0' "$SETTINGS" >/dev/null 2>&1; then
+    jq -e --arg h "$ORIGIN_HOST" '(.autoMode.environment // []) | map(select(type == "string" and contains($h))) | length > 0' "$SETTINGS" >/dev/null 2>&1 \
+      || AUTO_NOTE="${AUTO_NOTE:+$AUTO_NOTE
+}The autoMode environment block in ~/.claude/settings.json does not name this repo's remote host (${ORIGIN_HOST}), so the classifier reads a push or MR here as a write to a foreign system. /setup check 6 offers a trusted-repos line."
+  fi
+  if [ -n "$AUTO_NOTE" ]; then
+    add "$AUTO_NOTE"
+    AUTO_STATUS="auto mode: git rules or trusted repos missing, run /setup"
+  fi
+fi
+
 # Vault topic recall and repo docs index for the current repo (read-only; INDEX.md is Mission Control's output).
 # Silent skip on any failure: no config, no python3, no repo, script error, or timeout.
 # topic-recall.py bounds itself with an internal 3 s deadline. `timeout 3` adds an outer bound where the binary exists.
@@ -196,6 +228,8 @@ if [ "$SOURCE" = "startup" ]; then
 elif [ "$NCOMPACT" -ge 2 ]; then
   STATUS="toolkit: session compacted ${NCOMPACT}× — the plan/work note carries the state; consider a fresh session"
 fi
+
+[ "$SOURCE" = "startup" ] && [ -n "$AUTO_STATUS" ] && [ -n "$STATUS" ] && STATUS="${STATUS} · ${AUTO_STATUS}"
 
 # Emit. JSON (with systemMessage) when jq is present; plain-stdout context otherwise.
 # $CTX goes through a file (--rawfile), never argv: it can carry an unbounded-size rule
