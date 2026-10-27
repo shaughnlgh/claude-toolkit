@@ -80,6 +80,14 @@ The first flow that runs in a session asks one question through AskUserQuestion 
 
 No answer permits a deploy, and `release` never means deploy. The plan flow runs no git under any answer. The execute flow never mutates git state under any answer, and its agents run only read-only git in the repo: `git status`, `git diff`, `git log`, `git ls-files`, `git branch --show-current`, `git remote get-url`, `git symbolic-ref` with one ref argument, `git merge-base --is-ancestor`, and `git show` with one `<ref>:<path>` argument. A `-c core.quotePath=false` prefix on one of these commands keeps it read-only. The ship flow is the only flow that mutates git, and only under `push` or `release`. The hooks apply under every answer, including the `block-dangerous-commands` hook and its protected-branch guard, and a flow never bypasses them. Outside a flow, and in every ad-hoc session, this doctrine applies unchanged and the human runs git. A resumed session keeps its scratchpad and so keeps its answer. A new session asks again.
 
+## Command shape under the permission classifier
+
+Auto mode routes every command no allow rule matches through a classifier. The classifier reads the user's typed messages, the tool calls, and CLAUDE.md. It never reads a tool result, so an AskUserQuestion answer is invisible to it, and it never reads the scratchpad permission file or auto-memory. A recorded `push` or `release` answer therefore authorises the flow, not the classifier. These rules keep each mutation legible to it and to the allow rules.
+
+- Each commit, push, branch cut, and MR or PR creation runs as its own Bash call. The call text begins with the git, glab, or gh command, after at most a `cd "<absolute dir>" &&` prefix, so a prefix allow rule such as `Bash(git push:*)` can match it. A repo flag (`-C`, `-R`) follows the subcommand.
+- An MR or PR opens with `glab mr create` or `gh pr create`, with the title and body passed through quoted heredocs or a body file. Never open one through a raw API call (`glab api -X POST`, `gh api -X POST`), and never wrap the command in an interpreter heredoc (`python3 - <<'EOF'`, `jq ... | glab api`): the classifier reads that shape as a generic external write.
+- A classifier denial arrives as a tool result that names a reason category in brackets. The report states that category on its own line before the handoff block, and when the category points at an external system or an untrusted remote, says that the global autoMode environment may not name this repo's remote.
+
 ## Branch naming
 
 When suggesting branch names, use lowercase kebab-case with a slash-separated scope prefix.
