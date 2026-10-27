@@ -47,7 +47,7 @@ Check `~/.claude/obsidian-sync.json`:
 
 ### 6. Permissions and environment (optional, consent-gated)
 
-Five optional additions, shown verbatim, explained in one line, and applied only on an explicit yes. They span the user's `~/.claude/settings.json` (merge into the existing `permissions.allow` / `env` / `extraKnownMarketplaces` objects, never replacing them, always leaving valid JSON) and the global `~/.claude/CLAUDE.md`.
+Six optional additions, shown verbatim, explained in one line, and applied only on an explicit yes. They span the user's `~/.claude/settings.json` (merge into the existing `permissions.allow` / `env` / `extraKnownMarketplaces` objects, never replacing them, always leaving valid JSON) and the global `~/.claude/CLAUDE.md`.
 
 - **Prompt-free toolkit scripts.** The plugin's vault, git, and MR-watch scripts are invoked by its skills from the plugin cache. Offer these allow rules, written with the user's absolute home path (mid-path wildcards are supported and make the rules survive plugin updates):
 
@@ -83,6 +83,16 @@ Five optional additions, shown verbatim, explained in one line, and applied only
       Bash(jira me:*)
 
   Skip any rule already present. Mention that `/fewer-permission-prompts` extends the allowlist from this machine's actual usage history when prompt fatigue persists.
+
+- **Auto mode git rules (only when `permissions.defaultMode` is `auto`).** Under auto mode every command no allow rule matches goes to the permission classifier. The classifier reads the user's typed messages, tool calls, and CLAUDE.md, never a tool result, so the flows' recorded git-permission answer is invisible to it and a `push` answer does not stop denials of commit, push, or MR creation. Offer these `permissions.allow` rules, with the create rule for the host the user works on (`gh pr create` for GitHub, `glab mr create` for GitLab, both when they use both):
+
+      Bash(git add:*)
+      Bash(git commit:*)
+      Bash(git push:*)
+      Bash(glab mr create:*)
+      Bash(gh pr create:*)
+
+  Explain the trade: these rules let the flows' `push` answer hold without a classifier check on every commit, push, and MR. Merge and tag are never offered, so `release` stays under the classifier and the `block-dangerous-commands` hook still guards protected branches. Skip when the mode is not `auto`, and skip any rule already present. Then check `autoMode.environment`: when that array exists and no line names the hosts the user pushes to (read `git remote get-url origin` in the current repo for one), explain that the block was generated for one repo and the classifier treats every other remote as a foreign system, and offer to append one line naming the user's hosts and project groups, for example `- **Trusted repos (all projects)**: every remote on <host> under <group> is the user's own; commit, push, and MR creation there is routine once the user asked for the fix`. `autoMode` is read from `~/.claude/settings.json` only, never from a project settings file.
 
 - **Orchestration environment.** The toolkit's orchestration doctrine routes every worker question or blocker to the conductor; the built-in advisor tool is a side-channel around that. Offer:
 
@@ -156,6 +166,7 @@ End with a table:
 | Write-time rules | main: always ready (session start); subagents: configured / offered / declined | subagents only: check 6 |
 | Prompt-free scripts + orchestration env | configured / offered / declined | check 6 |
 | Auto-update | on / offered / declined | check 6 |
+| Auto mode git rules + trusted repos | not auto / configured / offered / declined | check 6 |
 | Local conflicts | none / N found | migration (check 7) |
 | Worker model routing | default (frontmatter) / configured / needs fix | check 8 |
 
