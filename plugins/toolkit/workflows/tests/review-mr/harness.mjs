@@ -127,6 +127,27 @@ const cases = [
     const { prompts } = await route([finding('src/a.js', 'Kept')], verdictsOf())
     return flat(prompts['verify:code-reviewer']).includes("Confirm pre-existing only when the diff's removed lines or its context lines already carry the defect and the diff does not make it worse, otherwise retag it important.")
   }],
+  ['verifier prompt carries the doc-finding sentence', async () => {
+    const { prompts } = await route([finding('src/a.js', 'Kept')], verdictsOf())
+    return flat(prompts['verify:code-reviewer']).includes('A doc finding is one whose file is under a docs/ directory or ends in .md. Its bar is 0: reproduce it at every score')
+  }],
+  ['verifier prompt says plan grounds are not refutations and a plan line is never the line', async () => {
+    const { prompts } = await route([finding('src/a.js', 'Kept')], verdictsOf())
+    const p = flat(prompts['verify:code-reviewer'])
+    return p.includes('are not refutations') && p.includes('is never that line')
+  }],
+  ['verifier prompt carries the rules and doctrine sentence', async () => {
+    const { prompts } = await route([finding('src/a.js', 'Kept')], verdictsOf())
+    return flat(prompts['verify:code-reviewer']).includes('A finding that cites a file under rules/, doctrine/, CLAUDE.md, AGENTS.md or .claude/rules is a rule breach: lower its finalScore only when the cited rule does not say what the finding claims, never on plan or design grounds.')
+  }],
+  ['verifier prompt quotes the plan-ground phrases it rejects as refutations', async () => {
+    const { prompts } = await route([finding('src/a.js', 'Kept')], verdictsOf())
+    return flat(prompts['verify:code-reviewer']).includes('"The plan decided it", "settled at approval", "the owner accepted this", and a subjective preference are not refutations.')
+  }],
+  ['verifier prompt carries the below-threshold reproduction sentence', async () => {
+    const { prompts } = await route([finding('src/a.js', 'Kept')], verdictsOf())
+    return flat(prompts['verify:code-reviewer']).includes('reproduction is the cited line as you read it and what it shows')
+  }],
   ['registry reviewer prompt carries the contextBlock', async () => {
     const { prompts } = await run()
     return prompts['review:code-reviewer'].includes(ARGS.contextBlock)
@@ -143,9 +164,29 @@ const cases = [
     const { result } = await route([finding('src/a.js', 'Kept')], verdictsOf(verdict(0, 0.6)))
     return same(result.confirmed.map((f) => pick(f, ['title', 'finalScore', 'reproduced', 'reproduction'])), [{ title: 'Kept', finalScore: 0.6, reproduced: true, reproduction: REPRO }])
   }],
-  ['real important at finalScore 0.59 routes to nits', async () => {
+  ['real important at finalScore 0.59 with a reproduction is confirmed', async () => {
     const { result } = await route([finding('src/a.js', 'Kept')], verdictsOf(verdict(0, 0.59)))
+    return same({ confirmed: titles(result.confirmed), nits: titles(result.nits) }, { confirmed: ['Kept'], nits: [] })
+  }],
+  ['real important at finalScore 0.59 with an empty reproduction routes to nits', async () => {
+    const { result } = await route([finding('src/a.js', 'Kept')], verdictsOf(verdict(0, 0.59, { reproduction: '' })))
     return same({ confirmed: titles(result.confirmed), nits: titles(result.nits) }, { confirmed: [], nits: ['Kept'] })
+  }],
+  ['real nit at finalScore 0.4 with a reproduction is confirmed', async () => {
+    const { result } = await route([finding('src/a.js', 'Kept', { tag: 'nit' })], verdictsOf(verdict(0, 0.4, { finalTag: 'nit' })))
+    return same({ confirmed: titles(result.confirmed), nits: titles(result.nits) }, { confirmed: ['Kept'], nits: [] })
+  }],
+  ['doc findings at finalScore 0.4 with empty reproductions are unverified as not reproduced', async () => {
+    const { result } = await route([finding('docs/guide.md', 'Guide'), finding('plugins/toolkit/skills/x/SKILL.md', 'Skill')], verdictsOf(verdict(0, 0.4, { reproduction: '' }), verdict(1, 0.4, { reproduction: '' })))
+    return same({ nits: titles(result.nits), unverified: result.unverified.map((f) => pick(f, ['title', 'reason'])) }, { nits: [], unverified: [{ title: 'Guide', reason: 'not reproduced' }, { title: 'Skill', reason: 'not reproduced' }] })
+  }],
+  ['code file under docs/ at finalScore 0.4 with an empty reproduction is unverified as not reproduced', async () => {
+    const { result } = await route([finding('docs/examples/run.js', 'Example')], verdictsOf(verdict(0, 0.4, { reproduction: '' })))
+    return same({ nits: titles(result.nits), unverified: result.unverified.map((f) => pick(f, ['title', 'reason'])) }, { nits: [], unverified: [{ title: 'Example', reason: 'not reproduced' }] })
+  }],
+  ['doc finding at finalScore 0.4 with a reproduction is confirmed', async () => {
+    const { result } = await route([finding('docs/guide.md', 'Guide')], verdictsOf(verdict(0, 0.4)))
+    return same({ confirmed: titles(result.confirmed), nits: titles(result.nits) }, { confirmed: ['Guide'], nits: [] })
   }],
   ['real nit promoted to finalScore 0.7 with a reproduction is confirmed', async () => {
     const { result } = await route([finding('src/a.js', 'Kept', { tag: 'nit' })], verdictsOf(verdict(0, 0.7, { finalTag: 'nit' })))
@@ -183,6 +224,19 @@ const cases = [
     const { result } = await route([finding('src/a.js', 'Kept')], verdictsOf(verdict(0, 0.2, { verdict: 'refuted', finalTag: 'nit', reasoning: 'Guarded at a.js:2.' })))
     return same(result.refuted.map((f) => pick(f, ['title', 'score', 'finalScore', 'finalTag', 'reason'])), [{ title: 'Kept', score: 0.68, finalScore: 0.2, finalTag: 'nit', reason: 'Guarded at a.js:2.' }])
   }],
+  ['doc finding refuted with an empty reproduction is unverified as not reproduced with the verifier reasoning', async () => {
+    const { result } = await route([finding('docs/guide.md', 'Guide')], verdictsOf(verdict(0, 0.2, { verdict: 'refuted', reproduction: '', reasoning: 'Settled at approval.' })))
+    return same({ refuted: result.refuted, unverified: result.unverified.map((f) => pick(f, ['title', 'reason', 'verdict', 'reasoning'])) }, { refuted: [], unverified: [{ title: 'Guide', reason: 'not reproduced', verdict: 'refuted', reasoning: 'Settled at approval.' }] })
+  }],
+  ['code finding refuted with an empty reproduction stays in refuted', async () => {
+    const { result } = await route([finding('src/a.js', 'Kept')], verdictsOf(verdict(0, 0.2, { verdict: 'refuted', reproduction: '', reasoning: 'Guarded at a.js:2.' })))
+    return same({ refuted: titles(result.refuted), unverified: titles(result.unverified) }, { refuted: ['Kept'], unverified: [] })
+  }],
+  ['doc finding refuted with a quoted line stays in refuted and carries the reproduction', async () => {
+    const quoted = 'guide.md:4 reads: the loader parses the file'
+    const { result } = await route([finding('docs/guide.md', 'Guide')], verdictsOf(verdict(0, 0.2, { verdict: 'refuted', reproduction: quoted, reasoning: 'The doc matches the tree.' })))
+    return same(result.refuted.map((f) => pick(f, ['title', 'reason', 'reproduction'])), [{ title: 'Guide', reason: 'The doc matches the tree.', reproduction: quoted }])
+  }],
   ['finding the verifier omits is unverified with reason no verdict', async () => {
     const { result } = await route([finding('src/a.js', 'First'), finding('src/b.js', 'Second')], verdictsOf(verdict(0, 0.7)))
     return same({ confirmed: titles(result.confirmed), unverified: result.unverified.map((f) => pick(f, ['title', 'reason'])) }, { confirmed: ['First'], unverified: [{ title: 'Second', reason: 'no verdict' }] })
@@ -206,8 +260,15 @@ const cases = [
   }],
   ['seven nits keep the five highest in order and drop the two lowest under nit cap', async () => {
     const scores = [0.3, 0.55, 0.25, 0.45, 0.5, 0.35, 0.4]
-    const { result } = await route(titled(7), verdictsOf(...scores.map((s, i) => verdict(i, s, { finalTag: 'nit' }))))
+    const { result } = await route(titled(7), verdictsOf(...scores.map((s, i) => verdict(i, s, { finalTag: 'nit', reproduction: '' }))))
     return same({ nits: result.nits.map((f) => f.finalScore), dropped: result.dropped.map((f) => pick(f, ['finalScore', 'reason'])) }, { nits: [0.55, 0.5, 0.45, 0.4, 0.35], dropped: [{ finalScore: 0.3, reason: 'nit cap' }, { finalScore: 0.25, reason: 'nit cap' }] })
+  }],
+  ['seven unreproduced code nits and two unreproduced doc findings keep five nits, drop two and send the docs to unverified', async () => {
+    const scores = [0.3, 0.55, 0.25, 0.45, 0.5, 0.35, 0.4]
+    const docs = [finding('docs/guide.md', 'D0'), finding('README.md', 'D1')]
+    const unreproduced = (i, s) => verdict(i, s, { finalTag: 'nit', reproduction: '' })
+    const { result } = await run({ 'review:code-reviewer': findingsOf(...titled(7), ...docs), 'verify:code-reviewer': verdictsOf(...scores.concat([0.4]).map((s, i) => unreproduced(i, s))), 'verify:code-reviewer:2': verdictsOf(unreproduced(0, 0.4)) })
+    return same({ nits: result.nits.length, dropped: result.dropped.map((f) => f.reason), unverified: titles(result.unverified) }, { nits: 5, dropped: ['nit cap', 'nit cap'], unverified: ['D0', 'D1'] })
   }],
   ['dead registry reviewer appears in dead by agentType', async () => {
     const { result } = await run({ 'review:security-reviewer': null })

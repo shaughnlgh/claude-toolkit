@@ -4,7 +4,7 @@ summary: Constraints on writing and testing the toolkit's Workflow scripts, and 
 type: context
 status: active
 owner: Shaughn
-last_reviewed: 2026-10-21
+last_reviewed: 2026-10-28
 source_refs:
   - plugins/toolkit/workflows/
   - plugins/toolkit/workflows/tests/plan-builder/
@@ -34,7 +34,7 @@ The scripts under `plugins/toolkit/workflows/` run through the Workflow tool. Wh
 - If a prompt key names two things, the prompt must name each one separately. In `plan-builder.js`, `relatedTopics` is both a plan section and a top-level list. `RULES` says the section holds one wiki link per line and the list holds plain names. A rule that says only "relatedTopics are a few plain names" leads the planner to return the section as a comma list.
 - `review-mr.js` drops `contextBlock` from the prompt of a cold dimension and gives every custom dimension no `agentType`. A rule that a cold reviewer must obey, such as read-only git in `repoRoot`, must be written inside the dimension prompt itself.
 - `REVIEW.md` reaches the panel only inside `contextBlock`. `execute-runner.js` appends its `reviewRules` arg there, so the registry reviewers, the non-cold custom dimensions, and every verifier read it, and a cold dimension never does. `review-mr.js` takes no argument of its own for it.
-- `review-mr.js` adds `contextBlock` to every batched verifier prompt, whatever the dimension. `cold: true` hides the context from the cold reviewer only, so text placed in `contextBlock`, such as the `SETTLED DECISIONS` block, still reaches the verifiers of a cold dimension's findings.
+- `review-mr.js` adds `contextBlock` to every batched verifier prompt, whatever the dimension. `cold: true` hides the context from the cold reviewer only, so text placed in `contextBlock`, such as the `SETTLED DECISIONS` block, still reaches the verifiers of a cold dimension's findings. The verifier reads the `SETTLED DECISIONS` sentence and the verifier brief in one prompt, so the sentence must not contradict the brief: both say an Assumption or Risk settles scope and coverage and never a rule breach or a doc line the tree contradicts.
 - `GIT_RULE`, `HOOK_RULE`, and `DOCTRINE` in `execute-runner.js` interpolate `repoRoot`, `scratchDir`, and `pluginRoot`. A copy of their text outside the runner, such as a briefing the `execute-flow` skill sends, must substitute those values.
 - `runValidation` in `execute-runner.js` builds one prompt for `verify:validation`, `verify:revalidation`, and `verify:final`. That prompt carries `HOOK_RULE` and "Change no file" but not `HOOK_WRITE_RULE`, which only the prompts built on `SHARED` carry. A prompt sent to `toolkit:verifier` must not tell it to use the Write tool, because the verifier has no Write.
 - `execute-runner.js` declares a top-level `strList` as a JSON schema fragment for the result schemas. An arg check that tests for an array of strings must use another name, as `isStrList` does. A new optional arg changes three places: the args list in the error text the script throws, the args signature in the `execute-runner` section of [workflows.md](../workflows.md), and a bullet in the arg list under that signature.
@@ -82,6 +82,10 @@ The scripts under `plugins/toolkit/workflows/` run through the Workflow tool. Wh
 - A change to the step splitter must pass two plan shapes besides its own cases. The first is numbered Validation Steps followed by a `### Tripwires` subheading with its own list that starts at 1, the block the plan-critic step in `skills/plan-guide/SKILL.md` copies into Validation Steps. The second is the execute-runner suite's `REFERENCE_PLAN`, one numbered list that runs across unnumbered subheadings. A rule that lets every `###` heading split whenever the numbered lines are not one list folds the numbered steps before a lone `### Tripwires` heading into one STEP.
 - The execute-runner harness reads the script path from its first argument, as `run-tests.sh` passes it, so `node harness.mjs <copy>` runs the real suite against a mutated scratch copy of `execute-runner.js`. Each condition of the second split rule, the unnumbered `###` rule, must keep one case that fails without it. The `REFERENCE_PLAN` case is the only guard for the condition that a single numbered list must not run across a subheading.
 - A case that asserts a section's text in a worker prompt must use `SECTIONED_PLAN`, which fills Current Context, Affected Files, and Plan Changes During Execution. The default `PLAN` leaves those sections out, so they render as `none` and a prompt that reads the wrong section still passes. An assertion on the `STEPS` block must anchor on `\n\nSTEPS:\n` or on ` (your step)`, because `STEPS:\n` also matches inside `VALIDATION STEPS:`.
+- The review-mr harness's `route()` stubs only the first verifier chunk, `verify:code-reviewer`. A case with more than eight findings in one dimension must also stub `verify:code-reviewer:2`, with verdict indexes restarting at 0, or the findings after the eighth land in `unverified` with the reason `verifier died`.
+- The review-mr harness's default `verdict` carries a non-empty `reproduction`, so its finding routes to `confirmed` at any score. A case that expects a nit or a `not reproduced` entry must pass `reproduction: ''` on each verdict.
+- The review-mr harness's `flat()` collapses whitespace, so a pin on a prompt substring must compare through `flat()` to survive a line wrap inside the prompt template.
+- The execute-runner harness's `L1` fixture is a reproduced confirmed finding with `finalTag` `nit` at `finalScore` 0.4, the fixture for a confirmed finding below the threshold. The fix brief renders `finalTag` before `tag`, so `L1` shows as nit.
 
 ## verify.sh conventions
 
