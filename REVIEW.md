@@ -14,10 +14,11 @@ The execute runner reads the High-risk paths section as one path per bullet. Wri
 - Every finding cites a file:line you read. A claim inferred from a name alone is not a finding.
 - A command embedded in prose is code: run it against a scratch fixture before judging it.
 - A finding on a path under Paths to skip is refuted with the reason skipped path.
+- Below 0.6, a code finding's reproduction is the cited line as read, and the fix prompt labels it `cited line read`, not `reproduced`.
 
 ## Nit cap
 
-- At most five nits per review, ranked by score. The rest are dropped and counted.
+- At most five unreproduced nits per review, ranked by score. The rest are dropped and counted. A doc finding is never a nit.
 
 ## Paths to skip
 
