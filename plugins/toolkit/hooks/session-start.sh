@@ -9,12 +9,14 @@
 INPUT=$(cat 2>/dev/null)
 SOURCE=""
 TRANSCRIPT=""
+SESSION_ID=""
 CTXFILE=""
 cleanup() { [ -n "$CTXFILE" ] && rm -f "$CTXFILE"; }
 trap cleanup EXIT
 if command -v jq >/dev/null 2>&1 && [ -n "$INPUT" ]; then
   SOURCE=$(printf '%s' "$INPUT" | jq -r '.source // empty' 2>/dev/null)
   TRANSCRIPT=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
+  SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 fi
 VERBOSE="${TOOLKIT_SESSION_VERBOSE:-0}"
 CTX=""
@@ -171,6 +173,17 @@ if [ -n "$ROOT" ]; then
   REPO=$(basename "$ROOT")
   COMMON=$(git rev-parse --git-common-dir 2>/dev/null); COMMON=$([ -n "$COMMON" ] && cd "$COMMON" 2>/dev/null && pwd -P)
   [ "$(basename "$COMMON" 2>/dev/null)" = ".git" ] && REPO=$(basename "$(dirname "$COMMON")")
+  # Seat line: another live session in this main checkout. Silent on any non-10 exit; a worktree session never matches main.
+  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+    SC=(bash "${CLAUDE_PLUGIN_ROOT}/scripts/seat-check.sh")
+    command -v timeout >/dev/null 2>&1 && SC=(timeout 3 "${SC[@]}")
+    SEAT=$("${SC[@]}" "$ROOT" --self "$SESSION_ID" 2>/dev/null); SEAT_RC=$?
+    if [ "$SEAT_RC" -eq 10 ] && [ "$(printf '%s' "$SEAT" | sed -n 's/^main: //p')" = "$(cd "$ROOT" && pwd -P)" ]; then
+      # Re-sent every request: three holders, names cut to 24 chars and the branch to 40 keep the line under 400 bytes.
+      HOLDERS=$(printf '%s' "$SEAT" | sed -n 's/^holder: //p' | head -3 | awk -F'\t' '{printf "%s%s (%s)", (NR>1?", ":""), substr($1, 1, 24), substr($2, 1, 8)}')
+      add "Another live session shares this checkout: ${HOLDERS}, on $(printf '%s' "$SEAT" | sed -n 's/^branch: //p' | cut -c1-40) with $(printf '%s' "$SEAT" | sed -n 's/^dirty: //p') dirty paths. Two sessions cannot both own HEAD here. Do not switch branches or stash without the user's say. Use a worktree (EnterWorktree) for a slice that needs no running local stack."
+    fi
+  fi
   VAULT_OK=""
   if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$HOME/.claude/obsidian-sync.json" ] && [ -n "$REPO" ] && python_usable; then
     VAULT_OK=1

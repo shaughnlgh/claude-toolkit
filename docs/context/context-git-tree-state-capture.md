@@ -4,7 +4,7 @@ summary: How the toolkit's skills and workflow scripts list changed paths, captu
 type: context
 status: active
 owner: Shaughn
-last_reviewed: 2026-10-19
+last_reviewed: 2026-10-28
 source_refs:
   - plugins/toolkit/workflows/execute-runner.js
   - plugins/toolkit/skills/execute-flow/SKILL.md
@@ -12,6 +12,8 @@ source_refs:
   - plugins/toolkit/commands/obsidian-topic.md
   - plugins/toolkit/doctrine/git-safety.md
   - plugins/toolkit/workflows/ship-runner.js
+  - plugins/toolkit/scripts/seat-check.sh
+  - plugins/toolkit/hooks/session-start.sh
 ---
 <!-- managed-by: toolkit -->
 
@@ -44,7 +46,14 @@ The `red-team` skill, the remember pass in `obsidian-topic.md`, and the execute 
 - `git symbolic-ref` with one argument reads a ref, and with two arguments it writes one. A read-only command list therefore allows only the one-argument form.
 - `git ls-remote origin <name>` matches the pattern against the end of each ref, so `feat/x` also matches `refs/heads/y/feat/x`. Pass the full ref, `refs/heads/<branch>`, as `ship-runner.js` does with `REMOTE_REF` in every ls-remote call.
 
+## Worktrees
+
+- A session in a linked worktree holds no seat. The seat is the main checkout, the directory whose `.git` is a directory, and `seat-check.sh` counts only sessions whose `cwd` is that checkout or a directory under it, outside `<main>/.claude/worktrees/`.
+- In a worktree session, the harness guard on the Bash tool reads the command text. It refuses a command that names `git` with `-C`, a `--git-dir`, a `GIT_DIR` variable, or a `cd` into the main checkout, and a command it cannot classify, including one whose script path contains the string `git`. It does not read the script, so a script invoked by a path and arguments with no `git` token runs, and the script's own `git -C <main>` calls run. `seat-check.sh` and the hook's call to it rely on this.
+- A main checkout whose `.git/info/exclude` lists `**/.claude/worktrees/` never shows a linked worktree under that path in its `git status`, so the dirty count `seat-check.sh` prints is the main checkout's own. The exclude file is not versioned, so each clone needs the entry.
+
 ## Related docs
 
 - [workflows.md](../workflows.md) for the `execute-runner.js` capture commands and the `paths` it returns.
 - [context-workflow-script-authoring.md](context-workflow-script-authoring.md) for the three diff captures and the hash checks built on them.
+- [scripts.md](../scripts.md#seat-checksh) for the `seat-check.sh` holder rule and output.
