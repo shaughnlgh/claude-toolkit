@@ -1,0 +1,55 @@
+---
+title: Worktree seat
+summary: The constraints that seat-check.sh, the session-start seat line, and the execute flow's seat check must keep when a change touches how a session decides who holds a repo's main checkout.
+type: context
+status: active
+owner: Shaughn Le Grange - Hatlen
+last_reviewed: 2026-10-28
+source_refs:
+  - plugins/toolkit/scripts/seat-check.sh
+  - plugins/toolkit/scripts/tests/seat-check/run-tests.sh
+  - plugins/toolkit/hooks/session-start.sh
+  - plugins/toolkit/hooks/tests/session-start-seat-check.sh
+  - plugins/toolkit/hooks/tests/run-all.sh
+  - plugins/toolkit/skills/execute-flow/SKILL.md
+---
+<!-- managed-by: toolkit -->
+
+# Worktree seat
+
+The seat is a repo's main checkout, the directory whose `.git` is a directory. `seat-check.sh` decides which live sessions hold it, and the `session-start.sh` hook and section 2a of the `execute-flow` skill act on its output. The holder rule, the output lines, and the exit codes are in [scripts.md](../scripts.md#seat-checksh). This page lists the constraints a change to the script or its two callers must keep.
+
+## seat-check.sh
+
+- The script parses the session list with `jq -rn 'input | ...'`. Plain `jq` exits 0 on empty stdin, so a missing or failing `claude` binary would read as an empty list and report the seat free. `input` errors on empty stdin, and the script turns that error into exit 2.
+- The script joins each row on the 0x1f unit separator and reads it with `IFS=$'\x1f'`. It replaces any tab, newline, carriage return, or 0x1f inside a field with a space. A whitespace `IFS` such as a tab collapses consecutive separators, so a null `status` or `kind` would shift every later column.
+- The dirty count runs `git --no-optional-locks status`, so a check from one session never writes the main checkout's `.git/index` while the holder works there.
+- The script resolves the main checkout as the parent of the git common dir when that dir is named `.git`. Otherwise it falls back to `git rev-parse --show-toplevel` of the path it was given.
+- Every caller must pass its own session id as `--self`. Without it, a caller whose `cwd` is the main checkout lists itself as a holder and the script exits 10.
+
+## The main: line
+
+- The hook and the execute flow both read the `main:` line. A change to its label or its form must change both callers.
+- The hook prints the seat line only when the script exits 10 and its `main:` line equals `cd $ROOT && pwd -P`. A linked worktree session's root is the worktree directory, so that equality is the only test that keeps such a session silent. The worktree-silent case in `hooks/tests/session-start-seat-check.sh` pins it.
+- Section 1 of the `execute-flow` skill takes `repoName` from the `main:` line. It falls back to the section 3 verifier's `git rev-parse --path-format=absolute --git-common-dir` output only when the seat check exited 2, so a run from a linked worktree recalls and reports under the main checkout's name.
+
+## Seat line size
+
+- The hook re-sends the seat line on every request, so its size is a budget. The fixed text is 241 bytes, and a change to the wording must recount it.
+- The hook keeps at most three holders. It cuts each holder name to 24 and each status to 8 with awk `substr`, and the branch to 40 with `cut -c`. That keeps a line with three ASCII holders and an ASCII branch under 400 bytes, and the line-cap and three-holders cases in the hook test pin it.
+- The macOS system awk counts bytes in `substr`, and `cut -c` counts characters under a UTF-8 locale. A branch name with multibyte characters can therefore push the line past 400 bytes.
+
+## Tests
+
+- The seat-check suite creates its linked worktree at `<main>/.claude/worktrees/wt` and adds `.claude/worktrees/` to the scratch repo's `.git/info/exclude`, so the worktree does not count in the dirty total. [context-git-tree-state-capture.md](context-git-tree-state-capture.md) covers why each clone needs that exclude entry.
+- The hook test makes a holder live by writing the test shell's own `$$` as its `pid`, so `kill -0` succeeds without starting a process. It supplies the session list through `TOOLKIT_AGENTS_FILE`, which the hook passes to the script through its environment.
+- `session-start-seat-check.sh` reuses `_sr_make_repo` from `session-start-recall-check.sh`, so `run-all.sh` must source it after that file.
+- A suite file that cleans up with a recursive force `rm` on a variable must be written with the Write or Edit tool. [context-watch-mr.md](context-watch-mr.md) gives the hook rule behind this.
+
+## Related docs
+
+- [scripts.md](../scripts.md#seat-checksh) for the holder rule, the output, and the exit codes.
+- [hooks.md](../hooks.md) for the `session-start.sh` seat line.
+- [skills.md](../skills.md) for what the `execute-flow` skill asks when the seat is held.
+- [context-git-tree-state-capture.md](context-git-tree-state-capture.md) for the worktree rules of the harness Bash guard.
+- [context-macos-script-portability.md](context-macos-script-portability.md) for the 3 second bound on the `claude agents --json` call.
