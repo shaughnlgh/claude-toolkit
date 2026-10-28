@@ -134,6 +134,7 @@ const clamp = (n) => Math.min(1, Math.max(0, Number(n) || 0))
 const round2 = (n) => Math.round(clamp(n) * 100) / 100
 const scoreOf = (f) => round2(0.5 * clamp(f.impact) + 0.3 * clamp(f.likelihood) + 0.2 * clamp(f.confidence))
 const cited = (f) => typeof f.citation === 'string' && f.citation.trim().length > 0
+const THRESHOLD = 0.6
 
 const BASELINE = obj({ branch: str, status: strList, verify: obj({ command: str, exitCode: num, failing: strList }) })
 const STEP = obj({ changedPaths: strList, deviations: strList, checksRun: strList, result: str, blockers: strList, topicMaterial: str })
@@ -389,7 +390,7 @@ ${objective || 'none'}
 CHANGED PATHS:
 ${changed.join('\n') || 'none'}
 SETTLED DECISIONS:
-The owner accepted the plan's Assumptions and Risks at approval. A finding that only restates one of them, or asks for scope or coverage the Assumptions exclude, is not a finding, unless the tree contradicts the decision, in which case report it as a normal finding.
+The owner accepted the plan's Assumptions and Risks at approval. A finding that only restates one of them, or asks for scope or coverage the Assumptions exclude, is not a finding, unless the tree contradicts the decision, in which case report it as a normal finding. A breach of a written rule in rules/, doctrine/, CLAUDE.md, AGENTS.md or .claude/rules, or a doc line the tree contradicts, is never settled by an Assumption or Risk: report it as a normal finding and never lower its score on plan grounds.
 ASSUMPTIONS:
 ${assumptions || 'none'}
 RISKS:
@@ -421,7 +422,7 @@ if (review) {
   let stageDead = false
   for (let round = 1; round <= MAX_FIX_ROUNDS && open.some((f) => f.bucket === 'confirmed'); round += 1) {
     const findings = open.map((f) => `${key(f)}\nDETAIL: ${f.detail}\nFAILURE SCENARIO: ${f.failure_scenario || 'none given'}`).join('\n\n')
-    const entry = (f) => `${key(f)} [${f.finalTag || f.tag}, final score ${f.finalScore}, ${f.reproduced ? 'reproduced' : 'not reproduced'}]\nCITATION: ${f.citation || 'none'}\nDETAIL: ${f.detail}\nFAILURE SCENARIO: ${f.failure_scenario || 'none given'}`
+    const entry = (f) => `${key(f)} [${f.finalTag || f.tag}, final score ${f.finalScore}, ${f.reproduced ? (f.finalScore < THRESHOLD ? 'cited line read' : 'reproduced') : 'not reproduced'}]\nCITATION: ${f.citation || 'none'}\nDETAIL: ${f.detail}\nFAILURE SCENARIO: ${f.failure_scenario || 'none given'}`
     const confirmedBlock = open.filter((f) => f.bucket === 'confirmed').map(entry).join('\n\n') || 'none'
     const nitBlock = open.filter((f) => f.bucket === 'nit').map(entry).join('\n\n') || 'none'
     const fix = await agent(`${SHARED}
@@ -436,7 +437,7 @@ ${confirmedBlock}
 NITS:
 ${nitBlock}
 
-Fix each confirmed finding above in ${a.repoRoot} with the smallest change that removes the defect, and fix every instance of that class of defect in the slice, not one line. For each nit, fix only the cited line, and only when the tree confirms the nit. ${RETURN_STEP}`,
+Fix each confirmed finding above in ${a.repoRoot} with the smallest change that removes the defect, and, when its tag is important and its finalScore is ${THRESHOLD} or above, fix every instance of that class of defect in the slice, not one line. Fix a confirmed finding tagged nit only at its cited line, and fix any confirmed finding below ${THRESHOLD} only at its cited line. For each nit, fix only the cited line, and only when the tree confirms the nit. ${RETURN_STEP}`,
       { label: `fix:${round}`, phase: 'Fix', schema: STEP, agentType: 'toolkit:implementer' })
     fixAttempts += 1
     if (!fix) {
@@ -474,7 +475,7 @@ Check in the tree at ${a.repoRoot} whether each finding above is resolved. Retur
     open = open.filter((f) => !resolved.has(key(f)))
     if (now.length) planChanges.push(`Fix round ${round} resolved: ${record.resolved.join('; ')}`)
   }
-  const openConfirmed = open.filter((f) => f.bucket === 'confirmed')
+  const openConfirmed = open.filter((f) => f.bucket === 'confirmed' && f.finalScore >= THRESHOLD)
   if (openConfirmed.length && !stageDead) blocked.push(`Fix rounds are exhausted at maxFixRounds ${MAX_FIX_ROUNDS} with ${openConfirmed.length} confirmed findings open, so step back and reconsider the approach rather than run another round.`)
 }
 

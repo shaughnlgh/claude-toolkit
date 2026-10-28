@@ -72,6 +72,8 @@ const F1 = finding('src/a.js', 'Null widget crashes the export')
 const F2 = finding('src/b.js', 'Route skips the auth check')
 const F3 = finding('src/c.js', 'Null widget crashes the export')
 const N1 = nit('src/d.js', 'Name hides intent')
+const L1 = finding('src/a.js', 'Low but reproduced', { finalTag: 'nit', finalScore: 0.4 })
+const W1 = finding('src/a.js', 'Weak logic claim', { finalScore: 0.45 })
 const reviewOf = (confirmed, extra = {}) => ({ confirmed, nits: [], preExisting: [], refuted: [], unverified: [], dropped: [], openQuestions: [], dead: [], verifierDead: [], panel: STANDING, dimensions: ['cold-read', 'external-reviewer'], ...extra })
 const resolvedOf = (...fs) => ({ results: fs.map((f) => ({ file: f.file, title: f.title, resolved: true, evidence: 'Guard added.' })) })
 const docPassOf = (extra = {}) => ({ docsUpdated: [], deferred: [], distributed: [], changedPaths: [], blockers: [], topicMaterial: 'none', ...extra })
@@ -274,6 +276,10 @@ const cases = [
     const { calls } = await run()
     const c = calls[0].args.contextBlock
     return same(['SETTLED DECISIONS:', 'is not a finding', 'unless the tree contradicts the decision', ASSUMPTION, RISK].filter((s) => !c.includes(s)), [])
+  }],
+  ['panel contextBlock says a rule breach or contradicted doc line is never settled', async () => {
+    const { calls } = await run()
+    return calls[0].args.contextBlock.includes('is never settled by an Assumption or Risk')
   }],
   ['panel contextBlock falls back to none for a plan with no Assumptions or Risks', async () => {
     const bare = PLAN.replace(`## Assumptions\n\n${ASSUMPTION}\n\n`, '').replace(`## Risks\n\n${RISK}\n\n`, '')
@@ -661,6 +667,27 @@ const cases = [
     const { result, prompts } = await run({ 'workflow:review-mr': reviewOf([], { nits: [N1] }) })
     return same({ fix: 'fix:1' in prompts, open: result.review.open, nits: result.review.nits.map(key), blocked: result.blocked }, { fix: false, open: [], nits: [key(N1)], blocked: [] })
   }],
+  ['a confirmed finding at finalScore 0.4 alone starts fix:1 and resolves', async () => {
+    const { result, prompts } = await run({ 'workflow:review-mr': reviewOf([L1]), 'recheck:1': resolvedOf(L1) })
+    return same({ fix: 'fix:1' in prompts, open: result.review.open, blocked: result.blocked }, { fix: true, open: [], blocked: [] })
+  }],
+  ['a confirmed nit renders under CONFIRMED FINDINGS with its nit tag and reproduced state', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([L1]), 'recheck:1': resolvedOf(L1) })
+    return prompts['fix:1'].includes(`CONFIRMED FINDINGS:\n${key(L1)} [nit, final score 0.4, cited line read]`)
+  }],
+  ['fix:1 confines a confirmed nit to its cited line', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([L1]), 'recheck:1': resolvedOf(L1) })
+    return prompts['fix:1'].includes('Fix a confirmed finding tagged nit only at its cited line')
+  }],
+  ['fix:1 applies the class rule only to a confirmed finding tagged important at 0.6 or above', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([W1]), 'recheck:1': resolvedOf(W1) })
+    return prompts['fix:1'].includes('when its tag is important and its finalScore is 0.6 or above, fix every instance of that class of defect in the slice')
+  }],
+  ['fix:1 confines an important confirmed finding at 0.45 to its cited line', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([W1]), 'recheck:1': resolvedOf(W1) })
+    const p = prompts['fix:1']
+    return same([`${key(W1)} [important, final score 0.45, cited line read]`, 'fix any confirmed finding below 0.6 only at its cited line'].filter((s) => !p.includes(s)), [])
+  }],
   ['fix:1 lists the confirmed finding and the nit under their own headings with tag, final score and reproduced state', async () => {
     const { prompts } = await run({ 'workflow:review-mr': reviewOf([F1], { nits: [N1] }), 'recheck:1': resolvedOf(F1, N1) })
     const p = prompts['fix:1']
@@ -675,6 +702,10 @@ const cases = [
     const { result } = await run({ 'workflow:review-mr': reviewOf([F1], { nits: [N1] }), 'recheck:1': resolvedOf(F1) })
     return same({ blocked: result.blocked, open: result.review.open.map((f) => [key(f), f.bucket]) }, { blocked: [], open: [[key(N1), 'nit']] })
   }],
+  ['a confirmed finding at 0.4 left open after fix:1 passes through in open and does not block', async () => {
+    const { result } = await run({ 'workflow:review-mr': reviewOf([L1]), 'recheck:1': resolvedOf() })
+    return same({ blocked: result.blocked, open: result.review.open.map((f) => [key(f), f.bucket, f.finalScore]) }, { blocked: [], open: [[key(L1), 'confirmed', 0.4]] })
+  }],
   ['a nit left open after the confirmed findings resolve at maxFixRounds 2 runs no fix:2', async () => {
     const { prompts } = await run({ 'workflow:review-mr': reviewOf([F1], { nits: [N1] }), 'recheck:1': resolvedOf(F1), 'fix:2': stepOf(['src/d.js']) }, { ...ARGS, maxFixRounds: 2 })
     return !('fix:2' in prompts)
@@ -686,6 +717,20 @@ const cases = [
   ['a confirmed finding and a nit left open count only the confirmed one in the step-back sentence', async () => {
     const { result } = await run({ 'workflow:review-mr': reviewOf([F1], { nits: [N1] }) })
     return same(result.blocked, [STEP_BACK(1)])
+  }],
+  ['an open confirmed finding at exactly 0.6 blocks with the step-back sentence', async () => {
+    const at = finding('src/a.js', 'At the bar', { finalScore: 0.6 })
+    const { result } = await run({ 'workflow:review-mr': reviewOf([at]), 'recheck:1': resolvedOf() })
+    return same(result.blocked, [STEP_BACK(1)])
+  }],
+  ['an open confirmed finding at 0.59 does not block', async () => {
+    const below = finding('src/a.js', 'Below the bar', { finalScore: 0.59 })
+    const { result } = await run({ 'workflow:review-mr': reviewOf([below]), 'recheck:1': resolvedOf() })
+    return same(result.blocked, [])
+  }],
+  ['the step-back count excludes open confirmed findings below 0.6', async () => {
+    const { result } = await run({ 'workflow:review-mr': reviewOf([F1, L1]), 'recheck:1': resolvedOf() })
+    return same({ blocked: result.blocked, open: result.review.open.length }, { blocked: [STEP_BACK(1)], open: 2 })
   }],
   ['a not-reproduced unverified entry passes through with its reason and adds no blocked sentence', async () => {
     const { result } = await run({ 'workflow:review-mr': reviewOf([], { unverified: [unreproduced('src/e.js', 'Race on the export lock')] }) })
@@ -712,6 +757,10 @@ const cases = [
   ['a verified cold finding with a citation lands in coldResidual with score 0.68', async () => {
     const { result } = await run({ 'cold:read': coldOf(true) })
     return same(result.coldResidual.map((f) => [f.title, f.score]), [['title 0', 0.68]])
+  }],
+  ['a verified cold finding at score 0.39 lands in coldResidual', async () => {
+    const { result } = await run({ 'cold:read': { findings: [{ ...coldOf(true).findings[0], impact: 0.4, likelihood: 0.4, confidence: 0.35 }] } })
+    return same(result.coldResidual.map((f) => [f.title, f.score]), [['title 0', 0.39]])
   }],
   ['a verified cold finding without a citation lands in coldUnverified', async () => {
     const { result } = await run({ 'cold:read': { findings: [{ ...coldOf(true).findings[0], citation: '' }] } })

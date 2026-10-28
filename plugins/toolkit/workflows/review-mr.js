@@ -87,6 +87,8 @@ const round2 = (n) => Math.round(clamp(n) * 100) / 100
 const scoreOf = (f) => round2(0.5 * clamp(f.impact) + 0.3 * clamp(f.likelihood) + 0.2 * clamp(f.confidence))
 const cited = (f) => typeof f.citation === 'string' && f.citation.trim().length > 0
 const hasRepro = (x) => typeof x.reproduction === 'string' && x.reproduction.trim().length > 0
+const isDoc = (f) => typeof f.file === 'string' && (/(^|\/)docs\//.test(f.file) || f.file.endsWith('.md'))
+const barOf = (f) => (isDoc(f) ? 0 : THRESHOLD)
 
 const suffix = (n) => n.split(':').pop()
 
@@ -126,7 +128,17 @@ It is real only if the code path executes, the failure scenario is concrete and 
 citation holds, and nothing else in the diff or repo already handles it.
 For a finding below ${THRESHOLD}, read it and its citation, and if the reviewer undersold a real defect
 raise finalScore, and if you raise it to ${THRESHOLD} or above reproduce it first.
-reproduction holds the command or trace you ran and the output you observed, verbatim, and is
+For a code finding at ${THRESHOLD} or above, reproduction is the trace of the code path or the fixture
+run and its output. For a code finding below ${THRESHOLD} that you judge real, reproduction is the cited
+line as you read it and what it shows, so a real verdict below ${THRESHOLD} with an empty reproduction
+means you did not read the line. A doc finding is one whose file is under a docs/ directory or ends
+in .md. Its bar is 0: reproduce it at every score by citing the code line, rule line, or doc line that
+makes the doc wrong, and refute it only by citing the line that makes the doc right. That line is a
+line in a file under the repo root as it stands in the tree. A plan note line, an Assumption, a Risk,
+an approval, or an owner's acceptance is never that line. For a doc finding, reproduction holds that
+line quoted with its file:line, whether you confirm or refute, and a doc refutation with an empty
+reproduction goes to the author as a question. A finding you reproduce is confirmed at any score.
+Otherwise reproduction holds the command or trace you ran and the output you observed, verbatim, and is
 empty when you ran nothing. A finding with an empty reproduction never counts as reproduced,
 whatever your verdict.
 Run a reproduction only by reading and tracing the code, or by running commands inside a fresh
@@ -142,6 +154,11 @@ Return one verdict per finding by the index shown, with the index unchanged.
 finalScore is your own score and may be higher or lower than the reviewer's.
 A claim inferred from a name alone is refuted.
 A conventions finding is real only if it contradicts both written project rules and actual repo practice.
+An accepted Assumption or Risk settles scope and coverage. It never settles a breach of a written rule
+or a doc line the tree contradicts. "The plan decided it", "settled at approval", "the owner accepted
+this", and a subjective preference are not refutations. A finding that cites a file under rules/,
+doctrine/, CLAUDE.md, AGENTS.md or .claude/rules is a rule breach: lower its finalScore only when the
+cited rule does not say what the finding claims, never on plan or design grounds.
 
 FINDINGS:
 ${listing}`
@@ -192,14 +209,15 @@ const openQuestions = perDim.flatMap((r) => r.questions)
 const real = all.filter((f) => f.verdict === 'real')
 const preExisting = real.filter((f) => f.finalTag === 'pre-existing')
 const live = real.filter((f) => f.finalTag !== 'pre-existing')
-const high = live.filter((f) => f.finalScore >= THRESHOLD)
-const confirmed = high.filter((f) => f.reproduced)
-const nitPool = live.filter((f) => f.finalScore < THRESHOLD).sort((x, y) => y.finalScore - x.finalScore)
+const metBar = live.filter((f) => f.finalScore >= barOf(f))
+const confirmed = live.filter((f) => f.reproduced)
+const nitPool = live.filter((f) => !f.reproduced && f.finalScore < barOf(f)).sort((x, y) => y.finalScore - x.finalScore)
 const nits = nitPool.slice(0, NIT_CAP)
-const brief = (f, reason) => ({ title: f.title, file: f.file, line: f.line, dimension: f.dimension, tag: f.tag, finalTag: f.finalTag, citation: f.citation, score: f.score, finalScore: f.finalScore, reason })
-const refuted = all.filter((f) => f.verdict === 'refuted').map((f) => brief(f, f.reasoning))
+const brief = (f, reason) => ({ title: f.title, file: f.file, line: f.line, dimension: f.dimension, tag: f.tag, finalTag: f.finalTag, citation: f.citation, reproduction: f.reproduction, score: f.score, finalScore: f.finalScore, reason })
+const refutedAll = all.filter((f) => f.verdict === 'refuted')
+const refuted = refutedAll.filter((f) => !isDoc(f) || f.reproduced).map((f) => brief(f, f.reasoning))
 const dropped = perDim.flatMap((r) => r.dropped).map((f) => brief(f, f.reason)).concat(nitPool.slice(NIT_CAP).map((f) => brief(f, 'nit cap')))
-const unverified = all.filter((f) => !f.verdict).concat(high.filter((f) => !f.reproduced).map((f) => ({ ...f, reason: 'not reproduced' })))
+const unverified = all.filter((f) => !f.verdict).concat(metBar.filter((f) => !f.reproduced).concat(refutedAll.filter((f) => isDoc(f) && !f.reproduced)).map((f) => ({ ...f, reason: 'not reproduced' })))
 
 log(`${all.length} verified findings: ${confirmed.length} confirmed, ${nits.length} nits, ${preExisting.length} pre-existing, ${refuted.length} refuted, ${unverified.length} unverified, ${dropped.length} dropped; ${openQuestions.length} open questions; verifier dead for ${verifierDead.join(', ') || 'none'}`)
 
