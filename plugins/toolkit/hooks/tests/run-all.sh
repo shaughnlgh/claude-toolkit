@@ -33,6 +33,12 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
+# An empty session list keeps every hook run off the real `claude agents --json`.
+TOOLKIT_AGENTS_FILE="$(mktemp)" || { echo "FATAL: mktemp failed for the agents file" >&2; exit 2; }
+trap 'rm -f "$TOOLKIT_AGENTS_FILE"' EXIT
+printf '[]\n' > "$TOOLKIT_AGENTS_FILE"
+export TOOLKIT_AGENTS_FILE
+
 PASS=0
 FAIL=0
 FAILED_NAMES=()
@@ -152,6 +158,12 @@ source "$ROOT/tests/session-start-recall-check.sh" || { echo "FATAL: cannot sour
 declare -F run_session_start_recall_checks >/dev/null || { echo "FATAL: run_session_start_recall_checks not defined" >&2; exit 2; }
 echo "== session-start recall (non-fixture) =="
 run_session_start_recall_checks
+
+# Seat line checks reuse the recall file's scratch repo helper, so they source after it.
+source "$ROOT/tests/session-start-seat-check.sh" || { echo "FATAL: cannot source session-start-seat-check.sh" >&2; exit 2; }
+declare -F run_session_start_seat_checks >/dev/null || { echo "FATAL: run_session_start_seat_checks not defined" >&2; exit 2; }
+echo "== session-start seat (non-fixture) =="
+run_session_start_seat_checks
 
 # Checks that need a scratch git repo, a vault plan note, a linked worktree, and real marker persistence,
 # which JSON fixtures cannot express.
