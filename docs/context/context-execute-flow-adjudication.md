@@ -1,10 +1,10 @@
 ---
 title: Execute flow adjudication
-summary: How the execute-flow skill stops, resumes, and settles unreproduced panel findings and verified cold-read findings with the user, and the constraints a change to those paths must keep.
+summary: How the execute-flow skill stops, resumes, and settles unreproduced and open panel findings and verified cold-read findings with the user, and the constraints a change to those paths must keep.
 type: context
 status: active
 owner: Shaughn Le Grange - Hatlen
-last_reviewed: 2026-10-20
+last_reviewed: 2026-10-28
 source_refs:
   - plugins/toolkit/skills/execute-flow/SKILL.md
   - plugins/toolkit/skills/red-team/SKILL.md
@@ -36,11 +36,12 @@ The `execute-flow` skill launches the `execute-runner` workflow and settles with
 
 ## Adjudicated findings
 
-- The adjudication list is every `review.unverified` entry followed by every `coldResidual` entry. An entry is settled when the plan note records it as fixed, wrong, intentional, or did not matter. Every gate that holds the finished summary, the slice marker, and the commit suggestion reads settled over the whole list, so a gate that reads only `coldResidual`, or a fifth outcome word, leaves the `execute-flow finished:` summary unreachable and the ship flow refusing the slice.
-- Section 8 asks one question per entry, panel entries first, with the options Fix now, Wrong, Leave it, and Hold in that order. Fix now is recommended when the entry's score (`finalScore` for a panel entry, `score` for a cold entry) is 0.6 or above and the finding maps to no Assumption or Risk, and Leave it is recommended otherwise. Leave it records intentional when the finding maps to an Assumption or Risk and did not matter when it maps to none. Wrong also records a `Reviewer prompt (<dimension>):` line for the user to add to `REVIEW.md` by hand. No recorded line starts with `Remember:`, because `remember-guard.sh` keys on that word.
-- The cold read gets the keys of the panel's `confirmed`, `nits`, and `preExisting` entries as a no-repeats list, and never the refuted, dropped, or unverified ones, because the cold read is the recovery path for a real defect one verifier refused. Nits without a confirmed finding are never fixed in the slice and stay under To settle. [context-review-scoring.md](context-review-scoring.md) holds the scoring and routing rules.
+- The adjudication list is every `review.unverified` entry, then every `review.open` entry with bucket `confirmed`, then every `coldResidual` entry. Section 6 records each `review.open` entry with its bucket, because a resume at section 8 rebuilds the list from the note. An entry is settled when the plan note records it as fixed, wrong, intentional, or did not matter. Every gate that holds the finished summary, the slice marker, and the commit suggestion reads settled over the whole list, so a gate that reads only `coldResidual`, or a fifth outcome word, leaves the `execute-flow finished:` summary unreachable and the ship flow refusing the slice.
+- Section 8 asks one question per entry, panel entries first, with the options Fix now, Wrong, Leave it, and Hold in that order. Fix now is recommended unless the finding maps to an Assumption or Risk, and Leave it is recommended when it does. Leave it records intentional when the finding maps to an Assumption or Risk and did not matter when it maps to none. Wrong also records a `Reviewer prompt (<dimension>):` line for the user to add to `REVIEW.md` by hand. No recorded line starts with `Remember:`, because `remember-guard.sh` keys on that word.
+- The cold read gets the keys of the panel's `confirmed`, `nits`, and `preExisting` entries as a no-repeats list, and never the refuted, dropped, or unverified ones, because the cold read is the recovery path for a real defect one verifier refused. Unreproduced nits without a confirmed finding are never fixed in the slice and stay under To settle. A reproduced finding never waits there: it is confirmed at any score, and an open confirmed finding below 0.6 is asked about in section 8 rather than blocking. A refuted doc finding is listed under To settle with the verifier's reason and quoted line, because the cold read is its only automated re-raise. [context-review-scoring.md](context-review-scoring.md) holds the scoring and routing rules.
 - The `red-team` skill's post-fix cold read, its section 6, sends a verified residual of fifteen lines or fewer to one scoped implementer fix round. The execute flow asks the user about each entry instead, in its section 8. The two policies differ on purpose.
 - The section 8 fix round runs after the doc pass and never reruns it. The skill's report must say whether the fix touched a public surface that the doc pass did not see, because this is the one path in an execute-flow run where the doc pass can miss a change.
+- Three files state the adjudication list and its order: this page, [context-review-scoring.md](context-review-scoring.md) under Settled outcomes, and section 8 of the `execute-flow` skill. Section 8 asks its questions in the same order. A change to the list or its order must edit all three.
 
 ## Shipping record
 

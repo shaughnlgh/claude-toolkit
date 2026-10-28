@@ -342,7 +342,7 @@ fi
 echo "== execute-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/execute-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "execute-runner control-flow suite" "$out" 153
+  suite_ok "execute-runner control-flow suite" "$out" 164
 else
   skip "skipped: node not found; execute-runner control-flow suite"
 fi
@@ -358,7 +358,7 @@ fi
 echo "== review-mr control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/review-mr/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "review-mr control-flow suite" "$out" 46
+  suite_ok "review-mr control-flow suite" "$out" 60
 else
   skip "skipped: node not found; review-mr control-flow suite"
 fi
