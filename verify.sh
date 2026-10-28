@@ -133,7 +133,7 @@ for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js workflows/p
          skills/gitlab-mr-review/scripts/post_mr_comments.py \
          skills/grill/SKILL.md skills/plan-flow/SKILL.md skills/execute-flow/SKILL.md \
          skills/ship-flow/SKILL.md \
-         scripts/vault-fs.sh scripts/git-ro.sh scripts/watch-mr.sh; do
+         scripts/vault-fs.sh scripts/git-ro.sh scripts/seat-check.sh scripts/watch-mr.sh; do
   [ -f "$P/$f" ] && ok "present: $f" || no "MISSING: $f"
 done
 # node --check exits 0 on broken workflow scripts, so compile each body in an AsyncFunction, which accepts top-level await and return.
@@ -242,7 +242,7 @@ else
   # exit code is part of the pass condition and the RESULT line is picked by prefix,
   # not by trailing position: a merged stderr line must not masquerade as the verdict.
   out="$(printf '%s' "$hout" | grep -E '^RESULT: ' | tail -1)"
-  if [ "$hrc" -eq 0 ] && suite_pass "$out" 180; then
+  if [ "$hrc" -eq 0 ] && suite_pass "$out" 186; then
     ok "hook fixture suite"
   else
     no "hook fixture suite (exit $hrc, got: ${out:0:60})"
@@ -322,6 +322,10 @@ out="$(bash "$P/scripts/tests/git-ro/run-tests.sh" 2>/dev/null | tail -1)"
 suite_ok "git-ro behavior suite" "$out" 12
 python3 "$P/scripts/validate-plan.py" "$P/scripts/tests/validate-plan/fixtures/2026-01-01-example-feature/plan - example-feature.md" >/dev/null 2>&1
 code "validate-plan accepts a canonical plan" "$?" 0
+
+echo "== seat-check holder rule =="
+out="$(bash "$P/scripts/tests/seat-check/run-tests.sh" 2>/dev/null | tail -1)"
+suite_ok "seat-check behavior suite" "$out" 12
 
 echo "== watch-mr watcher =="
 out="$(bash "$P/scripts/tests/watch-mr/run-tests.sh" 2>/dev/null | tail -1)"
