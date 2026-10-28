@@ -17,6 +17,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved this way.
 |---|---|---|
 | `vault-fs.sh` | Atomic vault file ops — `rm`, `mv` | Refuses absolute paths, `..` traversal, symlink escape from the vault (canonical containment), non-regular-file targets, missing sources, unknown subcommands |
 | `git-ro.sh` | Read-only git in any directory — `status`, `diff`, `log`, `show` | Subcommand allowlist; refuses write options (`--output`/`-o`/`--ext-diff`); neutralizes pager, fsmonitor, ext-diff and textconv (the execute-on-read vectors) |
+| `seat-check.sh` | Reports which live Claude sessions hold a repo's main checkout, with its branch and dirty count | Read-only; never writes a file; reads sessions through `claude agents --json`; needs only `jq` and `git` |
 | `watch-mr.sh` | Waits on one GitLab MR or GitHub PR until its pipeline settles or a bot review lands, then prints one status line | Reads only, through `gh` and `glab`, which hold their own auth; never reads or prints a token; validates every argument; exits on a wall-clock bound |
 | `override.sh` | Copy a plugin doctrine, rule, agent, or skill into `~/.claude/` to override it (drives `/override`) | Name only (no paths); refuses unknown/ambiguous names; won't clobber an existing override |
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
@@ -64,6 +65,36 @@ bash "$PLUGIN_ROOT/scripts/git-ro.sh" <dir> status|diff|log|show [args]
 Guardrails — this is the point of the script: only `status`, `diff`, `log`, and `show` are accepted as the subcommand. Anything else (`commit`, `push`, `reset`, `checkout`, etc.) is refused before it ever reaches `git`. Within those subcommands the write/exec options `--output`/`-o` (write a file), `--ext-diff` (external diff command), and `--textconv` (textconv driver — refusing it also stops a caller overriding the forced `--no-textconv`) are refused. And because a target repo's own config can execute on a "read", the call forces `core.pager=cat`, `core.fsmonitor=false`, a null `core.hooksPath`, and `--no-ext-diff --no-textconv` on the diff-capable subcommands — so `git status`/`diff`/`log`/`show` cannot run a pager, fsmonitor, external-diff, or textconv command from the target repo. The target directory is passed straight to `git -C`, so it works against any repo on disk. Note: this makes the wrapper safe against a repo you do not fully trust for these four read operations — it is not a general git sandbox.
 
 Tests: `bash plugins/toolkit/scripts/tests/git-ro/run-tests.sh` (12 behavior cases in a temporary repo whose config wires every execute-on-read vector to a marker script; also run by `verify.sh`).
+
+## seat-check.sh
+
+Reports which live Claude sessions hold a repo's seat, the main checkout. The session-start hook and the execute flow call it, so the holder rule lives in one place.
+
+Invoke:
+
+```bash
+bash "$PLUGIN_ROOT/scripts/seat-check.sh" <repo path> [--self <sessionId>]
+```
+
+The repo path can be the main checkout, a directory under it, or a linked worktree of it. The script resolves the main checkout through the git common dir and resolves every path with `pwd -P`, so a symlinked path matches its target.
+
+The holder rule: a session from `claude agents --json` holds the seat when it has a non-null `pid` that `kill -0` accepts, a `sessionId` other than the `--self` value, and a `cwd` that is the main checkout or a directory under it but not under `<main>/.claude/worktrees/`. A session in a linked worktree holds no seat. The script prints `status` and `kind` and never tests them.
+
+Output, one line each, in this order:
+
+- `seat: free` or `seat: held`
+- `main: <main checkout path>`
+- `branch: <branch>`, or `branch: detached`
+- `dirty: <count of git status --porcelain -uall lines in the main checkout>`
+- one `holder: <name>\t<status>\t<kind>\t<sessionId>\t<cwd>` line per holder, tab separated because a session name can hold spaces
+
+Exit codes: 0 free, 10 held, 2 error. An error prints one `error:` line to stderr. The script errors on a path that is not a git repo, a missing `jq`, and a session source that is not a JSON array, which covers a missing or failing `claude` binary. Where `perl` exists, the script kills a `claude agents --json` call that runs past 3 seconds, which then counts as a failing binary.
+
+A caller inside a worktree session must invoke the script by a path and arguments that contain no `git` token. The harness guard reads the command text and refuses a command that names `git`, but it does not read the script, so the script's own `git -C <main>` calls run.
+
+`TOOLKIT_AGENTS_FILE` names a JSON file the script reads instead of running `claude agents --json`. It is the test seam.
+
+Tests: `bash plugins/toolkit/scripts/tests/seat-check/run-tests.sh` (12 behavior cases in a temporary repo with one linked worktree; also run by `verify.sh`).
 
 ## watch-mr.sh
 
