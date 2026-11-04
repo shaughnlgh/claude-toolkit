@@ -1,0 +1,22 @@
+{
+  "name": "a /../ path that starts under ~/.claude/ gets no pass-through",
+  "stdin": {
+    "session_id": "cg-15",
+    "transcript_path": "/tmp/proj/session.jsonl",
+    "cwd": "/Users/u",
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "/Users/u/.claude/../projects/app/src/app.ts"
+    }
+  },
+  "env": {
+    "TOOLKIT_CONDUCTOR_EDITS": "0",
+    "HOME": "/Users/u"
+  },
+  "expect_exit": 0,
+  "expect_stdout_contains": [
+    "permissionDecision",
+    "deny",
+    "Conductor guard"
+  ]
+}

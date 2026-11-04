@@ -1,0 +1,20 @@
+{
+  "name": "compact injects the session's compact handoff, then the standing rules",
+  "stdin": {
+    "source": "compact"
+  },
+  "env": {
+    "CLAUDE_PLUGIN_ROOT": "../..",
+    "TOOLKIT_COMPACT_HANDOFF": "fixtures/session-start/aux/compact-handoff.md"
+  },
+  "expect_exit": 0,
+  "expect_stdout_contains": [
+    "Compact handoff written by this session before compaction:",
+    "next: run step 3 through the implementer",
+    "Standing rules after compaction: you are the conductor."
+  ],
+  "expect_stdout_not_contains": [
+    "No unused compact handoff",
+    "could not be marked as used"
+  ]
+}

@@ -11,7 +11,8 @@ description: >-
   work whether it arrives at session start or mid-session. Crawl runs BEFORE
   testing-gate when both match — route first, then the gate decides testing on the
   chosen route. Do not fire when a plan note (including a pre-scaffolded one) already
-  exists for the work, when the user explicitly invokes any skill by name (grill,
+  exists for the work (that is plan-guide, or plan-flow when the user asks for the
+  plan flow by name), when the user explicitly invokes any skill by name (grill,
   wayfinder, plan-guide, expedition, gitlab-mr-review, handoff, or any other), or
   on trivial Q&A and explanation-only sessions.
 ---
@@ -24,7 +25,7 @@ Crawl is read-only against the repo. It writes nothing anywhere until the user c
 
 ## Trigger and scope
 
-Fire when new work arrives — a brief, a ticket link, a dictated task — at session start or mid-session, and no plan note exists for it. Do not fire when the prompt points at an existing or pre-scaffolded plan note (that is `plan-guide`), when the user explicitly invokes any skill by name — grill, wayfinder, plan-guide, expedition, gitlab-mr-review, handoff, or any other (their explicit trigger wins) — or on Q&A that plainly needs no plan. When both crawl and `testing-gate` match a prompt, crawl runs first: route, then gate testing on the chosen route.
+Fire when new work arrives — a brief, a ticket link, a dictated task — at session start or mid-session, and no plan note exists for it. Do not fire when the prompt points at an existing or pre-scaffolded plan note (that is `plan-guide`, or `plan-flow` when the user asks for the plan flow by name), when the user explicitly invokes any skill by name — grill, wayfinder, plan-guide, expedition, gitlab-mr-review, handoff, or any other (their explicit trigger wins) — or on Q&A that plainly needs no plan. When both crawl and `testing-gate` match a prompt, crawl runs first: route, then gate testing on the chosen route.
 
 Thin-crawl skip: when the brief already names exact files and functions and those facts are verified (a bug the user already diagnosed), or topic recall shows a prior crawl or plan covering the same ground, skip the investigation, say why, and route directly. Skipping requires a stated reason, the same discipline as every other gate in this toolkit.
 

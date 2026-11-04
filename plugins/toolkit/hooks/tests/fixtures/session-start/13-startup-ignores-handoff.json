@@ -1,0 +1,20 @@
+{
+  "name": "startup never injects a compact handoff or the compaction rules",
+  "stdin": {
+    "source": "startup"
+  },
+  "env": {
+    "CLAUDE_PLUGIN_ROOT": "../..",
+    "TOOLKIT_COMPACT_HANDOFF": "fixtures/session-start/aux/compact-handoff.md"
+  },
+  "expect_exit": 0,
+  "expect_stdout_contains": [
+    "toolkit"
+  ],
+  "expect_stdout_not_contains": [
+    "Compact handoff",
+    "No unused compact handoff",
+    "Standing rules after compaction",
+    "next: run step 3"
+  ]
+}
