@@ -48,7 +48,7 @@ ok "verify helpers fail closed (reject mismatch, empty suite, and failures)"
 echo "== Structure =="
 n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
 [ "$(ls $P/agents/*.md 2>/dev/null | wc -l)" -eq 14 ] && ok "14 agents" || no "14 agents"
-[ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 19 ] && ok "19 skills" || no "19 skills"
+[ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 20 ] && ok "20 skills" || no "20 skills"
 [ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 7 ] && ok "7 commands" || no "7 commands"
 [ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 10 ] && ok "10 rules" || no "10 rules"
 # design/ catalog coverage, both directions: every rules/design/*.md concern file must be
@@ -242,7 +242,7 @@ else
   # exit code is part of the pass condition and the RESULT line is picked by prefix,
   # not by trailing position: a merged stderr line must not masquerade as the verdict.
   out="$(printf '%s' "$hout" | grep -E '^RESULT: ' | tail -1)"
-  if [ "$hrc" -eq 0 ] && suite_pass "$out" 186; then
+  if [ "$hrc" -eq 0 ] && suite_pass "$out" 216; then
     ok "hook fixture suite"
   else
     no "hook fixture suite (exit $hrc, got: ${out:0:60})"

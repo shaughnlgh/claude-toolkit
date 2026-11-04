@@ -1,0 +1,20 @@
+{
+  "name": "a write under the /private/tmp/claude-*/ scratchpad passes when cwd contains it",
+  "stdin": {
+    "session_id": "cg-13",
+    "transcript_path": "/tmp/proj/session.jsonl",
+    "cwd": "/private/tmp",
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "/private/tmp/claude-501/-repo/sess-1/scratchpad/compact-handoff.md"
+    }
+  },
+  "env": {
+    "TOOLKIT_CONDUCTOR_EDITS": "0",
+    "HOME": "/Users/u"
+  },
+  "expect_exit": 0,
+  "expect_stdout_not_contains": [
+    "permissionDecision"
+  ]
+}

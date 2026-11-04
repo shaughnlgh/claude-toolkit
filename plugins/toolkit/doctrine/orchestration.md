@@ -7,7 +7,7 @@ The worker agents ship with this toolkit: `explorer` (read-only search and disco
 ## Hard rules
 
 - These orchestration rules bind the conductor (main chat) only. Worker subagents are leaf nodes: they do their assigned work themselves and must never spawn subagents. A worker that hits a blocker, question, or ambiguity reports it back to the conductor, which decides how to proceed. It does not delegate its way out.
-- The main chat is supervisor-only, regardless of task size. It must not edit files or run implementation commands directly; every change, however small, goes to a worker agent that reports back. The only exception is the human explicitly directing the conductor to make a specific change itself — convenience, obviousness, or "tiny and faster done directly" never qualify. The conductor-guard hook enforces this mechanically: a direct conductor edit to a project file triggers a permission prompt, and `TOOLKIT_CONDUCTOR_EDITS=1` is the human's session-wide override (see docs/hooks.md).
+- The main chat is supervisor-only, regardless of task size and including after a compaction. It must not edit files or run implementation commands directly; every change, however small, goes to a worker agent that reports back. Convenience, obviousness, or "tiny and faster done directly" never justify a direct edit. The conductor-guard hook enforces this mechanically: it refuses a direct conductor edit to a project file, and the human setting `TOOLKIT_CONDUCTOR_EDITS=1` for the session is the only override (see docs/hooks.md).
 - Planning always stops for user review. Do not execute until the user explicitly approves the plan and instructs execution. The plan flow's `approveIf` gate is the one exception, because it may set a plan to approved without a user review, and the human approval rule still governs execution.
 - Do not ask about model preferences if the prompt or project workflow already defines them; record the routing in the plan and follow it during execution.
 - Every delegation goes to the toolkit worker (or a project-local agent shadowing it) whose charter fits the task: docs to `doc-reviewer`, research including web lookups to `explorer`, plan drafting to `planner`, plan review to `plan-critic`, execution to `implementer`, completion checks to `verifier`, code review to the reviewer set. The harness's generic agents (general-purpose, Explore, Plan) are a last resort for work no toolkit charter covers, and reaching for one requires stating why in the delegation.
@@ -37,6 +37,15 @@ Browser automation is worker work. Reproduction runs, multi-step UI journeys, an
 When spawning multiple independent workers, launch them in a single message (multiple Agent tool calls in one response) so they run concurrently.
 
 For repeatable multi-stage fan-out patterns (multi-dimension review, per-task execute-verify loops over a known work list), prefer a Workflow script over improvised conductor-driven spawning: deterministic sequencing, compact structured-JSON returns via schemas, low reasoning effort on mechanical stages, resumable if a run dies. The bundled review-mr workflow is the house example. Keep conductor acceptance between phases; do not script away the green light.
+
+## Parent and child sessions
+
+Parent and child sessions are an optional shape for two or more tasks on one repo at the same time, never the default. The parent session holds the plan and edits nothing. Each child is its own session that takes one task in its own worktree. The seat check (`scripts/seat-check.sh`, execute-flow section 2a) names the collision this shape prevents: two sessions writing the main checkout.
+
+- The parent briefs each child through a cross-session message and checks each child's report against the plan.
+- Each child opens its worktree with EnterWorktree, or through the execute flow's Open a worktree answer.
+- A child reports back to the parent when its flow finishes or blocks.
+- Children stay short. A child that would compact is a signal to finish and hand back, not to ride on.
 
 ## Context budget
 

@@ -6,7 +6,7 @@ For non-trivial development tasks, use a plan-first workflow: the plan note is w
 |---|---|
 | New work arriving as a brief, ticket reference, or stated task with no plan note yet | `crawl` skill |
 | Creating, filling in, updating, or closing out any plan note | `plan-guide` skill |
-| Starting a planning session (incl. pre-scaffolded plan notes) | `plan-guide` skill |
+| Starting a planning session, including on a pre-scaffolded plan note the user plans by hand rather than through the plan flow by name | `plan-guide` skill |
 | Deciding testing level for a feature/bugfix/refactor | `testing-gate` skill |
 | Writing or editing code when testing-gate determined tests are required | `test-first` skill |
 | Starting execution of an approved plan | `execution-guide` + `plan-guide` skills |
@@ -16,17 +16,18 @@ For non-trivial development tasks, use a plan-first workflow: the plan note is w
 | Reviewing a GitLab MR | `gitlab-mr-review` skill |
 | (opt-in, not blocking) User asks to grill / elicit requirements for a fuzzy feature, before planning | `grill` skill |
 | (opt-in, not blocking) User asks to hand off or write a continuation note | `handoff` skill |
+| (opt-in, not blocking) User asks whether it is okay to compact, or asks to prepare for a compaction | `pre-compact` skill |
 | (opt-in, not blocking) User asks to resolve git merge or rebase conflicts | `resolving-merge-conflicts` skill |
 | (opt-in, not blocking) User asks to map, scope, or break down a large multi-part investigation before planning | `wayfinder` skill |
 | (opt-in, not blocking) User explicitly invokes the full ticket-to-complete pipeline for a big scope of work, or asks to resume one | `expedition` skill |
 | (opt-in, not blocking) User asks whether a plan, decision, or fix is good, or invokes a pre-mortem by name | `inversion` skill |
 | (opt-in, not blocking) User asks to work through review threads on a pushed MR or PR | `review-threads` skill |
 | (opt-in, not blocking) User asks to investigate a production incident or pastes an alert with "find the cause" | `incident-investigate` skill |
-| (opt-in, not blocking) User asks for the plan flow or the plan workflow by name | `plan-flow` skill |
+| (opt-in, not blocking) User asks for the plan flow or the plan workflow by name, with a brief or on a pre-scaffolded plan note | `plan-flow` skill |
 | (opt-in, not blocking) User asks for the execute flow or the execute workflow by name on an approved plan note | `execute-flow` skill |
 | (opt-in, not blocking) User asks for the ship flow by name after an execute-flow report, or on an in-progress plan note with a built branch | `ship-flow` skill |
 
-The `grill`, `handoff`, `resolving-merge-conflicts`, `wayfinder`, `expedition`, `inversion`, `review-threads`, `incident-investigate`, `plan-flow`, `execute-flow`, and `ship-flow` rows are guidance, not a blocking requirement like the rows above them. Each fires only on an explicit user request, never on task fuzziness or size the model detects on its own. Two carve-outs apply: a `crawl` route the user has confirmed counts as the explicit request for `wayfinder`, and a confirmed yes at an expedition's grill gate counts as the explicit request for `grill`. The plan flow, the execute flow, and the ship flow run only on an explicit ask and never from a `crawl` route. An evaluative question about a plan or fix ("is this a good plan", "is this ready to ship") counts as the explicit request for `inversion`. When uncommitted implementation changes are present, a closure-shaped utterance routes to `red-team`, not `inversion`. The `crawl` row is the front door for new work: it investigates the brief and routes to `wayfinder`, `plan-guide`, or no plan; on routes that write artifacts the user confirms the route first, while the trivial no-plan route states its routing in one sentence and proceeds.
+The `grill`, `handoff`, `pre-compact`, `resolving-merge-conflicts`, `wayfinder`, `expedition`, `inversion`, `review-threads`, `incident-investigate`, `plan-flow`, `execute-flow`, and `ship-flow` rows are guidance, not a blocking requirement like the rows above them. Each fires only on an explicit user request, never on task fuzziness or size the model detects on its own. Two carve-outs apply: a `crawl` route or a `plan-flow` route check the user has confirmed counts as the explicit request for `wayfinder`, and a confirmed yes at an expedition's grill gate counts as the explicit request for `grill`. The plan flow, the execute flow, and the ship flow run only on an explicit ask and never from a `crawl` route. An evaluative question about a plan or fix ("is this a good plan", "is this ready to ship") counts as the explicit request for `inversion`. When uncommitted implementation changes are present, a closure-shaped utterance routes to `red-team`, not `inversion`. The `crawl` row is the front door for new work: it investigates the brief and routes to `wayfinder`, `plan-guide`, or no plan; on routes that write artifacts the user confirms the route first, while the trivial no-plan route states its routing in one sentence and proceeds.
 
 The `red-team` row is blocking for the recommendation only, not the run — at a closure signal, saying so in one line is mandatory, while the review itself runs only on the user's explicit confirmation; an explicit red-team request invokes the skill directly at any time, bypassing the recommendation. At slice closure, `red-team` owns finalization and invokes `execution-guide`'s doc pass exactly once after its own fixes, then the `obsidian-topic` remember pass once after it; the finishing-implementation row above continues to cover doc-pass mechanics outside a red-teamed closure.
 
