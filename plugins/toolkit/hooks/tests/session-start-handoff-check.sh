@@ -41,13 +41,13 @@ _sh_cleanup() {
   return 0
 }
 
-# Sets SH_NAME to a fresh name under SH_TMP and records it for cleanup.
+# $1 optional fixed name. Sets SH_NAME to a fresh name under SH_TMP and records it for cleanup.
 _sh_new() {
   if [[ ! -d "$SH_TMP" ]]; then
     mkdir -p "$SH_TMP" || return 1
     SH_MADE_TMP=1
   fi
-  SH_NAME="toolkit-hooktest-$$-$RANDOM$RANDOM"
+  SH_NAME="${1:-toolkit-hooktest-$$-$RANDOM$RANDOM}"
   SH_DIRS+=("$SH_TMP/$SH_NAME")
 }
 
@@ -251,6 +251,55 @@ check_sh_two_slugs_one_injected() {
   _sh_pass "$label :: two slug directories for one session_id inject exactly one handoff"
 }
 
+# $1 label, $2 "twice" to run the hook a second time. Two slug directories for one session, where the
+# first in glob order holds the older handoff. Sets SH_OLD and SH_NEW to the two scratchpads, SH_CTX1 and SH_CTX.
+_sh_two_slugs() {
+  local sid="hooktest-sid-$$-$RANDOM$RANDOM" base="toolkit-hooktest-$$-$RANDOM$RANDOM"
+  if ! _sh_work || ! _sh_new "$base-a" || ! _sh_new "$base-b"; then _sh_fail "$1 :: setup failed"; return 1; fi
+  SH_OLD="$SH_TMP/$base-a/$sid/scratchpad"
+  SH_NEW="$SH_TMP/$base-b/$sid/scratchpad"
+  if ! _sh_layout "$SH_OLD" "HANDOFF-OLDER" "push" || ! _sh_layout "$SH_NEW" "HANDOFF-NEWER" "push" \
+    || ! touch -t 202001010000 "$SH_OLD/compact-handoff.md"; then
+    _sh_fail "$1 :: layout failed"; return 1
+  fi
+  _sh_hook "$sid"
+  SH_CTX1="$SH_CTX"
+  [[ "${2:-}" == "twice" ]] && _sh_hook "$sid"
+  return 0
+}
+
+check_sh_two_slugs_newest_injected() {
+  local label="two-slugs-newest-injected"
+  _sh_two_slugs "$label" || { _sh_cleanup; return; }
+  _sh_cleanup
+  if [[ "$SH_CTX1" != *"next: HANDOFF-NEWER"* ]]; then
+    _sh_fail "$label :: the newer handoff was not injected when the older one is first in glob order"; return
+  fi
+  _sh_pass "$label :: two slug directories inject the newer handoff, not the first in glob order"
+}
+
+check_sh_two_slugs_all_renamed() {
+  local label="two-slugs-all-renamed" renamed=0
+  _sh_two_slugs "$label" || { _sh_cleanup; return; }
+  [[ -f "$SH_OLD/compact-handoff.used.md" && ! -e "$SH_OLD/compact-handoff.md" \
+    && -f "$SH_NEW/compact-handoff.used.md" && ! -e "$SH_NEW/compact-handoff.md" ]] && renamed=1
+  _sh_cleanup
+  if [[ $renamed -ne 1 ]]; then
+    _sh_fail "$label :: not every slug directory's compact-handoff.md was renamed"; return
+  fi
+  _sh_pass "$label :: every matched handoff is renamed to compact-handoff.used.md"
+}
+
+check_sh_two_slugs_second_run_infers() {
+  local label="two-slugs-second-run-infers"
+  _sh_two_slugs "$label" twice || { _sh_cleanup; return; }
+  _sh_cleanup
+  if [[ "$SH_CTX" != *"No unused compact handoff for this compaction."* ]]; then
+    _sh_fail "$label :: the next compaction injected a leftover handoff instead of inferring state"; return
+  fi
+  _sh_pass "$label :: the next compaction after two slug handoffs takes the inferred path"
+}
+
 # $1 label. A handoff in a read-only (555) scratchpad. Sets SH_CTX and SH_ERR.
 _sh_readonly() {
   local sid="hooktest-sid-$$-$RANDOM$RANDOM" pad
@@ -324,6 +373,9 @@ run_session_start_handoff_checks() {
   check_sh_slash_no_permission
   check_sh_slash_creates_nothing
   check_sh_two_slugs_one_injected
+  check_sh_two_slugs_newest_injected
+  check_sh_two_slugs_all_renamed
+  check_sh_two_slugs_second_run_infers
   check_sh_readonly_warns
   check_sh_readonly_logs
   check_sh_permission_padded
