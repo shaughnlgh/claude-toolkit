@@ -1,0 +1,22 @@
+{
+  "name": "a project write outside ~/.claude/ and the vault is still denied when the session cwd is the home directory",
+  "stdin": {
+    "session_id": "cg-14",
+    "transcript_path": "/tmp/proj/session.jsonl",
+    "cwd": "/Users/u",
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "/Users/u/projects/app/src/app.ts"
+    }
+  },
+  "env": {
+    "TOOLKIT_CONDUCTOR_EDITS": "0",
+    "HOME": "fixtures/conductor-guard/aux/home"
+  },
+  "expect_exit": 0,
+  "expect_stdout_contains": [
+    "permissionDecision",
+    "deny",
+    "Conductor guard"
+  ]
+}

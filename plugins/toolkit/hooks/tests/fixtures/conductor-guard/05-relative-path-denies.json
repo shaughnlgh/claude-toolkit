@@ -1,7 +1,7 @@
 {
-  "name": "relative file path resolves under cwd and asks",
+  "name": "relative file path resolves under cwd and is denied",
   "stdin": { "session_id": "cg-5", "transcript_path": "/tmp/proj/session.jsonl", "cwd": "/repo", "tool_name": "Edit", "tool_input": { "file_path": "src/app.ts" } },
   "env": { "TOOLKIT_CONDUCTOR_EDITS": "0" },
   "expect_exit": 0,
-  "expect_stdout_contains": ["permissionDecision", "ask"]
+  "expect_stdout_contains": ["permissionDecision", "deny"]
 }

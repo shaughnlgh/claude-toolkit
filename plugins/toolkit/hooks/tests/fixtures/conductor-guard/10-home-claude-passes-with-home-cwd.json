@@ -1,0 +1,20 @@
+{
+  "name": "a write under ~/.claude/ passes when the session cwd is the home directory",
+  "stdin": {
+    "session_id": "cg-10",
+    "transcript_path": "/tmp/proj/session.jsonl",
+    "cwd": "/Users/u",
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "/Users/u/.claude/ash/memory-bank.md"
+    }
+  },
+  "env": {
+    "TOOLKIT_CONDUCTOR_EDITS": "0",
+    "HOME": "/Users/u"
+  },
+  "expect_exit": 0,
+  "expect_stdout_not_contains": [
+    "permissionDecision"
+  ]
+}
