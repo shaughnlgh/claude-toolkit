@@ -3,13 +3,16 @@ name: plan-flow
 description: >-
   Plan flow: one run that turns a brief into a validated plan note. Use only when the
   user asks for the plan flow by name ("run the plan flow", "plan flow this brief",
-  "run the plan workflow").
-  Never fires from crawl. Asks the git-permission question unless an earlier
-  flow in the session recorded the answer, runs topic recall, launches the plan-builder
+  "run the plan workflow"), including on a pre-scaffolded plan note: status planning,
+  ticket frontmatter or a Brief section, and empty or template Implementation Steps
+  and Validation Steps. Its Brief section is the brief, or else its Objective, Current
+  Context, and ticket. Never fires from crawl. Asks the git-permission question unless an earlier
+  flow in the session recorded the answer, runs topic recall, runs a route check that
+  recommends wayfinder on a multi-part brief, launches the plan-builder
   workflow (discovery, planner draft, plan-critic pre-mortem with a revise loop, cold
   red team, optional goal judge), writes and validates the plan note in the vault, and
   gates its status on the result. Never writes repo files and never runs git. Do NOT
-  fire when a plan note already exists for the work (plan-guide owns that) or on
+  fire on a plan note whose Implementation Steps are filled (plan-guide owns that) or on
   trivial work that needs no plan.
 ---
 
@@ -19,7 +22,7 @@ Plan-flow is the conductor side of the `plan-builder` workflow, shipped with thi
 
 ## 1. Trigger
 
-Fire only when the user asks for the plan flow by name. Asking for "the plan workflow" counts as asking by name. A `crawl` route never fires this skill. When a plan note already exists, load `plan-guide` instead. Trivial work needs no plan, so it never fires this skill. The brief is the user's text for the work, quoted verbatim.
+Fire only when the user asks for the plan flow by name. Asking for "the plan workflow" counts as asking by name. A `crawl` route never fires this skill. A pre-scaffolded plan note is accepted, and section 5 writes into that note in place instead of creating a new plan directory. A note is pre-scaffolded when its status is `planning`, it has `ticket` frontmatter or a Brief section, and its Implementation Steps and Validation Steps are empty or still hold template text. Its Current Context and Objective may hold scaffold text. The brief of a pre-scaffolded note is its Brief section when it has one, otherwise its Objective, its Current Context, and its `ticket` frontmatter. Any other plan note, including one whose Implementation Steps are filled, belongs to `plan-guide`, so load `plan-guide` instead. Trivial work needs no plan, so it never fires this skill. Without a pre-scaffolded note, the brief is the user's text for the work, quoted verbatim.
 
 ## 2. Git permission
 
@@ -43,6 +46,19 @@ Read the exit code before the output:
 
 On `2` or `3`, stop and report the exit code and stderr to the user. Never pass `none` for a failed recall.
 
+## 3a. Route
+
+Apply the route rubric from section 3 of the `crawl` skill (`../crawl/SKILL.md` from this skill's base directory) to the evidence available at this point, which is the recall hits. Run no explorer fan-out, because the plan-builder's discovery phase does the deep reading later. A brief that reads as several independent workstreams yields a wayfinder recommendation that the user confirms, never a settled route, because wayfinder investigates before it decomposes. Several workstreams means several subsystems or repos, an issue list rather than one issue, or work that cannot be one branch and one plan. Otherwise the route is this flow.
+
+When the recommendation is wayfinder, ask once through AskUserQuestion: "This brief reads as <N> independent workstreams: <one clause each>. Map it with wayfinder, or plan it as one flow?" with the options in this order:
+
+1. "Wayfinder (Recommended)", with the description "Maps the effort and writes a parent plan plus one child stub per workstream; each child gets its own plan flow later."
+2. "One plan flow", with the description "Continues this flow and plans the whole brief as one note."
+
+On "Wayfinder", load the `wayfinder` skill from `../wayfinder/SKILL.md` relative to this skill's base directory, hand it the brief and the recall hits, and stop this flow. Hand wayfinder the path of a pre-scaffolded note, which becomes the wayfinder parent note when its name matches its directory's suffix and otherwise the first child stub, as wayfinder section 4 says. The confirmed answer counts as the explicit request that wayfinder's trigger requires. On "One plan flow", continue to section 4.
+
+When there is no wayfinder recommendation, state the route to the user in one sentence and continue to section 4 without a question.
+
 ## 4. Launch
 
 Derive `planName` per `plan-guide` naming and build the args: `brief`, `repoRoot` as an absolute path, `repoName`, `planName`, `recallHits`, and the optional `knownEvidence` (facts this session already verified, each with its file:line), `approveIf` (one goal sentence the plan must meet, only when the user gave one), and `maxRounds` (revise rounds, default 2).
@@ -61,6 +77,8 @@ The result is `{plan, branch, relatedTopics, discovery, rounds, tripwires, walkA
 ## 5. Write the plan note
 
 Load `plan-guide`. Create the directory and note per its naming and atomic write rules: Write the note to a `.tmp.md` file beside the destination, then move it into place with `vault-fs.sh mv`.
+
+For a pre-scaffolded note, create no directory and no new note. Write the sections into the existing note in place, with the same atomic write. Keep the frontmatter values that are already set, such as `ticket`, `repo`, `created`, and `branch`, and fill the empty ones. A `branch` value that the scaffold already set wins over the result's `branch`, so the branch check below applies only when the scaffold left `branch` empty.
 
 Map each section to its heading:
 
@@ -94,4 +112,4 @@ Whatever the gate result, state to the user the `finalVerdict`, the `coldVerdict
 
 ## Boundary
 
-The flow never writes repo files and never runs git. Prose rules bind the note. Not for an existing plan note (`plan-guide` owns that) and not for a standalone review of a written plan (`plan-critic` owns that). An approved status never starts execution on its own. The next step waits on the user. An approved status set by the gate records a mechanical judgement against the user's own `approveIf` sentence, not a human reading of the note. The human approval rule in `plan-guide` still governs execution, and the user can revert the status to `review`.
+The flow never writes repo files and never runs git. Prose rules bind the note. Not for a plan note whose sections are filled (`plan-guide` owns that) and not for a standalone review of a written plan (`plan-critic` owns that). An approved status never starts execution on its own. The next step waits on the user. An approved status set by the gate records a mechanical judgement against the user's own `approveIf` sentence, not a human reading of the note. The human approval rule in `plan-guide` still governs execution, and the user can revert the status to `review`.

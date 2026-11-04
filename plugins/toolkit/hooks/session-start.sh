@@ -74,7 +74,7 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
     add "Toolkit write-time rules: 0/${NTOTAL} loaded (plugin rules unreadable or empty at ${CLAUDE_PLUGIN_ROOT}/rules) - proceeding without them."
   fi
   [ -f "${CLAUDE_PLUGIN_ROOT}/CLAUDE.md" ] && add "Toolkit doctrine: read the index at ${CLAUDE_PLUGIN_ROOT}/CLAUDE.md before multi-agent or planned work (binding essences plus per-section files; design rationale in README.md alongside). The subagent-rules hook injects the write-time rules into every worker at spawn. Doctrine sections still travel in delegation prompts per the worker handoff contract."
-  add "Toolkit standing rule (binds the conductor/main chat only): every file change is delegated to a worker agent, no matter how small; the conductor edits nothing itself unless the human explicitly directs it per instance or TOOLKIT_CONDUCTOR_EDITS=1 is set. Enforced by the conductor-guard hook."
+  add "Toolkit standing rule (binds the conductor/main chat only): every file change is delegated to a worker agent, no matter how small, and the conductor-guard hook refuses a direct conductor edit unless TOOLKIT_CONDUCTOR_EDITS=1 is set for the whole session."
   # Per-file doctrine overrides: a same-named file in ~/.claude/doctrine/ replaces the
   # plugin's copy for that concern. Detected here so it needs no pointer written anywhere.
   if [ -d "$HOME/.claude/doctrine" ]; then
@@ -209,14 +209,70 @@ if [ -n "$ROOT" ]; then
   [ -n "$VAULT_OK" ] && add "Task-scoped recall at plan or execute start: python3 $(printf '%q' "${CLAUDE_PLUGIN_ROOT}/scripts/topic-recall.py") --repo $(printf '%q' "$REPO") --repo-root $(printf '%q' "$ROOT") <task words>"
 fi
 
-# Compaction escalation: a session that compacts repeatedly re-pays its whole context
-# indefinitely. Counted from the transcript (stateless), announced from the 2nd compact.
+# Compaction: the session's compact handoff (or a transcript inference), then the standing
+# rules, then the escalation. Counted from the transcript (stateless), escalated from the 2nd compact.
 NCOMPACT=0
-if [ "$SOURCE" = "compact" ] && [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
-  NCOMPACT=$(grep -c '"subtype":"compact_boundary"' "$TRANSCRIPT" 2>/dev/null)
-  case "$NCOMPACT" in ''|*[!0-9]*) NCOMPACT=0 ;; esac
-  if [ "$NCOMPACT" -ge 2 ]; then
-    add "This session has now compacted ${NCOMPACT} times. The vault plan/work note is the continuity mechanism, not this conversation: bring the current task to a stable point, update the note with state and next steps, and recommend the user continue in a fresh session instead of riding further compactions."
+if [ "$SOURCE" = "compact" ]; then
+  HANDOFF=""; SCRATCH=""; HANDOFFS=()
+  if [ -n "${TOOLKIT_COMPACT_HANDOFF:-}" ]; then
+    [ -f "$TOOLKIT_COMPACT_HANDOFF" ] && [ -r "$TOOLKIT_COMPACT_HANDOFF" ] && HANDOFF="$TOOLKIT_COMPACT_HANDOFF"
+  else
+    # session_id lands in a glob, so anything beyond a plain id is skipped.
+    case "$SESSION_ID" in ''|*[!A-Za-z0-9_-]*) ;; *)
+      for d in /tmp/claude-"$(id -u)"/*/"$SESSION_ID"/scratchpad; do
+        [ -d "$d" ] || continue
+        [ -z "$SCRATCH" ] && SCRATCH="$d"
+        [ -f "$d/compact-handoff.md" ] && [ -r "$d/compact-handoff.md" ] || continue
+        HANDOFFS+=("$d/compact-handoff.md")
+        # Two slug directories can hold a handoff for one session: the newest wins.
+        if [ -z "$HANDOFF" ] || [ "$d/compact-handoff.md" -nt "$HANDOFF" ]; then SCRATCH="$d"; HANDOFF="$d/compact-handoff.md"; fi
+      done ;;
+    esac
+  fi
+  HANDOFF_CAP=4000  # re-sent every request
+  if [ -n "$HANDOFF" ]; then
+    add "Compact handoff written by this session before compaction:"
+    if [ "$(wc -c < "$HANDOFF" | tr -d ' ')" -gt "$HANDOFF_CAP" ]; then
+      # The byte cut can split a multibyte character, which jq would emit as U+FFFD.
+      HCUT=$(head -c "$HANDOFF_CAP" "$HANDOFF")
+      command -v iconv >/dev/null 2>&1 && HCUT=$(head -c "$HANDOFF_CAP" "$HANDOFF" | iconv -f UTF-8 -t UTF-8 -c 2>/dev/null)
+      add "$HCUT"
+      add "(Compact handoff truncated to its first ${HANDOFF_CAP} bytes, rest omitted.)"
+    else
+      add "$(cat "$HANDOFF")"
+    fi
+    # Every copy is consumed once its rename succeeds. A failed rename leaves that file to be injected again.
+    for h in "${HANDOFFS[@]+"${HANDOFFS[@]}"}"; do
+      mv -f "$h" "$(dirname "$h")/compact-handoff.used.md" 2>/dev/null && continue
+      [ "$h" = "$HANDOFF" ] && add "This handoff could not be marked as used, so it may be stale: trust the transcript over it."
+      echo "session-start: could not rename ${h} to compact-handoff.used.md" >&2
+    done
+  else
+    I_SKILL=""; I_PLAN=""; I_PERM="unasked"; I_USED=""
+    if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
+      I_SKILL=$(grep -F '"name":"Skill"' "$TRANSCRIPT" 2>/dev/null | grep -o '"skill":"toolkit:[A-Za-z0-9:_.-]*"' | tail -1 | sed 's/^"skill":"//; s/"$//' | head -c 80)
+      case "$I_SKILL" in *[!A-Za-z0-9:_.-]*) I_SKILL="" ;; esac
+      # A plan named in a tool call input wins over one named in prose; a dot-free name skips a .tmp.md atomic-write temp file.
+      plan_mention() { grep -o 'plan - [^"\\/<>.]*\.md' 2>/dev/null | tail -1; }
+      I_PLAN=$(grep -F '"type":"tool_use"' "$TRANSCRIPT" 2>/dev/null | plan_mention)
+      [ -z "$I_PLAN" ] && I_PLAN=$(plan_mention < "$TRANSCRIPT")
+      I_PLAN=$(printf '%s' "$I_PLAN" | head -c 160)
+    fi
+    if [ -n "$SCRATCH" ] && [ -f "$SCRATCH/flow-git-permission" ]; then
+      I_PERM=$(head -1 "$SCRATCH/flow-git-permission" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+      # A missing, empty, or unrecognised answer reads as none, as the flows read it.
+      case "$I_PERM" in none|push|release) ;; *) I_PERM="none" ;; esac
+    fi
+    [ -n "$SCRATCH" ] && [ -f "$SCRATCH/compact-handoff.used.md" ] && I_USED=" An earlier handoff was consumed at a previous compaction."
+    add "No unused compact handoff for this compaction.${I_USED} Inferred state: last skill ${I_SKILL:-none}; plan note ${I_PLAN:-none}; git permission ${I_PERM}. Re-read that skill before continuing it."
+  fi
+  add "Standing rules after compaction: you are the conductor. Every file edit inside the project goes to a worker agent (toolkit:implementer), never to your own Edit or Write, and the conductor-guard hook refuses a direct edit. Git mutation runs only under the recorded flow permission. Validation honesty and claim provenance hold. Before continuing a flow, re-read its SKILL.md: a compacted skill body keeps only its first part."
+  if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
+    NCOMPACT=$(grep -c '"subtype":"compact_boundary"' "$TRANSCRIPT" 2>/dev/null)
+    case "$NCOMPACT" in ''|*[!0-9]*) NCOMPACT=0 ;; esac
+    if [ "$NCOMPACT" -ge 2 ]; then
+      add "This session has now compacted ${NCOMPACT} times. The vault plan/work note is the continuity mechanism, not this conversation: bring the current task to a stable point, update the note with state and next steps, and recommend the user continue in a fresh session instead of riding further compactions."
+    fi
   fi
 fi
 

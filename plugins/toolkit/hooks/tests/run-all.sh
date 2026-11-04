@@ -35,7 +35,8 @@ fi
 
 # An empty session list keeps every hook run off the real `claude agents --json`.
 TOOLKIT_AGENTS_FILE="$(mktemp)" || { echo "FATAL: mktemp failed for the agents file" >&2; exit 2; }
-trap 'rm -f "$TOOLKIT_AGENTS_FILE"' EXIT
+# The handoff checks lay out scratchpads under /tmp/claude-<uid>, removed here too if the run dies mid-check.
+trap 'rm -f "$TOOLKIT_AGENTS_FILE"; declare -F _sh_cleanup >/dev/null && _sh_cleanup' EXIT
 printf '[]\n' > "$TOOLKIT_AGENTS_FILE"
 export TOOLKIT_AGENTS_FILE
 
@@ -164,6 +165,12 @@ source "$ROOT/tests/session-start-seat-check.sh" || { echo "FATAL: cannot source
 declare -F run_session_start_seat_checks >/dev/null || { echo "FATAL: run_session_start_seat_checks not defined" >&2; exit 2; }
 echo "== session-start seat (non-fixture) =="
 run_session_start_seat_checks
+
+# Checks that need a real scratchpad under /tmp/claude-<uid> and a read-only directory, which JSON fixtures can't express.
+source "$ROOT/tests/session-start-handoff-check.sh" || { echo "FATAL: cannot source session-start-handoff-check.sh" >&2; exit 2; }
+declare -F run_session_start_handoff_checks >/dev/null || { echo "FATAL: run_session_start_handoff_checks not defined" >&2; exit 2; }
+echo "== session-start handoff (non-fixture) =="
+run_session_start_handoff_checks
 
 # Checks that need a scratch git repo, a vault plan note, a linked worktree, and real marker persistence,
 # which JSON fixtures cannot express.

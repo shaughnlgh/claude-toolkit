@@ -3,5 +3,5 @@
   "stdin": { "source": "compact", "transcript_path": "fixtures/session-start/transcripts/one-compact.jsonl" },
   "env": { "CLAUDE_PLUGIN_ROOT": "../.." },
   "expect_exit": 0,
-  "expect_stdout_not_contains": ["compacted"]
+  "expect_stdout_not_contains": ["This session has now compacted", "session compacted"]
 }
