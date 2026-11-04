@@ -213,7 +213,7 @@ fi
 # rules, then the escalation. Counted from the transcript (stateless), escalated from the 2nd compact.
 NCOMPACT=0
 if [ "$SOURCE" = "compact" ]; then
-  HANDOFF=""; SCRATCH=""
+  HANDOFF=""; SCRATCH=""; HANDOFFS=()
   if [ -n "${TOOLKIT_COMPACT_HANDOFF:-}" ]; then
     [ -f "$TOOLKIT_COMPACT_HANDOFF" ] && [ -r "$TOOLKIT_COMPACT_HANDOFF" ] && HANDOFF="$TOOLKIT_COMPACT_HANDOFF"
   else
@@ -222,7 +222,10 @@ if [ "$SOURCE" = "compact" ]; then
       for d in /tmp/claude-"$(id -u)"/*/"$SESSION_ID"/scratchpad; do
         [ -d "$d" ] || continue
         [ -z "$SCRATCH" ] && SCRATCH="$d"
-        if [ -f "$d/compact-handoff.md" ] && [ -r "$d/compact-handoff.md" ]; then SCRATCH="$d"; HANDOFF="$d/compact-handoff.md"; break; fi
+        [ -f "$d/compact-handoff.md" ] && [ -r "$d/compact-handoff.md" ] || continue
+        HANDOFFS+=("$d/compact-handoff.md")
+        # Two slug directories can hold a handoff for one session: the newest wins.
+        if [ -z "$HANDOFF" ] || [ "$d/compact-handoff.md" -nt "$HANDOFF" ]; then SCRATCH="$d"; HANDOFF="$d/compact-handoff.md"; fi
       done ;;
     esac
   fi
@@ -238,11 +241,12 @@ if [ "$SOURCE" = "compact" ]; then
     else
       add "$(cat "$HANDOFF")"
     fi
-    # Consumed once when the rename succeeds. A failed rename leaves the file to be injected again.
-    if [ -z "${TOOLKIT_COMPACT_HANDOFF:-}" ] && ! mv -f "$HANDOFF" "$(dirname "$HANDOFF")/compact-handoff.used.md" 2>/dev/null; then
-      add "This handoff could not be marked as used, so it may be stale: trust the transcript over it."
-      echo "session-start: could not rename ${HANDOFF} to compact-handoff.used.md" >&2
-    fi
+    # Every copy is consumed once its rename succeeds. A failed rename leaves that file to be injected again.
+    for h in "${HANDOFFS[@]+"${HANDOFFS[@]}"}"; do
+      mv -f "$h" "$(dirname "$h")/compact-handoff.used.md" 2>/dev/null && continue
+      [ "$h" = "$HANDOFF" ] && add "This handoff could not be marked as used, so it may be stale: trust the transcript over it."
+      echo "session-start: could not rename ${h} to compact-handoff.used.md" >&2
+    done
   else
     I_SKILL=""; I_PLAN=""; I_PERM="unasked"; I_USED=""
     if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then

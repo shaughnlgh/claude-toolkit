@@ -55,7 +55,7 @@ When the recommendation is wayfinder, ask once through AskUserQuestion: "This br
 1. "Wayfinder (Recommended)", with the description "Maps the effort and writes a parent plan plus one child stub per workstream; each child gets its own plan flow later."
 2. "One plan flow", with the description "Continues this flow and plans the whole brief as one note."
 
-On "Wayfinder", load the `wayfinder` skill from `../wayfinder/SKILL.md` relative to this skill's base directory, hand it the brief and the recall hits, and stop this flow. Hand wayfinder the path of a pre-scaffolded note, which becomes the wayfinder parent note as wayfinder section 4 says. The confirmed answer counts as the explicit request that wayfinder's trigger requires. On "One plan flow", continue to section 4.
+On "Wayfinder", load the `wayfinder` skill from `../wayfinder/SKILL.md` relative to this skill's base directory, hand it the brief and the recall hits, and stop this flow. Hand wayfinder the path of a pre-scaffolded note, which becomes the wayfinder parent note when its name matches its directory's suffix and otherwise the first child stub, as wayfinder section 4 says. The confirmed answer counts as the explicit request that wayfinder's trigger requires. On "One plan flow", continue to section 4.
 
 When there is no wayfinder recommendation, state the route to the user in one sentence and continue to section 4 without a question.
 
