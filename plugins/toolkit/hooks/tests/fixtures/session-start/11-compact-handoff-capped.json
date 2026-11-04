@@ -1,0 +1,20 @@
+{
+  "name": "compact caps an oversize handoff at 4000 bytes, says so, and never splits a multibyte character",
+  "stdin": {
+    "source": "compact"
+  },
+  "env": {
+    "CLAUDE_PLUGIN_ROOT": "../..",
+    "TOOLKIT_COMPACT_HANDOFF": "fixtures/session-start/aux/oversize-handoff.md"
+  },
+  "expect_exit": 0,
+  "expect_stdout_contains": [
+    "next: fill line",
+    "open: multibyte across the cap",
+    "Compact handoff truncated to its first 4000 bytes, rest omitted."
+  ],
+  "expect_stdout_not_contains": [
+    "MARKER-PAST-CAP",
+    "�"
+  ]
+}
