@@ -1,0 +1,8 @@
+{"type":"user","message":{"role":"user","content":"execute the plan in plan - prose.md"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_01","name":"Read","input":{"file_path":"/vault/plans/plan - example.md"}}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_02","name":"Skill","input":{"skill":"toolkit:execute-flow"}}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_03","name":"Skill","input":{"skill":"anthropic-skills:pdf"}}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_05","name":"Bash","input":{"command":"ls 'plan - draft.md' 'plan - example.md'"}}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_04","name":"Write","input":{"file_path":"/vault/plans/plan - example.tmp.md","content":"draft"}}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"For example:\n```\nplan - fenced.md\n```"}]}}
+{"type":"system","subtype":"compact_boundary","content":"compacted"}

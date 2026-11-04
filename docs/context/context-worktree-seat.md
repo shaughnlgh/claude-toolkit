@@ -4,7 +4,7 @@ summary: The constraints that seat-check.sh, the session-start seat line, and th
 type: context
 status: active
 owner: Shaughn
-last_reviewed: 2026-10-28
+last_reviewed: 2026-11-04
 source_refs:
   - plugins/toolkit/scripts/seat-check.sh
   - plugins/toolkit/scripts/tests/seat-check/run-tests.sh
@@ -12,6 +12,7 @@ source_refs:
   - plugins/toolkit/hooks/tests/session-start-seat-check.sh
   - plugins/toolkit/hooks/tests/run-all.sh
   - plugins/toolkit/skills/execute-flow/SKILL.md
+  - plugins/toolkit/doctrine/orchestration.md
 ---
 <!-- managed-by: toolkit -->
 
@@ -32,6 +33,18 @@ The seat is a repo's main checkout, the directory whose `.git` is a directory. `
 - The hook and the execute flow both read the `main:` line. A change to its label or its form must change both callers.
 - The hook prints the seat line only when the script exits 10 and its `main:` line equals `cd $ROOT && pwd -P`. A linked worktree session's root is the worktree directory, so that equality is the only test that keeps such a session silent. The worktree-silent case in `hooks/tests/session-start-seat-check.sh` pins it.
 - Section 1 of the `execute-flow` skill takes `repoName` from the `main:` line. It falls back to the section 3 verifier's `git rev-parse --path-format=absolute --git-common-dir` output only when the seat check exited 2, so a run from a linked worktree recalls and reports under the main checkout's name.
+
+## The worktree answer
+
+- Section 2a of the `execute-flow` skill names the worktree after the plan note's `branch` frontmatter value, or after `planName` when that value is blank.
+- When `git worktree list` already shows `<main>/.claude/worktrees/<name>`, section 2a calls EnterWorktree with `path`, so a rerun enters the worktree that an earlier run opened.
+- EnterWorktree with `name` always creates a new branch from the `worktree.baseRef` setting and never checks out an existing branch. When the plan's branch exists locally or on origin, section 2a obtains the worktree with `git worktree add` under the flow's git permission, as a paste-ready command for the user under `none`, then calls EnterWorktree with `path`. Git refuses that add while another worktree has the branch checked out, so section 2a skips the add and asks the fallback question with only Take the seat and Hold.
+- Section 2a calls EnterWorktree with `name` only when the plan's branch does not exist. Section 3 then skips its merged check. After any worktree entry, section 5 writes the worktree's branch from section 3 into the plan note's `branch` frontmatter when the two differ, so the commit handoff and the ship flow name the branch the worktree carries.
+- After the switch, `repoRoot` is the worktree path in every later section. `repoName` does not change, because section 1 resolves it from the main checkout.
+- The switch lasts only for the live session. Section 5 records `Seat: worktree <path>` under Plan Changes During Execution, and section 1 re-enters that path with EnterWorktree `path` before anything else in a later session. A session that already runs in that path counts as entered, so section 2a asks no seat question.
+- When EnterWorktree or a worktree command fails, the seat question comes back with only Take the seat and Hold, and the first of the two carries the Recommended marker under the busy rule.
+- The `seat-check.sh` holder rule already exempts a `cwd` under `<main>/.claude/worktrees/`, the directory where EnterWorktree creates worktrees, so the worktree session holds no seat and the script needs no change. If either path moves, the holder rule must move with it.
+- The [parent and child session shape](../../plugins/toolkit/doctrine/orchestration.md#parent-and-child-sessions) puts each child in such a worktree.
 
 ## Seat line size
 

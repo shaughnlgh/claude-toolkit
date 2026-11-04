@@ -11,8 +11,8 @@ description: >-
   prospective task, then writes a parent umbrella plan note plus child plan stubs
   using plan-guide's frontmatter and naming rules, one stub per task. Does not fire
   on an ordinary single-feature task, even a large one. Those go straight to
-  plan-guide instead. Never automatic: only an explicit request or a crawl route
-  the user confirmed.
+  plan-guide instead. Never automatic: only an explicit request, or a crawl route or
+  plan-flow route check the user confirmed.
 ---
 
 # Wayfinder
@@ -25,7 +25,7 @@ Because wayfinder creates plan notes (the parent and every child stub), `plan-gu
 
 ## Trigger and scope
 
-Fire only when the user explicitly asks to map, scope, or break down a large multi-part investigation, incident, or migration before planning it — or when the `crawl` skill routes here, which counts as explicit because crawl presents its evidence and recommended route and the user confirms it before wayfinder loads. Do not self-fire because a task looks big or touches many files. Size or fuzziness alone is not a trigger, only an explicit map, scope, or break-down request is. An ordinary single-feature task, even a large one, goes straight to `plan-guide`. If unsure whether the user wants decomposition or a single plan, ask rather than assume.
+Fire only when the user explicitly asks to map, scope, or break down a large multi-part investigation, incident, or migration before planning it — or when the `crawl` skill routes here, which counts as explicit because crawl presents its evidence and recommended route and the user confirms it before wayfinder loads. A `plan-flow` route check the user confirmed counts as explicit the same way. Do not self-fire because a task looks big or touches many files. Size or fuzziness alone is not a trigger, only an explicit map, scope, or break-down request is. An ordinary single-feature task, even a large one, goes straight to `plan-guide`. If unsure whether the user wants decomposition or a single plan, ask rather than assume.
 
 ## 1. Investigate to establish facts
 
@@ -65,7 +65,7 @@ This is the same shape as a real umbrella investigation register: classed issues
 
 ## 4. Emit the parent umbrella plan
 
-Write the parent plan note through `plan-guide`'s mechanics exactly. It is a normal plan note, `plan - <plan-name>.md`, in the canonical vault plan location, with the full required frontmatter and the full required sections (Objective, Plain Language Summary, Current Context, Assumptions, Affected Files, Implementation Steps, Validation Steps, Risks, Rollback Notes, Open Questions, Plan Changes During Execution, Related Topics, Linked Artifacts). Derive and check the plan name the same way `plan-guide` does (ticket prefix if one exists, kebab-case, vault-unique) — EXCEPT inside an expedition, where the name and directory were derived at ingestion: the parent takes that exact name and lands in that directory, or every child's `parent:` link fails the validator's directory-suffix check.
+Write the parent plan note through `plan-guide`'s mechanics exactly. It is a normal plan note, `plan - <plan-name>.md`, in the canonical vault plan location, with the full required frontmatter and the full required sections (Objective, Plain Language Summary, Current Context, Assumptions, Affected Files, Implementation Steps, Validation Steps, Risks, Rollback Notes, Open Questions, Plan Changes During Execution, Related Topics, Linked Artifacts). Derive and check the plan name the same way `plan-guide` does (ticket prefix if one exists, kebab-case, vault-unique) — EXCEPT inside an expedition, where the name and directory were derived at ingestion: the parent takes that exact name and lands in that directory, or every child's `parent:` link fails the validator's directory-suffix check. When the caller hands over a pre-scaffolded plan note, write the parent plan into that note in place, so its name stands and its directory is the plan directory.
 
 When a crawl handed off a brief and no `brief - <plan-name>.md` exists yet, write it beside the parent now (the verbatim brief plus its source reference) — this write belongs to wayfinder, not to the departed crawl session. When the expedition's work note carries Parked Items, drain them while emitting the stubs in step 5: move each item into the stub that owns it (Open Questions or Current Context) and clear it from the work note.
 

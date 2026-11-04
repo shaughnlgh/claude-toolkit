@@ -1,0 +1,18 @@
+{
+  "name": "compact without a handoff infers the last toolkit skill and the last plan note named in a tool call",
+  "stdin": {
+    "source": "compact",
+    "transcript_path": "fixtures/session-start/transcripts/skill-and-plan.jsonl"
+  },
+  "env": {
+    "CLAUDE_PLUGIN_ROOT": "../.."
+  },
+  "expect_exit": 0,
+  "expect_stdout_contains": [
+    "No unused compact handoff for this compaction. Inferred state: last skill toolkit:execute-flow; plan note plan - example.md; git permission unasked.",
+    "Standing rules after compaction: you are the conductor."
+  ],
+  "expect_stdout_not_contains": [
+    "An earlier handoff was consumed"
+  ]
+}
