@@ -12,7 +12,7 @@
 # fallback), a Claude Code version dependency; if worker edits start being refused,
 # that signal changed.
 
-[ "${TOOLKIT_CONDUCTOR_EDITS:-0}" = "1" ] && exit 0
+[ "${TOOLKIT_CONDUCTOR_EDITS:-0}" = "1" ] && { cat >/dev/null 2>&1; exit 0; }
 command -v jq >/dev/null 2>&1 || exit 0   # no jq: skip silently, never obstruct work
 INPUT=$(cat 2>/dev/null)
 [ -n "$INPUT" ] || exit 0

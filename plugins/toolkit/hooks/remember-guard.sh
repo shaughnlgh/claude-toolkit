@@ -7,8 +7,8 @@
 # silent on any failure. Warns once per session when the marker dir is writable, else on every
 # qualifying Stop. TOOLKIT_REMEMBER_GUARD=0 disables.
 
-[ "${TOOLKIT_REMEMBER_GUARD:-1}" = "0" ] && exit 0
-command -v jq >/dev/null 2>&1 || exit 0   # no jq: stdin cannot be parsed safely, skip
+[ "${TOOLKIT_REMEMBER_GUARD:-1}" = "0" ] && { cat >/dev/null 2>&1; exit 0; }
+command -v jq >/dev/null 2>&1 || { cat >/dev/null 2>&1; exit 0; }   # no jq: stdin cannot be parsed safely, skip
 INPUT=$(cat 2>/dev/null)
 [ -n "$INPUT" ] || exit 0
 
