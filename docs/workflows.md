@@ -171,7 +171,7 @@ Tests: `bash plugins/toolkit/workflows/tests/execute-runner/run-tests.sh` runs 1
 
 ## ship-runner.js
 
-Ship flow. It carries a reviewed slice up the stage ladder suggest, commit, push, mr, merge, release, and stops at the ceiling: the lower of `stopAt` and the cap the session git permission allows. `none` caps the run at suggest, `push` at mr, and `release` at release. The script calls one agent at a time and runs eight phases:
+Ship flow. It carries a reviewed slice up the stage ladder suggest, commit, push, mr, merge, release, and stops at the ceiling the plan note records: `none` at suggest, `mr` at mr, `merge` at merge, and `merge` with `tag_merge: true` at release. The script calls one agent at a time and runs eight phases:
 
 - **Prep**: a `toolkit:verifier` (`prep:state`) runs `git -c core.quotePath=false status --porcelain -uall`, `git branch --show-current`, `git rev-parse HEAD`, `git ls-remote origin refs/heads/<branch>`, `git -c core.quotePath=false diff --cached --name-only`, the auth probe (`gh auth status` or `glab api user`), and the PR or MR lookup (`gh pr view <branch> --json number,url,state,reviewDecision` or `glab mr list --source-branch <branch> -F json`). It returns the open PR or MR with its `reviewDecision`, an empty string on GitLab. On a run that starts at merge with a `recordedSha`, it also runs `git log --format=%H <recordedSha>..HEAD` and returns the printed shas as `logShas`. The script checks the branch, checks the auth probe and the staged paths when the ceiling is above suggest, and checks the listed paths against the tree when the run commits. A suggest-only run therefore never blocks on a failed auth probe. When no listed path is dirty and HEAD starts with `recordedSha`, the commit counts as made and `commit:paths` does not run. At ceiling suggest, Prep is the only stage that runs.
 - **Commit**: a `toolkit:implementer` (`commit:paths`) runs `git add --` with each listed path, `git commit -F -` with the message, and `git rev-parse HEAD`. The commit counts only when the returned sha differs from the Prep HEAD.
@@ -187,7 +187,7 @@ The Pipeline and Threads phases run inside the mr stage, so a run at ceiling mr 
 Invoked by the `ship-flow` skill (or directly) with:
 
 ```
-args: {planName, repoRoot, repoName, host, remotePath, defaultBranch, branch, commitMessage, mrTitle, mrBody, stopAt, permission, scratchDir, pluginRoot, paths, botAuthors?, tagName?, tagMessage?, maxFixRounds?, startAt?, recordedSha?, mergedSha?, mr?, knownShas?, protectedPaths?}
+args: {planName, repoRoot, repoName, host, remotePath, defaultBranch, branch, commitMessage, mrTitle, mrBody, ceiling, scratchDir, pluginRoot, paths, tag?, botAuthors?, tagName?, tagMessage?, maxFixRounds?, startAt?, recordedSha?, mergedSha?, mr?, knownShas?, protectedPaths?}
 ```
 
 - `planName`, `repoRoot`, `repoName` (required): the plan note name, the absolute path to the checkout, and the repo name every prompt carries.
@@ -195,12 +195,12 @@ args: {planName, repoRoot, repoName, host, remotePath, defaultBranch, branch, co
 - `remotePath` (required): the remote path without its host segment, such as `owner/repo` or `group/sub/repo`. The script builds the API paths from it.
 - `defaultBranch` and `branch` (required): the default branch and the slice branch. The script blocks when `branch` is the default branch, `main`, or `master`.
 - `commitMessage`, `mrTitle`, `mrBody` (required): the commit message and the PR or MR title and body.
-- `stopAt` (required): `suggest`, `commit`, `push`, `mr`, `merge`, or `release`.
-- `permission` (required): `none`, `push`, or `release`, the recorded session git permission.
+- `ceiling` (required): `none`, `mr`, or `merge`, the plan note's ceiling.
+- `tag` (optional): a boolean, default false. Under `merge` it adds the release stage, which tags the merge commit.
 - `scratchDir` and `pluginRoot` (required): the absolute scratchpad path and the installed plugin root.
 - `paths` (required): a non-empty array of the repo-relative paths to stage.
 - `botAuthors` (optional): logins to count as bots beside GitHub app authors and GitLab bot users. Each entry must be a host login: a letter or digit, then letters, digits, `.`, `_`, or `-`, with an optional `[bot]` suffix. When it is not empty, the Threads phase waits for a review from these authors before the fetch. Default `[]`.
-- `tagName` and `tagMessage` (optional): required when `stopAt` is `release`.
+- `tagName` and `tagMessage` (optional): required when `ceiling` is `merge` and `tag` is true.
 - `maxFixRounds` (optional): a non-negative integer that caps the pipeline fix commits. Default 1.
 - `startAt` (optional): `commit`, `push`, `mr`, `merge`, or `release`, the stage the run resumes from. Default `commit`. Stages below it do not run.
 - `recordedSha` (optional): the commit sha an earlier run recorded, 7 to 64 lowercase hex characters. Default an empty string.
@@ -209,12 +209,12 @@ args: {planName, repoRoot, repoName, host, remotePath, defaultBranch, branch, co
 - `knownShas` (optional): the commit shas the shipping record holds, the recorded commit sha plus every recorded fix sha, each 7 to 64 lowercase hex characters. A `logShas` entry matches when it starts with a listed sha. Default `[]`.
 - `protectedPaths` (optional): repo-relative paths whose threads the run never fixes, added to the CI configuration list. An entry ending in `/` covers a directory, and any other entry covers one exact path. Default `[]`.
 
-The script throws if any required string arg is missing or empty, if `paths` is not a non-empty string array, if `host`, `stopAt`, `permission`, or `startAt` is not one of its values, if `botAuthors` is not a string array or holds an entry that is not a host login, if `stopAt` is `release` without `tagName` and `tagMessage`, if `maxFixRounds` is not a non-negative integer, if `recordedSha` is not a string or is a non-empty string that is not 7 to 64 lowercase hex characters, if `knownShas` is not an array of such shas, if `protectedPaths` is not a string array, if `mr` is not a non-empty `url` with a positive integer `number`, or if `startAt` is `merge` or `release` without `mr`. It throws `ship-runner mergedSha must be a hex commit sha` when `mergedSha` is not 7 to 64 lowercase hex characters, and `ship-runner requires mergedSha when startAt is release` when a release start has no `mergedSha`.
+The script throws if any required string arg is missing or empty, if `paths` is not a non-empty string array, if `host`, `ceiling`, or `startAt` is not one of its values, if `tag` is not a boolean, if `botAuthors` is not a string array or holds an entry that is not a host login, if `ceiling` is `merge` with `tag` true and without `tagName` and `tagMessage`, if `maxFixRounds` is not a non-negative integer, if `recordedSha` is not a string or is a non-empty string that is not 7 to 64 lowercase hex characters, if `knownShas` is not an array of such shas, if `protectedPaths` is not a string array, if `mr` is not a non-empty `url` with a positive integer `number`, or if `startAt` is `merge` or `release` without `mr`. It throws `ship-runner mergedSha must be a hex commit sha` when `mergedSha` is not 7 to 64 lowercase hex characters, and `ship-runner requires mergedSha when startAt is release` when a release start has no `mergedSha`.
 
-It returns `{stoppedAt, ceiling, commitSha, headSha, pushed, mr, pipeline, threads, fixShas, merged, tag, handoff, blocked, incomplete}`:
+It returns `{stoppedAt, stopStage, commitSha, headSha, pushed, mr, pipeline, threads, fixShas, merged, tag, handoff, blocked, incomplete}`:
 
 - `stoppedAt`: the highest stage the run completed. A run that stops early reports where it stands.
-- `ceiling`: the lower of `stopAt` and the permission cap.
+- `stopStage`: the stage the run stops at, `suggest`, `mr`, `merge`, or `release`, resolved from the `ceiling` and `tag` args.
 - `commitSha`, `headSha`, `pushed`: the slice commit, the pushed head after the last pushed fix, and whether the remote head equals it.
 - `mr`: `{url, number}` or null.
 - `pipeline`: `{state, sha, rounds, failingLines}` or null, where `state` is `green`, `red`, `pending`, or `none`.
@@ -255,7 +255,7 @@ It returns `{stoppedAt, ceiling, commitSha, headSha, pushed, mr, pipeline, threa
 
 A dead stage, a denied command, or a blocked sentence stops the ladder, so no later stage runs. A fix that pushed and then hit a blocker still lands in `fixShas`, and a fix that committed without a push does not. A refused merge skips the release.
 
-Tests: `bash plugins/toolkit/workflows/tests/ship-runner/run-tests.sh` runs 156 control-flow cases that drive the script with a label-keyed agent stub: arg validation, the ceiling for each permission and `stopAt`, the stage order and resume points, each stage's `SHIP GIT RULE`, a denied command and a dead agent at each stage's first label, the pipeline fix loop, the watch-mr.sh calls and their states, the bot review wait, the thread classification, every merge refusal, and the release. The suite needs `node`, and `verify.sh` also runs it.
+Tests: `bash plugins/toolkit/workflows/tests/ship-runner/run-tests.sh` runs 157 control-flow cases that drive the script with a label-keyed agent stub: arg validation, the ceiling for each `ceiling` value without and with `tag`, the stage order and resume points, each stage's `SHIP GIT RULE`, a denied command and a dead agent at each stage's first label, the pipeline fix loop, the watch-mr.sh calls and their states, the bot review wait, the thread classification, every merge refusal, and the release. The suite needs `node`, and `verify.sh` also runs it.
 
 ## post_mr_comments.py
 

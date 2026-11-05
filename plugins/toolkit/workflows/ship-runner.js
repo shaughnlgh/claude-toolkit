@@ -1,6 +1,6 @@
 export const meta = {
   name: 'ship-runner',
-  description: 'Ship flow: carries a reviewed slice up the stage ladder suggest, commit, push, mr, merge, release, and stops at the lower of the stopAt the human chose and the cap the session git permission allows. Every git and host mutation runs inside an agent under a per-stage SHIP GIT RULE. A denied command ends the run with a paste-ready handoff. A merge never happens over a fix commit this run pushed, a commit the shipping record never saw, an open thread, or a pipeline that did not run on the commit being merged. The script writes no file itself.',
+  description: 'Ship flow: carries a reviewed slice up the stage ladder suggest, commit, push, mr, merge, release, and stops at the ceiling the plan note records: none at suggest, mr at mr, merge at merge, and merge with tag at release. Every git and host mutation runs inside an agent under a per-stage SHIP GIT RULE. A denied command ends the run with a paste-ready handoff. A merge never happens over a fix commit this run pushed, a commit the shipping record never saw, an open thread, or a pipeline that did not run on the commit being merged. The script writes no file itself.',
   phases: [
     { title: 'Prep', detail: 'verifier checks the tree, the branch, the remote head, auth and any existing PR or MR' },
     { title: 'Commit', detail: 'implementer stages the listed paths and commits' },
@@ -17,21 +17,25 @@ let a = args
 if (typeof a === 'string') {
   try { a = JSON.parse(a) } catch (e) { a = null }
 }
-const REQUIRED = ['planName', 'repoRoot', 'repoName', 'host', 'remotePath', 'defaultBranch', 'branch', 'commitMessage', 'mrTitle', 'mrBody', 'stopAt', 'permission', 'scratchDir', 'pluginRoot']
+const REQUIRED = ['planName', 'repoRoot', 'repoName', 'host', 'remotePath', 'defaultBranch', 'branch', 'commitMessage', 'mrTitle', 'mrBody', 'ceiling', 'scratchDir', 'pluginRoot']
 const isStrList = (v) => Array.isArray(v) && v.every((s) => typeof s === 'string' && s)
 if (!a || REQUIRED.some((k) => typeof a[k] !== 'string' || !a[k]) || !isStrList(a.paths) || !a.paths.length) {
-  throw new Error('ship-runner requires args: {planName, repoRoot, repoName, host, remotePath, defaultBranch, branch, commitMessage, mrTitle, mrBody, stopAt, permission, scratchDir, pluginRoot, paths, botAuthors?, tagName?, tagMessage?, maxFixRounds?, startAt?, recordedSha?, mergedSha?, mr?, knownShas?, protectedPaths?}')
+  throw new Error('ship-runner requires args: {planName, repoRoot, repoName, host, remotePath, defaultBranch, branch, commitMessage, mrTitle, mrBody, ceiling, scratchDir, pluginRoot, paths, tag?, botAuthors?, tagName?, tagMessage?, maxFixRounds?, startAt?, recordedSha?, mergedSha?, mr?, knownShas?, protectedPaths?}')
 }
 const RANK = { suggest: 0, commit: 1, push: 2, mr: 3, merge: 4, release: 5 }
-const CAP = { none: 0, push: 3, release: 5 }
+const CEILING = { none: 0, mr: 3, merge: 4 }
 const START = a.startAt ?? 'commit'
 const oneOf = (name, value, allowed) => {
   if (!allowed.includes(value)) throw new Error(`ship-runner ${name} must be one of ${allowed.join(', ')}, got ${JSON.stringify(value)}`)
 }
 oneOf('host', a.host, ['github', 'gitlab'])
-oneOf('stopAt', a.stopAt, Object.keys(RANK))
-oneOf('permission', a.permission, Object.keys(CAP))
+oneOf('ceiling', a.ceiling, Object.keys(CEILING))
 oneOf('startAt', START, ['commit', 'push', 'mr', 'merge', 'release'])
+if (a.tag != null && typeof a.tag !== 'boolean') {
+  throw new Error(`ship-runner tag must be a boolean, got ${JSON.stringify(a.tag)}`)
+}
+// The tag stage keeps its internal name release. It runs only under ceiling merge with tag true.
+const TAG_WANTED = a.ceiling === 'merge' && a.tag === true
 if (a.botAuthors != null && !isStrList(a.botAuthors)) {
   throw new Error(`ship-runner botAuthors must be an array of strings, got ${JSON.stringify(a.botAuthors)}`)
 }
@@ -39,8 +43,8 @@ const badLogin = (a.botAuthors ?? []).find((b) => !/^[A-Za-z0-9][A-Za-z0-9._-]*(
 if (badLogin !== undefined) {
   throw new Error(`ship-runner botAuthors must be host logins, got ${JSON.stringify(badLogin)}`)
 }
-if (a.stopAt === 'release' && ['tagName', 'tagMessage'].some((k) => typeof a[k] !== 'string' || !a[k])) {
-  throw new Error('ship-runner requires tagName and tagMessage when stopAt is release')
+if (TAG_WANTED && ['tagName', 'tagMessage'].some((k) => typeof a[k] !== 'string' || !a[k])) {
+  throw new Error('ship-runner requires tagName and tagMessage when ceiling is merge and tag is true')
 }
 if (a.maxFixRounds != null && !(Number.isInteger(a.maxFixRounds) && a.maxFixRounds >= 0)) {
   throw new Error(`ship-runner maxFixRounds must be a non-negative integer, got ${JSON.stringify(a.maxFixRounds)}`)
@@ -77,8 +81,8 @@ const RECORDED_SHA = a.recordedSha ?? ''
 const KNOWN_SHAS = a.knownShas ?? []
 const LOG_CMD = START === 'merge' && RECORDED_SHA ? `git log --format=%H ${RECORDED_SHA}..HEAD` : ''
 
-const ceilingRank = Math.min(RANK[a.stopAt], CAP[a.permission])
-const ceiling = Object.keys(RANK).find((k) => RANK[k] === ceilingRank)
+const ceilingRank = CEILING[a.ceiling] + (TAG_WANTED ? 1 : 0)
+const stopStage = Object.keys(RANK).find((k) => RANK[k] === ceilingRank)
 const startRank = RANK[START]
 
 const BLOCKER_RULE = 'If any step, command or tool call is denied or cannot be done, do not work around it. Record it in blockers as one sentence and stop. The runner stops on any blockers entry, so blockers holds only work you could not do and is empty when the work is done.'
@@ -196,7 +200,7 @@ const run = (who, label, phaseName, schema, prompt) => agent(prompt, { label, ph
 
 const finish = () => {
   log(`incomplete: ${incomplete.join(', ') || 'none'}`)
-  return { stoppedAt, ceiling, commitSha, headSha, pushed, mr: mrRef, pipeline, threads, fixShas, merged, tag, handoff, blocked, incomplete }
+  return { stoppedAt, stopStage, commitSha, headSha, pushed, mr: mrRef, pipeline, threads, fixShas, merged, tag, handoff, blocked, incomplete }
 }
 
 phase('Prep')

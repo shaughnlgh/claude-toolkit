@@ -124,7 +124,7 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
 fi
 
 # Auto mode check. Under auto mode every command no allow rule matches goes to the classifier,
-# which never sees a flow's git-permission answer (a tool result). Announce missing mutating git
+# which never sees the plan note's ceiling or the run options cache. Announce missing mutating git
 # rules, and an autoMode environment block that does not name this repo's remote host.
 AUTO_NOTE=""; AUTO_STATUS=""
 SETTINGS="$HOME/.claude/settings.json"
@@ -143,7 +143,7 @@ if command -v jq >/dev/null 2>&1 && [ -f "$SETTINGS" ] && [ "$(jq -r '.permissio
   for rule in "${WANT_RULES[@]}"; do
     jq -e --arg r "$rule" '(.permissions.allow // []) | index($r) != null' "$SETTINGS" >/dev/null 2>&1 || MISSING="${MISSING} ${rule}"
   done
-  [ -n "$MISSING" ] && AUTO_NOTE="Auto mode is on and ~/.claude/settings.json lacks these allow rules:${MISSING}. Every commit, push and MR or PR creation goes to the classifier, which cannot see the flow's recorded git-permission answer, so a push answer does not stop denials. /setup check 6 offers the rules."
+  [ -n "$MISSING" ] && AUTO_NOTE="Auto mode is on and ~/.claude/settings.json lacks these allow rules:${MISSING}. Every commit, push and MR or PR creation goes to the classifier, which cannot see the plan note's recorded ceiling, so an mr ceiling does not stop denials. /setup check 6 offers the rules."
   if [ -n "$ORIGIN_HOST" ] && jq -e '(.autoMode.environment // []) | length > 0' "$SETTINGS" >/dev/null 2>&1; then
     jq -e --arg h "$ORIGIN_HOST" '(.autoMode.environment // []) | map(select(type == "string" and contains($h))) | length > 0' "$SETTINGS" >/dev/null 2>&1 \
       || AUTO_NOTE="${AUTO_NOTE:+$AUTO_NOTE
@@ -248,7 +248,7 @@ if [ "$SOURCE" = "compact" ]; then
       echo "session-start: could not rename ${h} to compact-handoff.used.md" >&2
     done
   else
-    I_SKILL=""; I_PLAN=""; I_PERM="unasked"; I_USED=""
+    I_SKILL=""; I_PLAN=""; I_CEIL="unasked"; I_USED=""
     if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
       I_SKILL=$(grep -F '"name":"Skill"' "$TRANSCRIPT" 2>/dev/null | grep -o '"skill":"toolkit:[A-Za-z0-9:_.-]*"' | tail -1 | sed 's/^"skill":"//; s/"$//' | head -c 80)
       case "$I_SKILL" in *[!A-Za-z0-9:_.-]*) I_SKILL="" ;; esac
@@ -258,15 +258,19 @@ if [ "$SOURCE" = "compact" ]; then
       [ -z "$I_PLAN" ] && I_PLAN=$(plan_mention < "$TRANSCRIPT")
       I_PLAN=$(printf '%s' "$I_PLAN" | head -c 160)
     fi
-    if [ -n "$SCRATCH" ] && [ -f "$SCRATCH/flow-git-permission" ]; then
-      I_PERM=$(head -1 "$SCRATCH/flow-git-permission" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
-      # A missing, empty, or unrecognised answer reads as none, as the flows read it.
-      case "$I_PERM" in none|push|release) ;; *) I_PERM="none" ;; esac
+    if [ -n "$SCRATCH" ] && [ -f "$SCRATCH/flow-run-options" ]; then
+      ro_line() { sed -nE "s/^[[:space:]]*$1:[[:space:]]*//p" "$SCRATCH/flow-run-options" 2>/dev/null | head -1 | sed 's/[[:space:]]*$//'; }
+      I_CEIL=$(ro_line ceiling)
+      I_RPLAN=$(ro_line plan | head -c 120)
+      # A missing, empty, or unrecognised ceiling line reads as none, as the flows read it.
+      case "$I_CEIL" in none|mr|merge) ;; *) I_CEIL="none" ;; esac
+      case "$I_RPLAN" in ''|*[!A-Za-z0-9._-]*) I_RPLAN="<unset>" ;; esac
+      I_CEIL="${I_CEIL} for plan ${I_RPLAN}"
     fi
     [ -n "$SCRATCH" ] && [ -f "$SCRATCH/compact-handoff.used.md" ] && I_USED=" An earlier handoff was consumed at a previous compaction."
-    add "No unused compact handoff for this compaction.${I_USED} Inferred state: last skill ${I_SKILL:-none}; plan note ${I_PLAN:-none}; git permission ${I_PERM}. Re-read that skill before continuing it."
+    add "No unused compact handoff for this compaction.${I_USED} Inferred state: last skill ${I_SKILL:-none}; plan note ${I_PLAN:-none}; git ceiling ${I_CEIL}. Re-read that skill before continuing it."
   fi
-  add "Standing rules after compaction: you are the conductor. Every file edit inside the project goes to a worker agent (toolkit:implementer), never to your own Edit or Write, and the conductor-guard hook refuses a direct edit. Git mutation runs only under the recorded flow permission. Validation honesty and claim provenance hold. Before continuing a flow, re-read its SKILL.md: a compacted skill body keeps only its first part."
+  add "Standing rules after compaction: you are the conductor. Every file edit inside the project goes to a worker agent (toolkit:implementer), never to your own Edit or Write, and the conductor-guard hook refuses a direct edit. Git mutation runs only under the ceiling the plan note or the run options cache records. Validation honesty and claim provenance hold. Before continuing a flow, re-read its SKILL.md: a compacted skill body keeps only its first part."
   if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
     NCOMPACT=$(grep -c '"subtype":"compact_boundary"' "$TRANSCRIPT" 2>/dev/null)
     case "$NCOMPACT" in ''|*[!0-9]*) NCOMPACT=0 ;; esac

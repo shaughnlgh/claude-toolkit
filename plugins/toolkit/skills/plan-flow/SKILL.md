@@ -6,8 +6,8 @@ description: >-
   "run the plan workflow"), including on a pre-scaffolded plan note: status planning,
   ticket frontmatter or a Brief section, and empty or template Implementation Steps
   and Validation Steps. Its Brief section is the brief, or else its Objective, Current
-  Context, and ticket. Never fires from crawl. Asks the git-permission question unless an earlier
-  flow in the session recorded the answer, runs topic recall, runs a route check that
+  Context, and ticket. Never fires from crawl. Reads the run options from the plan note or the session cache and asks only for the keys neither has,
+  runs topic recall, runs a route check that
   recommends wayfinder on a multi-part brief, launches the plan-builder
   workflow (discovery, planner draft, plan-critic pre-mortem with a revise loop, cold
   red team, optional goal judge), writes and validates the plan note in the vault, and
@@ -18,21 +18,15 @@ description: >-
 
 # Plan Flow
 
-Plan-flow is the conductor side of the `plan-builder` workflow, shipped with this plugin at `../../workflows/plan-builder.js` relative to this skill's base directory. The script runs discovery, the planner draft, the plan-critic pre-mortem with its revise loop, the cold red team, and the optional goal judge, then returns the plan sections. The conductor asks the git-permission question, runs recall, launches the script, writes and validates the plan note, and gates its status. The script writes no files and runs no git. The conductor writes only the vault note.
+Plan-flow is the conductor side of the `plan-builder` workflow, shipped with this plugin at `../../workflows/plan-builder.js` relative to this skill's base directory. The script runs discovery, the planner draft, the plan-critic pre-mortem with its revise loop, the cold red team, and the optional goal judge, then returns the plan sections. The conductor reads the run options, runs recall, launches the script, writes and validates the plan note, and gates its status. The script writes no files and runs no git. The conductor writes only the vault note.
 
 ## 1. Trigger
 
 Fire only when the user asks for the plan flow by name. Asking for "the plan workflow" counts as asking by name. A `crawl` route never fires this skill. A pre-scaffolded plan note is accepted, and section 5 writes into that note in place instead of creating a new plan directory. A note is pre-scaffolded when its status is `planning`, it has `ticket` frontmatter or a Brief section, and its Implementation Steps and Validation Steps are empty or still hold template text. Its Current Context and Objective may hold scaffold text. The brief of a pre-scaffolded note is its Brief section when it has one, otherwise its Objective, its Current Context, and its `ticket` frontmatter. Any other plan note, including one whose Implementation Steps are filled, belongs to `plan-guide`, so load `plan-guide` instead. Trivial work needs no plan, so it never fires this skill. Without a pre-scaffolded note, the brief is the user's text for the work, quoted verbatim.
 
-## 2. Git permission
+## 2. Run options
 
-Before anything else, check `<scratchpad>/flow-git-permission`. If the file exists, an earlier flow in this session recorded the answer, so read it and do not ask. If the file does not exist, this flow is the first in the session, so ask once through AskUserQuestion: "Do I have permission to run git commands on your behalf for every flow in this session?" with the options in this order:
-
-1. "No, suggest only (Recommended for a work repo)", with the description "Every flow in this session suggests git commands and runs none.", writes `none`.
-2. "Yes, commit, branch, push and open the MR or PR, never merge", with the description "Covers every flow in this session, including a later flow in this session that runs git, without asking again.", writes `push`.
-3. "Yes, through merge and tag", with the description "Covers every flow in this session, including a later flow in this session that runs git, without asking again.", writes `release`.
-
-Write the answer to `<scratchpad>/flow-git-permission` as `none`, `push`, or `release`. A missing, empty, or unrecognised file reads as `none`, so until the question is answered no flow has git permission. The answer holds for every flow run in this session, so a later flow in the same session reads the file and never re-asks. The plan flow runs no git under any answer. The `## Flows` section of the git-safety doctrine (`../../doctrine/git-safety.md` from this skill's base directory) defines what each answer unlocks.
+Before anything else, read the run options per `plan-guide` § Run options (`../plan-guide/SKILL.md` from this skill's base directory): from the pre-scaffolded note, then from `<scratchpad>/flow-run-options` for the keys the note lacks when that file's `plan:` line names this plan, then ask only the questions for the keys still missing. On a pre-scaffolded note, write the cache for this plan at once, because the note names the plan. On a fresh brief, no plan name exists yet, so keep the answers in conversation: section 5 writes the note keys and the cache once section 4 has derived `planName`, and when section 3a moves the work to wayfinder, the answers travel with the wayfinder hand-off. The plan flow runs no git under any ceiling. The `## Flows` section of the git-safety doctrine (`../../doctrine/git-safety.md` from this skill's base directory) defines what each ceiling permits.
 
 ## 3. Recall
 
@@ -55,7 +49,7 @@ When the recommendation is wayfinder, ask once through AskUserQuestion: "This br
 1. "Wayfinder (Recommended)", with the description "Maps the effort and writes a parent plan plus one child stub per workstream; each child gets its own plan flow later."
 2. "One plan flow", with the description "Continues this flow and plans the whole brief as one note."
 
-On "Wayfinder", load the `wayfinder` skill from `../wayfinder/SKILL.md` relative to this skill's base directory, hand it the brief and the recall hits, and stop this flow. Hand wayfinder the path of a pre-scaffolded note, which becomes the wayfinder parent note when its name matches its directory's suffix and otherwise the first child stub, as wayfinder section 4 says. The confirmed answer counts as the explicit request that wayfinder's trigger requires. On "One plan flow", continue to section 4.
+On "Wayfinder", load the `wayfinder` skill from `../wayfinder/SKILL.md` relative to this skill's base directory, hand it the brief, the recall hits, and the run option answers from section 2, and stop this flow. Hand wayfinder the path of a pre-scaffolded note, which becomes the wayfinder parent note when its name matches its directory's suffix and otherwise the first child stub, as wayfinder section 4 says. The confirmed answer counts as the explicit request that wayfinder's trigger requires. On "One plan flow", continue to section 4.
 
 When there is no wayfinder recommendation, state the route to the user in one sentence and continue to section 4 without a question.
 
@@ -96,7 +90,7 @@ Map each section to its heading:
 | `openQuestions` | Open Questions |
 | `relatedTopics` | Related Topics |
 
-Add Plan Changes During Execution and Linked Artifacts, both empty at creation as `plan-guide` requires. Write the full frontmatter per `plan-guide`, with `status: planning` until the gate. Before writing the frontmatter, check `branch` against the git-safety branch shape: `<type>/<TICKET>-<slug>` or `<type>/<slug>`, lowercase kebab-case apart from the ticket key. If `branch` does not match, write `feat/<planName>` and tell the user. Check that each `relatedTopics` entry is a plain name with no brackets and no slashes. If an entry carries brackets or a slash, write it without the brackets and with only its last path segment, and tell the user. Write `branch` to `branch` and `relatedTopics` to `related_topics` as plain strings.
+Add Plan Changes During Execution and Linked Artifacts, both empty at creation as `plan-guide` requires. Write the full frontmatter per `plan-guide`, with `status: planning` until the gate. Write the run option keys from section 2 into the frontmatter, each with its value, and a toolkit-default model or effort answer as a bare key. On a fresh brief, once the note is in place, write `<scratchpad>/flow-run-options` for `planName` with the same keys, per `plan-guide` § Run options. Before writing the frontmatter, check `branch` against the git-safety branch shape: `<type>/<TICKET>-<slug>` or `<type>/<slug>`, lowercase kebab-case apart from the ticket key. If `branch` does not match, write `feat/<planName>` and tell the user. Check that each `relatedTopics` entry is a plain name with no brackets and no slashes. If an entry carries brackets or a slash, write it without the brackets and with only its last path segment, and tell the user. Write `branch` to `branch` and `relatedTopics` to `related_topics` as plain strings.
 
 Append the tripwires to Validation Steps and the walk-away checks to Risks, one line each. If `critiqueStale` is true, end each of those tripwire and walk-away lines with the sentence "Written against an earlier draft, re-check against the final plan." List every `openObjections` entry under Risks as an open objection, one line each with its section, claim, and fix. List every `coldObjections` entry that the final plan does not resolve under Risks, one line each with its section and claim.
 
@@ -109,6 +103,8 @@ Then run `python3 <plugin-root>/scripts/validate-plan.py "<plan note path>"` and
 Set `status: approved` and `approved: <today>` only when `approveIf.meets` is true and `blocked`, `incomplete`, and `discovery.uncovered` are all empty. In every other case, set `status: review` and stop. A run without `approveIf` returns `approveIf: null`, which lands in `review`. If the status is approved, write the session summary that section 5 requires in the same change. Write the status change atomically and run `validate-plan.py` again, requiring exit 0.
 
 Whatever the gate result, state to the user the `finalVerdict`, the `coldVerdict`, every `blocked` reason, every `incomplete` marker, and every `discovery.uncovered` area. State a null `coldVerdict` and each empty list as "none". When `approveIf.meets` is false, also state its `reasons` and `unmetGoals`. If the status is approved, say that execution may follow once the user gives the instruction.
+
+Then print the note's Plain Language Summary verbatim under the heading `Plain language summary`. If the gate left the status at `review` or `planning`, follow the summary with the approval ask: "Approve this plan as written, or tell me what to change?" The user approves from that summary. If the status is `approved`, follow the summary with a statement that the plan is approved, and ask nothing. The approval itself follows the `plan-guide` lifecycle, so an approval here sets `status: approved` and `approved: <today>` with the same atomic write and validation as the gate.
 
 ## Boundary
 

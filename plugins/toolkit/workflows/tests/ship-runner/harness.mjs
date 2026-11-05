@@ -16,7 +16,7 @@ const MR_URL = 'https://gitlab.com/g/r/-/merge_requests/7'
 const MESSAGE = 'feat(widgets): export CSV\n\nAdds the exporter.'
 const ARGS = {
   planName: 'widget-export', repoRoot: '/repo', repoName: 'demo', host: 'github', remotePath: 'o/r', defaultBranch: 'main', branch: 'feat/x',
-  commitMessage: MESSAGE, mrTitle: 'feat(widgets): export CSV', mrBody: 'Adds the exporter.\n\nPlan: widget-export', stopAt: 'release', permission: 'release',
+  commitMessage: MESSAGE, mrTitle: 'feat(widgets): export CSV', mrBody: 'Adds the exporter.\n\nPlan: widget-export', ceiling: 'merge', tag: true,
   scratchDir: '/scratch', pluginRoot: '/plugin', paths: ['src/a.js', 'src/b.js'], tagName: 'v1.2.0', tagMessage: 'Release 1.2.0',
 }
 const GL_ARGS = { ...ARGS, host: 'gitlab', remotePath: 'g/r' }
@@ -65,7 +65,7 @@ const V = 'toolkit:verifier'
 const I = 'toolkit:implementer'
 const AGENT_TYPES = { 'commit:paths': I, 'merge:mr': I, 'mr:create': I, 'pipeline:fix:1': I, 'pipeline:watch:1': V, 'pipeline:watch:2': V, 'pipeline:watch:threads': V, 'prep:state': V, 'push:branch': I, 'release:tag': I, 'threads:fetch:1': V, 'threads:fetch:2': V, 'threads:fix:1': I, 'threads:wait': V }
 const PHASES = { 'commit:paths': 'Commit', 'merge:mr': 'Merge', 'mr:create': 'MR', 'pipeline:fix:1': 'Pipeline', 'pipeline:watch:1': 'Pipeline', 'pipeline:watch:2': 'Pipeline', 'pipeline:watch:threads': 'Threads', 'prep:state': 'Prep', 'push:branch': 'Push', 'release:tag': 'Release', 'threads:fetch:1': 'Threads', 'threads:fetch:2': 'Threads', 'threads:fix:1': 'Threads', 'threads:wait': 'Threads' }
-const RETURN_KEYS = ['stoppedAt', 'ceiling', 'commitSha', 'headSha', 'pushed', 'mr', 'pipeline', 'threads', 'fixShas', 'merged', 'tag', 'handoff', 'blocked', 'incomplete']
+const RETURN_KEYS = ['stoppedAt', 'stopStage', 'commitSha', 'headSha', 'pushed', 'mr', 'pipeline', 'threads', 'fixShas', 'merged', 'tag', 'handoff', 'blocked', 'incomplete']
 const MERGE_CMD = (sha) => `gh pr merge 7 --merge --match-head-commit ${sha}`
 const GH_WATCH = `bash /plugin/scripts/watch-mr.sh github o/r 7 pipeline --sha ${C} --bound 9`
 const GL_WATCH = `bash /plugin/scripts/watch-mr.sh gitlab g/r 7 pipeline --sha ${C} --bound 9`
@@ -108,17 +108,15 @@ const WATCHED = [...BASE, 'pipeline:watch:1']
 const FETCHED = [...WATCHED, 'threads:fetch:1']
 const LADDER = {
   suggest: ['prep:state'],
-  commit: ['prep:state', 'commit:paths'],
-  push: ['prep:state', 'commit:paths', 'push:branch'],
   mr: FETCHED,
   merge: [...FETCHED, 'merge:mr'],
   release: [...FETCHED, 'merge:mr', 'release:tag'],
 }
-const STOPS = Object.keys(LADDER)
+// Each ceiling arg resolves to a stage without tag and with tag.
 const CEILINGS = {
-  none: STOPS.map(() => 'suggest'),
-  push: ['suggest', 'commit', 'push', 'mr', 'mr', 'mr'],
-  release: STOPS,
+  none: { plain: 'suggest', tagged: 'suggest' },
+  mr: { plain: 'mr', tagged: 'mr' },
+  merge: { plain: 'merge', tagged: 'release' },
 }
 
 // One row per stage label: the overrides and extra args that reach it, the labels that run before it, its stage name and its git rule.
@@ -169,11 +167,11 @@ const mergeStartPrep = prepWith({ headSha: C, remoteSha: C, porcelain: [], logSh
 const cases = [
   ['a missing required arg throws', () => throwsWith({ ...ARGS, branch: undefined }, 'ship-runner requires args')],
   ['an unknown host throws', () => throwsWith({ ...ARGS, host: 'bitbucket' }, 'ship-runner host must be one of github, gitlab')],
-  ['an unknown stopAt throws', () => throwsWith({ ...ARGS, stopAt: 'deploy' }, 'ship-runner stopAt must be one of')],
-  ['an unknown permission throws', () => throwsWith({ ...ARGS, permission: 'admin' }, 'ship-runner permission must be one of')],
+  ['an unknown ceiling throws', () => throwsWith({ ...ARGS, ceiling: 'deploy' }, 'ship-runner ceiling must be one of')],
+  ['a tag that is not a boolean throws', () => throwsWith({ ...ARGS, tag: 'yes' }, 'ship-runner tag must be a boolean, got "yes"')],
   ['startAt suggest throws', () => throwsWith({ ...ARGS, startAt: 'suggest' }, 'ship-runner startAt must be one of')],
-  ['stopAt release without tagName throws', () => throwsWith({ ...ARGS, tagName: undefined }, 'requires tagName and tagMessage when stopAt is release')],
-  ['stopAt release without tagMessage throws', () => throwsWith({ ...ARGS, tagMessage: '' }, 'requires tagName and tagMessage when stopAt is release')],
+  ['ceiling merge with tag and no tagName throws', () => throwsWith({ ...ARGS, tagName: undefined }, 'requires tagName and tagMessage when ceiling is merge and tag is true')],
+  ['ceiling merge with tag and no tagMessage throws', () => throwsWith({ ...ARGS, tagMessage: '' }, 'requires tagName and tagMessage when ceiling is merge and tag is true')],
   ['startAt merge without mr throws', () => throwsWith({ ...ARGS, startAt: 'merge' }, 'requires mr {url, number} when startAt is merge')],
   ['maxFixRounds -1 throws', () => throwsWith({ ...ARGS, maxFixRounds: -1 }, 'ship-runner maxFixRounds must be a non-negative integer, got -1')],
   ['botAuthors that is not an array throws', () => throwsWith({ ...ARGS, botAuthors: 'coderabbitai' }, 'ship-runner botAuthors must be an array of strings, got "coderabbitai"')],
@@ -186,18 +184,23 @@ const cases = [
   ['recordedSha that is not hex throws', () => throwsWith({ ...ARGS, recordedSha: 'HEAD; echo x' }, 'ship-runner recordedSha must be a hex commit sha or an empty string, got "HEAD; echo x"')],
   ['knownShas with a non-hex entry throws', () => throwsWith({ ...ARGS, knownShas: ['main'] }, 'ship-runner knownShas must be an array of hex commit shas, got ["main"]')],
   ['protectedPaths that is not an array throws', () => throwsWith({ ...ARGS, protectedPaths: 'plugins/' }, 'ship-runner protectedPaths must be an array of strings, got "plugins/"')],
-  ...Object.keys(CEILINGS).map((permission) => [`permission ${permission} caps every stopAt at the expected ceiling and label set`, async () => {
-    const runs = await Promise.all(STOPS.map((stopAt) => run({}, { ...ARGS, stopAt, permission })))
-    const got = runs.map(({ result, prompts }) => ({ ceiling: result.ceiling, labels: labels(prompts) }))
-    return same(got, CEILINGS[permission].map((ceiling) => ({ ceiling, labels: LADDER[ceiling] })))
+  ...Object.keys(CEILINGS).map((ceiling) => [`ceiling ${ceiling} resolves the stage and label set without and with tag`, async () => {
+    const runs = await Promise.all([false, true].map((tag) => run({}, { ...ARGS, ceiling, tag })))
+    const got = runs.map(({ result, prompts }) => ({ stopStage: result.stopStage, labels: labels(prompts) }))
+    const want = [CEILINGS[ceiling].plain, CEILINGS[ceiling].tagged].map((c) => ({ stopStage: c, labels: LADDER[c] }))
+    return same(got, want)
   }]),
+  ['tag under ceiling mr needs no tagName and stops at mr', async () => {
+    const { result, error } = await run({}, { ...ARGS, ceiling: 'mr', tag: true, tagName: undefined, tagMessage: undefined })
+    return same({ error: Boolean(error), stopStage: result && result.stopStage }, { error: false, stopStage: 'mr' })
+  }],
   ['ceiling suggest runs prep:state only and stops at suggest', async () => {
-    const { result, prompts } = await run({}, { ...ARGS, permission: 'none' })
+    const { result, prompts } = await run({}, { ...ARGS, ceiling: 'none' })
     return same({ labels: labels(prompts), stoppedAt: result.stoppedAt }, { labels: ['prep:state'], stoppedAt: 'suggest' })
   }],
-  ['args.mr under push permission at stopAt commit runs no watch', async () => {
-    const { prompts } = await run({}, { ...ARGS, stopAt: 'commit', permission: 'push', mr: PR })
-    return same(labels(prompts), ['prep:state', 'commit:paths'])
+  ['args.mr under ceiling none runs no watch', async () => {
+    const { prompts } = await run({}, { ...ARGS, ceiling: 'none', mr: PR })
+    return same(labels(prompts), ['prep:state'])
   }],
   ['a blocked Prep runs no watch even with args.mr', async () => {
     const { prompts } = await run(prepWith({ authOk: false }), { ...ARGS, mr: PR })
@@ -223,8 +226,8 @@ const cases = [
     const { result } = await run(prepWith({ authOk: false }))
     return same(result.blocked, ['The auth probe gh auth status failed.'])
   }],
-  ['permission none with a failed auth probe stops at suggest and blocks nothing', async () => {
-    const { result } = await run(prepWith({ authOk: false }), { ...ARGS, permission: 'none' })
+  ['ceiling none with a failed auth probe stops at suggest and blocks nothing', async () => {
+    const { result } = await run(prepWith({ authOk: false }), { ...ARGS, ceiling: 'none' })
     return same({ stoppedAt: result.stoppedAt, blocked: result.blocked }, { stoppedAt: 'suggest', blocked: [] })
   }],
   ['Prep blocks when a path outside the list is staged', async () => {
@@ -240,12 +243,12 @@ const cases = [
     return same(result.blocked, ['Paths outside the staging list are already staged: src/z.js.'])
   }],
   ['recordedSha at HEAD with a clean tree skips commit:paths and keeps HEAD as commitSha', async () => {
-    const { result, prompts } = await run(prepWith({ porcelain: [] }), { ...ARGS, stopAt: 'commit', recordedSha: A })
-    return same({ labels: labels(prompts), commitSha: result.commitSha }, { labels: ['prep:state'], commitSha: A })
+    const { result, prompts } = await run(prepWith({ porcelain: [] }), { ...ARGS, ceiling: 'mr', recordedSha: A })
+    return same({ commit: 'commit:paths' in prompts, commitSha: result.commitSha }, { commit: false, commitSha: A })
   }],
   ['origin already at HEAD skips push:branch and counts as pushed', async () => {
-    const { result, prompts } = await run(prepWith({ porcelain: [], remoteSha: A }), { ...ARGS, startAt: 'push', stopAt: 'push' })
-    return same({ labels: labels(prompts), pushed: result.pushed }, { labels: ['prep:state'], pushed: true })
+    const { result, prompts } = await run(prepWith({ porcelain: [], remoteSha: A }), { ...ARGS, startAt: 'push', ceiling: 'mr' })
+    return same({ push: 'push:branch' in prompts, pushed: result.pushed }, { push: false, pushed: true })
   }],
   ['startAt mr with origin not at HEAD blocks in Prep naming both shas', async () => {
     const { result } = await run(prepWith({ porcelain: [], remoteSha: F }), { ...ARGS, startAt: 'mr' })
@@ -264,7 +267,7 @@ const cases = [
     return same({ labels: labels(prompts), tag: result.tag }, { labels: ['prep:state', 'release:tag'], tag: 'v1.2.0' })
   }],
   ['startAt release with the remote branch gone still tags', async () => {
-    const { result, prompts } = await run(prepWith({ headSha: C, remoteSha: '', porcelain: [] }), { ...ARGS, startAt: 'release', mr: PR, mergedSha: M, permission: 'release' })
+    const { result, prompts } = await run(prepWith({ headSha: C, remoteSha: '', porcelain: [] }), { ...ARGS, startAt: 'release', mr: PR, mergedSha: M })
     return same({ release: 'release:tag' in prompts, tag: result.tag, blocked: result.blocked }, { release: true, tag: 'v1.2.0', blocked: [] })
   }],
   ...STAGES.map((s) => [`the ${s.label} prompt carries its own SHIP GIT RULE and no other stage's mutating command`, async () => {
@@ -407,8 +410,8 @@ const cases = [
     const { result, prompts } = await run({}, BOTS)
     return same({ fetch: 'threads:fetch:1' in prompts, blocked: result.blocked, merged: result.merged }, { fetch: true, blocked: [], merged: { sha: M, kind: 'merge' } })
   }],
-  ['push permission at stopAt mr watches, fixes a bot thread, and never merges', async () => {
-    const { result, prompts } = await run(BOT_THREAD, { ...ARGS, stopAt: 'mr', permission: 'push' })
+  ['ceiling mr watches, fixes a bot thread, and never merges', async () => {
+    const { result, prompts } = await run(BOT_THREAD, { ...ARGS, ceiling: 'mr' })
     return same({ watched: 'pipeline:watch:1' in prompts, fixed: ids(result.threads.fixed), merge: 'merge:mr' in prompts }, { watched: true, fixed: ['T1'], merge: false })
   }],
   ['a fixable bot thread is fixed, rewatched and refetched', async () => {
