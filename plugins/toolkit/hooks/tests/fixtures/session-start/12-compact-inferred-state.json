@@ -9,7 +9,7 @@
   },
   "expect_exit": 0,
   "expect_stdout_contains": [
-    "No unused compact handoff for this compaction. Inferred state: last skill toolkit:execute-flow; plan note plan - example.md; git permission unasked.",
+    "No unused compact handoff for this compaction. Inferred state: last skill toolkit:execute-flow; plan note plan - example.md; git ceiling unasked.",
     "Standing rules after compaction: you are the conductor."
   ],
   "expect_stdout_not_contains": [

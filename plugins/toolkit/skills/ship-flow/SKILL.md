@@ -4,14 +4,12 @@ description: >-
   Ship flow: one run that carries a reviewed slice toward production. Use only when the
   user asks for the ship flow by name ("run the ship flow", "ship flow this plan"), after
   an execute-flow report or on an in-progress plan note whose branch exists. Never fires
-  from crawl. Asks the git-permission question unless an earlier flow in the session
-  recorded the answer, derives the host, the tree state and where to resume, asks once
-  where to stop, shows every external side effect at one confirmation gate, then launches
+  from crawl. Reads the run options from the plan note, derives the host, the tree state
+  and where to resume, shows every external side effect at one confirmation gate, then launches
   the ship-runner workflow (commit, push, MR or PR, a pipeline watch pinned to the pushed
   commit with a bounded fix loop, bot review threads, merge of that exact commit, tag),
   waits in the background for a slow pipeline or a pending bot review and relaunches
-  itself, stopping at the ceiling, the lower of the chosen stage and the cap the session
-  permission allows. Records the result on the plan note and closes with a report. The
+  itself, stopping at the ceiling the note records. Records the result on the plan note and closes with a report. The
   conductor never runs git or a host command beyond its read-only background watcher. Do NOT fire on a plan note whose last session summary
   does not begin execute-flow finished:, ship-flow stopped: or ship-flow finished:, on a
   completed note or one whose PR or MR already merged unless only its tag remains, on
@@ -21,7 +19,7 @@ description: >-
 
 # Ship Flow
 
-Ship-flow is the conductor side of the `ship-runner` workflow, shipped with this plugin at `../../workflows/ship-runner.js` relative to this skill's base directory. The script runs Prep, then Commit, Push, MR, the pipeline watch with its fix loop, the bot review threads, Merge, and Release, each up to the ceiling, and every git and host mutation runs inside its agents under a per-stage rule. The conductor asks the git-permission question, reads the host and the tree through one verifier, plus a capture verifier before a commit, reads the staging list, asks where to stop, runs the confirmation gate, launches the script, records the result on the plan note, starts the background watcher and relaunches the script when a run stopped only to wait, and closes with the report. The conductor writes only the vault note and scratchpad files.
+Ship-flow is the conductor side of the `ship-runner` workflow, shipped with this plugin at `../../workflows/ship-runner.js` relative to this skill's base directory. The script runs Prep, then Commit, Push, MR, the pipeline watch with its fix loop, the bot review threads, Merge, and Release, each up to the ceiling, and every git and host mutation runs inside its agents under a per-stage rule. The conductor reads the run options, reads the host and the tree through one verifier, plus a capture verifier before a commit, reads the staging list, runs the confirmation gate, launches the script, records the result on the plan note, starts the background watcher and relaunches the script when a run stopped only to wait, and closes with the report. The conductor writes only the vault note and scratchpad files.
 
 ## 1. Trigger
 
@@ -33,17 +31,11 @@ The plan note must exist. `planName` is its `plan` frontmatter value. `repoRoot`
 - its `branch` value is not blank and that branch exists in the repo, which section 3 confirms.
 - the summary of its last `sessions` entry begins `execute-flow finished:`, `ship-flow stopped:`, or `ship-flow finished:`.
 
-`execute-flow finished:` marks a slice that has not shipped yet. `ship-flow stopped:` marks a run that ended below its ceiling or in a handoff. `ship-flow finished:` marks a run that reached its ceiling, which the permission can cap below the merge (for example `mr` under `push`), so a later session with `release` permission ships the same note on to merge. A `status: completed` note goes on only for the release-only run: its PR or MR is merged, its merge commit carries no tag, and the session permission is `release`, which section 3 checks. Section 3 refuses any note whose PR or MR is merged unless the run only tags the merge commit. Any other summary means the slice is not ready to ship. A summary that begins `execute-flow blocked:` or `execute-flow adjudicating:`, or reads `execute-flow run started`, belongs to the execute flow, so stop and tell the user to finish it there. Any other status or summary: state it and stop. Where a run resumes is derived from observed state in section 3, never typed by the user.
+`execute-flow finished:` marks a slice that has not shipped yet. `ship-flow stopped:` marks a run that ended below its ceiling or in a handoff. `ship-flow finished:` marks a run that reached its ceiling, which a `ceiling: mr` note sets at mr, so after the user raises the note's ceiling to `merge` a later run ships the same note on to merge. A `status: completed` note goes on only for the release-only run: its PR or MR is merged, its merge commit carries no tag, and the note carries `ceiling: merge` and `tag_merge: true`, which section 3 checks. Section 3 refuses any note whose PR or MR is merged unless the run only tags the merge commit. Any other summary means the slice is not ready to ship. A summary that begins `execute-flow blocked:` or `execute-flow adjudicating:`, or reads `execute-flow run started`, belongs to the execute flow, so stop and tell the user to finish it there. Any other status or summary: state it and stop. Where a run resumes is derived from observed state in section 3, never typed by the user.
 
-## 2. Git permission
+## 2. Run options
 
-Before anything else, check `<scratchpad>/flow-git-permission`. If the file exists, an earlier flow in this session recorded the answer, so read it and do not ask. If the file does not exist, this flow is the first in the session, so ask once through AskUserQuestion: "Do I have permission to run git commands on your behalf for every flow in this session?" with the options in this order:
-
-1. "No, suggest only (Recommended for a work repo)", with the description "Every flow in this session suggests git commands and runs none.", writes `none`.
-2. "Yes, commit, branch, push and open the MR or PR, never merge", with the description "Covers every flow in this session, including a later flow in this session that runs git, without asking again.", writes `push`.
-3. "Yes, through merge and tag", with the description "Covers every flow in this session, including a later flow in this session that runs git, without asking again.", writes `release`.
-
-Write the answer to `<scratchpad>/flow-git-permission` as `none`, `push`, or `release`. A missing, empty, or unrecognised file reads as `none`, so until the question is answered no flow has git permission. The answer holds for every flow run in this session, so a later flow in the same session reads the file and never re-asks. The ship flow is the only flow that mutates git, and it does so only under `push` or `release`, through the runner's agents. Under `none` it runs Prep only and hands over the commit block, and the `## Flows` section of the git-safety doctrine (`../../doctrine/git-safety.md` from this skill's base directory) defines what each answer unlocks.
+Before anything else, read the run options per `plan-guide` § Run options (`../plan-guide/SKILL.md` from this skill's base directory): from the plan note, which an execute-flow run has already written, then from `<scratchpad>/flow-run-options` for the keys the note lacks when that file's `plan:` line names this plan, then ask only the questions for the keys still missing, and write the cache for this plan. Section 8 records every key the note lacked. The ship flow is the only flow that mutates git, and it does so only under `mr` or `merge`, through the runner's agents. Under `none` it runs Prep only and hands over the commit block. The `## Flows` section of the git-safety doctrine (`../../doctrine/git-safety.md` from this skill's base directory) defines what each ceiling permits.
 
 ## 3. Host, tree and observed state
 
@@ -63,7 +55,7 @@ Derive `startAt` once section 4 has the staging list, for every summary prefix s
 2. Else, when the `ls-remote` sha for `origin/<branch>` differs from HEAD or is absent, `startAt` is `push`. When the remote branch is gone (`ls-remote` prints nothing for it) and a merged PR or MR exists, rule 5 applies before this rule, so a merged slice whose branch the host deleted does not start at push.
 3. Else, when no PR or MR for the branch is open or merged, `startAt` is `mr`.
 4. Else, when a PR or MR for the branch is open, `startAt` is `merge`.
-5. Else the PR or MR is merged. `mergedSha` is its merge commit: `mergeCommit.oid` from `gh pr view` on GitHub, and on GitLab `merge_commit_sha`, else `squash_commit_sha`, else `sha`. When the session permission is `release` and no `git ls-remote --tags origin` line carries `mergedSha`, `startAt` is `release`, and the run goes on only when section 5 records `stopAt` as `release`. Otherwise, or when section 5 records a lower `stopAt`, stop and say that the slice is already merged, with the merge commit.
+5. Else the PR or MR is merged. `mergedSha` is its merge commit: `mergeCommit.oid` from `gh pr view` on GitHub, and on GitLab `merge_commit_sha`, else `squash_commit_sha`, else `sha`. When the note carries `ceiling: merge` and `tag_merge: true` and no `git ls-remote --tags origin` line carries `mergedSha`, `startAt` is `release`. Otherwise stop and say that the slice is already merged, with the merge commit.
 
 A `status: completed` note goes on only when rule 5 sets `startAt` to `release`. Any other rule stops it, and the conductor states the status.
 
@@ -81,20 +73,9 @@ When `startAt` is `commit` and the note records a shipping record, spawn one `to
 
 `paths` is the staging list. `mrTitle` is the first line of the message. `mrBody` is the rest of the message after its first blank line, followed by a line `Plan: <planName>`.
 
-## 5. Ceiling and stopAt
+## 5. Ceiling
 
-The ladder is suggest, commit, push, mr, merge, release. The session permission sets the cap: `none` caps at suggest, `push` caps at mr, and `release` caps at release. Say "The session permission is <permission>, so the cap is <cap>."
-
-Under `none`, every option resolves to suggest, so skip the question below and set `stopAt` to `suggest`. Under `push` or `release`, ask once through AskUserQuestion: "Where does the ship flow stop?" Under `push`, the four options in this order are "Suggest only", "Commit", "Push", "MR or PR". Under `release` they are "Push", "MR or PR", "Merge", "Release". The label of the option equal to the cap ends with " (Cap under <permission>)". The descriptions:
-
-- Suggest only: "Runs nothing. Hands you the commit block."
-- Commit: "Stages the listed paths and commits on <branch>."
-- Push: "Commit, then git push -u origin <branch>."
-- MR or PR: "Commit, push, open the merge request or pull request, watch the pipeline, and fix bot threads."
-- Merge: "Through MR, then merge only when green on the pushed commit, no open thread, and no fix commit this run. The merge is refused on a CHANGES_REQUESTED review or a GitLab status that is not mergeable."
-- Release: "Through merge, then tag the merge commit <tagName> and push the tag."
-
-A free-text answer that names another stage counts. `stopAt` is `suggest`, `commit`, `push`, `mr`, `merge`, or `release` for the answer. The ceiling is the lower of `stopAt` and the cap, and an answer above the cap runs no higher than the cap.
+The ladder is suggest, commit, push, mr, merge, release. The note's `ceiling` sets where the run stops: `none` stops at suggest, `mr` at mr, `merge` at merge, and `merge` with `tag_merge: true` at release. Say "The ceiling is <ceiling>, so the run stops at <stage>." No question is asked here. The user changes the ceiling by editing the note.
 
 ## 6. Confirmation gate
 
@@ -109,10 +90,10 @@ Print the preview in chat:
   - the review fix message template `fix(review): <thread summary> (ship-flow)`, bounded at one commit per fixable bot thread.
   - the reply template `Fixed in <short sha>: <what changed>`, one reply and one resolve per fixed bot thread.
 - that no commit carries a Co-Authored-By trailer and that human threads are never touched.
-- the tag name and message when the ceiling is release, and every CI tag trigger sentence from section 3.
+- the tag name and message when the stage is release, and every CI tag trigger sentence from section 3.
 - when `startAt` is `merge` and Plan Changes During Execution records fix shas from earlier ship-flow runs, the heading `Fix commits to read before Go` with each of those shas on its own line, because the run merges over every fix sha the note records.
 
-Then ask once through AskUserQuestion: "Ship <planName> from <branch> to <remotePath> on <host>, ceiling <ceiling>. Everything the run may send out is shown above. Go, edit, or stop?" with the options in this order:
+Then ask once through AskUserQuestion: "Ship <planName> from <branch> to <remotePath> on <host>, stopping at <stage>. Everything the run may send out is shown above. Go, edit, or stop?" with the options in this order:
 
 1. "Go", with the description "Runs every stage up to the ceiling. A merge still stops if the run pushed a fix."
 2. "Edit", with the description "Tell me what to change. The preview and this question come back."
@@ -129,16 +110,16 @@ Build the args:
 - `planName`, `repoRoot`, `repoName`: from section 1.
 - `host`, `remotePath`, `defaultBranch`, `branch`, `startAt`, `recordedSha`, `mr`, `mergedSha`: from section 3. Pass `mr` only when `startAt` is `merge` or `release`, and `mergedSha` only when `startAt` is `release`.
 - `commitMessage`, `mrTitle`, `mrBody`, `paths`: from section 4.
-- `stopAt`: from section 5. `permission`: from section 2.
+- `ceiling`: the note's value from section 2. `tag`: the note's `tag_merge` value from section 2 as a boolean, `false` when the key is absent.
 - `botAuthors`, `maxFixRounds`: from section 6.
-- `tagName`, `tagMessage`: from section 3, only when `stopAt` is `release`.
+- `tagName`, `tagMessage`: from section 3, only when `ceiling` is `merge` and `tag` is true.
 - `knownShas`: the shipping record's commit sha (`recordedSha`) plus every fix sha that Plan Changes During Execution records from an earlier ship-flow run, or an empty list.
 - `protectedPaths`: the repo-specific paths that a bot-thread fix must never touch, empty unless the plan note names them.
 - `scratchDir`: the absolute scratchpad path. `pluginRoot`: `<plugin-root>`.
 
 When `repoRoot` contains `plugins/toolkit/workflows/ship-runner.js`, launch `{scriptPath: "<repoRoot>/plugins/toolkit/workflows/ship-runner.js"}`, otherwise `{name: "toolkit:ship-runner"}`. If name resolution fails, launch `{scriptPath: "<this skill's base directory>/../../workflows/ship-runner.js"}` resolved to an absolute path. The script is named `ship-runner` because a workflow and a skill cannot share a name in the plugin registry. If the Workflow tool refuses a `scriptPath` as outside the working directory, copy the script byte-identical to `<scratchpad>/ship-runner.js`, take the first 12 characters of `shasum -a 256` for the source and for the copy, require the two to match, and launch `{scriptPath: "<scratchpad>/ship-runner.js"}`. A run that dies is not resumed: every stage is idempotent, so asking for the ship flow again derives `startAt` from the tree and the host. The section 7b relaunch is that same mechanism, driven by the watcher's exit instead of the user's ask.
 
-The result is `{stoppedAt, ceiling, commitSha, headSha, pushed, mr, pipeline, threads, fixShas, merged, tag, handoff, blocked, incomplete}`:
+The result is `{stoppedAt, stopStage, commitSha, headSha, pushed, mr, pipeline, threads, fixShas, merged, tag, handoff, blocked, incomplete}`:
 
 - `pipeline` is `{state, sha, rounds, failingLines}` or null, where `state` is `green`, `red`, `pending`, or `none` and `sha` is the commit the state belongs to.
 - `threads` is `{fixed, pushedBackNeeded, human, open}` or null.
@@ -156,11 +137,11 @@ Start the watcher with the Bash tool and `run_in_background: true`. For the pend
 
 On the completion notification, read the exit code and the status line that `watch-mr.sh` prints:
 
-- `GREEN` or `LANDED` (exit 0), or `RED` (exit 10): spawn the section 3 verifier again and derive `startAt` again. If `startAt` is `merge` and the branch, the MR url and number, and the gate's ceiling are unchanged, rebuild the args per section 7 with the same `paths`, `botAuthors`, and `protectedPaths`, with `stopAt` and `maxFixRounds` set by the two relaunch rules below, and with `knownShas` updated from the note. Then relaunch per section 7 without the section 6 gate, because the Go answer covered this run to the same ceiling and nothing the preview showed has changed. Any other `startAt` means the tree or the host changed during the wait, so report per section 9 and stop.
+- `GREEN` or `LANDED` (exit 0), or `RED` (exit 10): spawn the section 3 verifier again and derive `startAt` again. If `startAt` is `merge` and the branch, the MR url and number, and the gate's ceiling are unchanged, rebuild the args per section 7 with the same `paths`, `botAuthors`, and `protectedPaths`, with `ceiling` and `maxFixRounds` set by the two relaunch rules below, and with `knownShas` updated from the note. Then relaunch per section 7 without the section 6 gate, because the Go answer covered this run to the same ceiling and nothing the preview showed has changed. Any other `startAt` means the tree or the host changed during the wait, so report per section 9 and stop.
 - `STUCK` (exit 11): report per section 9 with the line `The pipeline for <sha> is stuck: every job finished but the pipeline has not settled for <minutes> minutes.` and stop, because unsticking an external job is the user's call.
 - `BOUND` (exit 12), `NONE` (exit 13), `MOVED` (exit 14), or exit 2 or 3: report the status line, or the stderr text for exit 2 or 3, per section 9 and stop.
 
-If the run that stopped to wait, or any earlier run of this ship-flow ask, returned a non-empty `fixShas`, the relaunch passes `stopAt` as `mr`, because section 7 builds `knownShas` from the fix shas that section 8 records and the runner refuses a merge only for fix commits its own launch pushed. That relaunch watches the pipeline and works the bot threads but never merges, and section 9 hands the merge to the user.
+If the run that stopped to wait, or any earlier run of this ship-flow ask, returned a non-empty `fixShas`, the relaunch passes `ceiling` as `mr`, because section 7 builds `knownShas` from the fix shas that section 8 records and the runner refuses a merge only for fix commits its own launch pushed. That relaunch watches the pipeline and works the bot threads but never merges, and section 9 hands the merge to the user.
 
 The relaunch passes `maxFixRounds` as the gate's value minus the sum of `pipeline.rounds` across this ask's runs, never below zero, so all relaunches together push no more pipeline fix commits than the gate approved.
 
@@ -168,9 +149,9 @@ Start at most three watchers per ship-flow ask. When the third relaunch returns 
 
 ## 8. Record
 
-Load `plan-guide`. Set the `mr` frontmatter from `mr.url` when it is not null. Under Plan Changes During Execution, record one line each for the commit sha, each `fixShas` entry with its reason, so a later run's `knownShas` holds every fix sha, the merge sha, the tag, the `threads` lists, and every `blocked` sentence and `incomplete` label.
+Load `plan-guide`. When section 2 filled keys from the cache or asked for them, write those run option keys into the frontmatter in this write. Set the `mr` frontmatter from `mr.url` when it is not null. Under Plan Changes During Execution, record one line each for the commit sha, each `fixShas` entry with its reason, so a later run's `knownShas` holds every fix sha, the merge sha, the tag, the `threads` lists, and every `blocked` sentence and `incomplete` label.
 
-Record this session's entry per the plan-guide session rules, which reuse the entry when execute-flow ran in this session. A section 7b relaunch reuses the entry the first launch in this session wrote. The summary begins `ship-flow stopped: at <stoppedAt>` when `blocked` or `incomplete` is not empty, when `handoff` is not null, or when `stoppedAt` is below the ceiling. It begins `ship-flow finished: <ceiling>` only on a clean run that reached the ceiling. The summary compares `stoppedAt` with the ceiling the section 6 gate approved, not the ceiling a section 7b relaunch returns, so a relaunch that section 7b capped at `mr` records `ship-flow stopped: at mr`. A `ship-flow finished:` summary keeps `status: in-progress` unless the merge rule below sets `status: completed`, so section 1 accepts the note again for a run above a capped ceiling. When `merged.sha` is set, a `Remember:` line under Plan Changes During Execution still sets `status: completed`, and section 1 accepts that note again for the release-only run. Without that line, keep `status: in-progress` and tell the user that the remember pass has not run. A release-only run on a `status: completed` note leaves the status as it is.
+Record this session's entry per the plan-guide session rules, which reuse the entry when execute-flow ran in this session. A section 7b relaunch reuses the entry the first launch in this session wrote. The summary begins `ship-flow stopped: at <stoppedAt>` when `blocked` or `incomplete` is not empty, when `handoff` is not null, or when `stoppedAt` is below the ceiling. It begins `ship-flow finished: <ceiling>` only on a clean run that reached the ceiling. In this section the ceiling is the stage section 5 mapped the note's run options to (`suggest`, `mr`, `merge`, or `release`), never the note's `ceiling` value, so a `ceiling: merge` and `tag_merge: true` run that stops at `merge` records `ship-flow stopped: at merge`. The summary compares `stoppedAt` with the ceiling the section 6 gate approved, not the `stopStage` a section 7b relaunch returns, so a relaunch that section 7b capped at `mr` records `ship-flow stopped: at mr`. A `ship-flow finished:` summary keeps `status: in-progress` unless the merge rule below sets `status: completed`, so section 1 accepts the note again for a later run after the user raises the note's ceiling. When `merged.sha` is set, a `Remember:` line under Plan Changes During Execution still sets `status: completed`, and section 1 accepts that note again for the release-only run. Without that line, keep `status: in-progress` and tell the user that the remember pass has not run. A release-only run on a `status: completed` note leaves the status as it is.
 
 Write the change atomically: Write the note to a `.tmp.md` file beside it, then move it into place with `vault-fs.sh mv`. Then run `python3 <plugin-root>/scripts/validate-plan.py "<plan note path>"` and require exit 0. If the validator fails, report its output and stop. Never patch a failure silently.
 
@@ -180,12 +161,11 @@ Open with the Repo, Branch, and Scope header lines from the git-safety Commit ha
 
 - each stage that ran with its output: the commit sha, the push, the PR or MR url, the pipeline state and its sha, the threads, the merge sha, and the tag.
 - when `pipeline.state` is `none`, that no pipeline was found for the pushed commit, and that asking for the ship flow again after the host registers the pipeline rewatches it.
-- `stoppedAt` and why: the ceiling, the chosen stop, or the first `blocked` sentence.
+- `stoppedAt` and why: the ceiling or the first `blocked` sentence.
 - when `handoff` is not null, the handoff block from the git-safety Commit handoff section, with `cd "<repoRoot>"` on its own line and `handoff.command` on the next.
 - when any run of this ship-flow ask returned a non-empty `fixShas` and `merged` is null, each of those fix shas, that the user must read them before asking for the ship flow again, and the merge command (`gh pr merge <number> --merge --match-head-commit <headSha>` on GitHub, `glab mr merge <number> --sha <headSha> --auto-merge=false --yes` on GitLab), and that asking for the ship flow again after reading the fixes merges them.
 - when a `blocked` sentence refuses the merge for commits no run recorded, each of those commits, and that the user must read them and then ask for the ship flow again.
 - each `pushedBackNeeded` thread with the review-threads push-back recipe (`../review-threads/SKILL.md` section 3), and each `human` thread for the user to settle.
-- when the permission capped the ceiling below `stopAt`, the next command for the user to run.
 - after a merge, the undo command for `merged.kind`: `git revert -m 1 <mergeSha>` for `merge`, `git revert <mergeSha>` for `squash`, and `git revert <base>..<mergeSha>` for `fast-forward`, where `<base>` is the default branch tip before the merge, the parent of the first commit in the range, because a fast-forward may carry several commits. For `unknown`, tell the user to check the parent count with `git cat-file -p <mergeSha>` before choosing between the two.
 - after a tag, the undo command `git push origin :refs/tags/<tag>`.
 - when the watcher exits `STUCK`, the stuck line from section 7b, and that the user settles the external job and then asks for the ship flow again.

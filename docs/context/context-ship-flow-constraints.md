@@ -1,10 +1,10 @@
 ---
 title: Ship flow constraints
-summary: The invariants the ship-runner workflow, its control-flow suite, and the ship-flow conductor's waits must keep, covering the cap and ceiling, fix commits, pipeline state, the merge guard, the release-only resume, the background wait and relaunch, and the shared git rule text.
+summary: The invariants the ship-runner workflow, its control-flow suite, and the ship-flow conductor's waits must keep, covering the ceiling, fix commits, pipeline state, the merge guard, the release-only resume, the background wait and relaunch, and the shared git rule text.
 type: context
 status: active
 owner: Shaughn Le Grange - Hatlen
-last_reviewed: 2026-10-19
+last_reviewed: 2026-11-05
 source_refs:
   - plugins/toolkit/workflows/ship-runner.js
   - plugins/toolkit/workflows/tests/ship-runner/
@@ -16,9 +16,10 @@ source_refs:
 
 The `ship-flow` skill launches the `ship-runner` workflow to carry a reviewed slice from commit to tag. What the script takes and returns is in [workflows.md](../workflows.md). This page lists the constraints a change to the runner or its suite must keep.
 
-## Cap and ceiling
+## Ceiling
 
-- `CAP` in `ship-runner.js` maps the session git permission to a stage rank, and the ceiling is `min(RANK[stopAt], CAP[permission])`. "Cap" names the permission's limit and "ceiling" names the effective stop. The skill and the docs keep the two words apart, so a change must not use one for the other.
+- `CEILING` in `ship-runner.js` maps the plan note's `ceiling` to a stage rank, and `ceilingRank` is that rank plus one when `ceiling` is `merge` and `tag` is true. The note's `ceiling` key holds `none`, `mr`, or `merge`, and the runner's `stopStage` result names the stage the run stops at, so a change keeps the key vocabulary and the stage vocabulary apart.
+- `TAG_WANTED` holds only when `ceiling` is `merge` and `tag` is true. A `tag` under `ceiling` `none` or `mr` is accepted, ignored, and needs no `tagName`. `RANK` keeps `release` at 5 as the internal name of the tag stage, and `ceilingRank` reaches it only through `TAG_WANTED`.
 
 ## Stopping a run
 
@@ -58,7 +59,7 @@ The `ship-flow` skill launches the `ship-runner` workflow to carry a reviewed sl
 - The `/setup` allow rule for the watcher matches only an invocation written as `bash <plugin-root>/scripts/watch-mr.sh ...`, so the skill must call the watcher in that literal form or the background start prompts.
 - The watcher runs from the repo's working directory, because `glab` reads the GitLab host from the git remote there.
 - A relaunch after a wait skips the Go gate only when the derived `startAt` is `merge` and the branch, the MR url and number, and the gate's ceiling are unchanged. Any other `startAt` means the tree or the host changed during the wait, so the conductor reports and stops. One ship-flow ask starts at most three watchers.
-- After any run in the ask returned a non-empty `fixShas`, a relaunch passes `stopAt` as `mr`. `knownShas` exempts every recorded fix sha from the merge guard, and the runner's `fixShas` refusal covers only the fix commits its own launch pushed. Only the conductor sees every fix in the ask, so the conductor decides whether the ask may merge.
+- After any run in the ask returned a non-empty `fixShas`, a relaunch passes `ceiling` as `mr`. `knownShas` exempts every recorded fix sha from the merge guard, and the runner's `fixShas` refusal covers only the fix commits its own launch pushed. Only the conductor sees every fix in the ask, so the conductor decides whether the ask may merge.
 - A relaunch passes `maxFixRounds` as the gate's value minus the sum of `pipeline.rounds` across the ask's runs, never below zero. The count uses `pipeline.rounds`, not `fixShas`, so review thread fixes do not drain the pipeline fix budget.
 - Fix shas awaiting review cross waits, relaunches, and sessions through the plan note. The section 6 gate lists them under `Fix commits to read before Go`, the section 9 report names them when any run in the ask returned a non-empty `fixShas` and nothing merged, and the section 8 summary compares `stoppedAt` with the ceiling the gate approved, so a relaunch capped at `mr` records `ship-flow stopped: at mr`.
 
@@ -75,6 +76,7 @@ The `ship-flow` skill launches the `ship-runner` workflow to carry a reviewed sl
 - The harness rewrites `export const meta` to `const meta` and asserts nothing on `meta.description`, so the description prose can change without breaking the suite.
 - `SHIP_RUNNER_SCRIPT=<copy> bash run-tests.sh` runs the suite against another copy of the script, for a mutant run. Run each mutant copy as its own plain command. A loop of `sed` mutants inside a bash function can be refused by the command checks even though it deletes nothing.
 - The generic `STAGES` cases in `harness.mjs` take per-row run args through an `args` field, merged over `ARGS` or `GL_ARGS`. A row for a stage that spawns only when an arg is set, such as `threads:wait` with `botAuthors`, sets that field.
+- A case that proves the run skips a stage asserts that the stage's label is absent from `prompts`, as the `recordedSha at HEAD` and `origin already at HEAD` cases do for `commit:paths` and `push:branch`. A full label list ties the case to how far the default stubs and the default ceiling carry the run.
 
 ## Related docs
 
