@@ -5,6 +5,8 @@
 # appears, write options can't write, and ordinary status/diff/log/show still work.
 # No network. Everything lives under mktemp dirs cleaned on exit.
 set -uo pipefail
+# git runs the fsmonitor driver with this suite's stdin, and its `cat` would wait on an open one.
+exec </dev/null
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GITRO="$HERE/../../git-ro.sh"

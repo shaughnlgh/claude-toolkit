@@ -188,6 +188,11 @@ else
   no "git-permission option drift -> execute-flow: [${go_exec:-<missing>}] ship-flow: [${go_ship:-<missing>}]"
 fi
 grep -qF '## Flows' "$P/doctrine/git-safety.md" && ok "git-safety carries the Flows section" || no "git-safety missing the Flows section"
+if grep -qF 'Worktree install:' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Worktree install:' "$ROOT/docs/context/context-worktree-seat.md" && grep -qF "runs the repo's install step there as execute-flow section 2a defines" "$P/doctrine/orchestration.md"; then
+  ok "execute-flow, the worktree seat context, and orchestration carry the worktree install step"
+else
+  no "worktree install step missing from execute-flow, context-worktree-seat.md, or orchestration.md"
+fi
 # subagent-rules.sh only fires if hooks.json actually wires it to SubagentStart; a hook
 # file can exist and still never run.
 want "hooks.json wires subagent-rules.sh to SubagentStart" \
