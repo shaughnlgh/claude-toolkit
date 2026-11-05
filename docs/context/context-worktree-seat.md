@@ -4,7 +4,7 @@ summary: The constraints that seat-check.sh, the session-start seat line, and th
 type: context
 status: active
 owner: Shaughn Le Grange - Hatlen
-last_reviewed: 2026-11-04
+last_reviewed: 2026-11-05
 source_refs:
   - plugins/toolkit/scripts/seat-check.sh
   - plugins/toolkit/scripts/tests/seat-check/run-tests.sh
@@ -12,6 +12,7 @@ source_refs:
   - plugins/toolkit/hooks/tests/session-start-seat-check.sh
   - plugins/toolkit/hooks/tests/run-all.sh
   - plugins/toolkit/skills/execute-flow/SKILL.md
+  - plugins/toolkit/workflows/execute-runner.js
   - plugins/toolkit/doctrine/orchestration.md
 ---
 <!-- managed-by: toolkit -->
@@ -42,6 +43,15 @@ The seat is a repo's main checkout, the directory whose `.git` is a directory. `
 - Section 2a calls EnterWorktree with `name` only when the plan's branch does not exist. Section 3 then skips its merged check. After any worktree entry, section 5 writes the worktree's branch from section 3 into the plan note's `branch` frontmatter when the two differ, so the commit handoff and the ship flow name the branch the worktree carries.
 - After the switch, `repoRoot` is the worktree path in every later section. `repoName` does not change, because section 1 resolves it from the main checkout.
 - The switch lasts only for the live session. Section 5 records `Seat: worktree <path>` under Plan Changes During Execution, and section 1 re-enters that path with EnterWorktree `path` before anything else in a later session. A session that already runs in that path counts as entered, so section 2a asks no seat question.
+- A fresh worktree holds only tracked files, so section 2a runs the repo's install step after the switch. A line in the main checkout's `CLAUDE.md` that begins `Worktree install: ` overrides the default for a repo the default does not fit, and a `<worktree>` token in it expands to `.claude/worktrees/<name>`, the worktree path relative to the main checkout.
+- Without that line, the default needs nothing declared. When the main checkout's `.env` has a line that begins `WARDEN_ENV_NAME=` and `composer.lock` exists, the composer part is `warden env exec -T php-fpm composer install -d /var/www/html/.claude/worktrees/<name> --no-interaction --no-scripts`, because Composer runs in the `php-fpm` container, which mounts the main checkout at `/var/www/html`. `--no-scripts` keeps a Composer script in the container from reaching the running stack, which serves the main checkout. Without Warden, the composer part is `composer install --no-interaction`. When `package-lock.json` exists, the npm part is `npm ci` on the host. The install is the composer part, the npm part, or both joined with `&&`, composer first. With neither lockfile, no install runs.
+- The Warden command runs with the worktree as its working directory like any other install, and `warden` finds the environment by walking up from there.
+- The install runs after every section 2a entry and never after a section 1 re-entry, because the earlier run installed there. An implementer runs it with the worktree as its working directory, because the harness blocks a worktree session's commands whose working directory is the main checkout.
+- A failed install stops the flow with the plan note untouched. The worktree stays, so a rerun enters it through the existing-worktree case and runs the install again.
+- No worker or conductor builds a worktree's environment by hand: no symlink or copy from the main checkout into the worktree, no partial install, and no ignore-file edit to hide one. A worktree whose tests cannot run after the install step is a stop, not a repair.
+- A run in a worktree, entered by section 1 or section 2a, passes `inWorktree: true` to the runner. The running local stack serves the main checkout, so the validation verifier does not run a Validation Step that needs it, such as the site's URL, a browser check, or a request to the local stack. It returns that step as deferred with `needs the seat` as evidence and runs every other step. A deferred step does not block.
+- The plan note records each deferred step under Plan Changes During Execution as `Validation deferred: <step> (needs the seat)`, and the report lists them first under a line that reads "Deferred to the seat". Nothing is created outside the worktree for such a step: no container, no database clone, no media mount, and no hostname.
+- The `deferred` status exists in the validation schema only under `inWorktree`, and a runner result without the `deferred` list reads as an empty list.
 - When EnterWorktree or a worktree command fails, the seat question comes back with only Take the seat and Hold, and the first of the two carries the Recommended marker under the busy rule.
 - The `seat-check.sh` holder rule already exempts a `cwd` under `<main>/.claude/worktrees/`, the directory where EnterWorktree creates worktrees, so the worktree session holds no seat and the script needs no change. If either path moves, the holder rule must move with it.
 - The [parent and child session shape](../../plugins/toolkit/doctrine/orchestration.md#parent-and-child-sessions) puts each child in such a worktree.

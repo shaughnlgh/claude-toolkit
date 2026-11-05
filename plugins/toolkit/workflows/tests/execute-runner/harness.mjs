@@ -214,6 +214,22 @@ const cases = [
     const { result } = await run({ 'verify:validation': validationOf('manual') })
     return same({ manual: result.validation.manualChecks, blocked: result.blocked }, { manual: ['1. Run the unit tests: unit tests: manual'], blocked: [] })
   }],
+  ['deferred step in a worktree run lands in deferred and does not block', async () => {
+    const { result } = await run({ 'verify:validation': validationOf('deferred') }, { ...ARGS, inWorktree: true })
+    return same({ deferred: result.validation.deferred, blocked: result.blocked }, { deferred: ['1. Run the unit tests'], blocked: [] })
+  }],
+  ['worktree run offers deferred and carries the seat rule', async () => {
+    const { prompts, agents } = await run({}, { ...ARGS, inWorktree: true })
+    return same({ deferred: agents['verify:validation'].schema.properties.results.items.properties.status.enum.includes('deferred'), rule: prompts['verify:validation'].includes('Report such a STEP as deferred with needs the seat as evidence') }, { deferred: true, rule: true })
+  }],
+  ['run outside a worktree offers no deferred and no seat rule', async () => {
+    const { prompts, agents } = await run({})
+    return same({ deferred: agents['verify:validation'].schema.properties.results.items.properties.status.enum.includes('deferred'), rule: prompts['verify:validation'].includes('needs the seat') }, { deferred: false, rule: false })
+  }],
+  ['inWorktree as a string throws', async () => {
+    const { error } = await run({}, { ...ARGS, inWorktree: 'yes' })
+    return String(error && error.message).includes('inWorktree must be a boolean')
+  }],
   ['dead verify:validation blocks and skips the child', async () => {
     const { result, calls } = await run({ 'verify:validation': null })
     return same({ blocked: result.blocked, child: calls.length }, { blocked: ['The verifier verify:validation returned nothing.'], child: 0 })
