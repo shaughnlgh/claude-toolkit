@@ -19,7 +19,7 @@ if (typeof a === 'string') {
 }
 const REQUIRED = ['planName', 'repoRoot', 'repoName', 'planContent', 'recallHits', 'scratchDir', 'pluginRoot', 'vaultRoot']
 if (!a || REQUIRED.some((k) => typeof a[k] !== 'string' || !a[k])) {
-  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planContent, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, baselineFailing?, priorChangedPaths?, maxFixRounds?, reviewRules?, reviewMr?}')
+  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planContent, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, baselineFailing?, priorChangedPaths?, maxFixRounds?, reviewRules?, reviewMr?, inWorktree?}')
 }
 if (a.maxFixRounds != null && !(Number.isInteger(a.maxFixRounds) && a.maxFixRounds >= 0)) {
   throw new Error(`execute-runner maxFixRounds must be a non-negative integer, got ${JSON.stringify(a.maxFixRounds)}`)
@@ -28,6 +28,7 @@ if (a.reviewRules != null && typeof a.reviewRules !== 'string') throw new Error(
 const isStrList = (v) => Array.isArray(v) && v.every((s) => typeof s === 'string')
 if (a.baselineFailing != null && !isStrList(a.baselineFailing)) throw new Error(`execute-runner baselineFailing must be an array of strings when given, got ${JSON.stringify(a.baselineFailing)}`)
 if (a.priorChangedPaths != null && !isStrList(a.priorChangedPaths)) throw new Error(`execute-runner priorChangedPaths must be an array of strings when given, got ${JSON.stringify(a.priorChangedPaths)}`)
+if (a.inWorktree != null && typeof a.inWorktree !== 'boolean') throw new Error(`execute-runner inWorktree must be a boolean when given, got ${JSON.stringify(a.inWorktree)}`)
 const refOk = (r) => typeof r === 'string' ? r.length > 0 : !!(r && typeof r === 'object' && typeof r.scriptPath === 'string' && r.scriptPath.length > 0)
 if (a.reviewMr != null && !refOk(a.reviewMr)) throw new Error('execute-runner reviewMr must be a workflow name or {scriptPath} when given')
 const MAX_FIX_ROUNDS = a.maxFixRounds ?? 1
@@ -138,7 +139,7 @@ const THRESHOLD = 0.6
 
 const BASELINE = obj({ branch: str, status: strList, verify: obj({ command: str, exitCode: num, failing: strList }) })
 const STEP = obj({ changedPaths: strList, deviations: strList, checksRun: strList, result: str, blockers: strList, topicMaterial: str })
-const VALIDATION = obj({ results: list(obj({ step: str, status: { type: 'string', enum: ['pass', 'fail', 'manual', 'pre-existing'] }, evidence: str })) })
+const VALIDATION = obj({ results: list(obj({ step: str, status: { type: 'string', enum: ['pass', 'fail', 'manual', 'pre-existing'].concat(a.inWorktree ? ['deferred'] : []) }, evidence: str })) })
 const DIFF = obj({ diffPath: str, hash12: str, empty: bool, paths: strList })
 const RECHECK = obj({ results: list(obj({ file: str, title: str, resolved: bool, evidence: str })) })
 const COLD = { type: 'object', properties: { findings: list({ type: 'object',
@@ -235,6 +236,7 @@ const setValidation = (v, runs) => {
     allPass: v.results.length > 0 && v.results.every((r) => r.status === 'pass'),
     manualChecks: v.results.filter((r) => r.status === 'manual').map(lineOf),
     preExisting: v.results.filter((r) => r.status === 'pre-existing').map(lineOf),
+    deferred: v.results.filter((r) => r.status === 'deferred').map((r) => firstLine(r.step)),
   }
 }
 const covers = (v) => {
@@ -313,6 +315,7 @@ Implement YOUR STEP in ${a.repoRoot} and nothing beyond it. STEPS lists every st
 }
 
 phase('Verify')
+const SEAT_RULE = a.inWorktree ? `This run sits in a git worktree, and the running local stack serves the main checkout, not ${a.repoRoot}. Do not run a STEP that needs the running local stack: the site's URL, a browser check, a request to the local stack, or anything else that the main checkout's running services serve. Report such a STEP as deferred with needs the seat as evidence, and run every other STEP. Create nothing outside ${a.repoRoot}: no container, no database clone, no media mount, no hostname. ` : ''
 const runValidation = (label, phaseName) => agent(`${CONTEXT}
 
 VALIDATION STEPS:
@@ -321,7 +324,7 @@ ${validationBlock}
 BASELINE VERIFY RESULT:
 ${baseline ? JSON.stringify(baseline.verify) : 'none, the baseline check did not run'}
 
-Run each STEP above that an agent can run here, against ${a.repoRoot}. Return exactly ${validationCount} results, one per STEP, in order, with step set to the STEP number and the step's first line, as in STEP 1: <first line>. status is pass or fail with the command output as evidence, never a guessed pass. status is manual, with the reason as evidence, for a step that needs a human or another session. status is pre-existing when a step fails only on a check that the baseline failing list already names. If a command is denied, report its step as fail with the denial as evidence. ${STDIN_RULE} ${HOOK_RULE} Change no file. ${GIT_RULE} Return raw structured data only.`,
+Run each STEP above that an agent can run here, against ${a.repoRoot}. Return exactly ${validationCount} results, one per STEP, in order, with step set to the STEP number and the step's first line, as in STEP 1: <first line>. status is pass or fail with the command output as evidence, never a guessed pass. status is manual, with the reason as evidence, for a step that needs a human or another session. status is pre-existing when a step fails only on a check that the baseline failing list already names. If a command is denied, report its step as fail with the denial as evidence. ${SEAT_RULE}${STDIN_RULE} ${HOOK_RULE} Change no file. ${GIT_RULE} Return raw structured data only.`,
   { label, phase: phaseName, schema: VALIDATION, agentType: 'toolkit:verifier' })
 
 if (!validationSteps) setValidation({ results: [] }, 0)
