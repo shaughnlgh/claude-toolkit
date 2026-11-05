@@ -58,6 +58,13 @@ run "33 completed plan created before the Remember: line date is grandfathered" 
 run "34 completed plan with a bare Remember: line (no bullet)" "$FX/2026-10-18-completed-bare/plan - completed-bare.md" 0 "OK:"
 run "35 Remember: line only inside a fence does not count" "$FX/2026-10-18-completed-fenced/plan - completed-fenced.md" 1 "status completed requires a Remember: line"
 run "36 Remember: line only under another heading does not count" "$FX/2026-10-18-completed-wrongsection/plan - completed-wrongsection.md" 1 "status completed requires a Remember: line"
+run "37 all eight run option keys with valid values" "$FX/2026-11-05-runopts-all/plan - runopts-all.md" 0 "OK:"
+run "38 ceiling outside none, mr, merge is a violation" "$FX/2026-11-05-runopts-badceiling/plan - runopts-badceiling.md" 1 "ceiling: must be one of merge, mr, none"
+run "39 haiku on a model key is a violation" "$FX/2026-11-05-runopts-haiku/plan - runopts-haiku.md" 1 "worker_model: haiku is not allowed on any role"
+run "40 verifier_effort outside the set is a violation" "$FX/2026-11-05-runopts-badeffort/plan - runopts-badeffort.md" 1 "verifier_effort: must be blank or one of"
+run "41 tag_merge: yes is a violation (true or false only)" "$FX/2026-11-05-runopts-tagyes/plan - runopts-tagyes.md" 1 "tag_merge: must be one of false, true"
+run "42 all eight run option keys bare read as absent and validate" "$FX/2026-11-05-runopts-bare/plan - runopts-bare.md" 0 "OK:"
+run "43 a note with none of the run option keys validates" "$FX/2026-01-01-runopts-absent/plan - runopts-absent.md" 0 "OK:"
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"

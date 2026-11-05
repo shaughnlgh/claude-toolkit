@@ -4,7 +4,7 @@ summary: How the toolkit's validator and hooks find a line inside a plan note se
 type: context
 status: active
 owner: Shaughn Le Grange - Hatlen
-last_reviewed: 2026-10-18
+last_reviewed: 2026-11-05
 source_refs:
   - plugins/toolkit/scripts/validate-plan.py
   - plugins/toolkit/hooks/remember-guard.sh
@@ -31,9 +31,13 @@ source_refs:
 - Every validate-plan content rule added after plans already exist is gated on the frontmatter `created` date through a `*_SINCE` constant, such as `PLAIN_LANGUAGE_SUMMARY_SINCE` and `REMEMBER_LINE_SINCE`.
 - A plan is exempt only when `created` is a parseable `YYYY-MM-DD` date earlier than the constant. A blank, missing, or malformed `created` is not exempt.
 - Without the gate, a new rule fails every plan written before the convention existed.
+- A rule on an optional frontmatter key needs no gate. The run option keys that plan-guide § Run options defines are value-checked only when they carry a value, so a note that lacks them or leaves them blank passes whatever its `created` date.
+- A frontmatter key that a rule checks must be in `VALIDATED_KEYS` in `validate-plan.py`. The parser consumes the indented block of any other key opaquely, so a check on that key never sees a list. For a key in the set, a bare `key:` parses as an empty string and an indented list under it parses as a list, which `check_run_options` reports as `must be a single value, not a list`.
+- `MODEL_RE` in `validate-plan.py` mirrors the model value regex in `hooks/agent-model.sh`. No check compares the two, so a change to one must be made in the other.
 
 ## Testing a section rule
 
 - A fixture set for a "line in a section" rule needs a positive case, a grandfathered case, and three shapes that target one code path each: the line under the wrong section, the line only inside a fence, and the bare form beside the bullet form.
 - Each shape must be the only case that fails under the mutation it targets. For example, removing the fence handling must fail the fenced case and no other case.
 - When a hook check sets up a negative case to prove one guard, build it so only that guard can stop it. `remember-guard-check.sh` names its non-repo directory after the test repo, so the vault folder check passes and only the git check blocks.
+- The validate-plan fixture tree holds one more plan note than it has directories, because `2026-01-02-example-parent` holds a parent note and a child note. The fixture count on the suite's Tests line counts `plan - *.md` files, not directories.
