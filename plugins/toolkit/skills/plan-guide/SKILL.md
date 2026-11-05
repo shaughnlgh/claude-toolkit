@@ -254,6 +254,64 @@ The plan body describes the current design as if it had always been so. After a 
 
 During execution, if implementation reality diverges from the plan, Claude must update the plan note rather than deferring deviations to a separate artifact. Record changes in the "Plan Changes During Execution" section. This keeps the plan as the single source of truth for what was intended and what actually happened.
 
+## Run options
+
+Eight frontmatter keys record how the flows run a plan: `ceiling`, `worker_model`, `verifier_model`, `verifier_effort`, `nits`, `tests`, `e2e`, and `tag_merge`. They are optional on every note and are not part of the Required plan frontmatter block, so a skeleton, an older note, and a Mission Control scaffold still validate. A key is written only with a value, except that the three model and effort keys may be written blank, meaning the models file decides. `validate-plan.py` reads a blank key as absent and checks a value only when one is present. This section is the only definition of the keys, the reading rule, and the session cache. The `testing-gate` skill owns a separate tests-only question for work with no plan note. Every other run option question lives only in this section, and a flow references this section by name and carries no copy of the question set.
+
+### Values
+
+- `ceiling`: `none`, `mr`, or `merge`. The stage the ship flow stops at, and the limit on what any flow may do in git. `none` suggests git commands and runs none. `mr` commits, pushes, opens the MR or PR, watches the pipeline, and works the bot threads. `merge` adds the merge. The `## Flows` section of the git-safety doctrine (`../../doctrine/git-safety.md` from this skill's base directory) defines what each value permits.
+- `tag_merge`: `true` or `false`. Under `ceiling: merge`, `true` tags the merge commit and pushes the tag. Under any other ceiling the key has no effect.
+- `worker_model`: blank, a Claude Code alias (`sonnet`, `opus`, `fable`, `inherit`), or a full model id, with an optional `[1m]` suffix. The implementer role's model. Blank or absent means the models file decides.
+- `verifier_model`: the same vocabulary as `worker_model`. The verifier role's model.
+- `verifier_effort`: blank, or `low`, `medium`, `high`, `xhigh`, `max`, or `inherit`. The verifier role's effort. Blank or absent means the models file decides.
+- `nits`: `fix` or `skip`. Whether the review loops fix unreproduced nits and small findings.
+- `tests`: `required` or `manual`. Whether the slice needs automated tests, or manual verification is enough.
+- `e2e`: `required` or `skip`. Whether end-to-end tests must run against the seat before the slice ships.
+
+`haiku` is not accepted on any model key.
+
+Open item: no runner, hook, or skill reads `worker_model`, `verifier_model`, `verifier_effort`, `nits`, or `e2e`. The flows ask and record them only, so the execute runner fixes nits and the models file picks the models whatever these keys say.
+
+### Reading rule
+
+A flow reads the run options per key. The five enum keys are `ceiling`, `nits`, `tests`, `e2e`, and `tag_merge`. A bare enum key, one with no value, counts as absent. The note holds the keys when all five enum keys are present with valid values. Then the flow asks nothing and writes the session cache from the note.
+
+When the note lacks one or more enum keys, the flow fills each missing key from the session cache, but only when the cache's `plan:` line equals the note's `plan:` value. A cache for another plan, or one with a blank `plan:` line, is never read by a plan flow. For each key still missing, the flow asks the matching question from the question set below, so a note with some keys gets one question set that covers only the gaps. A missing or blank model or effort key never triggers a question on its own, because blank means the models file decides. Whenever a flow asks any run option question, it also asks the question for every model or effort key the note lacks, and a key written blank counts as answered. The flow records every filled or answered key on the note at its next write of the note, and rewrites the cache for this plan.
+
+A wayfinder child stub copies the parent's run option keys only when the parent carries values, so a child of a parent with recorded options never re-asks. The user changes an option by editing the note.
+
+### Question set
+
+At most two AskUserQuestion calls, carrying up to five questions in all, recommended answer first, per the communication doctrine. A flow asks only the questions whose keys are missing under the reading rule, and a question writes only the keys that were missing. A free-text answer that names a valid value counts as that value.
+
+Call one carries up to four questions:
+
+1. "Where does the ship flow stop?", asked when `ceiling` or `tag_merge` is missing, with the options "No git, suggest only (Recommended for a work repo)", which writes `ceiling: none` and `tag_merge: false`, "Commit, push and open the MR or PR", which writes `ceiling: mr` and `tag_merge: false`, "Through merge", which writes `ceiling: merge` and `tag_merge: false`, and "Through merge, then tag the merge commit", which writes `ceiling: merge` and `tag_merge: true`. When the note already holds a valid `ceiling` and lacks only `tag_merge`, the answer writes only `tag_merge`, `true` for the last option and `false` for any other, and the held `ceiling` stays as it is.
+2. "What testing does this slice need?", asked when both `tests` and `e2e` are missing, with the options "Unit tests, no end-to-end (Recommended)", which writes `tests: required` and `e2e: skip`, "Unit and end-to-end tests", which writes `tests: required` and `e2e: required`, and "Manual verification", which writes `tests: manual` and `e2e: skip`. When only `tests` is missing, ask "Does this slice need unit tests?" instead, with the options "Unit tests (Recommended)", which writes `tests: required`, and "Manual verification", which writes `tests: manual`. When only `e2e` is missing, ask "Does this slice need end-to-end tests?" instead, with the options "No end-to-end (Recommended)", which writes `e2e: skip`, and "End-to-end tests", which writes `e2e: required`.
+3. "Fix the nits the reviewers raise?", asked when `nits` is missing, with the options "Fix (Recommended)", which writes `nits: fix`, and "Skip", which writes `nits: skip`.
+4. "Which model implements?", which joins the set when the note has no `worker_model` key, with the options "Toolkit default (Recommended)", which writes a blank `worker_model`, then "opus", "sonnet", and "fable", each of which writes that alias.
+
+Call two carries the verifier question, which joins the set when the note has no `verifier_model` or no `verifier_effort` key. When call one carries fewer than four questions, the verifier question joins call one instead and the flow makes one call.
+
+1. "Which model and effort verifies?" with the options "Toolkit default (Recommended)", which writes a blank `verifier_model` and a blank `verifier_effort`, then "opus at xhigh", "opus at high", and "sonnet at high", each of which writes that alias and that effort.
+
+### Cache
+
+`<scratchpad>/flow-run-options` opens with a `plan: <slug>` line naming the plan note it serves, followed by one `key: value` line per key, in the note's vocabulary, blank after the colon for a blank value:
+
+    plan: example-plan
+    ceiling: mr
+    worker_model:
+    verifier_model:
+    verifier_effort:
+    nits: fix
+    tests: required
+    e2e: skip
+    tag_merge: false
+
+A flow uses the cache only when its `plan:` slug equals the note's `plan:` value, and rewrites the whole file for the plan it runs. A missing file means no run option question has been asked in this session. A missing, empty, or unrecognised `ceiling` line reads as `none`, so until the question is answered no flow mutates git. A resumed session keeps its scratchpad and so keeps the cache. A new session reads the plan note. On work that has no plan note, the `testing-gate` skill writes the file as a blank `plan:` line followed by `tests: <value>`, so no plan flow ever reads that cache.
+
 ## Topic links
 
 Related Topics sections use `[[wiki links]]` to topic notes. Every topic linked from a plan note must resolve: if the topic note does not exist anywhere in the vault, create a stub during planning. The full topic note spec (location, frontmatter, structure, content rules, freshness validation, build process) lives in the toolkit's obsidian-topic command (`../../commands/obsidian-topic.md` from this skill's base directory) — Read it before creating or updating topic notes or stubs. Prefer fewer, better topic links over many noisy ones. Do not rely on Obsidian-only plugins for basic readability.

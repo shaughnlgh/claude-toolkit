@@ -57,13 +57,13 @@ _sh_work() {
   SH_DIRS+=("$SH_WORK")
 }
 
-# $1 scratchpad dir, $2 handoff marker (empty for no handoff), $3 flow-git-permission content.
+# $1 scratchpad dir, $2 handoff marker (empty for no handoff), $3 flow-run-options content.
 _sh_layout() {
   mkdir -p "$1" || return 1
   if [[ -n "$2" ]]; then
     printf '# Compact handoff\nnext: %s\n' "$2" > "$1/compact-handoff.md" || return 1
   fi
-  printf '%s\n' "$3" > "$1/flow-git-permission"
+  printf '%s\n' "$3" > "$1/flow-run-options"
 }
 
 # $1 session id. Runs the hook on a compact payload. Sets SH_CTX and SH_ERR.
@@ -76,13 +76,13 @@ _sh_hook() {
   SH_ERR="$(cat "$SH_WORK/stderr" 2>/dev/null)"
 }
 
-# $1 label, $2 "twice" to run the hook a second time. One slug, one session, a handoff and a push answer.
+# $1 label, $2 "twice" to run the hook a second time. One slug, one session, a handoff and an mr ceiling.
 # Sets SH_PAD to the scratchpad, SH_CTX1 and SH_CTX to the first and last run's context.
 _sh_session() {
   local sid="hooktest-sid-$$-$RANDOM$RANDOM"
   if ! _sh_work || ! _sh_new; then _sh_fail "$1 :: setup failed"; return 1; fi
   SH_PAD="$SH_TMP/$SH_NAME/$sid/scratchpad"
-  _sh_layout "$SH_PAD" "HANDOFF-ONE" "push" || { _sh_fail "$1 :: layout failed"; return 1; }
+  _sh_layout "$SH_PAD" "HANDOFF-ONE" $'plan: example\nceiling: mr' || { _sh_fail "$1 :: layout failed"; return 1; }
   _sh_hook "$sid"
   SH_CTX1="$SH_CTX"
   [[ "${2:-}" == "twice" ]] && _sh_hook "$sid"
@@ -103,10 +103,10 @@ check_sh_first_run_skips_inference() {
   local label="first-run-skips-inference"
   _sh_session "$label" || { _sh_cleanup; return; }
   _sh_cleanup
-  if [[ "$SH_CTX1" == *"git permission push"* ]]; then
+  if [[ "$SH_CTX1" == *"git ceiling mr for plan example"* ]]; then
     _sh_fail "$label :: the handoff run also printed the inferred state line"; return
   fi
-  _sh_pass "$label :: the handoff run prints no inferred git permission"
+  _sh_pass "$label :: the handoff run prints no inferred git ceiling"
 }
 
 check_sh_first_run_renames() {
@@ -120,14 +120,14 @@ check_sh_first_run_renames() {
   _sh_pass "$label :: the injected handoff is renamed to compact-handoff.used.md"
 }
 
-check_sh_second_run_infers_permission() {
-  local label="second-run-infers-permission"
+check_sh_second_run_infers_ceiling() {
+  local label="second-run-infers-ceiling"
   _sh_session "$label" twice || { _sh_cleanup; return; }
   _sh_cleanup
-  if [[ "$SH_CTX" != *"git permission push"* ]]; then
-    _sh_fail "$label :: the second compaction did not report the recorded push answer"; return
+  if [[ "$SH_CTX" != *"git ceiling mr for plan example"* ]]; then
+    _sh_fail "$label :: the second compaction did not report the recorded mr ceiling"; return
   fi
-  _sh_pass "$label :: the second compaction infers state and reports git permission push"
+  _sh_pass "$label :: the second compaction infers state and reports git ceiling mr for plan example"
 }
 
 check_sh_second_run_no_reinject() {
@@ -158,11 +158,11 @@ _sh_traversal() {
   root="$SH_TMP/$SH_NAME"
   if [[ "$2" == "dotdot" ]]; then
     sid="../$SH_NAME"
-    _sh_layout "$root/scratchpad" "HANDOFF-TRAVERSAL" "push" || { _sh_fail "$1 :: layout failed"; return 1; }
+    _sh_layout "$root/scratchpad" "HANDOFF-TRAVERSAL" $'plan: example\nceiling: mr' || { _sh_fail "$1 :: layout failed"; return 1; }
   else
     a="hooktest-a$RANDOM"; b="hooktest-b$RANDOM"
     sid="$a/$b"
-    _sh_layout "$root/$a/$b/scratchpad" "HANDOFF-TRAVERSAL" "push" || { _sh_fail "$1 :: layout failed"; return 1; }
+    _sh_layout "$root/$a/$b/scratchpad" "HANDOFF-TRAVERSAL" $'plan: example\nceiling: mr' || { _sh_fail "$1 :: layout failed"; return 1; }
   fi
   before="$(find "$root" | sort)"
   _sh_hook "$sid"
@@ -182,14 +182,14 @@ check_sh_dotdot_no_handoff() {
   _sh_pass "$label :: a session_id of ../<dir> injects no handoff"
 }
 
-check_sh_dotdot_no_permission() {
-  local label="dotdot-no-permission"
+check_sh_dotdot_no_ceiling() {
+  local label="dotdot-no-ceiling"
   _sh_traversal "$label" dotdot || { _sh_cleanup; return; }
   _sh_cleanup
-  if [[ "$SH_CTX" != *"git permission unasked"* ]]; then
-    _sh_fail "$label :: a session_id of ../<dir> read a git permission"; return
+  if [[ "$SH_CTX" != *"git ceiling unasked"* ]]; then
+    _sh_fail "$label :: a session_id of ../<dir> read a git ceiling"; return
   fi
-  _sh_pass "$label :: a session_id of ../<dir> reports git permission unasked"
+  _sh_pass "$label :: a session_id of ../<dir> reports git ceiling unasked"
 }
 
 check_sh_dotdot_creates_nothing() {
@@ -212,14 +212,14 @@ check_sh_slash_no_handoff() {
   _sh_pass "$label :: a session_id of a/b injects no handoff"
 }
 
-check_sh_slash_no_permission() {
-  local label="slash-no-permission"
+check_sh_slash_no_ceiling() {
+  local label="slash-no-ceiling"
   _sh_traversal "$label" slash || { _sh_cleanup; return; }
   _sh_cleanup
-  if [[ "$SH_CTX" != *"git permission unasked"* ]]; then
-    _sh_fail "$label :: a session_id of a/b read a git permission"; return
+  if [[ "$SH_CTX" != *"git ceiling unasked"* ]]; then
+    _sh_fail "$label :: a session_id of a/b read a git ceiling"; return
   fi
-  _sh_pass "$label :: a session_id of a/b reports git permission unasked"
+  _sh_pass "$label :: a session_id of a/b reports git ceiling unasked"
 }
 
 check_sh_slash_creates_nothing() {
@@ -238,7 +238,7 @@ check_sh_two_slugs_one_injected() {
   first="$SH_TMP/$SH_NAME/$sid/scratchpad"
   _sh_new || { _sh_fail "$label :: setup failed"; _sh_cleanup; return; }
   second="$SH_TMP/$SH_NAME/$sid/scratchpad"
-  if ! _sh_layout "$first" "HANDOFF-FIRST" "push" || ! _sh_layout "$second" "HANDOFF-SECOND" "push"; then
+  if ! _sh_layout "$first" "HANDOFF-FIRST" $'plan: example\nceiling: mr' || ! _sh_layout "$second" "HANDOFF-SECOND" $'plan: example\nceiling: mr'; then
     _sh_fail "$label :: layout failed"; _sh_cleanup; return
   fi
   _sh_hook "$sid"
@@ -258,7 +258,7 @@ _sh_two_slugs() {
   if ! _sh_work || ! _sh_new "$base-a" || ! _sh_new "$base-b"; then _sh_fail "$1 :: setup failed"; return 1; fi
   SH_OLD="$SH_TMP/$base-a/$sid/scratchpad"
   SH_NEW="$SH_TMP/$base-b/$sid/scratchpad"
-  if ! _sh_layout "$SH_OLD" "HANDOFF-OLDER" "push" || ! _sh_layout "$SH_NEW" "HANDOFF-NEWER" "push" \
+  if ! _sh_layout "$SH_OLD" "HANDOFF-OLDER" $'plan: example\nceiling: mr' || ! _sh_layout "$SH_NEW" "HANDOFF-NEWER" $'plan: example\nceiling: mr' \
     || ! touch -t 202001010000 "$SH_OLD/compact-handoff.md"; then
     _sh_fail "$1 :: layout failed"; return 1
   fi
@@ -305,7 +305,7 @@ _sh_readonly() {
   local sid="hooktest-sid-$$-$RANDOM$RANDOM" pad
   if ! _sh_work || ! _sh_new; then _sh_fail "$1 :: setup failed"; return 1; fi
   pad="$SH_TMP/$SH_NAME/$sid/scratchpad"
-  if ! _sh_layout "$pad" "HANDOFF-READONLY" "push" || ! chmod 555 "$pad"; then
+  if ! _sh_layout "$pad" "HANDOFF-READONLY" $'plan: example\nceiling: mr' || ! chmod 555 "$pad"; then
     _sh_fail "$1 :: layout failed"; return 1
   fi
   _sh_hook "$sid"
@@ -331,46 +331,66 @@ check_sh_readonly_logs() {
   _sh_pass "$label :: a failed rename logs one line to stderr"
 }
 
-# $1 label, $2 flow-git-permission content. No handoff, so the hook takes the inferred path. Sets SH_CTX.
-_sh_permission() {
+# $1 label, $2 flow-run-options content. No handoff, so the hook takes the inferred path. Sets SH_CTX.
+_sh_ceiling() {
   local sid="hooktest-sid-$$-$RANDOM$RANDOM"
   if ! _sh_work || ! _sh_new; then _sh_fail "$1 :: setup failed"; return 1; fi
   _sh_layout "$SH_TMP/$SH_NAME/$sid/scratchpad" "" "$2" || { _sh_fail "$1 :: layout failed"; return 1; }
   _sh_hook "$sid"
 }
 
-check_sh_permission_padded() {
-  local label="permission-padded"
-  _sh_permission "$label" "  push  " || { _sh_cleanup; return; }
+check_sh_ceiling_padded() {
+  local label="ceiling-padded"
+  _sh_ceiling "$label" $'plan: example\n  ceiling:   mr  ' || { _sh_cleanup; return; }
   _sh_cleanup
-  if [[ "$SH_CTX" != *"git permission push."* ]]; then
-    _sh_fail "$label :: a push answer with surrounding spaces did not read as push"; return
+  if [[ "$SH_CTX" != *"git ceiling mr for plan example."* ]]; then
+    _sh_fail "$label :: an mr ceiling with surrounding spaces did not read as mr"; return
   fi
-  _sh_pass "$label :: a push answer with surrounding spaces reads as push"
+  _sh_pass "$label :: an mr ceiling with surrounding spaces reads as mr"
 }
 
-check_sh_permission_inner_space() {
-  local label="permission-inner-space"
-  _sh_permission "$label" "pu sh" || { _sh_cleanup; return; }
+check_sh_ceiling_inner_space() {
+  local label="ceiling-inner-space"
+  _sh_ceiling "$label" $'plan: example\nceiling: m r' || { _sh_cleanup; return; }
   _sh_cleanup
-  if [[ "$SH_CTX" != *"git permission none."* ]]; then
-    _sh_fail "$label :: an answer of 'pu sh' did not read as none"; return
+  if [[ "$SH_CTX" != *"git ceiling none for plan example."* ]]; then
+    _sh_fail "$label :: a ceiling of 'm r' did not read as none"; return
   fi
-  _sh_pass "$label :: an answer with an inner space reads as none"
+  _sh_pass "$label :: a ceiling with an inner space reads as none"
+}
+
+check_sh_plan_blank() {
+  local label="plan-blank"
+  _sh_ceiling "$label" $'plan:\nceiling: mr' || { _sh_cleanup; return; }
+  _sh_cleanup
+  if [[ "$SH_CTX" != *"git ceiling mr for plan <unset>."* ]]; then
+    _sh_fail "$label :: a blank plan line did not read as <unset>"; return
+  fi
+  _sh_pass "$label :: a blank plan line reads as <unset>"
+}
+
+check_sh_plan_unsafe() {
+  local label="plan-unsafe"
+  _sh_ceiling "$label" $'plan: exa$mple\nceiling: mr' || { _sh_cleanup; return; }
+  _sh_cleanup
+  if [[ "$SH_CTX" != *"git ceiling mr for plan <unset>."* ]]; then
+    _sh_fail "$label :: a plan slug with an unsafe character did not read as <unset>"; return
+  fi
+  _sh_pass "$label :: a plan slug with an unsafe character reads as <unset>"
 }
 
 run_session_start_handoff_checks() {
   check_sh_first_run_injects
   check_sh_first_run_skips_inference
   check_sh_first_run_renames
-  check_sh_second_run_infers_permission
+  check_sh_second_run_infers_ceiling
   check_sh_second_run_no_reinject
   check_sh_second_run_names_consumed
   check_sh_dotdot_no_handoff
-  check_sh_dotdot_no_permission
+  check_sh_dotdot_no_ceiling
   check_sh_dotdot_creates_nothing
   check_sh_slash_no_handoff
-  check_sh_slash_no_permission
+  check_sh_slash_no_ceiling
   check_sh_slash_creates_nothing
   check_sh_two_slugs_one_injected
   check_sh_two_slugs_newest_injected
@@ -378,8 +398,10 @@ run_session_start_handoff_checks() {
   check_sh_two_slugs_second_run_infers
   check_sh_readonly_warns
   check_sh_readonly_logs
-  check_sh_permission_padded
-  check_sh_permission_inner_space
+  check_sh_ceiling_padded
+  check_sh_ceiling_inner_space
+  check_sh_plan_blank
+  check_sh_plan_unsafe
 }
 
 if [[ -n "${SH_STANDALONE:-}" ]]; then

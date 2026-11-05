@@ -39,7 +39,7 @@ Write `<scratchpad>/compact-handoff.md`, overwriting any earlier file. The hando
 repo: <name> (<root>)
 branch: <branch>
 plan note: <vault path, or none>
-git permission: <none | push | release, read from <scratchpad>/flow-git-permission, or unasked>
+git ceiling: <none | mr | merge> for plan <slug, or <unset> when the plan line is missing, blank, or unsafe>, read from the ceiling and plan lines of <scratchpad>/flow-run-options, or unasked
 last skill: <toolkit skill the session was inside, or none>
 done: <one line>
 next: <one line>
@@ -47,9 +47,9 @@ open:
 - <one bullet per item>
 ```
 
-Write `unasked` for the git permission when `<scratchpad>/flow-git-permission` does not exist. Write the last skill with its plugin prefix, for example `toolkit:execute-flow`. The `open:` list names every item that checks 3 and 4 require. If the list would push the handoff past its 3,000-byte cap, group the uncommitted paths by directory.
+Write `git ceiling: unasked` when `<scratchpad>/flow-run-options` does not exist. Write the last skill with its plugin prefix, for example `toolkit:execute-flow`. The `open:` list names every item that checks 3 and 4 require. If the list would push the handoff past its 3,000-byte cap, group the uncommitted paths by directory.
 
-The hook appends the standing rules after the handoff itself: the conductor delegates every project file edit, git mutation runs only under the recorded flow permission, and a flow's SKILL.md is re-read before the flow continues. The handoff never restates them. The hook injects the handoff once and renames it to `compact-handoff.used.md`, so a later compaction needs a fresh run of this skill.
+The hook appends the standing rules after the handoff itself: the conductor delegates every project file edit, git mutation runs only under the recorded ceiling, and a flow's SKILL.md is re-read before the flow continues. The handoff never restates them. The hook injects the handoff once and renames it to `compact-handoff.used.md`, so a later compaction needs a fresh run of this skill.
 
 ## Answer
 
