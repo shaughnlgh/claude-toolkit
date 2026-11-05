@@ -54,10 +54,25 @@ PLAIN_LANGUAGE_SUMMARY_SINCE = "2026-08-26"
 REMEMBER_LINE_SINCE = "2026-10-18"
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 REMEMBER_LINE_RE = re.compile(r"^[ \t]*(?:- )?Remember:", re.M)
+# Run options (plan-guide SKILL.md § Run options). Optional and not in REQUIRED_KEYS,
+# so a skeleton, an older note, and a Mission Control scaffold still validate.
+# A blank value reads as absent. A non-blank value is value-checked.
+RUN_OPTION_VALUES = {
+    "ceiling": {"none", "mr", "merge"},
+    "nits": {"fix", "skip"},
+    "tests": {"required", "manual"},
+    "e2e": {"required", "skip"},
+    "tag_merge": {"true", "false"},
+}
+MODEL_KEYS = ("worker_model", "verifier_model")
+# Mirrors the model value regex in hooks/agent-model.sh.
+MODEL_RE = re.compile(r"^[A-Za-z][A-Za-z0-9.:_-]*(\[1m\])?$")
+EFFORTS = {"low", "medium", "high", "xhigh", "max", "inherit"}
+RUN_OPTION_KEYS = list(RUN_OPTION_VALUES) + list(MODEL_KEYS) + ["verifier_effort"]
 # Keys whose structure the validator actually checks. Anything else is unknown
 # metadata (Mission Control adds e.g. worklogs, tracking, mockups): its indented
 # block is consumed opaquely and tolerated, however it is shaped.
-VALIDATED_KEYS = set(REQUIRED_KEYS) | {"parent"}
+VALIDATED_KEYS = set(REQUIRED_KEYS) | {"parent"} | set(RUN_OPTION_KEYS)
 
 
 def die(msg):
@@ -181,6 +196,27 @@ def section(body, heading):
     return m.group(1) if m else None
 
 
+def check_run_options(fm, violations):
+    """Value-check each run option key that carries a value. An absent or blank key is never a violation."""
+    for key in RUN_OPTION_KEYS:
+        v = fm.get(key, "")
+        if v == "":
+            continue
+        if not isinstance(v, str):
+            violations.append(f"{key}: must be a single value, not a list")
+        elif key in RUN_OPTION_VALUES:
+            if v not in RUN_OPTION_VALUES[key]:
+                violations.append(f"{key}: must be one of {', '.join(sorted(RUN_OPTION_VALUES[key]))}, got {v!r}")
+        elif key in MODEL_KEYS:
+            if "haiku" in v.lower():
+                violations.append(f"{key}: haiku is not allowed on any role, got {v!r}")
+            elif not MODEL_RE.match(v):
+                violations.append(f"{key}: must be blank, a Claude Code model alias, or a model id, "
+                                  f"with an optional [1m] suffix, got {v!r}")
+        elif v not in EFFORTS:
+            violations.append(f"verifier_effort: must be blank or one of {', '.join(sorted(EFFORTS))}, got {v!r}")
+
+
 def main():
     if len(sys.argv) != 2:
         print("usage: validate-plan.py <path to 'plan - <slug>.md'>", file=sys.stderr)
@@ -236,6 +272,9 @@ def main():
         elif status not in STATUSES:
             violations.append(
                 f"status {status!r} is not a lifecycle value ({', '.join(sorted(STATUSES))})")
+
+    # -- run options (validated only when they carry a value) --
+    check_run_options(fm, violations)
 
     # -- parent/child directory relationship (only when parent: is present) --
     parent = fm.get("parent")

@@ -178,7 +178,7 @@ Exit codes: `0` valid, `1` contract violation(s) (each printed as `VIOLATION: ..
 
 When it runs: the `plan-guide` skill requires a passing validation after every plan-note write, before presenting a plan for approval, before starting execution, and at session closure.
 
-Tests: `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` (37 behavior cases over 36 fixtures plus a direct nonexistent-path case; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` (44 behavior cases over 43 fixtures plus a direct nonexistent-path case; also run by `verify.sh`).
 
 ## topic-recall.py
 

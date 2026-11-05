@@ -19,7 +19,7 @@ Checks this machine's toolkit setup and guides the user through anything missing
 5. **Permissions and environment** (optional, consent-gated) — five separate offers, each applied only on an explicit yes:
    - Prompt-free allow rules for the plugin's `vault-fs.sh`, `git-ro.sh`, and `watch-mr.sh` scripts in `~/.claude/settings.json`.
    - A read-only command allowlist (`gh`/`glab`/`jira` view/list/diff subcommands) in `~/.claude/settings.json`.
-   - Under auto mode only: mutating git allow rules (`git add`, `git commit`, `git push`, `glab mr create` or `gh pr create`) so the flows' recorded push answer holds without a classifier check, and a trusted-repos line in `autoMode.environment` when that block names another repo. Merge and tag are never offered.
+   - Under auto mode only: mutating git allow rules (`git add`, `git commit`, `git push`, `glab mr create` or `gh pr create`) so a plan note's `ceiling: mr` or `ceiling: merge` holds without a classifier check on commit, push, and MR creation, and a trusted-repos line in `autoMode.environment` when that block names another repo. Merge and tag are never offered.
    - Setting `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1` in the `env` block (reports, never overwrites, a conflicting existing value).
    - A pointer to the plugin's doctrine (`CLAUDE.md` + `README.md`) and write-time rules directory (`rules/`) appended to the user's global `~/.claude/CLAUDE.md`.
    - Enabling marketplace auto-update (`extraKnownMarketplaces` in `~/.claude/settings.json`), so new versions are pulled at session start.

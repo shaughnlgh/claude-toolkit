@@ -25,12 +25,16 @@ The `remember-guard.sh` Stop hook. It warns the user when a reply has a line tha
 
 ### Flow
 
-A skill whose name ends in `-flow`, driven by a Workflow script under `plugins/toolkit/workflows/`. The first flow in a session asks the git-permission question once, and every later flow in that session reads the recorded answer instead of asking. The `## Flows` section of `doctrine/git-safety.md` defines what each answer permits. The toolkit ships three flows. `plan-flow` runs no git under any answer. `execute-flow` never mutates git state under any answer apart from opening a worktree at the user's seat answer, through EnterWorktree under any answer, or through `git fetch` and `git worktree add` for an existing branch only under `push` or `release` and as paste-ready commands under `none`, and otherwise its agents run in the target repo only the read-only git commands that section lists. Apart from that worktree, `ship-flow` is the only flow that mutates git, only under `push` or `release`, and its agents run each stage's commands under a rule that names only that stage's commands.
+A skill whose name ends in `-flow`, driven by a Workflow script under `plugins/toolkit/workflows/`. A flow reads its run options, the ceiling first, from the plan note, else from the session cache when the cache names the same plan, and asks only for the keys neither has. The `## Flows` section of `doctrine/git-safety.md` defines what each ceiling permits. The toolkit ships three flows. `plan-flow` runs no git under any ceiling. `execute-flow` never mutates git state under any ceiling apart from opening a worktree at the user's seat answer, through EnterWorktree under any ceiling, or through `git fetch` and `git worktree add` for an existing branch only under `mr` or `merge` and as paste-ready commands under `none`, and otherwise its agents run in the target repo only the read-only git commands that section lists. Apart from that worktree, `ship-flow` is the only flow that mutates git, only under `mr` or `merge`, and its agents run each stage's commands under a rule that names only that stage's commands.
 
 ### Guide
 
 A skill whose name ends in `-guide`, the manual a session follows by hand. `plan-guide` holds the plan note contract: artifact locations, naming, frontmatter and sections, the planning steps, the status lifecycle, session recording, and session closure. `execution-guide` holds the execution steps, the progress report format, the Doc Update Pass, and the runtime-evidence debugging method. The flows run the same work for you, and `plan-flow` and `execute-flow` read these guides where they need the contract.
 
-### flow-git-permission
+### Ceiling
 
-The file at `<scratchpad>/flow-git-permission` that records the session's answer to the git-permission question as `none`, `push`, or `release`. A missing, empty, or unrecognised file reads as `none`. A resumed session keeps its scratchpad and so keeps the answer. A new session asks again.
+The `ceiling` run option on a plan note: `none`, `mr`, or `merge`. It is the stage the ship flow stops at and the limit on what any flow may do in git. `merge` with `tag_merge: true` adds the tag stage, which the ship runner calls `release` internally. Defined in `skills/plan-guide/SKILL.md` § Run options.
+
+### flow-run-options
+
+The file at `<scratchpad>/flow-run-options` that caches a plan note's run option keys for the session. Its first line is `plan: <slug>`, naming the plan it serves, and a flow reads it only for that plan. One `key: value` line follows per key. A missing file means unasked. A missing, empty, or unrecognised `ceiling` line reads as `none`. A resumed session keeps its scratchpad and so keeps the cache. A new session reads the plan note.
