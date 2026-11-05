@@ -8,7 +8,7 @@
 # exits 0. Disable with TOOLKIT_CTX_SENTINEL=0. TOOLKIT_SENTINEL_STATELESS=1 skips
 # the once-per-crossing dedup (used by the fixture tests).
 
-[ "${TOOLKIT_CTX_SENTINEL:-1}" = "0" ] && exit 0
+[ "${TOOLKIT_CTX_SENTINEL:-1}" = "0" ] && { cat >/dev/null 2>&1; exit 0; }
 command -v jq >/dev/null 2>&1 || exit 0   # no jq: skip silently, never obstruct work
 INPUT=$(cat 2>/dev/null)
 [ -n "$INPUT" ] || exit 0
