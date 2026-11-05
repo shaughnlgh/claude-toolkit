@@ -35,6 +35,8 @@ Stay cheap on small work. "Here's an error, go fix it" must never grow ceremony:
 
 Capture the brief verbatim — the user's words, plus the ticket content when a reference is given. For GitLab issues or MRs, fetch via `glab` (read-only). For Jira keys or ticket URLs, load the `jira` skill (`../jira/SKILL.md` from this skill's base directory) and use the verbatim brief it returns as the ticket content. Merge everything into one brief without paraphrasing requirements away. Hold it in conversation; nothing is written yet.
 
+Crawl needs no particular brief shape. A brief written from the toolkit repo's brief template, which the plugin does not ship, goes through every step below like any other brief.
+
 ## 2. Investigate
 
 Run topic recall first, as `plan-guide` step 1 does: run the toolkit's `scripts/topic-recall.py` over the vault topic notes and the repo's `docs/`, then search prior plan folders. The crawl never re-derives what the vault or the repo already knows.
@@ -53,10 +55,12 @@ Apply the rubric to the evidence, not to the brief:
 
 Present to the user in one block: the evidence summary, the corrections to the brief, the open questions, and the recommended route with the one-line reason. Present the route confirmation itself via the AskUserQuestion form per the communication doctrine, recommended route first. Proceed only on explicit confirmation — except the no-plan route on trivial work, which writes nothing, so there is nothing to gate: state the one-line routing and proceed. A crawl route the user has confirmed counts as the explicit request that wayfinder's own trigger requires — the user said yes to the decomposition, so nothing fires automatically.
 
+On the plan-guide and wayfinder routes, once the route is confirmed, ask the run options per `plan-guide` § Run options (`../plan-guide/SKILL.md` from this skill's base directory), at most two AskUserQuestion calls, and keep the answers for the hand off. On the no-plan route ask nothing beyond the testing-gate question, which writes a blank `plan:` line and the `tests:` line to `<scratchpad>/flow-run-options`.
+
 ## 4. Hand off with the evidence
 
-- **plan-guide route:** load `plan-guide` (`../plan-guide/SKILL.md` from this skill's base directory), create the plan directory per its canonical layout, write `brief - <plan-name>.md` beside the plan note (the verbatim brief plus its source reference — ticket URL or "dictated"), and scaffold the plan note with the crawl's evidence pre-filled into Current Context, Assumptions, and Open Questions, `status: planning`. Planning continues under plan-guide as normal, treating the crawl-filled sections as this session's ground truth rather than re-deriving them.
-- **wayfinder route:** load `wayfinder` (`../wayfinder/SKILL.md` from this skill's base directory) and hand it the brief and the full evidence. Wayfinder's alignment step presents the lay of the land from this evidence instead of re-investigating, and wayfinder itself writes the `brief - <plan-name>.md` file beside the parent plan when it emits it (that write is wayfinder's, per its step 4).
+- **plan-guide route:** load `plan-guide` (`../plan-guide/SKILL.md` from this skill's base directory), create the plan directory per its canonical layout, write `brief - <plan-name>.md` beside the plan note (the verbatim brief plus its source reference — ticket URL or "dictated"), and scaffold the plan note with the crawl's evidence pre-filled into Current Context, Assumptions, and Open Questions, `status: planning`. Write the run option keys from section 3 into the scaffolded note's frontmatter, and write `<scratchpad>/flow-run-options` with `plan: <plan-name>` as its first line followed by the same keys. Planning continues under plan-guide as normal, treating the crawl-filled sections as this session's ground truth rather than re-deriving them.
+- **wayfinder route:** load `wayfinder` (`../wayfinder/SKILL.md` from this skill's base directory) and hand it the brief and the full evidence and the run option answers, which wayfinder writes into the parent note and copies into every child stub. Wayfinder's alignment step presents the lay of the land from this evidence instead of re-investigating, and wayfinder itself writes the `brief - <plan-name>.md` file beside the parent plan when it emits it (that write is wayfinder's, per its step 4).
 - **no-plan route:** no artifacts. Proceed directly under `testing-gate`.
 
 ## Boundary

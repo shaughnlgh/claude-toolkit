@@ -154,38 +154,33 @@ for w in "$P"/workflows/*.js; do
   [ -n "$wf_name" ] && [ -d "$P/skills/$wf_name" ] && wf_skill_clash="${wf_skill_clash} ${wf_name}"
 done
 [ -z "$wf_skill_clash" ] && ok "no skill shares a workflow name" || no "skill and workflow share a name:${wf_skill_clash}"
-gq_skill="$(grep -o 'Do I have permission[^?]*?' "$P/skills/plan-flow/SKILL.md" 2>/dev/null | head -1)"
-gq_doctrine="$(grep -o 'Do I have permission[^?]*?' "$P/doctrine/git-safety.md" 2>/dev/null | head -1)"
-if [ -n "$gq_skill" ] && [ "$gq_skill" = "$gq_doctrine" ]; then
-  ok "plan-flow skill and git-safety carry the identical git-permission question"
+grep -qE '^## Run options$' "$P/skills/plan-guide/SKILL.md" && ok "plan-guide carries the Run options section" || no "plan-guide missing the Run options section"
+ro_bad=""
+for s in crawl plan-flow execute-flow ship-flow testing-gate; do
+  f="$P/skills/$s/SKILL.md"
+  grep -qF 'Run options' "$f" || ro_bad="${ro_bad} ${s}:no-reference"
+  grep -qF 'Do I have permission' "$f" && ro_bad="${ro_bad} ${s}:asks-permission"
+done
+[ -z "$ro_bad" ] && ok "crawl, plan-flow, execute-flow, ship-flow and testing-gate reference Run options and none asks the git-permission question" || no "run-options reference drift ->${ro_bad}"
+# The question sentences are extracted from plan-guide's Question set, never hardcoded here.
+rq_n=0; rq_bad=""
+while IFS= read -r q; do
+  rq_n=$((rq_n+1))
+  for f in $(grep -rlF -- "$q" "$P/skills" | grep -v '/skills/plan-guide/'); do rq_bad="${rq_bad} ${f#"$P"/skills/}:\"${q}\""; done
+done < <(sed -n '/^### Question set$/,/^### Cache$/p' "$P/skills/plan-guide/SKILL.md" | grep -oE '"[^"]*\?"' | tr -d '"')
+if [ "$rq_n" -gt 0 ] && [ -z "$rq_bad" ]; then
+  ok "each of the ${rq_n} run option questions in plan-guide's Question set appears in no other skill"
 else
-  no "git-permission question drift -> skill: [${gq_skill:-<missing>}] git-safety: [${gq_doctrine:-<missing>}]"
+  no "run option question drift (${rq_n} extracted) ->${rq_bad}"
 fi
-gq_exec="$(grep -o 'Do I have permission[^?]*?' "$P/skills/execute-flow/SKILL.md" 2>/dev/null | head -1)"
-if [ -n "$gq_exec" ] && [ "$gq_exec" = "$gq_doctrine" ]; then
-  ok "execute-flow skill and git-safety carry the identical git-permission question"
+# The ceiling set is extracted from each carrier file, never hardcoded here.
+vp_ceil="$(sed -nE 's/^ *"ceiling": \{([^}]*)\},?$/\1/p' "$P/scripts/validate-plan.py" | tr -d '" ' | tr ',' '\n' | sort | tr '\n' ' ')"
+sr_ceil="$(sed -nE 's/^const CEILING = \{(.*)\}$/\1/p' "$P/workflows/ship-runner.js" | tr ',' '\n' | sed -E 's/^ *([a-z]+):.*$/\1/' | sort | tr '\n' ' ')"
+ss_ceil="$(sed -nE 's/^ *case "\$I_CEIL" in ([a-z|]+)\).*$/\1/p' "$P/hooks/session-start.sh" | tr '|' '\n' | sort | tr '\n' ' ')"
+if [ -n "$vp_ceil" ] && [ "$vp_ceil" = "$sr_ceil" ] && [ "$vp_ceil" = "$ss_ceil" ]; then
+  ok "validate-plan.py, ship-runner.js and session-start.sh carry the same ceiling set"
 else
-  no "git-permission question drift -> execute-flow skill: [${gq_exec:-<missing>}] git-safety: [${gq_doctrine:-<missing>}]"
-fi
-gq_ship="$(grep -o 'Do I have permission[^?]*?' "$P/skills/ship-flow/SKILL.md" 2>/dev/null | head -1)"
-if [ -n "$gq_ship" ] && [ "$gq_ship" = "$gq_doctrine" ]; then
-  ok "ship-flow skill and git-safety carry the identical git-permission question"
-else
-  no "git-permission question drift -> ship-flow skill: [${gq_ship:-<missing>}] git-safety: [${gq_doctrine:-<missing>}]"
-fi
-GQ_OPTS='^[123]\. ".*writes `(none|push|release)`\.$'
-go_plan="$(grep -E "$GQ_OPTS" "$P/skills/plan-flow/SKILL.md" 2>/dev/null)"
-go_exec="$(grep -E "$GQ_OPTS" "$P/skills/execute-flow/SKILL.md" 2>/dev/null)"
-if [ "$(printf '%s\n' "$go_plan" | grep -c .)" -eq 3 ] && [ "$go_plan" = "$go_exec" ]; then
-  ok "plan-flow and execute-flow carry the identical three git-permission options"
-else
-  no "git-permission option drift -> plan-flow: [${go_plan:-<missing>}] execute-flow: [${go_exec:-<missing>}]"
-fi
-go_ship="$(grep -E "$GQ_OPTS" "$P/skills/ship-flow/SKILL.md" 2>/dev/null)"
-if [ "$(printf '%s\n' "$go_exec" | grep -c .)" -eq 3 ] && [ "$go_exec" = "$go_ship" ]; then
-  ok "execute-flow and ship-flow carry the identical three git-permission options"
-else
-  no "git-permission option drift -> execute-flow: [${go_exec:-<missing>}] ship-flow: [${go_ship:-<missing>}]"
+  no "ceiling set drift -> validate-plan.py: [${vp_ceil:-<missing>}] ship-runner.js: [${sr_ceil:-<missing>}] session-start.sh: [${ss_ceil:-<missing>}]"
 fi
 grep -qF '## Flows' "$P/doctrine/git-safety.md" && ok "git-safety carries the Flows section" || no "git-safety missing the Flows section"
 if grep -qF 'Worktree install:' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Worktree install:' "$ROOT/docs/context/context-worktree-seat.md" && grep -qF "runs the repo's install step there as execute-flow section 2a defines" "$P/doctrine/orchestration.md"; then
@@ -247,7 +242,7 @@ else
   # exit code is part of the pass condition and the RESULT line is picked by prefix,
   # not by trailing position: a merged stderr line must not masquerade as the verdict.
   out="$(printf '%s' "$hout" | grep -E '^RESULT: ' | tail -1)"
-  if [ "$hrc" -eq 0 ] && suite_pass "$out" 216; then
+  if [ "$hrc" -eq 0 ] && suite_pass "$out" 218; then
     ok "hook fixture suite"
   else
     no "hook fixture suite (exit $hrc, got: ${out:0:60})"
@@ -312,7 +307,7 @@ doh="$(mktemp -d)"; HOME="$doh" bash "$P/scripts/override.sh" conventions >/dev/
 
 echo "== Plan validator =="
 out="$(bash "$P/scripts/tests/validate-plan/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "plan-validator fixture suite" "$out" 37
+suite_ok "plan-validator fixture suite" "$out" 44
 
 echo "== Topic recall =="
 out="$(bash "$P/scripts/tests/topic-recall/run-tests.sh" 2>/dev/null | tail -1)"
@@ -355,7 +350,7 @@ fi
 echo "== ship-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/ship-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "ship-runner control-flow suite" "$out" 156
+  suite_ok "ship-runner control-flow suite" "$out" 157
 else
   skip "skipped: node not found; ship-runner control-flow suite"
 fi
@@ -477,4 +472,4 @@ echo "RESULT: $pass passed, $skip skipped, $fail failed"
 # Floor, not just zero-failures: silently deleting real checks must not read green.
 # Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
 # no node, no local plugin install) must not read as a vanished check.
-[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 80 ]
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 79 ]
