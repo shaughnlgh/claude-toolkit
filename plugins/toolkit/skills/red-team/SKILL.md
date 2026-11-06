@@ -29,10 +29,10 @@ The recommendation is blocking; the run is not. The moment a closure signal fire
 
 Capture the slice without mutating any git state:
 
-- Run `git status` first. A clean tree means there is nothing to review — say so and stop.
+- Run `git status -- ':(exclude,top).claude/worktrees/'` first, so a linked worktree under that directory never reads as a change. A clean tree means there is nothing to review — say so and stop.
 - If the tree holds changes that are not this session's work (a checkout that was already dirty, or an earlier uncommitted slice), name those paths and ask the user whether to include them, exclude them by path-scoping the diff, or hold the red team — never silently review or stage foreign hunks.
 - `git diff HEAD > <scratchpad>/slice.diff.tmp` captures staged and unstaged changes to tracked files.
-- Enumerate untracked files individually — `git ls-files --others --exclude-standard -z | while IFS= read -r -d '' f; do git diff --no-index -- /dev/null "$f" >> <scratchpad>/slice.diff.tmp; done` — rather than a bare `??` status line, which collapses a whole new directory into one entry and would silently omit its files; this form also handles unusual names. The diff command exits 1 on any difference — tolerate that exit code, it is not a failure.
+- Enumerate untracked files individually — `git ls-files --others --exclude-standard -z -- ':(exclude,top).claude/worktrees/' | while IFS= read -r -d '' f; do git diff --no-index -- /dev/null "$f" >> <scratchpad>/slice.diff.tmp; done` — rather than a bare `??` status line, which collapses a whole new directory into one entry and would silently omit its files; this form also handles unusual names. The diff command exits 1 on any difference — tolerate that exit code, it is not a failure.
 - Hash the temp file (e.g. `shasum -a 256`) and take the first 12 characters as `<hash12>`; move it to `<scratchpad>/slice-<hash12>.diff`. This keys the slice's artifacts by its diff hash so slices never collide within a session, and the hash is the tree-state fingerprint used later to detect drift.
 - If the user committed partway through the slice, ask which base to diff against, or use the merge base they name — do not silently assume `HEAD`.
 
