@@ -1,61 +1,55 @@
 #!/bin/bash
-# PreToolUse hook (Agent): re-routes a named agent's model from the user's
-# per-machine config (~/.claude/toolkit-models.json, see the shipped
-# scripts/toolkit-models.json.template) without shadowing the agent file.
-# Only the model changes; the agent's prompt, tools, and every other field
-# on the call pass through untouched. Advisory, fails open: no jq, no
-# config, a malformed config, or an unlisted/blank-mapped agent all let the
-# call through with no model added. An explicit per-call model always wins,
-# and so does CLAUDE_CODE_SUBAGENT_MODEL_FORCE when it is set.
-# A partial updatedInput (just {"model": ...}) replaces tool_input wholesale
-# and fails Agent-tool schema validation, so the emitted updatedInput is
-# always the full original tool_input plus the added model key.
-# A configured model value may carry a trailing [1m] suffix to select the
-# 1M-token context window, for example in a user's settings model value, so
-# the validation regex below admits it.
+# PreToolUse hook (Agent): adds a named agent's model and effort from scripts/resolve-models.sh, which layers the
+# shipped template defaults, then the user's ~/.claude/toolkit-models.json, then the plan-guide run options cache.
+# Model and effort are added per field, and a field the call already carries wins for that field only.
+# A bare name that a project or user agent file shadows gets nothing added, because that file's agent is the one spawned.
+# Fails open: a missing jq, a missing hooks/lib, a resolver warning and a resolver failure each surface as a
+# systemMessage, and blank resolved fields add nothing. CLAUDE_CODE_SUBAGENT_MODEL_FORCE, when set, wins over the hook.
+# A partial updatedInput replaces tool_input wholesale and fails Agent-tool schema validation, so the emitted
+# updatedInput is always the full original tool_input plus the added keys.
 
-command -v jq >/dev/null 2>&1 || exit 0   # no jq: skip silently, never obstruct work
 INPUT=$(cat 2>/dev/null)
 [ -n "$INPUT" ] || exit 0
+# The agent files pin no model or effort, so without jq every spawn loses its routing: say so instead of exiting silently.
+command -v jq >/dev/null 2>&1 || { printf '%s\n' '{"systemMessage":"toolkit agent-model: jq not found, so the toolkit model config was not applied to this spawn"}'; exit 0; }
+. "$(dirname "${BASH_SOURCE[0]}")/lib/session-scratchpad.sh" 2>/dev/null || { printf '%s\n' '{"systemMessage":"toolkit agent-model: hooks/lib/session-scratchpad.sh not found, so the toolkit model config was not applied to this spawn"}'; exit 0; }
 
-# An explicit per-call model always wins; this hook only fills in a model
-# when the call itself didn't ask for one.
 CALL_MODEL=$(printf '%s' "$INPUT" | jq -r 'if (.tool_input.model? | type) == "string" then .tool_input.model else empty end' 2>/dev/null)
-[ -n "$CALL_MODEL" ] && exit 0
-
-CONFIG="${TOOLKIT_MODELS_FILE:-$HOME/.claude/toolkit-models.json}"
-[ -f "$CONFIG" ] || exit 0   # unconfigured: every agent runs on its own frontmatter model
-
-warn_bad_config() {
-  jq -n --arg sm "toolkit agent-model: $CONFIG unreadable or has no \"agents\" object; ignored" '{systemMessage:$sm}'
-  exit 0
-}
-jq -e . "$CONFIG" >/dev/null 2>&1 || warn_bad_config
-AGENTS_TYPE=$(jq -r '(.agents | type) // "missing"' "$CONFIG" 2>/dev/null)
-[ "$AGENTS_TYPE" = "object" ] || warn_bad_config
+CALL_EFFORT=$(printf '%s' "$INPUT" | jq -r 'if (.tool_input.effort? | type) == "string" then .tool_input.effort else empty end' 2>/dev/null)
+[ -n "$CALL_MODEL" ] && [ -n "$CALL_EFFORT" ] && exit 0
 
 NAME=$(printf '%s' "$INPUT" | jq -r '.tool_input.subagent_type // empty' 2>/dev/null)
+[ -n "${NAME#toolkit:}" ] || exit 0
+# A bare name that a project or user agent file shadows spawns that agent, which keeps its own frontmatter.
+if [ "$NAME" = "${NAME#toolkit:}" ]; then
+  CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+  { [ -n "$CWD" ] && [ -f "$CWD/.claude/agents/$NAME.md" ]; } && exit 0
+  [ -f "$HOME/.claude/agents/$NAME.md" ] && exit 0
+fi
 NAME="${NAME#toolkit:}"
-[ -n "$NAME" ] || exit 0
 
-VTYPE=$(jq -r --arg n "$NAME" '(.agents[$n]? | type) // "null"' "$CONFIG" 2>/dev/null)
-[ "$VTYPE" = "string" ] || exit 0   # unlisted or non-string mapping: no opinion
-MODEL=$(jq -r --arg n "$NAME" '.agents[$n]' "$CONFIG" 2>/dev/null)
-[ -n "$MODEL" ] || exit 0   # empty string means "use the agent file's own default"
+SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+OPTS_FILE=$(session_run_options_file "$SESSION_ID")
+OPTS=(); [ -n "$OPTS_FILE" ] && OPTS=(--options "$OPTS_FILE")
 
-VALID=$(jq -n --arg m "$MODEL" '$m | test("^[A-Za-z][A-Za-z0-9.:_-]*(\\[1m\\])?$")' 2>/dev/null)
-if [ "$VALID" != "true" ]; then
-  jq -n --arg sm "toolkit agent-model: invalid model value for $NAME; ignored" '{systemMessage:$sm}'
+RESOLVER="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/resolve-models.sh"
+WARN_FILE=$(mktemp) || exit 0
+RESOLVED=$(bash "$RESOLVER" --agent "$NAME" "${OPTS[@]}" 2>"$WARN_FILE"); RC=$?
+# One message per stderr line without the resolver's own prefix, joined with " | " and no trailing space.
+WARN=$(awk 'NR > 1 { printf " | " } { sub(/^toolkit resolve-models: /, ""); printf "%s", $0 }' "$WARN_FILE"); rm -f "$WARN_FILE"
+if [ "$RC" -ne 0 ] || [ -z "$RESOLVED" ]; then   # resolver failure: fail open, add nothing, say why
+  [ -n "$WARN" ] && jq -nc --arg sm "toolkit agent-model: $WARN" '{systemMessage: $sm}'
   exit 0
 fi
 
-MODEL_LC=$(printf '%s' "$MODEL" | tr '[:upper:]' '[:lower:]')
-case "$MODEL_LC" in
-  *haiku*)
-    jq -n --arg sm "toolkit agent-model: haiku is refused by the toolkit model policy ($NAME); ignored" '{systemMessage:$sm}'
-    exit 0
-    ;;
-esac
+MODEL=$(printf '%s' "$RESOLVED" | jq -r --arg n "$NAME" '.agents[$n].model // ""' 2>/dev/null)
+EFFORT=$(printf '%s' "$RESOLVED" | jq -r --arg n "$NAME" '.agents[$n].effort // ""' 2>/dev/null)
+[ -n "$CALL_MODEL" ] && MODEL=""     # an explicit per-call field wins for that field only
+[ -n "$CALL_EFFORT" ] && EFFORT=""
 
-printf '%s' "$INPUT" | jq -c --arg m "$MODEL" '{hookSpecificOutput:{hookEventName:"PreToolUse",updatedInput:(.tool_input + {model:$m})}}'
+printf '%s' "$INPUT" | jq -c --arg m "$MODEL" --arg e "$EFFORT" --arg sm "$WARN" '
+  (.tool_input + (if $m != "" then {model: $m} else {} end) + (if $e != "" then {effort: $e} else {} end)) as $ti
+  | (if $m == "" and $e == "" then {} else {hookSpecificOutput: {hookEventName: "PreToolUse", updatedInput: $ti}} end)
+  + (if $sm != "" then {systemMessage: ("toolkit agent-model: " + $sm)} else {} end)
+  | if . == {} then empty else . end'
 exit 0

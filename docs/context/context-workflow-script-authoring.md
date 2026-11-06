@@ -38,6 +38,8 @@ The scripts under `plugins/toolkit/workflows/` run through the Workflow tool. Wh
 - `GIT_RULE`, `HOOK_RULE`, and `DOCTRINE` in `execute-runner.js` interpolate `repoRoot`, `scratchDir`, and `pluginRoot`. A copy of their text outside the runner, such as a briefing the `execute-flow` skill sends, must substitute those values.
 - `runValidation` in `execute-runner.js` builds one prompt for `verify:validation`, `verify:revalidation`, and `verify:final`. That prompt carries `HOOK_RULE` and "Change no file" but not `HOOK_WRITE_RULE`, which only the prompts built on `SHARED` carry. A prompt sent to `toolkit:verifier` must not tell it to use the Write tool, because the verifier has no Write.
 - `execute-runner.js` declares a top-level `strList` as a JSON schema fragment for the result schemas. An arg check that tests for an array of strings must use another name, as `isStrList` does. A new optional arg changes three places: the args list in the error text the script throws, the args signature in the `execute-runner` section of [workflows.md](../workflows.md), and a bullet in the arg list under that signature.
+- Every runner takes an optional `models` arg, the `agents` object `resolve-models.sh` prints, keyed by short agent name. The runner throws unless each entry is an object whose only keys are `model` and `effort`, each a string. Each `agent()` call applies it through a `...modelOpts(who)` spread with its agent's short name, which omits a blank `model` or `effort` so the session value applies. The resolver has already turned `inherit` into blank. `execute-runner.js` forwards the map to its `review-mr` child only when it was given. A new `agent()` call must carry the spread for its agent's short name.
+- The `models` check, `isModelEntry` and the `throw` that uses it, is copied in each runner: `execute-runner.js`, `plan-builder.js`, `ship-runner.js`, and `review-mr.js`. Each runner is a standalone Workflow script with no shared module, so a change to the allowed entry keys must be made in all four. Because the check accepts only `model` and `effort` with string values, passing the resolver's whole `{agents: ...}` output or a bare string entry throws `<runner> models must map agent names to {model, effort} objects when given`.
 - No `execute-runner.js` worker prompt carries `planContent` whole. Each prompt carries only the plan sections its job acts on, as the execute-runner section of [workflows.md](../workflows.md) lists. A prompt that carries the whole plan grows with the body of every step, and with one implementer per step the run's usage grows with the square of the plan size. A prompt that needs another section adds that section, never the whole plan. [context-economics.md](../context-economics.md) covers why prompt size drives cost.
 
 ## Runtime behavior a script relies on
@@ -86,6 +88,9 @@ The scripts under `plugins/toolkit/workflows/` run through the Workflow tool. Wh
 - The review-mr harness's default `verdict` carries a non-empty `reproduction`, so its finding routes to `confirmed` at any score. A case that expects a nit or a `not reproduced` entry must pass `reproduction: ''` on each verdict.
 - The review-mr harness's `flat()` collapses whitespace, so a pin on a prompt substring must compare through `flat()` to survive a line wrap inside the prompt template.
 - The execute-runner harness's `L1` fixture is a reproduced confirmed finding with `finalTag` `nit` at `finalScore` 0.4, the fixture for a confirmed finding below the threshold. The fix brief renders `finalTag` before `tag`, so `L1` shows as nit.
+- The execute-runner and ship-runner harnesses each declare `AGENT_TYPES`, a table from label to agent type. The execute-runner case `the models map lands on every label by its agent type` runs `FULL_RUN` and checks every label in that table, so a new `agent()` label is covered only once it is added to `AGENT_TYPES`. The review-mr harness's `agent` stub records `model` and `effort` for each label.
+- `execute-runner.js` spreads `models` into the `review-mr` child args only when it was given, so the cases that compare the child's whole args without a `models` arg still hold.
+- The ship-runner harness checks arg validation through `throwsWith`. The plan-builder harness checks `error.message` from `run()` inline.
 
 ## verify.sh conventions
 
@@ -99,6 +104,8 @@ The scripts under `plugins/toolkit/workflows/` run through the Workflow tool. Wh
 - To exercise a run without `node` on a machine that has it, build a scratch directory of symlinks to every PATH tool except `node`, and run `verify.sh` with that directory as PATH. Build the directory under `/bin/bash -c`, because zsh does not word-split an unquoted `$PATH` expansion, so a loop written for bash sees one word.
 - The `REVIEW.md` check strips backticks and quotes with `tr -d '\140\042\047'`, octal escapes, because a literal backtick inside the `$(...)` substitution breaks it.
 - A check greps `review-mr.js` for the literal `toolkit:coupling-reviewer`, so the `REVIEWERS` array must keep that full string. A refactor that builds the agent names from short keys fails the check.
+- The orchestration invariants check runs a Python heredoc over `agents/*.md` that prints `BAD <list> NONE <list> PIN <list>`, and the shell compares that output with `BAD  NONE  PIN ` exactly. A glob match passes even when `PIN` lists a file, so the comparison must stay exact. A separate check fails when `scripts/toolkit-models.json.template` routes any agent to Haiku.
+- No check compares the `verify.sh` suite floors with the counts in `VERIFY.md`, so the two drift apart silently. The hook suite count in `VERIFY.md` is the JSON fixtures plus the non-fixture checks, and its floor is the `suite_pass` call after the hook suite run, not a `suite_ok` line.
 
 ## Related docs
 
@@ -108,3 +115,4 @@ The scripts under `plugins/toolkit/workflows/` run through the Workflow tool. Wh
 - [context-git-tree-state-capture.md](context-git-tree-state-capture.md) for the git output quirks the diff captures handle.
 - [context-ship-flow-constraints.md](context-ship-flow-constraints.md) for the invariants `ship-runner.js` and its suite keep.
 - [context-review-scoring.md](context-review-scoring.md) for the scoring, routing, and panel rules `review-mr.js` and `execute-runner.js` share.
+- [context-model-routing.md](context-model-routing.md) for how `resolve-models.sh` builds the `models` map the runners take, and the couplings the resolver, the `agent-model.sh` hook, and the launchers keep.

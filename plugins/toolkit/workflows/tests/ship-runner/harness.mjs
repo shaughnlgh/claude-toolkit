@@ -82,7 +82,7 @@ async function run(overrides = {}, args = ARGS) {
   const phases = []
   const agent = async (prompt, opts) => {
     prompts[opts.label] = prompt
-    agents[opts.label] = { agentType: opts.agentType, phase: opts.phase, schema: opts.schema }
+    agents[opts.label] = { agentType: opts.agentType, phase: opts.phase, schema: opts.schema, model: opts.model, effort: opts.effort }
     return script[opts.label] ?? null
   }
   const workflow = async () => { throw new Error('ship-runner launches no child workflow') }
@@ -184,6 +184,8 @@ const cases = [
   ['recordedSha that is not hex throws', () => throwsWith({ ...ARGS, recordedSha: 'HEAD; echo x' }, 'ship-runner recordedSha must be a hex commit sha or an empty string, got "HEAD; echo x"')],
   ['knownShas with a non-hex entry throws', () => throwsWith({ ...ARGS, knownShas: ['main'] }, 'ship-runner knownShas must be an array of hex commit shas, got ["main"]')],
   ['protectedPaths that is not an array throws', () => throwsWith({ ...ARGS, protectedPaths: 'plugins/' }, 'ship-runner protectedPaths must be an array of strings, got "plugins/"')],
+  ['a models map wrapped in agents throws', () => throwsWith({ ...ARGS, models: { agents: { verifier: { model: 'opus', effort: 'xhigh' } } } }, 'ship-runner models must map agent names to {model, effort} objects')],
+  ['a models map with a bare string entry throws', () => throwsWith({ ...ARGS, models: { verifier: 'opus' } }, 'ship-runner models must map agent names to {model, effort} objects')],
   ...Object.keys(CEILINGS).map((ceiling) => [`ceiling ${ceiling} resolves the stage and label set without and with tag`, async () => {
     const runs = await Promise.all([false, true].map((tag) => run({}, { ...ARGS, ceiling, tag })))
     const got = runs.map(({ result, prompts }) => ({ stopStage: result.stopStage, labels: labels(prompts) }))
@@ -593,6 +595,16 @@ const cases = [
     const { prompts } = await run(prepWith({ existingMr: { url: PR_URL, number: 7, reviewDecision: '' } }))
     const p = prompts['mr:create']
     return same({ reuse: p.includes(`already exists for feat/x at ${PR_URL}`), create: p.includes('gh pr create') }, { reuse: true, create: false })
+  }],
+  ['the models map lands on each role', async () => {
+    const models = { verifier: { model: 'opus', effort: 'xhigh' }, implementer: { model: 'sonnet', effort: 'high' } }
+    const { agents } = await run({}, { ...ARGS, models })
+    const roles = Object.fromEntries(['prep:state', 'commit:paths'].map((k) => [k, { model: agents[k].model, effort: agents[k].effort }]))
+    return same(roles, { 'prep:state': models.verifier, 'commit:paths': models.implementer })
+  }],
+  ['a missing models map passes neither key to any call', async () => {
+    const { agents } = await run()
+    return Object.values(agents).every((x) => x.model === undefined && x.effort === undefined)
   }],
 ]
 

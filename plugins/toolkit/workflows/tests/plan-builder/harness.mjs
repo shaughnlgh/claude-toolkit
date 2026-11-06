@@ -33,8 +33,10 @@ const DEFAULTS = {
 async function run(overrides = {}, args = ARGS) {
   const script = { ...DEFAULTS, ...overrides }
   const prompts = {}
+  const agents = {}
   const agent = async (prompt, opts) => {
     prompts[opts.label] = prompt
+    agents[opts.label] = { agentType: opts.agentType, phase: opts.phase, model: opts.model, effort: opts.effort }
     return script[opts.label] ?? null
   }
   const pipeline = async (items, ...stages) => {
@@ -52,9 +54,9 @@ async function run(overrides = {}, args = ARGS) {
   }
   try {
     const result = await flow(args, agent, pipeline, () => {}, () => {})
-    return { result, prompts }
+    return { result, prompts, agents }
   } catch (error) {
-    return { error, prompts }
+    return { error, prompts, agents }
   }
 }
 
@@ -164,6 +166,28 @@ const cases = [
   ['judge prompt contains the FINAL CRITIQUE VERDICT line', async () => {
     const { prompts } = await run({}, { ...ARGS, approveIf: 'Exports widgets as CSV.' })
     return prompts.judge.includes('\nFINAL CRITIQUE VERDICT: proceed\n')
+  }],
+  ['the models map lands on each role', async () => {
+    const models = { explorer: { model: 'sonnet', effort: 'medium' }, planner: { model: 'fable', effort: 'max' }, 'plan-critic': { model: 'opus', effort: 'high' }, verifier: { model: 'opus', effort: 'xhigh' } }
+    const { agents } = await run({ 'invert:0': REVISE }, { ...ARGS, approveIf: 'Exports widgets as CSV.', models })
+    const roles = Object.fromEntries(['discover:scope', 'discover:alpha', 'discover:beta', 'draft', 'invert:0', 'revise:1', 'judge'].map((k) => [k, { model: agents[k].model, effort: agents[k].effort }]))
+    return same(roles, { 'discover:scope': { model: 'sonnet', effort: 'medium' }, 'discover:alpha': { model: 'sonnet', effort: 'medium' }, 'discover:beta': { model: 'sonnet', effort: 'medium' }, draft: { model: 'fable', effort: 'max' }, 'invert:0': { model: 'opus', effort: 'high' }, 'revise:1': { model: 'fable', effort: 'max' }, judge: { model: 'opus', effort: 'xhigh' } })
+  }],
+  ['a blank models entry passes neither key for that role', async () => {
+    const { agents } = await run({}, { ...ARGS, models: { planner: { model: '', effort: '' } } })
+    return agents.draft.model === undefined && agents.draft.effort === undefined
+  }],
+  ['a models map wrapped in agents throws', async () => {
+    const { error } = await run({}, { ...ARGS, models: { agents: { planner: { model: 'opus', effort: 'high' } } } })
+    return String(error && error.message).includes('plan-builder models must map agent names to {model, effort} objects')
+  }],
+  ['a models map with a bare string entry throws', async () => {
+    const { error } = await run({}, { ...ARGS, models: { planner: 'opus' } })
+    return String(error && error.message).includes('plan-builder models must map agent names to {model, effort} objects')
+  }],
+  ['a missing models map passes neither key to any call', async () => {
+    const { agents } = await run({}, { ...ARGS, approveIf: 'Exports widgets as CSV.' })
+    return Object.values(agents).every((x) => x.model === undefined && x.effort === undefined)
   }],
 ]
 

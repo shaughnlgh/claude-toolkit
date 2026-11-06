@@ -33,7 +33,7 @@ source_refs:
 - Without the gate, a new rule fails every plan written before the convention existed.
 - A rule on an optional frontmatter key needs no gate. The run option keys that plan-guide § Run options defines are value-checked only when they carry a value, so a note that lacks them or leaves them blank passes whatever its `created` date.
 - A frontmatter key that a rule checks must be in `VALIDATED_KEYS` in `validate-plan.py`. The parser consumes the indented block of any other key opaquely, so a check on that key never sees a list. For a key in the set, a bare `key:` parses as an empty string and an indented list under it parses as a list, which `check_run_options` reports as `must be a single value, not a list`.
-- `MODEL_RE` in `validate-plan.py` mirrors the model value regex in `hooks/agent-model.sh`. No check compares the two, so a change to one must be made in the other.
+- `MODEL_RE` and `EFFORTS` in `validate-plan.py` mirror the model value regex and the effort set in `scripts/resolve-models.sh`, where `inherit` is handled before the effort check. No check compares them, so a change to one must be made in the other.
 
 ## Testing a section rule
 
