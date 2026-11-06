@@ -232,6 +232,15 @@ A plan a reader cannot see the code off is not finished. In Implementation Steps
 
 Show enough that plan-critic and the human can judge the approach from the plan, and the implementer builds from it without re-deriving the design. Prose alone is not enough for non-trivial work.
 
+### Validation Steps
+
+- Number the steps 1, 2, 3, so the execute runner reads each as its own step.
+- A step is a unit step unless `[e2e]` follows its number on the step's own first line, as in `3. [e2e] Run npx playwright test checkout.spec.ts against the local site`. An intro paragraph before the list does not hide that marker.
+- An end-to-end step needs the running local stack: the site's URL, a browser, or the repo's own end-to-end command. Mark every step that needs the stack, because an unmarked one can read as pre-existing on the seat.
+- The toolkit installs no end-to-end tool. The repo supplies the command a step names.
+- If a step needs a cache flush, a rebuild, or a sync wait first, the step names that command.
+- An end-to-end step writes no file into the repo unless an ignore rule covers that file.
+
 ### Reuse check (minimalism)
 
 Before the plan proposes new code, apply the reuse ladder from the toolkit's minimalism doctrine (`../../doctrine/minimalism.md` from this skill's base directory): does it need to exist, does the codebase or the standard library or an already-installed dependency already do it. Record the result in a line or two (in Current Context or Implementation Steps) so a reviewer can see why each new file, abstraction, or dependency earns its place. Reach for the shortest change that satisfies the objective, not the most elaborate.
@@ -267,11 +276,11 @@ Eight frontmatter keys record how the flows run a plan: `ceiling`, `worker_model
 - `verifier_effort`: blank, or `low`, `medium`, `high`, `xhigh`, `max`, or `inherit`. The verifier role's effort. Blank or absent means the models file decides.
 - `nits`: `fix` or `skip`. Whether the review loops fix unreproduced nits and small findings.
 - `tests`: `required` or `manual`. Whether the slice needs automated tests, or manual verification is enough.
-- `e2e`: `required` or `skip`. Whether end-to-end tests must run against the seat before the slice ships.
+- `e2e`: `required` or `skip`. `required` means the plan marks at least one end-to-end step, and those steps run against the running local stack before the slice ships. `skip` means the runner reports each marked step as a manual check and never runs it. The Validation Steps subsection above defines the marker.
 
 `haiku` is not accepted on any model key.
 
-`worker_model`, `verifier_model`, and `verifier_effort` reach `scripts/resolve-models.sh` (`../../scripts/resolve-models.sh` from this skill's base directory). The `agent-model.sh` hook reads them from the session cache for an Agent-tool spawn. Before a flow launches a workflow, it runs the resolver with `bash` and one flag for each of these values it read or asked that is not blank, `--worker-model '<value>'`, `--verifier-model '<value>'` and `--verifier-effort '<value>'`, and with no flags when it holds none. Each value must be single-quoted, because zsh reads an unquoted `[1m]` suffix as a glob and aborts the command with `no matches found`. The flow passes the printed `agents` object as the runner's `models` arg. When `repoRoot` contains `plugins/toolkit/scripts/resolve-models.sh`, the flow runs that copy instead, so the resolver comes from the same tree as the runner it launches. If the resolver exits 0 and prints anything on stderr, the flow reports that output to the user before the launch. If the resolver is missing or exits non-zero, the flow reports its stderr and launches without `models`, so every call inherits the session model and effort. Open item: no runner, hook, or skill reads `nits` or `e2e`. The flows ask and record them only, so the execute runner fixes nits whatever `nits` says.
+`worker_model`, `verifier_model`, and `verifier_effort` reach `scripts/resolve-models.sh` (`../../scripts/resolve-models.sh` from this skill's base directory). The `agent-model.sh` hook reads them from the session cache for an Agent-tool spawn. Before a flow launches a workflow, it runs the resolver with `bash` and one flag for each of these values it read or asked that is not blank, `--worker-model '<value>'`, `--verifier-model '<value>'` and `--verifier-effort '<value>'`, and with no flags when it holds none. Each value must be single-quoted, because zsh reads an unquoted `[1m]` suffix as a glob and aborts the command with `no matches found`. The flow passes the printed `agents` object as the runner's `models` arg. When `repoRoot` contains `plugins/toolkit/scripts/resolve-models.sh`, the flow runs that copy instead, so the resolver comes from the same tree as the runner it launches. If the resolver exits 0 and prints anything on stderr, the flow reports that output to the user before the launch. If the resolver is missing or exits non-zero, the flow reports its stderr and launches without `models`, so every call inherits the session model and effort. Open item: no runner, hook, or skill reads `nits`. The flows ask and record it only, so the execute runner fixes nits whatever `nits` says.
 
 ### Reading rule
 

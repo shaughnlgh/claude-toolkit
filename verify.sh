@@ -136,7 +136,7 @@ for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js workflows/p
          scripts/vault-fs.sh scripts/git-ro.sh scripts/seat-check.sh scripts/watch-mr.sh; do
   [ -f "$P/$f" ] && ok "present: $f" || no "MISSING: $f"
 done
-# node --check exits 0 on broken workflow scripts, so compile each body in an AsyncFunction, which accepts top-level await and return.
+# node --check says nothing about a workflow script either way, because the bodies use top-level await and return, so compile each body in an AsyncFunction, which accepts both.
 WF_PARSE='const s = require("fs").readFileSync(process.argv[1], "utf8").replace(/^export const meta/m, "const meta"); new (Object.getPrototypeOf(async function () {}).constructor)(s)'
 for w in "$P"/workflows/*.js; do
   if ! command -v node >/dev/null 2>&1; then
@@ -188,6 +188,12 @@ if grep -qF 'Worktree install:' "$P/skills/execute-flow/SKILL.md" && grep -qF 'W
 else
   no "worktree install step missing from execute-flow, context-worktree-seat.md, or orchestration.md"
 fi
+if grep -qF 'Seat run passed:' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Seat run passed:' "$P/skills/ship-flow/SKILL.md"; then ok "execute-flow writes and ship-flow reads the seat run outcome line"; else no "seat run outcome line missing from execute-flow or ship-flow"; fi
+if grep -qF '[e2e]' "$P/skills/plan-guide/SKILL.md" && grep -qF 'E2E_MARK.test' "$P/workflows/execute-runner.js"; then ok "plan-guide defines and execute-runner reads the [e2e] marker"; else no "[e2e] marker missing from plan-guide or execute-runner.js"; fi
+if [ -f "$P/skills/execute-flow/SKILL.md" ] && ! grep -qF 'AskUserQuestion' "$P/skills/execute-flow/SKILL.md"; then ok "execute-flow asks no question of its own"; else no "execute-flow carries an AskUserQuestion"; fi
+if grep -qF '(exclude,top)' "$P/scripts/seat-check.sh" && grep -qF '(exclude,top)' "$P/workflows/execute-runner.js" && grep -qF '(exclude,top)' "$P/skills/red-team/SKILL.md" && grep -qF '(exclude,top)' "$P/skills/execute-flow/SKILL.md"; then ok "seat-check, execute-runner, red-team and execute-flow leave Claude Code worktrees out of their path lists"; else no "own-worktree pathspec missing from seat-check.sh, execute-runner.js, red-team or execute-flow"; fi
+grep -qF "the worktree name \`<name>\` is \`<branch>\` with every \`/\` replaced by \`-\`" "$P/skills/execute-flow/SKILL.md" && ok "execute-flow names the worktree with each / in the branch replaced by -" || no "execute-flow no longer states the / to - rule for the worktree name"
+if grep -qF 'occupant: ' "$P/scripts/seat-check.sh" && grep -qF 'occupant:' "$P/skills/execute-flow/SKILL.md"; then ok "seat-check prints and execute-flow reads the worktree occupant line"; else no "occupant line missing from seat-check.sh or execute-flow"; fi
 # subagent-rules.sh only fires if hooks.json actually wires it to SubagentStart; a hook
 # file can exist and still never run.
 want "hooks.json wires subagent-rules.sh to SubagentStart" \
@@ -327,7 +333,7 @@ code "validate-plan accepts a canonical plan" "$?" 0
 
 echo "== seat-check holder rule =="
 out="$(bash "$P/scripts/tests/seat-check/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "seat-check behavior suite" "$out" 12
+suite_ok "seat-check behavior suite" "$out" 16
 
 echo "== resolve-models layering =="
 out="$(bash "$P/scripts/tests/resolve-models/run-tests.sh" 2>/dev/null | tail -1)"
@@ -348,7 +354,7 @@ fi
 echo "== execute-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/execute-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "execute-runner control-flow suite" "$out" 173
+  suite_ok "execute-runner control-flow suite" "$out" 198
 else
   skip "skipped: node not found; execute-runner control-flow suite"
 fi
@@ -480,4 +486,4 @@ echo "RESULT: $pass passed, $skip skipped, $fail failed"
 # Floor, not just zero-failures: silently deleting real checks must not read green.
 # Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
 # no node, no local plugin install) must not read as a vanished check.
-[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 81 ]
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 87 ]
