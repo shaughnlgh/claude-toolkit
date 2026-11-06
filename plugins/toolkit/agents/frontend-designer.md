@@ -8,9 +8,7 @@ tools:
   - Bash
   - Glob
   - Grep
-model: opus
 source: custom
-effort: high
 tags: [frontend, ui]
 ---
 

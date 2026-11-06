@@ -143,14 +143,14 @@ Before offering ANY removal, diff each local copy against the plugin's version (
 
 Present all findings as one table (component, local path, effect, identical-or-modified), then ask ONE question: remove the identical ones now? Modified ones are individual decisions. Removal of hook registrations must leave `~/.claude/settings.json` valid JSON (mind trailing commas when deleting the last entry of an object).
 
-### 8. Worker models (per-agent routing, optional)
+### 8. Worker models and effort (per-agent routing, optional)
 
-Read `~/.claude/toolkit-models.json`. If `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set in the environment, report first that it overrides every agent's model, including this config.
+Run `bash <plugin-root>/scripts/resolve-models.sh` and read `~/.claude/toolkit-models.json`. If `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set in the environment, report first that it overrides every agent's model, including this config. Report the Claude Code version from `claude --version` against Claude Code 2.1.312, the version the toolkit's `effort` routing was tested on. The hook adds `effort` to Agent-tool spawns, and whether an older Agent tool accepts that field is untested, so on an older version say so and suggest an update.
 
-- Missing: every agent runs on the model in its own frontmatter. Print a table (agent, model) built by reading `model:` from each `agents/*.md` at the plugin root. Offer to create the config from the shipped template (`scripts/toolkit-models.json.template` at the plugin root); apply only on an explicit yes. Then ask which agents to re-route and to what, and write those values.
-- Present: validate it parses as JSON with an `agents` object. Flag any key that is not a shipped agent name (likely a typo; the hook will never match it), any value that is not a string, and any value containing `haiku` (refused by the model policy). Print the effective table: the config value when it is non-empty, otherwise the frontmatter value, with a column naming which one applies. Never rewrite the file; offer fixes only.
+- Missing: every agent runs on the template defaults (`scripts/toolkit-models.json.template` at the plugin root), which the resolver output shows. Print the effective table (agent, model, effort). Ask which agents to re-route, to which model and effort, and offer to write a user file holding only those agents as `{"model": ..., "effort": ...}` objects; apply only on an explicit yes. Never copy the template whole, because a full copy pins every agent and later template defaults never reach this machine.
+- Present: validate it parses as JSON with an `agents` object. Flag any key that is not a shipped agent name (likely a typo; the resolver drops it with a warning), any value that is neither a string nor an object whose only keys are `model` and `effort`, each optional and holding a string, and any value containing `haiku` (refused by the model policy, so the resolver ignores it with a warning). Print the effective table (agent, model, effort) from the resolver output and list the user-file keys that override the template. The table shows no plan layer. A plan note's `worker_model`, `verifier_model` and `verifier_effort` reach the implementer and verifier through the session's run options cache, which a flow writes, so after a flow in this session an Agent-tool spawn of either agent can differ from the table. Never rewrite the file; offer fixes only.
 
-The routing is applied by the `agent-model.sh` hook to Agent-tool spawns only, so Workflow scripts (the MR review engine) keep their own model settings. Copying an agent under `~/.claude/agents/` is not needed for a model change, and doing so would freeze that agent's future updates instead.
+The resolver output routes both spawn paths: the `agent-model.sh` hook on Agent-tool spawns and the `models` arg of the workflow runner scripts. Copying an agent under `~/.claude/agents/` is not needed for a model change, and doing so would freeze that agent's future updates instead.
 
 ## Readiness report
 
@@ -168,7 +168,7 @@ End with a table:
 | Auto-update | on / offered / declined | check 6 |
 | Auto mode git rules + trusted repos | not auto / configured / offered / declined | check 6 |
 | Local conflicts | none / N found | migration (check 7) |
-| Worker model routing | default (frontmatter) / configured / needs fix | check 8 |
+| Worker model routing | default (template) / configured / needs fix | check 8 |
 
 One line of verdict at the end: fully ready, or the single next action to get there.
 

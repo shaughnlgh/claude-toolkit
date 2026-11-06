@@ -23,7 +23,7 @@ Two rules are exceptions: `frontend` and `design` are reference-only (never inje
 
 ## Agent models without an override
 
-To change only an agent's model, do not copy the agent file. Set it in `~/.claude/toolkit-models.json` instead, built from the shipped `scripts/toolkit-models.json.template` and offered by `/setup`. A copied agent under `~/.claude/agents/` freezes that agent's future updates, so it is the wrong tool for a model-only change. The `agent-model.sh` hook reads the config and applies the model on Agent-tool spawns, without touching the agent file at all.
+To change only an agent's model or effort, do not copy the agent file. Set it in `~/.claude/toolkit-models.json` as a `{"model": ..., "effort": ...}` object instead, offered by `/setup`, and both the `agent-model.sh` hook on Agent-tool spawns and the workflow runner scripts apply it. A copied agent under `~/.claude/agents/` freezes that agent's future updates, so it is the wrong tool for a model-only change. The shipped agent files pin no model or effort, and the hook adds nothing to a bare name that a copy shadows, so a copy runs on the default subagent model or the session model until you add `model:` and `effort:` lines to its frontmatter.
 
 ## The `/override` command
 

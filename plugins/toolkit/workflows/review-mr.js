@@ -1,7 +1,7 @@
 export const meta = {
   name: 'review-mr',
   description: 'Multi-dimension diff review: fan out global reviewer agents + custom dimensions, each finding self-scored and cited, then one batched verifier per dimension in chunks of eight',
-  whenToUse: 'Invoked by the gitlab-mr-review skill (fetched MR diffs, target-branch checkout) or the red-team skill (local uncommitted slice diffs), or as a child workflow by the execute-runner workflow (the slice diff of the execute flow), with args = {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?}. Reviews a saved unified diff against the local code at repoRoot whose state repoState declares.',
+  whenToUse: 'Invoked by the gitlab-mr-review skill (fetched MR diffs, target-branch checkout) or the red-team skill (local uncommitted slice diffs), or as a child workflow by the execute-runner workflow (the slice diff of the execute flow), with args = {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?, models?}. Reviews a saved unified diff against the local code at repoRoot whose state repoState declares.',
   phases: [
     { title: 'Review', detail: 'registry reviewer agents + custom prompt dimensions over the diff' },
     { title: 'Verify', detail: 'one batched adversarial verifier per dimension in chunks of eight, owning the final tag, score and reproduction' },
@@ -21,6 +21,8 @@ export const meta = {
 //   fall-through. Default: the toolkit's reviewer agents.
 // repoState (optional) sentence describing the state of the tree at repoRoot, substituted into
 //   the reviewer and verifier prompts; defaults to the current MR target-branch sentence.
+// models (optional) the resolver's agents object keyed by short agent name (e.g. 'verifier'),
+//   each {model, effort}; a blank value and a missing entry inherit the session.
 
 // The harness may deliver args as a JSON string rather than a parsed object.
 let a = args
@@ -29,7 +31,16 @@ if (typeof a === 'string') {
 }
 
 if (!a || !a.diffPath || !a.repoRoot || !a.contextBlock) {
-  throw new Error('review-mr requires args: {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?}')
+  throw new Error('review-mr requires args: {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?, models?}')
+}
+const isModelEntry = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.entries(v).every(([k, x]) => (k === 'model' || k === 'effort') && typeof x === 'string')
+if (a.models != null && (typeof a.models !== 'object' || Array.isArray(a.models) || !Object.values(a.models).every(isModelEntry))) {
+  throw new Error(`review-mr models must map agent names to {model, effort} objects when given, got ${JSON.stringify(a.models)}`)
+}
+// Keys the resolved map by the agent's short name. A blank field is omitted so the session value applies; the resolver already turned inherit into blank.
+const modelOpts = (who) => {
+  const m = (a.models || {})[who] || {}
+  return { ...(m.model ? { model: m.model } : {}), ...(m.effort ? { effort: m.effort } : {}) }
 }
 
 const REPO_STATE = a.repoState || `The local repo at ${a.repoRoot} holds the
@@ -172,8 +183,8 @@ const results = await pipeline(
     label: `review:${d.key}`,
     phase: 'Review',
     schema: FINDINGS_SCHEMA,
-    model: 'sonnet',
     ...(d.agentType ? { agentType: d.agentType } : {}),
+    ...modelOpts((d.agentType || '').replace(/^toolkit:/, '')),
   }),
   async (review, d) => {
     if (!review) return null
@@ -186,7 +197,7 @@ const results = await pipeline(
     for (let c = 0; c * VERIFY_BATCH < kept.length; c += 1) {
       const chunk = kept.slice(c * VERIFY_BATCH, (c + 1) * VERIFY_BATCH)
       const listing = chunk.map((f, i) => `${i}. [${f.tag}] score ${f.score} ${f.file}${f.line ? ':' + f.line : ''} ${f.title}\n   CITATION: ${f.citation}\n   DETAIL: ${f.detail}\n   FAILURE SCENARIO: ${f.failure_scenario}`).join('\n\n')
-      const v = await agent(verifyPrompt(d.key, listing), { label: c ? `verify:${d.key}:${c + 1}` : `verify:${d.key}`, phase: 'Verify', schema: VERDICTS_SCHEMA, model: 'sonnet', agentType: 'toolkit:verifier' })
+      const v = await agent(verifyPrompt(d.key, listing), { label: c ? `verify:${d.key}:${c + 1}` : `verify:${d.key}`, phase: 'Verify', schema: VERDICTS_SCHEMA, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
       if (!v) verifierDead = true
       const byIndex = new Map(((v && v.verdicts) || []).map((x) => [x.index, x]))
       chunk.forEach((f, i) => {

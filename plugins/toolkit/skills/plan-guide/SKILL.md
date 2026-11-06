@@ -262,7 +262,7 @@ Eight frontmatter keys record how the flows run a plan: `ceiling`, `worker_model
 
 - `ceiling`: `none`, `mr`, or `merge`. The stage the ship flow stops at, and the limit on what any flow may do in git. `none` suggests git commands and runs none. `mr` commits, pushes, opens the MR or PR, watches the pipeline, and works the bot threads. `merge` adds the merge. The `## Flows` section of the git-safety doctrine (`../../doctrine/git-safety.md` from this skill's base directory) defines what each value permits.
 - `tag_merge`: `true` or `false`. Under `ceiling: merge`, `true` tags the merge commit and pushes the tag. Under any other ceiling the key has no effect.
-- `worker_model`: blank, a Claude Code alias (`sonnet`, `opus`, `fable`, `inherit`), or a full model id, with an optional `[1m]` suffix. The implementer role's model. Blank or absent means the models file decides.
+- `worker_model`: blank, a Claude Code alias (`sonnet`, `opus`, `fable`, `inherit`), or a full model id, with an optional `[1m]` suffix. The implementer role's model. Blank or absent means the models file decides. `inherit` clears the models file's value, so a workflow call runs on the session model and an Agent-tool spawn uses a configured default subagent model, then the session model.
 - `verifier_model`: the same vocabulary as `worker_model`. The verifier role's model.
 - `verifier_effort`: blank, or `low`, `medium`, `high`, `xhigh`, `max`, or `inherit`. The verifier role's effort. Blank or absent means the models file decides.
 - `nits`: `fix` or `skip`. Whether the review loops fix unreproduced nits and small findings.
@@ -271,7 +271,7 @@ Eight frontmatter keys record how the flows run a plan: `ceiling`, `worker_model
 
 `haiku` is not accepted on any model key.
 
-Open item: no runner, hook, or skill reads `worker_model`, `verifier_model`, `verifier_effort`, `nits`, or `e2e`. The flows ask and record them only, so the execute runner fixes nits and the models file picks the models whatever these keys say.
+`worker_model`, `verifier_model`, and `verifier_effort` reach `scripts/resolve-models.sh` (`../../scripts/resolve-models.sh` from this skill's base directory). The `agent-model.sh` hook reads them from the session cache for an Agent-tool spawn. Before a flow launches a workflow, it runs the resolver with `bash` and one flag for each of these values it read or asked that is not blank, `--worker-model '<value>'`, `--verifier-model '<value>'` and `--verifier-effort '<value>'`, and with no flags when it holds none. Each value must be single-quoted, because zsh reads an unquoted `[1m]` suffix as a glob and aborts the command with `no matches found`. The flow passes the printed `agents` object as the runner's `models` arg. When `repoRoot` contains `plugins/toolkit/scripts/resolve-models.sh`, the flow runs that copy instead, so the resolver comes from the same tree as the runner it launches. If the resolver exits 0 and prints anything on stderr, the flow reports that output to the user before the launch. If the resolver is missing or exits non-zero, the flow reports its stderr and launches without `models`, so every call inherits the session model and effort. Open item: no runner, hook, or skill reads `nits` or `e2e`. The flows ask and record them only, so the execute runner fixes nits whatever `nits` says.
 
 ### Reading rule
 
