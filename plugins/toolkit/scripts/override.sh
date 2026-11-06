@@ -79,4 +79,5 @@ case "$typ" in
   rules)    echo "edit it (keep its frontmatter); the session-start hook injects your version instead of the plugin's '$name' rule." ;;
   agents|skills) echo "edit it; Claude Code resolves your '$name' over the plugin's for the bare name (invoke bare, not toolkit:$name)." ;;
 esac
+[ "$typ" = agents ] && echo "the copy pins no model or effort and the agent-model hook skips a shadowed bare name, so add model: and effort: lines to its frontmatter, or it runs on the default subagent model or the session model."
 echo "Safety concerns may be tightened, not loosened."

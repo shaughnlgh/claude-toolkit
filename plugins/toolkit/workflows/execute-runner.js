@@ -19,7 +19,7 @@ if (typeof a === 'string') {
 }
 const REQUIRED = ['planName', 'repoRoot', 'repoName', 'planContent', 'recallHits', 'scratchDir', 'pluginRoot', 'vaultRoot']
 if (!a || REQUIRED.some((k) => typeof a[k] !== 'string' || !a[k])) {
-  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planContent, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, baselineFailing?, priorChangedPaths?, maxFixRounds?, reviewRules?, reviewMr?, inWorktree?}')
+  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planContent, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, baselineFailing?, priorChangedPaths?, maxFixRounds?, reviewRules?, reviewMr?, inWorktree?, models?}')
 }
 if (a.maxFixRounds != null && !(Number.isInteger(a.maxFixRounds) && a.maxFixRounds >= 0)) {
   throw new Error(`execute-runner maxFixRounds must be a non-negative integer, got ${JSON.stringify(a.maxFixRounds)}`)
@@ -29,6 +29,13 @@ const isStrList = (v) => Array.isArray(v) && v.every((s) => typeof s === 'string
 if (a.baselineFailing != null && !isStrList(a.baselineFailing)) throw new Error(`execute-runner baselineFailing must be an array of strings when given, got ${JSON.stringify(a.baselineFailing)}`)
 if (a.priorChangedPaths != null && !isStrList(a.priorChangedPaths)) throw new Error(`execute-runner priorChangedPaths must be an array of strings when given, got ${JSON.stringify(a.priorChangedPaths)}`)
 if (a.inWorktree != null && typeof a.inWorktree !== 'boolean') throw new Error(`execute-runner inWorktree must be a boolean when given, got ${JSON.stringify(a.inWorktree)}`)
+const isModelEntry = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.entries(v).every(([k, x]) => (k === 'model' || k === 'effort') && typeof x === 'string')
+if (a.models != null && (typeof a.models !== 'object' || Array.isArray(a.models) || !Object.values(a.models).every(isModelEntry))) throw new Error(`execute-runner models must map agent names to {model, effort} objects when given, got ${JSON.stringify(a.models)}`)
+// Keys the resolved map by the agent's short name. A blank field is omitted so the session value applies.
+const modelOpts = (who) => {
+  const m = (a.models || {})[who] || {}
+  return { ...(m.model ? { model: m.model } : {}), ...(m.effort ? { effort: m.effort } : {}) }
+}
 const refOk = (r) => typeof r === 'string' ? r.length > 0 : !!(r && typeof r === 'object' && typeof r.scriptPath === 'string' && r.scriptPath.length > 0)
 if (a.reviewMr != null && !refOk(a.reviewMr)) throw new Error('execute-runner reviewMr must be a workflow name or {scriptPath} when given')
 const MAX_FIX_ROUNDS = a.maxFixRounds ?? 1
@@ -244,7 +251,7 @@ const covers = (v) => {
   blocked.push(`Validation returned ${v.results.length} results for ${validationCount} steps.`)
   return false
 }
-const capture = (label, phaseName) => agent(CAPTURE_PROMPT, { label, phase: phaseName, schema: DIFF, agentType: 'toolkit:verifier' })
+const capture = (label, phaseName) => agent(CAPTURE_PROMPT, { label, phase: phaseName, schema: DIFF, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
 
 const finish = () => {
   log(`incomplete: ${incomplete.join(', ') || 'none'}`)
@@ -290,7 +297,7 @@ const verifyLine = a.verifyCommand
 baseline = await agent(`${CONTEXT}
 
 In ${a.repoRoot}, run git branch --show-current and git status --porcelain, then ${verifyLine}. ${STDIN_RULE} Return branch, status as the git status --porcelain lines, and verify with the command you ran, its exit code, and failing as the names of the checks it reported as failed. Change no file. ${GIT_RULE} Return raw structured data only.`,
-  { label: 'prep:baseline', phase: 'Prep', schema: BASELINE, agentType: 'toolkit:verifier' })
+  { label: 'prep:baseline', phase: 'Prep', schema: BASELINE, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
 if (!baseline) dead('verifier', 'prep:baseline')
 else if (a.baselineFailing) baseline.verify = { ...baseline.verify, failing: a.baselineFailing }
 if (!validationSteps) blocked.push('The plan has no Validation Steps, so nothing proves the slice.')
@@ -303,7 +310,7 @@ for (let i = 0; i < implSteps.length; i += 1) {
 ${implementBrief(i)}
 
 Implement YOUR STEP in ${a.repoRoot} and nothing beyond it. STEPS lists every step of the plan by heading so you can see where your step ends, and the other steps are not your work. Earlier steps already ran, and their changes are the paths under ALREADY CHANGED. ${RETURN_STEP}`,
-    { label, phase: 'Implement', schema: STEP, agentType: 'toolkit:implementer' })
+    { label, phase: 'Implement', schema: STEP, agentType: 'toolkit:implementer', ...modelOpts('implementer') })
   if (!r) {
     dead('implementer', label)
     return finish()
@@ -325,7 +332,7 @@ BASELINE VERIFY RESULT:
 ${baseline ? JSON.stringify(baseline.verify) : 'none, the baseline check did not run'}
 
 Run each STEP above that an agent can run here, against ${a.repoRoot}. Return exactly ${validationCount} results, one per STEP, in order, with step set to the STEP number and the step's first line, as in STEP 1: <first line>. status is pass or fail with the command output as evidence, never a guessed pass. status is manual, with the reason as evidence, for a step that needs a human or another session. status is pre-existing when a step fails only on a check that the baseline failing list already names. If a command is denied, report its step as fail with the denial as evidence. ${SEAT_RULE}${STDIN_RULE} ${HOOK_RULE} Change no file. ${GIT_RULE} Return raw structured data only.`,
-  { label, phase: phaseName, schema: VALIDATION, agentType: 'toolkit:verifier' })
+  { label, phase: phaseName, schema: VALIDATION, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
 
 if (!validationSteps) setValidation({ results: [] }, 0)
 else {
@@ -353,7 +360,7 @@ FAILING VALIDATION STEPS:
 ${failing.map((r) => `${r.step}\nEVIDENCE: ${r.evidence}`).join('\n\n')}
 
 Fix only what makes these steps pass, in ${a.repoRoot}. ${RETURN_STEP}`,
-      { label: 'fix:validation', phase: 'Verify', schema: STEP, agentType: 'toolkit:implementer' })
+      { label: 'fix:validation', phase: 'Verify', schema: STEP, agentType: 'toolkit:implementer', ...modelOpts('implementer') })
     if (!fix) {
       dead('implementer', 'fix:validation')
       return finish()
@@ -401,7 +408,7 @@ ${risks || 'none'}
 
 Apply the project rules in the CLAUDE.md, AGENTS.md and .claude/rules files under ${a.repoRoot} where they exist. When the diff ships executable commands embedded in prose, such as a skill, a workflow script's prompts or a doc, execute those exact commands against a scratch fixture covering the awkward cases (clean tree, dirty tree, untracked directories, unusual filenames) rather than judge them by reading. ${SCRATCH_ONLY} ${GIT_RULE}${REVIEW_RULES ? `\n\nREVIEW RULES (REVIEW.md on the default branch):\n${REVIEW_RULES}` : ''}`
   try {
-    review = await workflow(REVIEW_MR, { diffPath: diffRed.diffPath, repoRoot: a.repoRoot, contextBlock, repoState: REPO_STATE, dimensions: DIMENSIONS, registryReviewers: panel })
+    review = await workflow(REVIEW_MR, { diffPath: diffRed.diffPath, repoRoot: a.repoRoot, contextBlock, repoState: REPO_STATE, dimensions: DIMENSIONS, registryReviewers: panel, ...(a.models ? { models: a.models } : {}) })
     if (review == null) {
       review = null
       blocked.push('The review-mr child workflow returned nothing.')
@@ -441,7 +448,7 @@ NITS:
 ${nitBlock}
 
 Fix each confirmed finding above in ${a.repoRoot} with the smallest change that removes the defect, and, when its tag is important and its finalScore is ${THRESHOLD} or above, fix every instance of that class of defect in the slice, not one line. Fix a confirmed finding tagged nit only at its cited line, and fix any confirmed finding below ${THRESHOLD} only at its cited line. For each nit, fix only the cited line, and only when the tree confirms the nit. ${RETURN_STEP}`,
-      { label: `fix:${round}`, phase: 'Fix', schema: STEP, agentType: 'toolkit:implementer' })
+      { label: `fix:${round}`, phase: 'Fix', schema: STEP, agentType: 'toolkit:implementer', ...modelOpts('implementer') })
     fixAttempts += 1
     if (!fix) {
       dead('implementer', `fix:${round}`)
@@ -465,7 +472,7 @@ PATHS THE FIX CHANGED:
 ${(fix.changedPaths || []).join('\n') || 'none'}
 
 Check in the tree at ${a.repoRoot} whether each finding above is resolved. Return one result per finding, file and title exactly as given, resolved true only when the tree shows the defect gone, with the evidence you checked. Change no file. ${GIT_RULE} Return raw structured data only.`,
-      { label: `recheck:${round}`, phase: 'Fix', schema: RECHECK, agentType: 'toolkit:verifier' })
+      { label: `recheck:${round}`, phase: 'Fix', schema: RECHECK, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
     if (!re) {
       dead('verifier', `recheck:${round}`)
       stageDead = true
@@ -501,7 +508,7 @@ ${posted.join('\n') || 'none'}
 A finding already in that list, by file and title, is not reported again. A finding the panel never confirmed or kept is reported even when a reviewer may have raised it, because a refuted or dropped claim is not settled.
 
 Treat comments and doc sentences as claims, and set verified true only when you confirmed the finding in the tree. Return one finding per issue with its file, a short title, the issue, the fix, the tag (important, nit or pre-existing), impact, likelihood and confidence each from 0 to 1, a citation as a file:line you read, and verified. Change no file. ${SCRATCH_ONLY} ${GIT_RULE} Return raw structured data only.`,
-    { label: 'cold:read', phase: 'Cold read', schema: COLD, agentType: 'toolkit:code-reviewer' })
+    { label: 'cold:read', phase: 'Cold read', schema: COLD, agentType: 'toolkit:code-reviewer', ...modelOpts('code-reviewer') })
   if (!cold) dead('code-reviewer', 'cold:read')
   else {
     const coldAll = cold.findings.map((f) => ({ ...f, score: scoreOf(f) }))
@@ -524,7 +531,7 @@ ${block('RELATED TOPICS', relatedTopics)}
 ${changedBlock('CHANGED PATHS')}
 
 Read the section headed Doc Update Pass in ${a.pluginRoot}/skills/execution-guide/SKILL.md and apply it to this slice in ${a.repoRoot}. Return docsUpdated as the repo-relative docs you edited, deferred as one sentence per doc update you leave undone, distributed as one sentence per affected doc that lives in another repo, changedPaths as every repo-relative path you changed, blockers as one sentence per step you could not do or empty, and topicMaterial as the durable non-obvious facts with file:line refs, or none. Return raw structured data only.`,
-    { label: 'doc:pass', phase: 'Doc pass', schema: DOCPASS, agentType: 'toolkit:implementer' })
+    { label: 'doc:pass', phase: 'Doc pass', schema: DOCPASS, agentType: 'toolkit:implementer', ...modelOpts('implementer') })
   if (!docPass) dead('implementer', 'doc:pass')
   else {
     collect(docPass.changedPaths, docPass.topicMaterial)
@@ -570,7 +577,7 @@ Class (b) writes: for each candidate topic, fold facts under the section they be
 Required checks: read back every vault file you wrote and confirm it holds the folded facts. Run no git command. ${BLOCKER_RULE}
 
 Expected return format: proposals holds one entry per proposed repo doc, with path as the repo-relative path, action as created or updated, scratch as the scratch file path, and factsFrom as the [[Note]] names whose facts move into that doc. If a hand-written doc covers the subject, add one factsFrom entry that reads related <repo-relative path>. proposals is empty when there is no proposal. topicsUpdated lists every vault note you touched. rememberLine is exactly one draft line in one of these forms: Remember: repo docs <paths>; topics updated [[A]], [[B]] or Remember: repo docs <paths> or Remember: topics updated [[A]] or Remember: no change (<reason>). blockers holds one sentence per step you could not do and is empty otherwise. Return raw structured data only.`,
-    { label: 'remember:pass', phase: 'Remember', schema: REMEMBER, agentType: 'toolkit:implementer' })
+    { label: 'remember:pass', phase: 'Remember', schema: REMEMBER, agentType: 'toolkit:implementer', ...modelOpts('implementer') })
   if (!rem) dead('implementer', 'remember:pass')
   else if (blockersOf('implementer', 'remember:pass', rem)) remember = { ran: false, material, proposals: [], topicsUpdated: rem.topicsUpdated || [], rememberLine: '' }
   else remember = { ran: true, material, proposals: rem.proposals, topicsUpdated: rem.topicsUpdated, rememberLine: rem.rememberLine }

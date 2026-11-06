@@ -16,10 +16,19 @@ if (typeof a === 'string') {
 }
 const REQUIRED = ['brief', 'repoRoot', 'repoName', 'planName', 'recallHits']
 if (!a || REQUIRED.some((k) => typeof a[k] !== 'string' || !a[k])) {
-  throw new Error('plan-builder requires args: {brief, repoRoot, repoName, planName, recallHits, knownEvidence?, approveIf?, maxRounds?}')
+  throw new Error('plan-builder requires args: {brief, repoRoot, repoName, planName, recallHits, knownEvidence?, approveIf?, maxRounds?, models?}')
 }
 if (a.maxRounds != null && !(Number.isInteger(a.maxRounds) && a.maxRounds >= 0)) {
   throw new Error(`plan-builder maxRounds must be a non-negative integer, got ${JSON.stringify(a.maxRounds)}`)
+}
+const isModelEntry = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.entries(v).every(([k, x]) => (k === 'model' || k === 'effort') && typeof x === 'string')
+if (a.models != null && (typeof a.models !== 'object' || Array.isArray(a.models) || !Object.values(a.models).every(isModelEntry))) {
+  throw new Error(`plan-builder models must map agent names to {model, effort} objects when given, got ${JSON.stringify(a.models)}`)
+}
+// Keys the resolved map by the agent's short name. A blank field is omitted so the session value applies; the resolver already turned inherit into blank.
+const modelOpts = (who) => {
+  const m = (a.models || {})[who] || {}
+  return { ...(m.model ? { model: m.model } : {}), ...(m.effort ? { effort: m.effort } : {}) }
 }
 const MAX_ROUNDS = a.maxRounds ?? 2
 const incomplete = []
@@ -74,7 +83,7 @@ phase('Discover')
 const scope = await agent(`${CONTEXT}
 
 Split this brief into 2 to 5 investigation areas a planner needs answered. Each area has a name, one question the repo can answer, and the paths to start from. Skip what the recall hits and known evidence settle. Return raw structured data only.`,
-  { label: 'discover:scope', phase: 'Discover', schema: AREAS_SCHEMA, agentType: 'toolkit:explorer' })
+  { label: 'discover:scope', phase: 'Discover', schema: AREAS_SCHEMA, agentType: 'toolkit:explorer', ...modelOpts('explorer') })
 if (!scope) incomplete.push('discover:scope')
 const areas = scope ? scope.areas : [{ name: 'whole-brief', question: 'What in the repo does this brief touch?', paths: [a.repoRoot] }]
 
@@ -87,7 +96,7 @@ QUESTION: ${area.question}
 START AT: ${area.paths.join(', ')}
 
 Answer the question from the repo. Every fact carries the file:line you read. Walk the reuse ladder: does it need to exist, does the codebase, the standard library, the framework, or an installed dependency already do it, can it be a few lines in the right place. List the gaps you could not close and the risks the brief omits. Return raw structured data only.`,
-  { label: area.label, phase: 'Discover', schema: FINDINGS_SCHEMA, agentType: 'toolkit:explorer' }))
+  { label: area.label, phase: 'Discover', schema: FINDINGS_SCHEMA, agentType: 'toolkit:explorer', ...modelOpts('explorer') }))
 const uncovered = areas.filter((area, i) => !findings[i]).map((area) => area.name)
 const evidence = areas.map((area, i) => ({ area: area.name, ...findings[i] })).filter((f) => f.facts)
 
@@ -99,7 +108,7 @@ ${JSON.stringify(evidence)}
 UNCOVERED AREAS: ${uncovered.join(', ') || 'none'}
 
 Draft the plan from the evidence above. Read the repo at ${a.repoRoot} only to close a gap the evidence leaves. ${RULES}`,
-  { label: 'draft', phase: 'Draft', schema: PLAN_SCHEMA, agentType: 'toolkit:planner' })
+  { label: 'draft', phase: 'Draft', schema: PLAN_SCHEMA, agentType: 'toolkit:planner', ...modelOpts('planner') })
 if (!draft) throw new Error('plan-builder: planner returned no draft')
 
 const critique = (plan, label, cold) => agent(`${cold ? 'You are a senior engineer on another team seeing only this plan.' : CONTEXT}
@@ -108,7 +117,7 @@ PLAN:
 ${plan}
 
 Run the pre-mortem your agent instructions define over this plan, with the repo at ${a.repoRoot} as ground truth. An objection is material only when ignoring it causes rework, a wrong outcome, or a missed risk. verdict is proceed when no objection is material, revise when every material objection has a fix inside this plan, stop when a fatal flaw has none. tripwires: one measurable signal per failure mode with its threshold and when to check. walkAway: one pre-launch check per line with the result that means walk away. Return raw structured data only.`,
-  { label, phase: cold ? 'Red team' : 'Invert', schema: CRITIQUE_SCHEMA, agentType: 'toolkit:plan-critic' })
+  { label, phase: cold ? 'Red team' : 'Invert', schema: CRITIQUE_SCHEMA, agentType: 'toolkit:plan-critic', ...modelOpts('plan-critic') })
 
 const revise = (prev, objections, label, phaseName) => agent(`${CONTEXT}
 
@@ -118,7 +127,7 @@ MATERIAL OBJECTIONS:
 ${JSON.stringify(objections)}
 
 Return the full plan with every objection resolved in place, or recorded under Risks as an accepted risk with its reason. ${RULES}`,
-  { label, phase: phaseName, schema: PLAN_SCHEMA, agentType: 'toolkit:planner' })
+  { label, phase: phaseName, schema: PLAN_SCHEMA, agentType: 'toolkit:planner', ...modelOpts('planner') })
 
 phase('Invert')
 const rounds = []
@@ -202,7 +211,7 @@ PLAN:
 ${render(draft)}
 
 Judge whether this plan meets the goal sentence and the brief. meets is true only when every clause of the goal maps to an implementation step and a validation step that proves it. meets is false when any open material objection remains or the final critique verdict is stop. Default to false. Return raw structured data only.`,
-    { label: 'judge', phase: 'Judge', schema: JUDGE_SCHEMA, agentType: 'toolkit:verifier' })
+    { label: 'judge', phase: 'Judge', schema: JUDGE_SCHEMA, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
   if (!judged) {
     incomplete.push('judge')
     judged = { meets: false, reasons: ['judge returned nothing'], unmetGoals: [] }

@@ -4,7 +4,6 @@ source: custom
 tags: [worker, planning]
 maxTurns: 100
 description: Planning specialist. Use on non-trivial tasks to draft a reviewable implementation plan before any code changes, once discovery evidence is in hand. Not for discovery-only investigation or open-ended codebase questions — route those to the explorer agent.
-model: inherit
 tools: Read, Grep, Glob, Bash, WebFetch, WebSearch
 ---
 

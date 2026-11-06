@@ -26,7 +26,7 @@ async function run(overrides = {}, args = ARGS) {
   const agents = {}
   const agent = async (prompt, opts) => {
     prompts[opts.label] = prompt
-    agents[opts.label] = { agentType: opts.agentType, phase: opts.phase, schema: opts.schema, model: opts.model }
+    agents[opts.label] = { agentType: opts.agentType, phase: opts.phase, schema: opts.schema, model: opts.model, effort: opts.effort }
     const v = script[opts.label]
     if (v instanceof Error) throw v
     return v ?? null
@@ -70,9 +70,29 @@ const cases = [
     const { prompts } = await run(ONE_EACH)
     return same(verifyLabels(prompts), KEYS.map((k) => `verify:${k}`).sort())
   }],
-  ['every verifier is toolkit:verifier on sonnet in the Verify phase', async () => {
+  ['every verifier is toolkit:verifier in the Verify phase with the map verifier model and effort', async () => {
+    const { agents } = await run(ONE_EACH, { ...ARGS, models: { verifier: { model: 'opus', effort: 'xhigh' } } })
+    return verifyLabels(agents).every((k) => same(pick(agents[k], ['agentType', 'model', 'effort', 'phase']), { agentType: 'toolkit:verifier', model: 'opus', effort: 'xhigh', phase: 'Verify' }))
+  }],
+  ['a reviewer takes its own map entry and a custom dimension takes neither key', async () => {
+    const { agents } = await run({}, { ...ARGS, models: { 'code-reviewer': { model: 'sonnet', effort: 'medium' } }, dimensions: [{ key: 'conventions', prompt: 'Check conventions.' }] })
+    return same({ reviewer: pick(agents['review:code-reviewer'], ['model', 'effort']), custom: pick(agents['review:conventions'], ['model', 'effort']) }, { reviewer: { model: 'sonnet', effort: 'medium' }, custom: { model: undefined, effort: undefined } })
+  }],
+  ['a missing models map passes neither key to any call', async () => {
     const { agents } = await run(ONE_EACH)
-    return verifyLabels(agents).every((k) => same(pick(agents[k], ['agentType', 'model', 'phase']), { agentType: 'toolkit:verifier', model: 'sonnet', phase: 'Verify' }))
+    return Object.values(agents).every((x) => x.model === undefined && x.effort === undefined)
+  }],
+  ['a non-object models arg throws the models sentence', async () => {
+    const { error } = await run({}, { ...ARGS, models: 'opus' })
+    return String(error && error.message).includes('review-mr models must map agent names to {model, effort} objects')
+  }],
+  ['a models map wrapped in agents throws', async () => {
+    const { error } = await run({}, { ...ARGS, models: { agents: { verifier: { model: 'opus', effort: 'xhigh' } } } })
+    return String(error && error.message).includes('review-mr models must map agent names to {model, effort} objects')
+  }],
+  ['a models map with a bare string entry throws', async () => {
+    const { error } = await run({}, { ...ARGS, models: { verifier: 'opus' } })
+    return String(error && error.message).includes('review-mr models must map agent names to {model, effort} objects')
   }],
   ['verifier schema requires the reproduction string and carries no reproduced boolean', async () => {
     const { agents } = await run(ONE_EACH)

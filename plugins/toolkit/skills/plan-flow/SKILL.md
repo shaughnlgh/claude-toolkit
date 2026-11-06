@@ -55,7 +55,9 @@ When there is no wayfinder recommendation, state the route to the user in one se
 
 ## 4. Launch
 
-Derive `planName` per `plan-guide` naming and build the args: `brief`, `repoRoot` as an absolute path, `repoName`, `planName`, `recallHits`, and the optional `knownEvidence` (facts this session already verified, each with its file:line), `approveIf` (one goal sentence the plan must meet, only when the user gave one), and `maxRounds` (revise rounds, default 2).
+Derive `planName` per `plan-guide` naming and build the args: `brief`, `repoRoot` as an absolute path, `repoName`, `planName`, `recallHits`, and the optional `knownEvidence` (facts this session already verified, each with its file:line), `approveIf` (one goal sentence the plan must meet, only when the user gave one), and `maxRounds` (revise rounds, default 2), and `models` (the `agents` object the resolver run in the next paragraph prints, left out when the resolver is missing or fails).
+
+Run `scripts/resolve-models.sh` as `plan-guide` § Run options defines, from the `worker_model`, `verifier_model` and `verifier_effort` values this flow read or asked there, and pass the printed `agents` object as `models`. On a fresh brief the values are the answers section 2 keeps in conversation, because section 5 writes the note keys and the cache only after the launch.
 
 When `repoRoot` contains `plugins/toolkit/workflows/plan-builder.js`, launch `{scriptPath: "<repoRoot>/plugins/toolkit/workflows/plan-builder.js"}`, otherwise `{name: "toolkit:plan-builder"}` with the `scriptPath` fallback `red-team` uses. That fallback is `{scriptPath: "<this skill's base directory>/../../workflows/plan-builder.js"}` resolved to an absolute path, used if name resolution fails. The script is named `plan-builder` because a workflow and a skill cannot share a name in the plugin registry. Persist the `runId` and script path to `<scratchpad>/plan-flow-<planName>.runid` at once, before reading the result. A dead run resumes with `resumeFromRunId`. Completed agents return cached, so never relaunch a fresh run when a resume is possible.
 
