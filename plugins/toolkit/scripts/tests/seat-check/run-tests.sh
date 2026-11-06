@@ -20,7 +20,6 @@ git -C "$MAIN" init -q -b trunk
 git -C "$MAIN" config user.email t@t.invalid
 git -C "$MAIN" config user.name t
 git -C "$MAIN" config commit.gpgsign false
-printf '.claude/worktrees/\n' >> "$MAIN/.git/info/exclude"
 : > "$MAIN/sub/.keep"
 git -C "$MAIN" add -A >/dev/null; git -C "$MAIN" commit -qm c1 --no-verify >/dev/null
 git -C "$MAIN" worktree add -q -b wt "$MAIN/.claude/worktrees/wt" >/dev/null 2>&1
@@ -64,6 +63,18 @@ agents "$(entry "$LIVE" s1 "$T/link")"; run "$MAIN" --self me
 
 agents '[]'; run "$MAIN/.claude/worktrees/wt"
 printf '%s\n' "$OUT" | grep -qFx "main: $MAIN_P" && ok "worktree argument reports the main checkout" || no "worktree main line: $OUT"
+
+agents "$(entry "$LIVE" s2 "$MAIN/.claude/worktrees/wt")"; run "$MAIN" --self me --worktree "$MAIN/.claude/worktrees/wt"
+printf '%s\n' "$OUT" | grep -q $'^occupant: build session\tbusy\t' && ok "a live session in the --worktree path is an occupant" || no "occupant missing: $OUT"
+
+agents "$(entry "$DEAD" s2 "$MAIN/.claude/worktrees/wt")"; run "$MAIN" --self me --worktree "$MAIN/.claude/worktrees/wt"
+! printf '%s\n' "$OUT" | grep -q '^occupant: ' && ok "a dead pid in the --worktree path is not an occupant" || no "dead pid listed as occupant: $OUT"
+
+agents "$(entry "$LIVE" s1 "$MAIN")"; run "$MAIN" --self me --worktree "$MAIN/.claude/worktrees/wt"
+{ [ "$(holder_count)" -eq 1 ] && ! printf '%s\n' "$OUT" | grep -q '^occupant: '; } && ok "a main checkout session is a holder, not an occupant" || no "main session listed as occupant: $OUT"
+
+agents '[]'; run "$MAIN"
+printf '%s\n' "$OUT" | grep -qx 'dirty: 0' && ok "a linked worktree under .claude/worktrees/ is not dirty" || no "worktree counted as dirty: $OUT"
 
 : > "$MAIN/untracked.txt"; agents '[]'; run "$MAIN"
 { printf '%s\n' "$OUT" | grep -qx 'branch: trunk' && printf '%s\n' "$OUT" | grep -qx 'dirty: 1'; } && ok "branch and dirty count read the main checkout" || no "branch/dirty: $OUT"
