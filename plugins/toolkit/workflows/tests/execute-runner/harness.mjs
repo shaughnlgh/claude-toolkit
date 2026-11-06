@@ -46,7 +46,12 @@ const SPACED_HEADING_PLAN = PLAN.replace('## Assumptions', '##  Affected Files\n
 const TAB_HEADING_PLAN = PLAN.replace('## Risks', '##\tRisks')
 const SECTIONED_PLAN = PLAN.replace('## Assumptions', '## Current Context\n\nThe exporter lives in src/a.js.\n\n## Affected Files\n\n- src/a.js: exporter\n\n## Plan Changes During Execution\n\n- Step 1: streamed rows instead.\n\n## Assumptions')
 
+const E2E_PLAN = plan(THREE_STEPS, ['1. Run the unit tests.', '2. [e2e] Load the widget page.'])
+const INTRO_PLAN = plan(THREE_STEPS, ['Run these against the local site.', '', '1. [e2e] Load the widget page.', '2. Run the unit tests.'])
+
 const ARGS = { planName: 'widget-export', repoRoot: '/repo', repoName: 'demo', planContent: PLAN, recallHits: 'none', scratchDir: '/scratch', pluginRoot: '/plugin', vaultRoot: '/vault/AI' }
+const SEAT_ARGS = { ...ARGS, planContent: E2E_PLAN, seatRun: true, baselineFailing: [], diffBase: '0123abcd4567' }
+const OWN_WT_PATHSPEC = "':(exclude,top).claude/worktrees/'"
 const GIT_RULE = 'In /repo, git is read-only: git status, git diff, git log, git ls-files, git branch --show-current, git remote get-url, git symbolic-ref with one ref argument, and git merge-base --is-ancestor only. A -c core.quotePath=false prefix on one of these commands keeps it read-only. Never run git stash, add, commit, checkout, switch, reset, clean, rebase, merge or push there. Mutating git is allowed only inside a fresh fixture you create under /scratch.'
 const SCRATCH_ONLY = 'Run embedded commands only against scratch fixtures you create under /scratch, never against /repo.'
 const HOOK_SENTENCE = 'Remove a scratch fixture with its literal absolute path under /scratch.'
@@ -65,6 +70,11 @@ const resultOf = (status) => ({ step: '1. Run the unit tests.', status, evidence
 const validationOf = (status) => ({ results: [resultOf(status), { step: '2. Export one widget by hand.', status: 'pass', evidence: 'one row exported' }] })
 const PASS = validationOf('pass')
 const FAIL = validationOf('fail')
+const E2E_STEP = '2. [e2e] Load the widget page.'
+const e2eValidationOf = (status) => ({ results: [resultOf('pass'), { step: E2E_STEP, status, evidence: `widget page: ${status}` }] })
+const introValidationOf = (status) => ({ results: [{ step: '1. [e2e] Load the widget page.', status, evidence: `widget page: ${status}` }, { ...resultOf('pass'), step: '2. Run the unit tests.' }] })
+const SEAT_STRAY = 'The seat run left paths that no fix wrote: test-results/x.png.'
+const E2E_REQUIRED = "The plan's e2e option is required and no Validation Step carries the [e2e] marker after its number."
 const diffOf = (hash12, empty = false, paths = ['src/a.js']) => ({ diffPath: `/scratch/slice-${hash12}.diff`, hash12, empty, paths })
 const finding = (file, title, extra = {}) => ({ title, file, line: 4, dimension: 'code-reviewer', tag: 'important', finalTag: 'important', impact: 0.8, likelihood: 0.6, confidence: 0.5, citation: `${file}:4`, score: 0.68, finalScore: 0.7, reproduction: 'node fixture.js printed TypeError at a.js:4', reproduced: true, verdict: 'real', reasoning: 'Reproduced.', detail: 'Evidence at the line.', failure_scenario: 'A null widget throws.', ...extra })
 const nit = (file, title) => finding(file, title, { tag: 'nit', finalTag: 'nit', finalScore: 0.4, reproduction: '', reproduced: false })
@@ -877,6 +887,109 @@ const cases = [
   ['no agent prompt carries the plan note whole', async () => {
     const { prompts } = await run(FULL_RUN)
     return same(labelsWhere(prompts, (p) => p.includes('type: plan') || p.includes('## Objective') || p.includes('PLAN:\n')), [])
+  }],
+  ['seatRun as the string yes throws', async () => {
+    const { error } = await run({}, { ...ARGS, seatRun: 'yes' })
+    return String(error && error.message).includes('seatRun must be a boolean')
+  }],
+  ['seatRun with inWorktree true throws', async () => {
+    const { error } = await run({}, { ...SEAT_ARGS, inWorktree: true })
+    return String(error && error.message).includes('cannot both be true')
+  }],
+  ['seatRun with no baselineFailing throws', async () => {
+    const { error } = await run({}, { ...SEAT_ARGS, baselineFailing: undefined })
+    return String(error && error.message).includes('seatRun requires baselineFailing')
+  }],
+  ['seatRun with no diffBase throws', async () => {
+    const { error } = await run({}, { ...SEAT_ARGS, diffBase: undefined })
+    return String(error && error.message).includes('seatRun requires diffBase')
+  }],
+  ['seatRun with a diffBase that is not a sha throws', async () => {
+    const { error } = await run({}, { ...SEAT_ARGS, diffBase: 'HEAD; touch x' })
+    return String(error && error.message).includes('seatRun requires diffBase')
+  }],
+  ['diffBase with no seatRun throws', async () => {
+    const { error } = await run({}, { ...ARGS, diffBase: '0123abcd4567' })
+    return String(error && error.message).includes('diffBase is only valid with seatRun')
+  }],
+  ['e2e as yes throws', async () => {
+    const { error } = await run({}, { ...ARGS, e2e: 'yes' })
+    return String(error && error.message).includes('e2e must be required or skip')
+  }],
+  ['a seat run runs no implementer and its validation prompt forbids a pre-existing end-to-end step', async () => {
+    const { prompts } = await run({}, SEAT_ARGS)
+    const p = prompts['verify:validation']
+    return same({ labels: implementLabels(prompts), never: p.includes('An end-to-end STEP is never pre-existing'), seat: p.includes('needs the seat') }, { labels: [], never: true, seat: false })
+  }],
+  ['a seat run replaces the baseline failing list with the empty baselineFailing', async () => {
+    const { result, prompts } = await run({ 'prep:baseline': { ...DEFAULTS['prep:baseline'], verify: { command: 'npm test', exitCode: 1, failing: ['lint'] } } }, SEAT_ARGS)
+    return same({ shown: prompts['verify:validation'].includes('"failing":[]'), failing: result.baseline.verify.failing }, { shown: true, failing: [] })
+  }],
+  ['a seat run sends a pre-existing end-to-end step to fix:validation', async () => {
+    const { prompts } = await run({ 'verify:validation': e2eValidationOf('pre-existing') }, SEAT_ARGS)
+    return prompts['fix:validation'].includes(`FAILING VALIDATION STEPS:\n${E2E_STEP}\nEVIDENCE: widget page: pre-existing`)
+  }],
+  ['a seat run captures the diff from diffBase, not HEAD', async () => {
+    const { prompts } = await run({}, SEAT_ARGS)
+    const p = prompts['diff:red-team']
+    return same({ base: p.includes('git diff 0123abcd4567 >'), head: p.includes('git diff HEAD') }, { base: true, head: false })
+  }],
+  ['a seat run with an empty capture returns no review, no doc pass and no remember pass', async () => {
+    const { result } = await run({ 'diff:red-team': diffOf('e3b0c44298fc', true, []) }, SEAT_ARGS)
+    return same({ blocked: result.blocked, review: result.review, docPass: result.docPass, remember: result.remember.ran }, { blocked: [], review: null, docPass: null, remember: false })
+  }],
+  ['a seat run whose capture holds only priorChangedPaths runs the panel', async () => {
+    const { result, calls } = await run({}, { ...SEAT_ARGS, priorChangedPaths: ['src/a.js'] })
+    return same({ blocked: result.blocked, child: calls.length }, { blocked: [], child: 1 })
+  }],
+  ['a seat run with a validation fix runs the panel and the cold read but no doc pass or remember pass', async () => {
+    const { result, prompts, calls } = await run({ 'verify:validation': FAIL }, SEAT_ARGS)
+    return same({ blocked: result.blocked, child: calls.length, ran: ['cold:read', 'doc:pass', 'remember:pass'].filter((k) => k in prompts) }, { blocked: [], child: 1, ran: ['cold:read'] })
+  }],
+  ['a seat run blocks on a captured path that no fix wrote and skips the panel', async () => {
+    const { result, calls } = await run({ 'verify:validation': FAIL, 'diff:red-team': diffOf('aaaaaaaaaaaa', false, ['src/a.js', 'test-results/x.png']) }, SEAT_ARGS)
+    return same({ blocked: result.blocked, child: calls.length }, { blocked: [SEAT_STRAY], child: 0 })
+  }],
+  ['a seat run ignores a captured path under .claude/worktrees/', async () => {
+    const { result, calls } = await run({ 'verify:validation': FAIL, 'diff:red-team': diffOf('aaaaaaaaaaaa', false, ['src/a.js', '.claude/worktrees/feat/x/']) }, SEAT_ARGS)
+    return same({ blocked: result.blocked, child: calls.length }, { blocked: [], child: 1 })
+  }],
+  ['a worktree run defers a marked step the verifier passed', async () => {
+    const { result } = await run({ 'verify:validation': e2eValidationOf('pass') }, { ...ARGS, planContent: E2E_PLAN, inWorktree: true })
+    const r = result.validation.results[1]
+    return same({ status: r.status, evidence: r.evidence, deferred: result.validation.deferred }, { status: 'deferred', evidence: 'needs the seat', deferred: ['2. [e2e] Load the widget page'] })
+  }],
+  ['a worktree run reads the marker on step 1 heading under an intro line', async () => {
+    const { result } = await run({ 'verify:validation': introValidationOf('pass') }, { ...ARGS, planContent: INTRO_PLAN, inWorktree: true })
+    return same(result.validation.results.map((r) => [r.status, r.evidence]), [['deferred', 'needs the seat'], ['pass', 'unit tests: pass']])
+  }],
+  ['e2e skip reports a marked step as manual and names it in the prompt', async () => {
+    const { result, prompts } = await run({ 'verify:validation': e2eValidationOf('pass') }, { ...ARGS, planContent: E2E_PLAN, e2e: 'skip' })
+    return same({ status: result.validation.results[1].status, manual: result.validation.manualChecks, named: prompts['verify:validation'].includes('End-to-end STEPs: 2') }, { status: 'manual', manual: ['2. [e2e] Load the widget page: e2e: skip'], named: true })
+  }],
+  ['e2e required with no marked step blocks before the baseline', async () => {
+    const { result, prompts } = await run({}, { ...ARGS, e2e: 'required' })
+    return same({ blocked: result.blocked, ran: Object.keys(prompts).filter((k) => k === 'prep:baseline' || k.startsWith('implement:')) }, { blocked: [E2E_REQUIRED], ran: [] })
+  }],
+  ['e2e required with a marked step runs the baseline and does not block', async () => {
+    const { result, prompts } = await run({}, { ...ARGS, planContent: E2E_PLAN, e2e: 'required' })
+    return same({ blocked: result.blocked, ran: 'prep:baseline' in prompts }, { blocked: [], ran: true })
+  }],
+  ['a seat run keeps an unmarked pre-existing step pre-existing and runs no validation fix', async () => {
+    const { result, prompts } = await run({ 'verify:validation': { results: [resultOf('pre-existing'), { step: E2E_STEP, status: 'pass', evidence: 'widget page: pass' }] } }, SEAT_ARGS)
+    return same({ fix: 'fix:validation' in prompts, preExisting: result.validation.preExisting }, { fix: false, preExisting: ['1. Run the unit tests: unit tests: pre-existing'] })
+  }],
+  ['a worktree run keeps the verifier status of a step that names [e2e] mid-heading', async () => {
+    const { result } = await run({ 'verify:validation': PASS }, { ...ARGS, planContent: plan(THREE_STEPS, ['1. Run the unit tests.', '2. Check that the guide documents the [e2e] marker.']), inWorktree: true })
+    return same(result.validation.results.map((r) => r.status), ['pass', 'pass'])
+  }],
+  ['a seat run under e2e skip does not tell the verifier to run the end-to-end steps', async () => {
+    const { prompts } = await run({}, { ...SEAT_ARGS, e2e: 'skip' })
+    return same({ included: prompts['verify:validation'].includes('the end-to-end STEPs included'), apart: prompts['verify:validation'].includes('apart from the end-to-end STEPs named above') }, { included: false, apart: true })
+  }],
+  ['the default capture carries the own-worktree pathspec on both untracked listings', async () => {
+    const { prompts } = await run()
+    return prompts['diff:red-team'].split(OWN_WT_PATHSPEC).length - 1 === 2
   }],
 ]
 

@@ -4,7 +4,7 @@ summary: How the review panel scores, verifies, and routes findings, how the exe
 type: context
 status: active
 owner: Shaughn
-last_reviewed: 2026-10-28
+last_reviewed: 2026-11-06
 source_refs:
   - plugins/toolkit/workflows/review-mr.js
   - plugins/toolkit/workflows/execute-runner.js
@@ -43,7 +43,7 @@ The `review-mr` workflow scores each finding, verifies it in batches, and routes
 
 - A real finding with `finalTag` `pre-existing` goes to `preExisting`, whatever its score. It is listed for a ticket and never fixed in the slice.
 - Any other real finding goes to `confirmed` when its `reproduction` is not empty, at any `finalScore`.
-- An unreproduced real code finding at 0.6 or above and an unreproduced real doc finding at any score go to `unverified` with the reason `not reproduced`. Such a finding goes to the user as a question, never to the fix round and never to the floor.
+- An unreproduced real code finding at 0.6 or above and an unreproduced real doc finding at any score go to `unverified` with the reason `not reproduced`. Such a finding never goes to the fix round and never to the floor. The `red-team` skill settles it with the user, and the execute flow records it as unreproduced.
 - An unreproduced real code finding below 0.6 is a nit. The five with the highest `finalScore` go to `nits`, and the rest go to `dropped` with the reason `nit cap`. A doc finding is never a nit.
 - A refuted code finding and a refuted doc finding with a reproduction go to `refuted`. A refuted doc finding with an empty reproduction goes to `unverified` with the reason `not reproduced`, because a doc refutation that cites no line is a question for the author.
 - The `refuted` and `dropped` entries carry `reproduction`, so the report shows the line a refutation rested on. A `dropped` entry with the reason `no citation` never reached a verifier and has no `reproduction`.
@@ -87,8 +87,8 @@ The `review-mr` workflow scores each finding, verifies it in batches, and routes
 
 ## Settled outcomes
 
-- The execute flow's adjudication list is every `review.unverified` entry, then every `review.open` entry with bucket `confirmed`, then every `coldResidual` entry. An entry is settled when the plan note records it as fixed, wrong, intentional, or did not matter. The `execute-flow finished:` summary, which the ship flow accepts, waits until every entry is settled. [context-execute-flow-adjudication.md](context-execute-flow-adjudication.md) holds the section 8 options.
-- Each outcome line carries the finding's tag and scores, so the plan note measures noise by outcome. A wrong finding also records a `Reviewer prompt (<dimension>):` line for the user to add under Known false positives in `REVIEW.md`.
+- The execute flow's adjudication list is every `review.unverified` entry, then every `review.open` entry with bucket `confirmed`, then every `coldResidual` entry. An entry is settled when the plan note records it as fixed, intentional, did not matter, or unreproduced. The `execute-flow finished:` summary, which the ship flow accepts, waits until every entry is settled. [context-execute-flow-adjudication.md](context-execute-flow-adjudication.md) holds the section 8 rules.
+- Each outcome line carries the finding's tag and scores, so the plan note measures noise by outcome.
 - A real defect that the panel missed and a later review or a user found becomes a harness case in the suite of the script it touched.
 - Every outcome line carries `[<tag>, score <score>, final <finalScore>]`: the `red-team` result lines, the `execute-flow` section 6 `Finding fixed:` lines, and the `execute-flow` section 8 lines. A panel entry fills the tag with the verifier's `finalTag`, which `red-team` writes as `<finalTag>` because all its entries are panel entries. A cold entry has no verifier score, so it carries the reviewer's `tag` and `score`, and final equals score.
 

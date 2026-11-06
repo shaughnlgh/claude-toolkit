@@ -1,6 +1,6 @@
 export const meta = {
   name: 'execute-runner',
-  description: 'Execute flow: runs an approved plan note through a baseline check, one implementer per Implementation Step, the Validation Steps with one fix round, the review-mr panel chosen by changed path with one fix round over the confirmed findings and the nits carried along, a cold read told what the panel already reported and, when nothing blocked, the Doc Update Pass and the remember pass, and returns the result for the execute-flow skill to record. The script writes no file itself: its verifiers write the diff captures under scratchDir and the remember worker writes vault notes. No worker runs mutating git in repoRoot.',
+  description: 'Execute flow: runs an approved plan note through a baseline check, one implementer per Implementation Step, the Validation Steps with one fix round, the review-mr panel chosen by changed path with one fix round over the confirmed findings and the nits carried along, a cold read told what the panel already reported and, when nothing blocked, the Doc Update Pass and the remember pass, and returns the result for the execute-flow skill to record. The script writes no file itself: its verifiers write the diff captures under scratchDir and the remember worker writes vault notes. No worker runs mutating git in repoRoot. With seatRun, the script runs no Implementation Step, doc pass or remember pass, captures and reviews the diff from diffBase, and blocks on any captured path outside .claude/worktrees/ that no fix or earlier commit wrote.',
   phases: [
     { title: 'Prep', detail: 'verifier records the branch, the tree status and the baseline verify result' },
     { title: 'Implement', detail: 'one implementer per Implementation Step, in order' },
@@ -19,7 +19,7 @@ if (typeof a === 'string') {
 }
 const REQUIRED = ['planName', 'repoRoot', 'repoName', 'planContent', 'recallHits', 'scratchDir', 'pluginRoot', 'vaultRoot']
 if (!a || REQUIRED.some((k) => typeof a[k] !== 'string' || !a[k])) {
-  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planContent, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, baselineFailing?, priorChangedPaths?, maxFixRounds?, reviewRules?, reviewMr?, inWorktree?, models?}')
+  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planContent, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, baselineFailing?, priorChangedPaths?, maxFixRounds?, reviewRules?, reviewMr?, inWorktree?, models?, e2e?, seatRun?, diffBase?}')
 }
 if (a.maxFixRounds != null && !(Number.isInteger(a.maxFixRounds) && a.maxFixRounds >= 0)) {
   throw new Error(`execute-runner maxFixRounds must be a non-negative integer, got ${JSON.stringify(a.maxFixRounds)}`)
@@ -31,6 +31,17 @@ if (a.priorChangedPaths != null && !isStrList(a.priorChangedPaths)) throw new Er
 if (a.inWorktree != null && typeof a.inWorktree !== 'boolean') throw new Error(`execute-runner inWorktree must be a boolean when given, got ${JSON.stringify(a.inWorktree)}`)
 const isModelEntry = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.entries(v).every(([k, x]) => (k === 'model' || k === 'effort') && typeof x === 'string')
 if (a.models != null && (typeof a.models !== 'object' || Array.isArray(a.models) || !Object.values(a.models).every(isModelEntry))) throw new Error(`execute-runner models must map agent names to {model, effort} objects when given, got ${JSON.stringify(a.models)}`)
+const SHA = /^[0-9a-f]{7,40}$/
+if (a.e2e != null && a.e2e !== 'required' && a.e2e !== 'skip') throw new Error(`execute-runner e2e must be required or skip when given, got ${JSON.stringify(a.e2e)}`)
+if (a.seatRun != null && typeof a.seatRun !== 'boolean') throw new Error(`execute-runner seatRun must be a boolean when given, got ${JSON.stringify(a.seatRun)}`)
+if (a.seatRun && a.inWorktree) throw new Error('execute-runner seatRun and inWorktree cannot both be true')
+if (a.seatRun && !a.baselineFailing) throw new Error('execute-runner seatRun requires baselineFailing, the failing names the worktree run recorded before the slice')
+if (a.seatRun && !(typeof a.diffBase === 'string' && SHA.test(a.diffBase))) throw new Error(`execute-runner seatRun requires diffBase, the commit sha the seat run reviews from, got ${JSON.stringify(a.diffBase)}`)
+if (a.diffBase != null && !a.seatRun) throw new Error('execute-runner diffBase is only valid with seatRun')
+const SEAT_RUN = a.seatRun === true
+const DIFF_BASE = SEAT_RUN ? a.diffBase : 'HEAD'
+// Claude Code creates linked worktrees here, and git lists each as one untracked directory that git diff --no-index cannot read.
+const OWN_WORKTREES = '.claude/worktrees/'
 // Keys the resolved map by the agent's short name. A blank field is omitted so the session value applies.
 const modelOpts = (who) => {
   const m = (a.models || {})[who] || {}
@@ -120,7 +131,19 @@ const risks = section('Risks')
 const implItems = items(section('Implementation Steps'))
 const implSteps = implItems.map((s) => s.text)
 const validationSteps = section('Validation Steps')
-const validationItems = items(validationSteps).map((s) => s.text)
+const validationParsed = items(validationSteps)
+const validationItems = validationParsed.map((s) => s.text)
+// [e2e] after the step number on a Validation Step's own heading line marks it end-to-end.
+const E2E_MARK = /^(?:\d+[.)]\s+)?\[e2e\]/
+const e2eSteps = validationParsed.map((s, i) => (E2E_MARK.test(s.heading) ? i + 1 : 0)).filter(Boolean)
+const E2E_OUTCOME = a.e2e === 'skip' ? { status: 'manual', evidence: 'e2e: skip' } : a.inWorktree ? { status: 'deferred', evidence: 'needs the seat' } : null
+const E2E_RULE = E2E_OUTCOME && e2eSteps.length ? `End-to-end STEPs: ${e2eSteps.join(', ')}. Do not run them. Report each as ${E2E_OUTCOME.status} with ${E2E_OUTCOME.evidence} as evidence. ` : ''
+const SEAT_RUN_RULE = SEAT_RUN ? `The running local stack serves ${a.repoRoot}. Run every STEP against it${E2E_RULE ? ' apart from the end-to-end STEPs named above' : ', the end-to-end STEPs included'}, and report manual only for a step that needs a human. An end-to-end STEP is never pre-existing. ` : ''
+const settleE2E = (v) => (v ? { ...v, results: v.results.map((r, i) => {
+  if (!e2eSteps.includes(i + 1)) return r
+  if (E2E_OUTCOME) return { ...r, ...E2E_OUTCOME }
+  return SEAT_RUN && r.status === 'pre-existing' ? { ...r, status: 'fail' } : r
+}) } : v)
 const validationCount = validationItems.length
 const validationBlock = validationItems.map((s, i) => `STEP ${i + 1}:\n${s}`).join('\n\n')
 const relatedTopics = section('Related Topics')
@@ -172,10 +195,10 @@ const HOOK_RULE = `The dangerous-commands hook refuses any command text, includi
 const HOOK_WRITE_RULE = "If a file you create must hold a command the hook refuses, such as a script's recursive delete of a variable, create it with the Write tool, never through a heredoc."
 const EXTERNAL_PROMPT = 'You are CodeRabbit, Copilot, or a senior engineer on another team seeing this diff with no context. List what you would flag that a panel briefed by the author would rationalize away: naming that hides intent, a test that proves nothing, a comment that contradicts the code, a config value that belongs elsewhere, a public surface with no doc.'
 const CAPTURE_PROMPT = `Run exactly these commands from ${a.repoRoot} and nothing else:
-1. git diff HEAD > ${S}/slice.diff.tmp
-2. git ls-files --others --exclude-standard -z | while IFS= read -r -d '' f; do git diff --no-index -- /dev/null "$f" >> ${S}/slice.diff.tmp; done
+1. git diff ${DIFF_BASE} > ${S}/slice.diff.tmp
+2. git ls-files --others --exclude-standard -z -- ':(exclude,top)${OWN_WORKTREES}' | while IFS= read -r -d '' f; do git diff --no-index -- /dev/null "$f" >> ${S}/slice.diff.tmp; done
 3. Hash the temp file (e.g. shasum -a 256) and take the first 12 characters as <hash12>; move it to ${S}/slice-<hash12>.diff.
-4. git -c core.quotePath=false diff HEAD --name-only, then git -c core.quotePath=false ls-files --others --exclude-standard
+4. git -c core.quotePath=false diff ${DIFF_BASE} --name-only, then git -c core.quotePath=false ls-files --others --exclude-standard -- ':(exclude,top)${OWN_WORKTREES}'
 The diff command in 2 exits 1 on any difference. Tolerate that exit code, it is not a failure.
 Return diffPath, hash12, empty and paths. diffPath is the absolute path of the moved file. empty is true only when that file has zero bytes. paths holds every line the two commands in 4 printed, as repo-relative paths. Return raw structured data only. ${GIT_RULE}`
 const SHARED = `${CONTEXT}
@@ -290,6 +313,11 @@ const finish = () => {
   }
 }
 
+if (a.e2e === 'required' && validationSteps && !e2eSteps.length) {
+  blocked.push(`The plan's e2e option is required and no Validation Step carries the [e2e] marker after its number.`)
+  return finish()
+}
+
 phase('Prep')
 const verifyLine = a.verifyCommand
   ? 'run the verify command ' + a.verifyCommand
@@ -303,7 +331,7 @@ else if (a.baselineFailing) baseline.verify = { ...baseline.verify, failing: a.b
 if (!validationSteps) blocked.push('The plan has no Validation Steps, so nothing proves the slice.')
 
 phase('Implement')
-for (let i = 0; i < implSteps.length; i += 1) {
+for (let i = 0; i < (SEAT_RUN ? 0 : implSteps.length); i += 1) {
   const label = `implement:${i + 1}`
   const r = await agent(`${SHARED}
 
@@ -323,7 +351,7 @@ Implement YOUR STEP in ${a.repoRoot} and nothing beyond it. STEPS lists every st
 
 phase('Verify')
 const SEAT_RULE = a.inWorktree ? `This run sits in a git worktree, and the running local stack serves the main checkout, not ${a.repoRoot}. Do not run a STEP that needs the running local stack: the site's URL, a browser check, a request to the local stack, or anything else that the main checkout's running services serve. Report such a STEP as deferred with needs the seat as evidence, and run every other STEP. Create nothing outside ${a.repoRoot}: no container, no database clone, no media mount, no hostname. ` : ''
-const runValidation = (label, phaseName) => agent(`${CONTEXT}
+const runValidation = async (label, phaseName) => settleE2E(await agent(`${CONTEXT}
 
 VALIDATION STEPS:
 ${validationBlock}
@@ -331,8 +359,8 @@ ${validationBlock}
 BASELINE VERIFY RESULT:
 ${baseline ? JSON.stringify(baseline.verify) : 'none, the baseline check did not run'}
 
-Run each STEP above that an agent can run here, against ${a.repoRoot}. Return exactly ${validationCount} results, one per STEP, in order, with step set to the STEP number and the step's first line, as in STEP 1: <first line>. status is pass or fail with the command output as evidence, never a guessed pass. status is manual, with the reason as evidence, for a step that needs a human or another session. status is pre-existing when a step fails only on a check that the baseline failing list already names. If a command is denied, report its step as fail with the denial as evidence. ${SEAT_RULE}${STDIN_RULE} ${HOOK_RULE} Change no file. ${GIT_RULE} Return raw structured data only.`,
-  { label, phase: phaseName, schema: VALIDATION, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
+Run each STEP above that an agent can run here, against ${a.repoRoot}. Return exactly ${validationCount} results, one per STEP, in order, with step set to the STEP number and the step's first line, as in STEP 1: <first line>. status is pass or fail with the command output as evidence, never a guessed pass. status is manual, with the reason as evidence, for a step that needs a human or another session. status is pre-existing when a step fails only on a check that the baseline failing list already names. If a command is denied, report its step as fail with the denial as evidence. ${SEAT_RULE}${E2E_RULE}${SEAT_RUN_RULE}${STDIN_RULE} ${HOOK_RULE} Change no file. ${GIT_RULE} Return raw structured data only.`,
+  { label, phase: phaseName, schema: VALIDATION, agentType: 'toolkit:verifier', ...modelOpts('verifier') }))
 
 if (!validationSteps) setValidation({ results: [] }, 0)
 else {
@@ -386,6 +414,14 @@ Fix only what makes these steps pass, in ${a.repoRoot}. ${RETURN_STEP}`,
 
 phase('Red team')
 diffRed = await capture('diff:red-team', 'Red team')
+if (SEAT_RUN && diffRed) {
+  const stray = (diffRed.paths || []).filter((p) => !changed.includes(p) && !p.startsWith(OWN_WORKTREES))
+  if (stray.length) {
+    blocked.push(`The seat run left paths that no fix wrote: ${stray.join(', ')}.`)
+    return finish()
+  }
+  if (diffRed.empty) return finish()
+}
 if (!diffRed) dead('verifier', 'diff:red-team')
 else if (diffRed.empty) blocked.push('The diff after implementation is empty.')
 
@@ -520,7 +556,8 @@ Treat comments and doc sentences as claims, and set verified true only when you 
 phase('Doc pass')
 // A blocked slice defers the doc pass to the conductor, the same as the remember pass.
 if (!blocked.length) {
-  docPass = await agent(`${SHARED}
+  if (!SEAT_RUN) {
+    docPass = await agent(`${SHARED}
 
 ${block('OBJECTIVE', objective)}
 
@@ -531,12 +568,13 @@ ${block('RELATED TOPICS', relatedTopics)}
 ${changedBlock('CHANGED PATHS')}
 
 Read the section headed Doc Update Pass in ${a.pluginRoot}/skills/execution-guide/SKILL.md and apply it to this slice in ${a.repoRoot}. Return docsUpdated as the repo-relative docs you edited, deferred as one sentence per doc update you leave undone, distributed as one sentence per affected doc that lives in another repo, changedPaths as every repo-relative path you changed, blockers as one sentence per step you could not do or empty, and topicMaterial as the durable non-obvious facts with file:line refs, or none. Return raw structured data only.`,
-    { label: 'doc:pass', phase: 'Doc pass', schema: DOCPASS, agentType: 'toolkit:implementer', ...modelOpts('implementer') })
-  if (!docPass) dead('implementer', 'doc:pass')
-  else {
-    collect(docPass.changedPaths, docPass.topicMaterial)
-    for (const d of docPass.deferred || []) planChanges.push(`Doc debt: ${d}`)
-    blockersOf('implementer', 'doc:pass', docPass)
+      { label: 'doc:pass', phase: 'Doc pass', schema: DOCPASS, agentType: 'toolkit:implementer', ...modelOpts('implementer') })
+    if (!docPass) dead('implementer', 'doc:pass')
+    else {
+      collect(docPass.changedPaths, docPass.topicMaterial)
+      for (const d of docPass.deferred || []) planChanges.push(`Doc debt: ${d}`)
+      blockersOf('implementer', 'doc:pass', docPass)
+    }
   }
   if (validationSteps && validation && (rounds.length || (docPass && docPass.changedPaths && docPass.changedPaths.length))) {
     const vf = await runValidation('verify:final', 'Doc pass')
@@ -556,7 +594,7 @@ Read the section headed Doc Update Pass in ${a.pluginRoot}/skills/execution-guid
 }
 
 phase('Remember')
-if (!blocked.length) {
+if (!blocked.length && !SEAT_RUN) {
   const rem = await agent(`Objective: route the durable facts this slice surfaced. Fold the vault-bound facts into vault topic notes, and stage the repo-bound facts as proposed doc content for the conductor's consent gate.
 
 Scope: write only under the vault root folder ${a.vaultRoot} and the scratchpad ${S}. You must not write any repo file.
