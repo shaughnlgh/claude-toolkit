@@ -179,6 +179,12 @@ declare -F run_remember_guard_checks >/dev/null || { echo "FATAL: run_remember_g
 echo "== remember-guard (non-fixture) =="
 run_remember_guard_checks
 
+# Checks that need a real scratchpad under /tmp/claude-<uid> holding the run options cache, which JSON fixtures cannot express.
+source "$ROOT/tests/agent-model-options-check.sh" || { echo "FATAL: cannot source agent-model-options-check.sh" >&2; exit 2; }
+declare -F run_agent_model_options_checks >/dev/null || { echo "FATAL: run_agent_model_options_checks not defined" >&2; exit 2; }
+echo "== agent-model options (non-fixture) =="
+run_agent_model_options_checks
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 if [[ $FAIL -gt 0 ]]; then

@@ -1,19 +1,19 @@
 {
-  "_readme": "Copy to ~/.claude/toolkit-models.json. Each key under \"agents\" is a shipped toolkit agent name (see plugins/toolkit/agents/*.md). An empty string keeps the model set in that agent's own frontmatter. A value can be any Claude Code model alias (\"sonnet\", \"opus\", \"fable\") or a full model ID such as \"claude-opus-5-5\". \"haiku\" is refused by the toolkit model policy. An explicit per-call model, or CLAUDE_CODE_SUBAGENT_MODEL_FORCE, always wins over this file. This applies to Agent-tool spawns only, not Workflow scripts (the MR review engine keeps its own model settings).",
+  "_readme": "Default layer, never copied whole. ~/.claude/toolkit-models.json lists only the agents you re-route, in the same shape. Each key under \"agents\" is a shipped toolkit agent name (see plugins/toolkit/agents/*.md). Each value is {\"model\": ..., \"effort\": ...}: model is any Claude Code model alias (\"sonnet\", \"opus\", \"fable\") or a full model ID such as \"claude-opus-5-5\", effort is low, medium, high, xhigh or max. An empty string leaves the layers below in place, and \"inherit\" in either field overrides them and resolves blank. A blank field is not passed on: a Workflow agent() call then inherits the session value, and an Agent-tool spawn with no model uses the agent definition's model, then a configured default subagent model, then the parent session's model. A bare string value is read as the model only. \"haiku\" is refused by the toolkit model policy. This file is the default layer: scripts/resolve-models.sh reads it, then the user file, then the plan note's options, and the result routes Agent-tool spawns through hooks/agent-model.sh and Workflow agent() calls through the runner scripts. An explicit per-call model or effort, or CLAUDE_CODE_SUBAGENT_MODEL_FORCE, wins over every layer.",
   "agents": {
-    "browser-driver": "",
-    "code-reviewer": "",
-    "coupling-reviewer": "",
-    "doc-reviewer": "",
-    "explorer": "",
-    "frontend-designer": "",
-    "implementer": "",
-    "performance-reviewer": "",
-    "plan-critic": "",
-    "planner": "",
-    "pr-test-analyzer": "",
-    "security-reviewer": "",
-    "silent-failure-hunter": "",
-    "verifier": ""
+    "browser-driver": { "model": "sonnet", "effort": "medium" },
+    "code-reviewer": { "model": "opus", "effort": "high" },
+    "coupling-reviewer": { "model": "opus", "effort": "high" },
+    "doc-reviewer": { "model": "opus", "effort": "high" },
+    "explorer": { "model": "sonnet", "effort": "medium" },
+    "frontend-designer": { "model": "opus", "effort": "high" },
+    "implementer": { "model": "opus", "effort": "high" },
+    "performance-reviewer": { "model": "opus", "effort": "high" },
+    "plan-critic": { "model": "opus", "effort": "high" },
+    "planner": { "model": "", "effort": "" },
+    "pr-test-analyzer": { "model": "opus", "effort": "high" },
+    "security-reviewer": { "model": "opus", "effort": "high" },
+    "silent-failure-hunter": { "model": "opus", "effort": "high" },
+    "verifier": { "model": "opus", "effort": "xhigh" }
   }
 }

@@ -1,0 +1,1 @@
+{"agents":{"code-reviewer":{"model":"fable","effort":"low"},"doc-reviewer":{"model":"fable","effort":"low"},"explorer":{"model":"opus","effort":"low"},"implementer":{"model":"fable","effort":"medium"},"planner":{"model":"","effort":""},"security-reviewer":{"model":"fable","effort":"low"},"verifier":{"model":"fable","effort":"max"}}}

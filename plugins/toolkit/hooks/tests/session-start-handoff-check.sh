@@ -300,6 +300,22 @@ check_sh_two_slugs_second_run_infers() {
   _sh_pass "$label :: the next compaction after two slug handoffs takes the inferred path"
 }
 
+check_sh_two_slugs_newest_cache() {
+  local label="two-slugs-newest-cache" sid="hooktest-sid-$$-$RANDOM$RANDOM" base="toolkit-hooktest-$$-$RANDOM$RANDOM"
+  if ! _sh_work || ! _sh_new "$base-a" || ! _sh_new "$base-b"; then _sh_fail "$label :: setup failed"; _sh_cleanup; return; fi
+  if ! _sh_layout "$SH_TMP/$base-a/$sid/scratchpad" "" $'plan: older\nceiling: mr' \
+    || ! _sh_layout "$SH_TMP/$base-b/$sid/scratchpad" "" $'plan: newer\nceiling: merge' \
+    || ! touch -t 202001010000 "$SH_TMP/$base-a/$sid/scratchpad/flow-run-options"; then
+    _sh_fail "$label :: layout failed"; _sh_cleanup; return
+  fi
+  _sh_hook "$sid"
+  _sh_cleanup
+  if [[ "$SH_CTX" != *"git ceiling merge for plan newer."* ]]; then
+    _sh_fail "$label :: two slug directories with no handoff did not report the newest run options cache"; return
+  fi
+  _sh_pass "$label :: two slug directories with no handoff report the newest run options cache"
+}
+
 # $1 label. A handoff in a read-only (555) scratchpad. Sets SH_CTX and SH_ERR.
 _sh_readonly() {
   local sid="hooktest-sid-$$-$RANDOM$RANDOM" pad
@@ -379,6 +395,17 @@ check_sh_plan_unsafe() {
   _sh_pass "$label :: a plan slug with an unsafe character reads as <unset>"
 }
 
+check_sh_nolib_says_so() {
+  local label="nolib-says-so" sid="hooktest-sid-$$-$RANDOM$RANDOM" hook="$SH_HOOK"
+  if ! _sh_work || ! mkdir -p "$SH_WORK/nolib" || ! cp "$hook" "$SH_WORK/nolib/session-start.sh"; then _sh_fail "$label :: setup failed"; _sh_cleanup; return; fi
+  SH_HOOK="$SH_WORK/nolib/session-start.sh"; _sh_hook "$sid"; SH_HOOK="$hook"
+  _sh_cleanup
+  if [[ "$SH_CTX" != *"hooks/lib/session-scratchpad.sh not found, so the compact handoff and the run options ceiling were not reinjected."* ]]; then
+    _sh_fail "$label :: a hook copy without hooks/lib did not say the handoff was not reinjected"; return
+  fi
+  _sh_pass "$label :: a hook copy without hooks/lib says the handoff was not reinjected"
+}
+
 run_session_start_handoff_checks() {
   check_sh_first_run_injects
   check_sh_first_run_skips_inference
@@ -396,12 +423,14 @@ run_session_start_handoff_checks() {
   check_sh_two_slugs_newest_injected
   check_sh_two_slugs_all_renamed
   check_sh_two_slugs_second_run_infers
+  check_sh_two_slugs_newest_cache
   check_sh_readonly_warns
   check_sh_readonly_logs
   check_sh_ceiling_padded
   check_sh_ceiling_inner_space
   check_sh_plan_blank
   check_sh_plan_unsafe
+  check_sh_nolib_says_so
 }
 
 if [[ -n "${SH_STANDALONE:-}" ]]; then

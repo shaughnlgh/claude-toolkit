@@ -3,9 +3,7 @@ name: implementer
 source: custom
 tags: [worker, implementation]
 maxTurns: 200
-effort: high
 description: Implementation specialist. Use after plan approval for bounded file changes, focused command runs, and minimal-scope execution from an approved plan.
-model: opus
 tools: Read, Grep, Glob, Bash, Edit, Write, WebFetch, WebSearch
 ---
 

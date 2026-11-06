@@ -58,6 +58,7 @@ const REPO_STATE = "The tree at repoRoot is the POST-change state this diff prod
 const STANDING = ['toolkit:code-reviewer', 'toolkit:silent-failure-hunter', 'toolkit:pr-test-analyzer']
 const FULL = STANDING.concat(['toolkit:security-reviewer', 'toolkit:performance-reviewer', 'toolkit:coupling-reviewer'])
 const DOCS_ONLY = ['toolkit:code-reviewer']
+const MODELS = { verifier: { model: 'opus', effort: 'xhigh' }, implementer: { model: 'sonnet', effort: 'high' }, 'code-reviewer': { model: 'fable', effort: 'medium' } }
 
 const stepOf = (changedPaths, extra = {}) => ({ changedPaths, deviations: [], checksRun: ['unit tests'], result: 'Done.', blockers: [], topicMaterial: 'none', ...extra })
 const resultOf = (status) => ({ step: '1. Run the unit tests.', status, evidence: `unit tests: ${status}` })
@@ -117,7 +118,7 @@ async function run(overrides = {}, args = ARGS) {
   const calls = []
   const agent = async (prompt, opts) => {
     prompts[opts.label] = prompt
-    agents[opts.label] = { agentType: opts.agentType, phase: opts.phase, schema: opts.schema }
+    agents[opts.label] = { agentType: opts.agentType, phase: opts.phase, schema: opts.schema, model: opts.model, effort: opts.effort }
     return script[opts.label] ?? null
   }
   const workflow = async (ref, wfArgs) => {
@@ -229,6 +230,29 @@ const cases = [
   ['inWorktree as a string throws', async () => {
     const { error } = await run({}, { ...ARGS, inWorktree: 'yes' })
     return String(error && error.message).includes('inWorktree must be a boolean')
+  }],
+  ['the models map lands on every label by its agent type', async () => {
+    const { agents } = await run(FULL_RUN, { ...ARGS, models: MODELS })
+    const labels = Object.keys(AGENT_TYPES)
+    const got = Object.fromEntries(labels.map((k) => [k, agents[k] && { model: agents[k].model, effort: agents[k].effort }]))
+    return same(got, Object.fromEntries(labels.map((k) => [k, MODELS[AGENT_TYPES[k].replace('toolkit:', '')]])))
+  }],
+  ['a models map wrapped in agents throws', async () => {
+    const { error } = await run({}, { ...ARGS, models: { agents: MODELS } })
+    return String(error && error.message).includes('execute-runner models must map agent names to {model, effort} objects')
+  }],
+  ['a models map with a bare string entry throws', async () => {
+    const { error } = await run({}, { ...ARGS, models: { verifier: 'opus' } })
+    return String(error && error.message).includes('execute-runner models must map agent names to {model, effort} objects')
+  }],
+  ['a missing models map passes neither key to any call', async () => {
+    const { agents } = await run(FULL_RUN)
+    return Object.values(agents).every((x) => x.model === undefined && x.effort === undefined)
+  }],
+  ['the models map is forwarded to the review-mr child and omitted when absent', async () => {
+    const given = await run({}, { ...ARGS, models: MODELS })
+    const absent = await run()
+    return same({ given: given.calls[0].args.models, absent: 'models' in absent.calls[0].args }, { given: MODELS, absent: false })
   }],
   ['dead verify:validation blocks and skips the child', async () => {
     const { result, calls } = await run({ 'verify:validation': null })
