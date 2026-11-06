@@ -2,10 +2,8 @@
 name: browser-driver
 source: custom
 tags: [worker, browser]
-effort: medium
 maxTurns: 150
 description: Browser automation worker. Use proactively for any multi-step browser work — reproducing user flows, driving checkout/login-gated journeys, UI verification runs, dashboard and log-viewer trawls via claude-in-chrome. Keeps long computer-use loops (and their screenshots) out of the conductor's context.
-model: sonnet
 tools: Read, Grep, Glob, Bash, ToolSearch, mcp__claude-in-chrome
 ---
 

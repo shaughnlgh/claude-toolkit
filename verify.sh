@@ -202,19 +202,21 @@ want "hooks.json wires remember-guard.sh to Stop" \
 want "hooks.json wires agent-model.sh to PreToolUse matcher Agent" \
   "$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); m=[e for e in d.get('hooks',{}).get('PreToolUse',[]) if e.get('matcher')=='Agent']; print(json.dumps(m))" "$P/hooks/hooks.json" 2>/dev/null)" \
   "agent-model.sh"
-# toolkit-models.json.template must offer every shipped agent under "agents", or a new
-# agent silently has no model-routing entry to fill in.
+# toolkit-models.json.template must offer every shipped agent under "agents" as a {model, effort}
+# object, or a new agent silently has no default layer for resolve-models.sh.
 tm_match="$(python3 -c "
 import json,glob,os,sys
 P=sys.argv[1]
 agents=sorted(os.path.basename(f)[:-3] for f in glob.glob(P+'/agents/*.md'))
 tmpl=json.load(open(P+'/scripts/toolkit-models.json.template'))
 keys=sorted(tmpl.get('agents',{}).keys())
-print('MATCH' if agents==keys else 'MISMATCH agents=%s template=%s' % (agents, keys))
+vals=tmpl.get('agents',{}).values()
+shaped=all(isinstance(v,dict) and isinstance(v.get('model'),str) and isinstance(v.get('effort'),str) for v in vals)
+print('MATCH' if agents==keys and shaped else 'MISMATCH agents=%s template=%s shaped=%s' % (agents, keys, shaped))
 " "$P" 2>/dev/null)"
 case "$tm_match" in
-  MATCH) ok "toolkit-models.json.template lists every shipped agent" ;;
-  *) no "toolkit-models.json.template lists every shipped agent (${tm_match:-python3 failed})" ;;
+  MATCH) ok "toolkit-models.json.template lists every shipped agent as {model, effort} objects" ;;
+  *) no "toolkit-models.json.template lists every shipped agent as {model, effort} objects (${tm_match:-python3 failed})" ;;
 esac
 # coupling-reviewer must be both registered in review-mr.js's REVIEWERS array (or it never
 # runs in an MR review) and present as an agent file (or the registration invokes nothing).
@@ -242,7 +244,7 @@ else
   # exit code is part of the pass condition and the RESULT line is picked by prefix,
   # not by trailing position: a merged stderr line must not masquerade as the verdict.
   out="$(printf '%s' "$hout" | grep -E '^RESULT: ' | tail -1)"
-  if [ "$hrc" -eq 0 ] && suite_pass "$out" 218; then
+  if [ "$hrc" -eq 0 ] && suite_pass "$out" 230; then
     ok "hook fixture suite"
   else
     no "hook fixture suite (exit $hrc, got: ${out:0:60})"
@@ -327,6 +329,10 @@ echo "== seat-check holder rule =="
 out="$(bash "$P/scripts/tests/seat-check/run-tests.sh" 2>/dev/null | tail -1)"
 suite_ok "seat-check behavior suite" "$out" 12
 
+echo "== resolve-models layering =="
+out="$(bash "$P/scripts/tests/resolve-models/run-tests.sh" 2>/dev/null | tail -1)"
+suite_ok "resolve-models behavior suite" "$out" 34
+
 echo "== watch-mr watcher =="
 out="$(bash "$P/scripts/tests/watch-mr/run-tests.sh" 2>/dev/null | tail -1)"
 suite_ok "watch-mr behavior suite" "$out" 52
@@ -334,7 +340,7 @@ suite_ok "watch-mr behavior suite" "$out" 52
 echo "== plan-builder control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/plan-builder/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "plan-builder control-flow suite" "$out" 25
+  suite_ok "plan-builder control-flow suite" "$out" 30
 else
   skip "skipped: node not found; plan-builder control-flow suite"
 fi
@@ -342,7 +348,7 @@ fi
 echo "== execute-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/execute-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "execute-runner control-flow suite" "$out" 164
+  suite_ok "execute-runner control-flow suite" "$out" 173
 else
   skip "skipped: node not found; execute-runner control-flow suite"
 fi
@@ -350,7 +356,7 @@ fi
 echo "== ship-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/ship-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "ship-runner control-flow suite" "$out" 157
+  suite_ok "ship-runner control-flow suite" "$out" 161
 else
   skip "skipped: node not found; ship-runner control-flow suite"
 fi
@@ -358,7 +364,7 @@ fi
 echo "== review-mr control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/review-mr/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "review-mr control-flow suite" "$out" 60
+  suite_ok "review-mr control-flow suite" "$out" 65
 else
   skip "skipped: node not found; review-mr control-flow suite"
 fi
@@ -400,7 +406,7 @@ fi
 echo "== Orchestration invariants (leaf workers, no Haiku) =="
 inv="$(python3 - "$P/agents" <<'PY'
 import glob,re,os,sys
-bad=[]; none=[]; hk=[]
+bad=[]; none=[]; pin=[]
 for f in sorted(glob.glob(sys.argv[1]+"/*.md")):
     parts=open(f).read().split('---')
     b=os.path.basename(f)
@@ -411,12 +417,14 @@ for f in sorted(glob.glob(sys.argv[1]+"/*.md")):
     if tl and tl.strip()=='tools:':
         toks+=[m for l in fm.splitlines() for m in re.findall(r'-\s*(Agent|Task)\b',l)]
     if toks: bad.append(b)
-    ml=next((l for l in fm.splitlines() if l.strip().startswith('model:')),'')
-    if 'haiku' in ml.lower(): hk.append(b)
-print("BAD",",".join(bad),"NONE",",".join(none),"HAIKU",",".join(hk))
+    pins=[l.strip().split(':')[0] for l in fm.splitlines() if l.strip().startswith(('model:','effort:'))]
+    if pins: pin.append(b)
+print("BAD",",".join(bad),"NONE",",".join(none),"PIN",",".join(pin))
 PY
 )"
-case "$inv" in *"BAD  NONE  HAIKU"*) ok "no agent can spawn sub-agents (leaf), none omits allowlist, none on Haiku";; *) no "orchestration invariant broken: $inv";; esac
+[ "$inv" = "BAD  NONE  PIN " ] && ok "no agent can spawn sub-agents (leaf), none omits allowlist, none pins a model or effort" || no "orchestration invariant broken: $inv"
+th="$(python3 -c "import json,sys; t=json.load(open(sys.argv[1]))['agents']; h=[k for k,v in t.items() if 'haiku' in json.dumps(v).lower()]; print(','.join(h) or 'NONE')" "$P/scripts/toolkit-models.json.template" 2>/dev/null)"
+[ "$th" = "NONE" ] && ok "toolkit-models.json.template routes no agent to Haiku" || no "toolkit-models.json.template routes to Haiku: ${th:-python3 failed}"
 if grep -qF 'Tripwires:' "$P/agents/plan-critic.md" && grep -qF 'Walk-away checks:' "$P/agents/plan-critic.md" && grep -qF '60 lines' "$P/agents/plan-critic.md" \
    && grep -qF 'Tripwires block' "$P/skills/plan-guide/SKILL.md" && grep -qF 'Walk-away checks block' "$P/skills/plan-guide/SKILL.md"; then
   ok "plan-critic's Tripwires:/Walk-away checks:/60-line return contract is referenced by plan-guide"
@@ -472,4 +480,4 @@ echo "RESULT: $pass passed, $skip skipped, $fail failed"
 # Floor, not just zero-failures: silently deleting real checks must not read green.
 # Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
 # no node, no local plugin install) must not read as a vanished check.
-[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 79 ]
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 81 ]

@@ -65,7 +65,7 @@ RUN_OPTION_VALUES = {
     "tag_merge": {"true", "false"},
 }
 MODEL_KEYS = ("worker_model", "verifier_model")
-# Mirrors the model value regex in hooks/agent-model.sh.
+# Mirrors the model value regex in scripts/resolve-models.sh.
 MODEL_RE = re.compile(r"^[A-Za-z][A-Za-z0-9.:_-]*(\[1m\])?$")
 EFFORTS = {"low", "medium", "high", "xhigh", "max", "inherit"}
 RUN_OPTION_KEYS = list(RUN_OPTION_VALUES) + list(MODEL_KEYS) + ["verifier_effort"]

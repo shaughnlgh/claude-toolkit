@@ -105,6 +105,8 @@ This gate is the execution-guardrails preview for the whole run. On Edit, apply 
 
 ## 7. Launch
 
+Run `scripts/resolve-models.sh` as `plan-guide` § Run options defines, from the `worker_model`, `verifier_model` and `verifier_effort` values this flow read or asked there, and pass the printed `agents` object as `models`.
+
 Build the args:
 
 - `planName`, `repoRoot`, `repoName`: from section 1.
@@ -116,6 +118,7 @@ Build the args:
 - `knownShas`: the shipping record's commit sha (`recordedSha`) plus every fix sha that Plan Changes During Execution records from an earlier ship-flow run, or an empty list.
 - `protectedPaths`: the repo-specific paths that a bot-thread fix must never touch, empty unless the plan note names them.
 - `scratchDir`: the absolute scratchpad path. `pluginRoot`: `<plugin-root>`.
+- `models`: the `agents` object the resolver printed.
 
 When `repoRoot` contains `plugins/toolkit/workflows/ship-runner.js`, launch `{scriptPath: "<repoRoot>/plugins/toolkit/workflows/ship-runner.js"}`, otherwise `{name: "toolkit:ship-runner"}`. If name resolution fails, launch `{scriptPath: "<this skill's base directory>/../../workflows/ship-runner.js"}` resolved to an absolute path. The script is named `ship-runner` because a workflow and a skill cannot share a name in the plugin registry. If the Workflow tool refuses a `scriptPath` as outside the working directory, copy the script byte-identical to `<scratchpad>/ship-runner.js`, take the first 12 characters of `shasum -a 256` for the source and for the copy, require the two to match, and launch `{scriptPath: "<scratchpad>/ship-runner.js"}`. A run that dies is not resumed: every stage is idempotent, so asking for the ship flow again derives `startAt` from the tree and the host. The section 7b relaunch is that same mechanism, driven by the watcher's exit instead of the user's ask.
 

@@ -18,6 +18,7 @@ if command -v jq >/dev/null 2>&1 && [ -n "$INPUT" ]; then
   TRANSCRIPT=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
   SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 fi
+. "$(dirname "${BASH_SOURCE[0]}")/lib/session-scratchpad.sh" 2>/dev/null || SCRATCHPAD_LIB_MISSING=1
 VERBOSE="${TOOLKIT_SESSION_VERBOSE:-0}"
 CTX=""
 add() { [ -n "$CTX" ] && CTX="${CTX}
@@ -213,21 +214,18 @@ fi
 # rules, then the escalation. Counted from the transcript (stateless), escalated from the 2nd compact.
 NCOMPACT=0
 if [ "$SOURCE" = "compact" ]; then
+  [ -n "${SCRATCHPAD_LIB_MISSING:-}" ] && add "toolkit session-start: hooks/lib/session-scratchpad.sh not found, so the compact handoff and the run options ceiling were not reinjected."
   HANDOFF=""; SCRATCH=""; HANDOFFS=()
   if [ -n "${TOOLKIT_COMPACT_HANDOFF:-}" ]; then
     [ -f "$TOOLKIT_COMPACT_HANDOFF" ] && [ -r "$TOOLKIT_COMPACT_HANDOFF" ] && HANDOFF="$TOOLKIT_COMPACT_HANDOFF"
   else
-    # session_id lands in a glob, so anything beyond a plain id is skipped.
-    case "$SESSION_ID" in ''|*[!A-Za-z0-9_-]*) ;; *)
-      for d in /tmp/claude-"$(id -u)"/*/"$SESSION_ID"/scratchpad; do
-        [ -d "$d" ] || continue
-        [ -z "$SCRATCH" ] && SCRATCH="$d"
-        [ -f "$d/compact-handoff.md" ] && [ -r "$d/compact-handoff.md" ] || continue
-        HANDOFFS+=("$d/compact-handoff.md")
-        # Two slug directories can hold a handoff for one session: the newest wins.
-        if [ -z "$HANDOFF" ] || [ "$d/compact-handoff.md" -nt "$HANDOFF" ]; then SCRATCH="$d"; HANDOFF="$d/compact-handoff.md"; fi
-      done ;;
-    esac
+    while IFS= read -r d; do
+      [ -z "$SCRATCH" ] && SCRATCH="$d"
+      [ -f "$d/compact-handoff.md" ] && [ -r "$d/compact-handoff.md" ] || continue
+      HANDOFFS+=("$d/compact-handoff.md")
+      # Two slug directories can hold a handoff for one session: the newest wins.
+      if [ -z "$HANDOFF" ] || [ "$d/compact-handoff.md" -nt "$HANDOFF" ]; then SCRATCH="$d"; HANDOFF="$d/compact-handoff.md"; fi
+    done < <(session_scratchpads "$SESSION_ID")
   fi
   HANDOFF_CAP=4000  # re-sent every request
   if [ -n "$HANDOFF" ]; then
@@ -258,8 +256,10 @@ if [ "$SOURCE" = "compact" ]; then
       [ -z "$I_PLAN" ] && I_PLAN=$(plan_mention < "$TRANSCRIPT")
       I_PLAN=$(printf '%s' "$I_PLAN" | head -c 160)
     fi
-    if [ -n "$SCRATCH" ] && [ -f "$SCRATCH/flow-run-options" ]; then
-      ro_line() { sed -nE "s/^[[:space:]]*$1:[[:space:]]*//p" "$SCRATCH/flow-run-options" 2>/dev/null | head -1 | sed 's/[[:space:]]*$//'; }
+    RO_FILE=""; [ -n "$SCRATCH" ] && RO_FILE=$(session_run_options_file "$SESSION_ID")
+    if [ -n "$RO_FILE" ]; then
+      # Reads a line the way resolve-models.sh's opt() does.
+      ro_line() { sed -nE "s/^[[:space:]]*$1:[[:space:]]*//p" "$RO_FILE" 2>/dev/null | head -1 | sed 's/[[:space:]]*$//'; }
       I_CEIL=$(ro_line ceiling)
       I_RPLAN=$(ro_line plan | head -c 120)
       # A missing, empty, or unrecognised ceiling line reads as none, as the flows read it.

@@ -111,6 +111,8 @@ Before launch, count the steps the way the script parses them. The Implementatio
 
 On a fresh run, first delete any `<scratchpad>/execute-flow-<planName>.runid` left by an earlier run, so a later resume can only pick up the latest run. Move the status only when the launch is about to happen. Load `plan-guide`. On a fresh run, set `status: in-progress` if the note is not already there, write the run option keys from section 2 that the note lacks, and record this session's entry per its session rules with the summary `execute-flow run started`, with the id taken from the scratchpad path. If section 2a opened a worktree, add the line `Seat: worktree <path>` under Plan Changes During Execution in the same write, so section 1 re-enters the worktree in a later session. If section 1 or section 2a entered a worktree and the section 3 branch differs from the `branch` frontmatter, also set that key to the section 3 branch in the same write, so the commit handoff, the ship flow, and the key name the branch the worktree carries. On a resume, leave the status and the entry as they are. Write the change atomically: Write the note to a `.tmp.md` file beside it, then move it into place with `vault-fs.sh mv`. Then run `python3 <plugin-root>/scripts/validate-plan.py "<plan note path>"` and require exit 0. If the validator fails, report its output and stop. Never patch a failure silently.
 
+Run `scripts/resolve-models.sh` as `plan-guide` § Run options defines, from the `worker_model`, `verifier_model` and `verifier_effort` values this flow read or asked there, and pass the printed `agents` object as `models`.
+
 Build the args:
 
 - `planName`: from section 1.
@@ -128,6 +130,7 @@ Build the args:
 - `maxFixRounds` (optional): the fix rounds after the panel, a non-negative integer, default 1.
 - `reviewRules` (optional): the `REVIEW.md` text that section 3 returned, verbatim. Omit it when section 3 returned `absent`.
 - `reviewMr` (optional): `{scriptPath: "<repoRoot>/plugins/toolkit/workflows/review-mr.js"}` when `repoRoot` contains that file, the rule `red-team` step 4 uses, so the toolkit repo's own flow runs its working-tree review-mr. Omit it otherwise. If the result's `blocked` carries `The review-mr child workflow failed:` naming that ref, report it and tell the user to rerun without `reviewMr`.
+- `models`: the `agents` object the resolver printed. The runner forwards it to the `review-mr` child.
 
 When `repoRoot` contains `plugins/toolkit/workflows/execute-runner.js`, launch `{scriptPath: "<repoRoot>/plugins/toolkit/workflows/execute-runner.js"}`, otherwise `{name: "toolkit:execute-runner"}` with the `scriptPath` fallback `red-team` uses. That fallback is `{scriptPath: "<this skill's base directory>/../../workflows/execute-runner.js"}` resolved to an absolute path, used if name resolution fails. The script is named `execute-runner` because a workflow and a skill cannot share a name in the plugin registry. If the Workflow tool refuses the `scriptPath` as outside the working directory, copy the script byte-identical to `<scratchpad>/execute-runner.js`, take the first 12 characters of `shasum -a 256` for the source and for the copy, require the two to match, and launch `{scriptPath: "<scratchpad>/execute-runner.js"}`.
 
