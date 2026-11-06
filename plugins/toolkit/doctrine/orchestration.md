@@ -43,7 +43,7 @@ For repeatable multi-stage fan-out patterns (multi-dimension review, per-task ex
 Parent and child sessions are an optional shape for two or more tasks on one repo at the same time, never the default. The parent session holds the plan and edits nothing. Each child is its own session that takes one task in its own worktree. The seat check (`scripts/seat-check.sh`, execute-flow section 2a) names the collision this shape prevents: two sessions writing the main checkout.
 
 - The parent briefs each child through a cross-session message and checks each child's report against the plan.
-- Each child opens its worktree with EnterWorktree, or through the execute flow's Open a worktree answer, and runs the repo's install step there as execute-flow section 2a defines. No child builds its environment by hand.
+- Each child opens its worktree with EnterWorktree, or through the execute flow's held-seat worktree, and runs the repo's install step there as execute-flow section 2a defines. No child builds its environment by hand.
 - A child reports back to the parent when its flow finishes or blocks.
 - Children stay short. A child that would compact is a signal to finish and hand back, not to ride on.
 

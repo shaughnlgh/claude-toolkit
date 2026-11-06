@@ -1,10 +1,10 @@
 ---
 title: Ship flow constraints
-summary: The invariants the ship-runner workflow, its control-flow suite, and the ship-flow conductor's waits must keep, covering the ceiling, fix commits, pipeline state, the merge guard, the release-only resume, the background wait and relaunch, and the shared git rule text.
+summary: The invariants the ship-runner workflow, its control-flow suite, and the ship-flow conductor's waits must keep, covering the ceiling and the seat cap, fix commits, pipeline state, the merge guard, the release-only resume, the background wait and relaunch, and the shared git rule text.
 type: context
 status: active
 owner: Shaughn
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 source_refs:
   - plugins/toolkit/workflows/ship-runner.js
   - plugins/toolkit/workflows/tests/ship-runner/
@@ -19,7 +19,10 @@ The `ship-flow` skill launches the `ship-runner` workflow to carry a reviewed sl
 ## Ceiling
 
 - `CEILING` in `ship-runner.js` maps the plan note's `ceiling` to a stage rank, and `ceilingRank` is that rank plus one when `ceiling` is `merge` and `tag` is true. The note's `ceiling` key holds `none`, `mr`, or `merge`, and the runner's `stopStage` result names the stage the run stops at, so a change keeps the key vocabulary and the stage vocabulary apart.
+- The seat cap lowers a `merge` ceiling to `mr` while the plan note holds a `Validation deferred:` line and no `Seat run passed:` line after the last such line names the HEAD sha that section 3 of the `ship-flow` skill reads. The cap compares the exact sha, so a ship fix commit after a passed seat run brings it back until a seat run passes on the new tip. A capped run compares `stoppedAt` with the uncapped stage, so it records `ship-flow stopped: at mr`.
+- The ship flow takes `repoRoot` from the path on the last `Seat: worktree` line on the note when that directory exists, because the plan branch is checked out in that worktree. It calls no EnterWorktree. When that directory is gone, or the note has no such line, `repoRoot` comes from the note's `repo` frontmatter, and no earlier `Seat: worktree` line is tried.
 - `TAG_WANTED` holds only when `ceiling` is `merge` and `tag` is true. A `tag` under `ceiling` `none` or `mr` is accepted, ignored, and needs no `tagName`. `RANK` keeps `release` at 5 as the internal name of the tag stage, and `ceilingRank` reaches it only through `TAG_WANTED`.
+- The runner never reads the plan note, so the `ship-flow` conductor applies the seat cap by passing `ceiling` as `mr` in the runner args. Because `TAG_WANTED` needs `ceiling` `merge`, a capped run also skips the tag stage, whatever the note's `tag_merge` value.
 
 ## Stopping a run
 
@@ -45,7 +48,7 @@ The `ship-flow` skill launches the `ship-runner` workflow to carry a reviewed sl
 
 ## Merge guard
 
-- On a run that starts at merge with a `recordedSha`, Prep reads `git log --format=%H <recordedSha>..HEAD`. The merge stage blocks on any printed sha that no `knownShas` entry prefixes and that is not in `fixShas`. `knownShas` holds the shipping record's commit sha and every recorded fix sha. The guard catches a commit that the run never recorded, such as one a dead fix agent pushed or one the owner pushed by hand after a denial.
+- On a run that starts at merge with a `recordedSha`, Prep reads `git log --format=%H <recordedSha>..HEAD`. The merge stage blocks on any printed sha that no `knownShas` entry prefixes and that is not in `fixShas`. `knownShas` holds the shipping record's commit sha, every recorded fix sha, and every sha on a `Seat run reviewed:` line, the commits since the open base that a passing seat run's panel and cold read covered, its own fix commit included. The confirmation gate lists the `Seat run reviewed:` shas under `Fix commits to read before Go`. A seat-run commit that the push stage pushes is not in `fixShas`, so only `knownShas` lets the merge pass it, and `ship-runner.js` needs no change for it. The guard catches a commit that the run never recorded, such as one a dead fix agent pushed or one the owner pushed by hand after a denial.
 
 ## Release-only resume
 

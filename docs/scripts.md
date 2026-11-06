@@ -74,20 +74,23 @@ Reports which live Claude sessions hold a repo's seat, the main checkout. The se
 Invoke:
 
 ```bash
-bash "$PLUGIN_ROOT/scripts/seat-check.sh" <repo path> [--self <sessionId>]
+bash "$PLUGIN_ROOT/scripts/seat-check.sh" <repo path> [--self <sessionId>] [--worktree <path>]
 ```
 
 The repo path can be the main checkout, a directory under it, or a linked worktree of it. The script resolves the main checkout through the git common dir and resolves every path with `pwd -P`, so a symlinked path matches its target.
 
 The holder rule: a session from `claude agents --json` holds the seat when it has a non-null `pid` that `kill -0` accepts, a `sessionId` other than the `--self` value, and a `cwd` that is the main checkout or a directory under it but not under `<main>/.claude/worktrees/`. A session in a linked worktree holds no seat. The script prints `status` and `kind` and never tests them.
 
+`--worktree <path>` lists the live sessions that work in that worktree. A session is an occupant when it passes the same `pid` and `--self` tests and its `cwd` is that path or a directory under it. A session whose `cwd` is the main checkout is a holder and not an occupant. A path that is not a directory is an error. The execute flow's seat run reads it before it detaches the plan's worktree.
+
 Output, one line each, in this order:
 
 - `seat: free` or `seat: held`
 - `main: <main checkout path>`
 - `branch: <branch>`, or `branch: detached`
-- `dirty: <count of git status --porcelain -uall lines in the main checkout>`
+- `dirty: <count of git status --porcelain -uall lines in the main checkout outside .claude/worktrees/>`, read with the pathspec `':(exclude,top).claude/worktrees/'`, so a linked worktree there never counts, with or without an ignore entry
 - one `holder: <name>\t<status>\t<kind>\t<sessionId>\t<cwd>` line per holder, tab separated because a session name can hold spaces
+- with `--worktree`, one `occupant: <name>\t<status>\t<kind>\t<sessionId>\t<cwd>` line for each live session other than `--self` whose `cwd` is that path or under it
 
 Exit codes: 0 free, 10 held, 2 error. An error prints one `error:` line to stderr. The script errors on a path that is not a git repo, a missing `jq`, and a session source that is not a JSON array, which covers a missing or failing `claude` binary. Where `perl` exists, the script kills a `claude agents --json` call that runs past 3 seconds, which then counts as a failing binary.
 
@@ -95,7 +98,7 @@ A caller inside a worktree session must invoke the script by a path and argument
 
 `TOOLKIT_AGENTS_FILE` names a JSON file the script reads instead of running `claude agents --json`. It is the test seam.
 
-Tests: `bash plugins/toolkit/scripts/tests/seat-check/run-tests.sh` (12 behavior cases in a temporary repo with one linked worktree; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/seat-check/run-tests.sh` (16 behavior cases in a temporary repo with one linked worktree and no ignore entry for it; also run by `verify.sh`).
 
 ## resolve-models.sh
 
