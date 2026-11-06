@@ -6,9 +6,7 @@ tools:
   - Grep
   - Glob
   - Bash
-model: opus
 source: custom
-effort: high
 tags: [planning, review, adversarial]
 ---
 

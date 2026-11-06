@@ -2,10 +2,8 @@
 name: explorer
 source: custom
 tags: [worker, exploration]
-effort: medium
 maxTurns: 100
 description: Read-only exploration specialist. Use proactively for codebase search, file discovery, pattern analysis, investigation questions, and evidence gathering without modifying any files — including discovery work during planning.
-model: sonnet
 tools: Read, Grep, Glob, Bash, WebFetch, WebSearch
 ---
 

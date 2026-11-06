@@ -20,7 +20,7 @@ if (typeof a === 'string') {
 const REQUIRED = ['planName', 'repoRoot', 'repoName', 'host', 'remotePath', 'defaultBranch', 'branch', 'commitMessage', 'mrTitle', 'mrBody', 'ceiling', 'scratchDir', 'pluginRoot']
 const isStrList = (v) => Array.isArray(v) && v.every((s) => typeof s === 'string' && s)
 if (!a || REQUIRED.some((k) => typeof a[k] !== 'string' || !a[k]) || !isStrList(a.paths) || !a.paths.length) {
-  throw new Error('ship-runner requires args: {planName, repoRoot, repoName, host, remotePath, defaultBranch, branch, commitMessage, mrTitle, mrBody, ceiling, scratchDir, pluginRoot, paths, tag?, botAuthors?, tagName?, tagMessage?, maxFixRounds?, startAt?, recordedSha?, mergedSha?, mr?, knownShas?, protectedPaths?}')
+  throw new Error('ship-runner requires args: {planName, repoRoot, repoName, host, remotePath, defaultBranch, branch, commitMessage, mrTitle, mrBody, ceiling, scratchDir, pluginRoot, paths, tag?, botAuthors?, tagName?, tagMessage?, maxFixRounds?, startAt?, recordedSha?, mergedSha?, mr?, knownShas?, protectedPaths?, models?}')
 }
 const RANK = { suggest: 0, commit: 1, push: 2, mr: 3, merge: 4, release: 5 }
 const CEILING = { none: 0, mr: 3, merge: 4 }
@@ -61,6 +61,15 @@ if (a.knownShas != null && !(Array.isArray(a.knownShas) && a.knownShas.every(isH
 }
 if (a.protectedPaths != null && !isStrList(a.protectedPaths)) {
   throw new Error(`ship-runner protectedPaths must be an array of strings, got ${JSON.stringify(a.protectedPaths)}`)
+}
+const isModelEntry = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.entries(v).every(([k, x]) => (k === 'model' || k === 'effort') && typeof x === 'string')
+if (a.models != null && (typeof a.models !== 'object' || Array.isArray(a.models) || !Object.values(a.models).every(isModelEntry))) {
+  throw new Error(`ship-runner models must map agent names to {model, effort} objects when given, got ${JSON.stringify(a.models)}`)
+}
+// Keys the resolved map by the agent's short name. A blank field is omitted so the session value applies; the resolver already turned inherit into blank.
+const modelOpts = (who) => {
+  const m = (a.models || {})[who] || {}
+  return { ...(m.model ? { model: m.model } : {}), ...(m.effort ? { effort: m.effort } : {}) }
 }
 const validMr = (m) => Boolean(m) && typeof m.url === 'string' && m.url && Number.isInteger(m.number) && m.number > 0
 if (a.mr != null && !validMr(a.mr)) {
@@ -196,7 +205,7 @@ const halted = (who, label, stage, r) => {
   }
   return denied(who, label, stage, r) || blockersOf(who, label, r)
 }
-const run = (who, label, phaseName, schema, prompt) => agent(prompt, { label, phase: phaseName, schema, agentType: `toolkit:${who}` })
+const run = (who, label, phaseName, schema, prompt) => agent(prompt, { label, phase: phaseName, schema, agentType: `toolkit:${who}`, ...modelOpts(who) })
 
 const finish = () => {
   log(`incomplete: ${incomplete.join(', ') || 'none'}`)

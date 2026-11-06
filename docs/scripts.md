@@ -24,7 +24,8 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved this way.
 | `validate-plan.py` | Validates a plan note against the plan-guide contract | Read-only — never edits the note; no network, no config, stdlib only |
 | `topic-recall.py` | Lexical topic search over the vault index, with a frontmatter fallback and an optional repo `docs/` source | Read-only against the vault and the repo, stdlib only, skips symlinks and non-regular files, INDEX.md included, reads at most 64 KiB of each scanned note or doc, stops at a 3-second deadline |
 | `obsidian-sync.json.template` | Vault config template `setup` instantiates to `~/.claude/obsidian-sync.json` | n/a — config, not an executable |
-| `toolkit-models.json.template` | Per-agent model routing config template `setup` instantiates to `~/.claude/toolkit-models.json` | n/a, config, not an executable |
+| `resolve-models.sh` | Resolves each shipped agent's model and effort from the template, the user file, and the plan note's run options, and prints one JSON map | Read-only; never writes a file; refuses Haiku and invalid values with a stderr warning; needs only `jq` |
+| `toolkit-models.json.template` | Default layer of per-agent model and effort routing for Agent-tool spawns and Workflow `agent()` calls | n/a, config, not an executable |
 | `design-detector/` | Deterministic, no-LLM detector for AI-generated frontend anti-patterns (most of 46 rules) | Vendored from Impeccable (Apache-2.0, attributed); read-only; zero-dep by default |
 
 ## vault-fs.sh
@@ -95,6 +96,34 @@ A caller inside a worktree session must invoke the script by a path and argument
 `TOOLKIT_AGENTS_FILE` names a JSON file the script reads instead of running `claude agents --json`. It is the test seam.
 
 Tests: `bash plugins/toolkit/scripts/tests/seat-check/run-tests.sh` (12 behavior cases in a temporary repo with one linked worktree; also run by `verify.sh`).
+
+## resolve-models.sh
+
+Resolves the model and effort of every shipped agent, so the `agent-model.sh` hook and the workflow launchers apply one map.
+
+Invoke:
+
+```bash
+bash "$PLUGIN_ROOT/scripts/resolve-models.sh" [--agent <name>] [--options <file>] [--worker-model <m>] [--verifier-model <m>] [--verifier-effort <e>]
+```
+
+The script reads three layers in order:
+
+- `toolkit-models.json.template` beside the script, the default layer, or the file `TOOLKIT_MODELS_TEMPLATE` names, the path override the hook fixtures use
+- the user file `~/.claude/toolkit-models.json`, or the file `TOOLKIT_MODELS_FILE` names
+- the plan note's run options: `--worker-model` sets the implementer model, `--verifier-model` and `--verifier-effort` set the verifier entry
+
+`--options <file>` names the plan-guide run options cache. The script reads its `worker_model`, `verifier_model` and `verifier_effort` lines and ignores its `plan:` line, and a flag wins over a line. With no flag and no options file, the script resolves the template and the user file only.
+
+The per-field rule: the script picks `model` and `effort` separately for each agent, and a later layer wins over an earlier one. A blank value never overrides. `inherit` overrides the layers below and prints blank. A blank field is not passed on, so a Workflow `agent()` call inherits the session value, and an Agent-tool spawn with no model uses the agent definition's model, then a configured default subagent model, then the parent session's model. A user value can be a `{model, effort}` object or a bare string, which sets the model only. A model that contains `haiku`, a model that fails the model ID pattern, an effort outside `low`, `medium`, `high`, `xhigh`, `max`, a field that is not a string, and a value that is neither a string nor an object are each ignored with a warning, so the field keeps what the earlier layers set, and the field is blank when the template holds that value. A user key that is not a template agent is dropped with a warning. A key other than `model` and `effort` inside a user object is ignored with a warning.
+
+Output: one line on stdout, `{"agents":{"<name>":{"model":"...","effort":"..."},...}}`, with one entry per template agent in template order.
+
+Warnings go to stderr, one `toolkit resolve-models:` line each. A warning about a value names its agent in square brackets, and `--agent <name>` prints only that agent's value warnings. A warning about a whole file or about a user agent name that matches no template agent names no agent and always prints. `--agent` filters warnings only: stdout still lists every agent. The script warns on a refused or invalid value, an unknown key inside a user object, a user agent name that matches no template agent, a malformed user file, a user file with no `agents` object, and a missing options file, and still exits 0 with the layers it could read.
+
+Exit codes: 0 resolved, 2 error. An error prints one `error:` line to stderr. The script errors on an unknown option, a missing `jq`, and a missing or invalid template or one with no `agents` object.
+
+Tests: `bash plugins/toolkit/scripts/tests/resolve-models/run-tests.sh` (34 behavior cases with per-case user files and crafted templates in a temporary directory; also run by `verify.sh`).
 
 ## watch-mr.sh
 
@@ -218,9 +247,9 @@ Fields, by what each observably does: `vault_path` (per-machine, set during setu
 
 ## toolkit-models.json.template
 
-The source template `setup` copies to `~/.claude/toolkit-models.json`. It is config, not an executable. The `agent-model.sh` PreToolUse hook (see `docs/hooks.md`) reads it to re-route a named agent's model on an Agent-tool spawn, without shadowing the agent file itself.
+The default layer of per-agent model and effort routing. It is config, not an executable. `resolve-models.sh` reads it first, then the user file `~/.claude/toolkit-models.json`, then the plan note's run options. The result routes Agent-tool spawns through the `agent-model.sh` PreToolUse hook (see `docs/hooks.md`) and Workflow `agent()` calls through the runner scripts, without shadowing the agent files. The user file lists only the agents it re-routes, in the same shape, so later template defaults still reach every other agent.
 
-Fields: `agents` (one key per shipped agent name; an empty string keeps the model set in that agent's own frontmatter; any Claude Code model alias or full model ID is accepted; `haiku` is refused) and `_readme` (human guidance only, read by nothing). An explicit per-call model, or `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, wins over this file. It applies to Agent-tool spawns only, not Workflow scripts.
+Fields: `agents` (one key per shipped agent name, each value a `{"model": ..., "effort": ...}` object; model is any Claude Code model alias or full model ID, effort is `low`, `medium`, `high`, `xhigh` or `max`; an empty string leaves the layers below in place; `haiku` is refused) and `_readme` (human guidance only, read by nothing). A user file value can also be a bare string, which sets the model only. An explicit per-call model or effort, or `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, wins over every layer.
 
 ## design-detector/
 

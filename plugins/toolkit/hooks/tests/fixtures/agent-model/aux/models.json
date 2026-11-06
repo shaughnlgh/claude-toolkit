@@ -1,1 +1,1 @@
-{"agents":{"implementer":"opus","explorer":"sonnet","verifier":"","bad-value":"not a model","tiny":"haiku","planner":"claude-example-1[1m]"}}
+{"agents":{"implementer":{"model":"opus","effort":"max"},"explorer":"sonnet","verifier":{"model":"","effort":""},"doc-reviewer":{"model":"not a model","effort":"turbo"},"security-reviewer":"haiku","planner":"claude-example-1[1m]"}}

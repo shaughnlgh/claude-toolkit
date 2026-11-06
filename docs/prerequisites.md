@@ -2,6 +2,10 @@
 
 The toolkit shells out to a few CLIs rather than holding any credentials of its own. Each is a one-time install and auth on your machine; after installing the plugin, `/setup` checks every one of these and reports exactly what is missing.
 
+### Claude Code
+
+The `agent-model.sh` hook adds an `effort` field to Agent tool calls. The toolkit is tested on the Claude Code version that `/setup` check 8 names, and whether an older Agent tool accepts the field is untested. Check 8 compares `claude --version` against the tested version.
+
 ### gh (GitHub CLI)
 
 The official GitHub CLI. The install below pulls this plugin from a private GitHub repo over SSH, and `gh auth login` is the easiest way to generate and upload an SSH key the first time. Sessions also use it for read-only PR and CI checks on GitHub-hosted repos. The ship flow uses it to open a PR, watch its checks, reply to and resolve bot review threads, and merge.
@@ -84,7 +88,7 @@ Never commit or print the token; the toolkit references it by name only.
 
 ### jq
 
-Required by `watch-mr.sh`, the ship flow's pipeline and review watcher. Some hooks and other scripts prefer it and degrade gracefully without it.
+Required by `watch-mr.sh`, the ship flow's pipeline and review watcher. Some hooks and other scripts prefer it and degrade gracefully without it. Without it, `agent-model.sh` and `resolve-models.sh` add no model or effort, so an Agent-tool spawn with no model uses the agent definition's model, then a configured default subagent model, then the parent session's model, and a workflow launched without `models` inherits the session model and effort. The hook then says so in a `systemMessage`. `resolve-models.sh` needs jq 1.6 or later, the release that added `IN`.
 
 ```sh
 brew install jq
