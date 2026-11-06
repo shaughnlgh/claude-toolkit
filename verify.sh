@@ -192,6 +192,7 @@ if grep -qF 'Seat run passed:' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Se
 if grep -qF '[e2e]' "$P/skills/plan-guide/SKILL.md" && grep -qF 'E2E_MARK.test' "$P/workflows/execute-runner.js"; then ok "plan-guide defines and execute-runner reads the [e2e] marker"; else no "[e2e] marker missing from plan-guide or execute-runner.js"; fi
 if [ -f "$P/skills/execute-flow/SKILL.md" ] && ! grep -qF 'AskUserQuestion' "$P/skills/execute-flow/SKILL.md"; then ok "execute-flow asks no question of its own"; else no "execute-flow carries an AskUserQuestion"; fi
 if grep -qF '(exclude,top)' "$P/scripts/seat-check.sh" && grep -qF '(exclude,top)' "$P/workflows/execute-runner.js" && grep -qF '(exclude,top)' "$P/skills/red-team/SKILL.md" && grep -qF '(exclude,top)' "$P/skills/execute-flow/SKILL.md"; then ok "seat-check, execute-runner, red-team and execute-flow leave Claude Code worktrees out of their path lists"; else no "own-worktree pathspec missing from seat-check.sh, execute-runner.js, red-team or execute-flow"; fi
+grep -qF "the worktree name \`<name>\` is \`<branch>\` with every \`/\` replaced by \`-\`" "$P/skills/execute-flow/SKILL.md" && ok "execute-flow names the worktree with each / in the branch replaced by -" || no "execute-flow no longer states the / to - rule for the worktree name"
 if grep -qF 'occupant: ' "$P/scripts/seat-check.sh" && grep -qF 'occupant:' "$P/skills/execute-flow/SKILL.md"; then ok "seat-check prints and execute-flow reads the worktree occupant line"; else no "occupant line missing from seat-check.sh or execute-flow"; fi
 # subagent-rules.sh only fires if hooks.json actually wires it to SubagentStart; a hook
 # file can exist and still never run.
@@ -485,4 +486,4 @@ echo "RESULT: $pass passed, $skip skipped, $fail failed"
 # Floor, not just zero-failures: silently deleting real checks must not read green.
 # Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
 # no node, no local plugin install) must not read as a vanished check.
-[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 86 ]
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 87 ]
