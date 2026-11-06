@@ -44,7 +44,7 @@ NOTE=$(jq -nc --arg wm "$worker_model" --arg vm "$verifier_model" --arg ve "$ver
 
 OUT=$(jq -nc --argjson tmpl "$TMPL" --argjson user "$USER_AGENTS" --argjson note "$NOTE" '
   # A value that is neither a string nor an object reads as null, and pick warns on any field that is not a string.
-  def field($f): if type == "string" then (if $f == "model" then . else "" end) elif type == "object" then (.[$f] // "") elif type == "null" then "" else null end;
+  def field($f): if type == "string" then (if $f == "model" then . else "" end) elif type == "object" then (if has($f) then .[$f] else "" end) elif type == "null" then "" else null end;
   def model_ok: test("^[A-Za-z][A-Za-z0-9.:_-]*(\\[1m\\])?$");
   def effort_ok: IN("low", "medium", "high", "xhigh", "max");  # mirrors EFFORTS in validate-plan.py, minus inherit
   def pick($name; $field; $layers):
