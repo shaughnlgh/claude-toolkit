@@ -191,6 +191,9 @@ fi
 if grep -qF 'Seat run passed:' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Seat run passed:' "$P/skills/ship-flow/SKILL.md"; then ok "execute-flow writes and ship-flow reads the seat run outcome line"; else no "seat run outcome line missing from execute-flow or ship-flow"; fi
 if grep -qF '[e2e]' "$P/skills/plan-guide/SKILL.md" && grep -qF 'E2E_MARK.test' "$P/workflows/execute-runner.js"; then ok "plan-guide defines and execute-runner reads the [e2e] marker"; else no "[e2e] marker missing from plan-guide or execute-runner.js"; fi
 if [ -f "$P/skills/execute-flow/SKILL.md" ] && ! grep -qF 'AskUserQuestion' "$P/skills/execute-flow/SKILL.md"; then ok "execute-flow asks no question of its own"; else no "execute-flow carries an AskUserQuestion"; fi
+if [ -f "$P/skills/ship-flow/SKILL.md" ] && ! grep -qF 'AskUserQuestion' "$P/skills/ship-flow/SKILL.md"; then ok "ship-flow asks no question of its own"; else no "ship-flow carries an AskUserQuestion"; fi
+if grep -qF 'asks for it by message' "$P/skills/plan-guide/SKILL.md" && grep -qF 'Parent dispatch rule' "$P/skills/execute-flow/SKILL.md" && grep -qF 'parent dispatch' "$P/skills/ship-flow/SKILL.md" && grep -qF 'parent dispatch' "$P/doctrine/workflow-routing.md"; then ok "plan-guide grants, execute-flow defines, and ship-flow and workflow-routing honor the parent dispatch"; else no "parent dispatch missing from plan-guide, execute-flow, ship-flow or workflow-routing"; fi
+if grep -qF 'git worktree remove' "$P/doctrine/git-safety.md" && grep -qF 'git worktree remove' "$P/workflows/ship-runner.js"; then ok "git-safety names and ship-runner runs the cleanup's git worktree remove"; else no "git worktree remove missing from git-safety.md or ship-runner.js"; fi
 if grep -qF '(exclude,top)' "$P/scripts/seat-check.sh" && grep -qF '(exclude,top)' "$P/workflows/execute-runner.js" && grep -qF '(exclude,top)' "$P/skills/red-team/SKILL.md" && grep -qF '(exclude,top)' "$P/skills/execute-flow/SKILL.md"; then ok "seat-check, execute-runner, red-team and execute-flow leave Claude Code worktrees out of their path lists"; else no "own-worktree pathspec missing from seat-check.sh, execute-runner.js, red-team or execute-flow"; fi
 grep -qF 'worktree name `<name>` is `<planName>`' "$P/skills/execute-flow/SKILL.md" && ok "execute-flow names the worktree after the plan name" || no "execute-flow no longer names the worktree after the plan name"
 pa_sec="$(sed -n '/^### After approval$/,/^### Record the session on the plan$/p' "$P/skills/plan-guide/SKILL.md")"
@@ -377,7 +380,7 @@ suite_ok "resolve-models behavior suite" "$out" 34
 
 echo "== watch-mr watcher =="
 out="$(bash "$P/scripts/tests/watch-mr/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "watch-mr behavior suite" "$out" 52
+suite_ok "watch-mr behavior suite" "$out" 71
 
 echo "== plan-builder control flow =="
 if command -v node >/dev/null 2>&1; then
@@ -398,7 +401,7 @@ fi
 echo "== ship-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/ship-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "ship-runner control-flow suite" "$out" 161
+  suite_ok "ship-runner control-flow suite" "$out" 250
 else
   skip "skipped: node not found; ship-runner control-flow suite"
 fi
