@@ -66,7 +66,7 @@ Six optional additions, shown verbatim, explained in one line, and applied only 
         Vault root resolves from `~/.claude/obsidian-sync.json`.
       - `bash <plugin-root>/scripts/git-ro.sh <dir> <status|diff|log|show>` -
         read-only git anywhere; mutation subcommands refused.
-      - `bash <plugin-root>/scripts/watch-mr.sh <host> <remotePath> <number> pipeline|threads --sha <sha> [--bound <n>]` -
+      - `bash <plugin-root>/scripts/watch-mr.sh <host> <remotePath> <number> pipeline|threads|review --sha <sha> [--bound <n>]` -
         waits on an MR or PR pipeline or bot review and exits with one status line. The ship flow starts it in the background.
 - **Read-only command allowlist.** The workflows lean on read-only `gh`/`glab`/`jira` calls that otherwise prompt on every new machine. Offer these `permissions.allow` rules (all inherently read-only subcommands — never offer mutating ones like `gh api -X`, `gh pr merge`, or `glab mr merge`, which must keep prompting):
 
