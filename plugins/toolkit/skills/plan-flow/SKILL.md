@@ -11,7 +11,8 @@ description: >-
   recommends wayfinder on a multi-part brief, launches the plan-builder
   workflow (discovery, planner draft, plan-critic pre-mortem with a revise loop, cold
   red team, optional goal judge), writes and validates the plan note in the vault, and
-  gates its status on the result. Never writes repo files and never runs git. Do NOT
+  gates its status on the result. Once the plan is approved, it asks in plain text whether
+  to run the execute flow here, open a child session, or stop. Never writes repo files and never runs git. Do NOT
   fire on a plan note whose Implementation Steps are filled (plan-guide owns that) or on
   trivial work that needs no plan.
 ---
@@ -104,12 +105,12 @@ Then run `python3 <plugin-root>/scripts/validate-plan.py "<plan note path>"` and
 
 ## 6. Gate
 
-Set `status: approved` and `approved: <today>` only when `approveIf.meets` is true and `blocked`, `incomplete`, and `discovery.uncovered` are all empty. In every other case, set `status: review` and stop. A run without `approveIf` returns `approveIf: null`, which lands in `review`. If the status is approved, write the session summary that section 5 requires in the same change. Write the status change atomically and run `validate-plan.py` again, requiring exit 0.
+Set `status: approved` and `approved: <today>` only when `approveIf.meets` is true and `blocked`, `incomplete`, and `discovery.uncovered` are all empty. In every other case, set `status: review` and stop. A run without `approveIf` returns `approveIf: null`, which lands in `review`. If the status is approved, write the session summary that section 5 requires in the same change, and add the line `Approved by the approveIf judge against "<goal>"` under Plan Changes During Execution, because a later flow in this session rewrites the same session entry. Write the status change atomically and run `validate-plan.py` again, requiring exit 0.
 
-Whatever the gate result, state to the user the `finalVerdict`, the `coldVerdict`, every `blocked` reason, every `incomplete` marker, and every `discovery.uncovered` area. State a null `coldVerdict` and each empty list as "none". When `approveIf.meets` is false, also state its `reasons` and `unmetGoals`. If the status is approved, say that execution may follow once the user gives the instruction.
+Whatever the gate result, state to the user the `finalVerdict`, the `coldVerdict`, every `blocked` reason, every `incomplete` marker, and every `discovery.uncovered` area. State a null `coldVerdict` and each empty list as "none". When `approveIf.meets` is false, also state its `reasons` and `unmetGoals`. If the status is approved, say so.
 
-Then print the note's Plain Language Summary verbatim under the heading `Plain language summary`. If the gate left the status at `review` or `planning`, follow the summary with the approval ask: "Approve this plan as written, or tell me what to change?" The user approves from that summary. If the status is `approved`, follow the summary with a statement that the plan is approved, and ask nothing. The approval itself follows the `plan-guide` lifecycle, so an approval here sets `status: approved` and `approved: <today>` with the same atomic write and validation as the gate.
+Then print the note's Plain Language Summary verbatim under the heading `Plain language summary`. If the gate left the status at `review` or `planning`, follow the summary with the approval ask: "Approve this plan as written, or tell me what to change?" The user approves from that summary. The approval follows the `plan-guide` lifecycle, so an approval here sets `status: approved` and `approved: <today>` with the same atomic write and validation as the gate. Once the status is `approved`, by the gate or by the user, end the reply with the post-approval question that `plan-guide` § After approval defines (`../plan-guide/SKILL.md` from this skill's base directory), and act on the user's typed answer as that subsection says.
 
 ## Boundary
 
-The flow never writes repo files and never runs git. Prose rules bind the note. Not for a plan note whose sections are filled (`plan-guide` owns that) and not for a standalone review of a written plan (`plan-critic` owns that). An approved status never starts execution on its own. The next step waits on the user. An approved status set by the gate records a mechanical judgement against the user's own `approveIf` sentence, not a human reading of the note. The human approval rule in `plan-guide` still governs execution, and the user can revert the status to `review`.
+The flow never writes repo files and never runs git. Prose rules bind the note. Not for a plan note whose sections are filled (`plan-guide` owns that) and not for a standalone review of a written plan (`plan-critic` owns that). An approved status never starts execution on its own. The next step waits on the user's typed answer to the post-approval question or on the user's own ask. On a reply that picks running the execute flow here, this flow ends and the `execute-flow` skill takes over under its own boundary. An approved status set by the gate records a mechanical judgement against the user's own `approveIf` sentence, not a human reading of the note. The human approval rule in `plan-guide` still governs execution, and the user can revert the status to `review`.

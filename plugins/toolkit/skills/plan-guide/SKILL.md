@@ -357,8 +357,48 @@ Drive the plan note's frontmatter `status` through its lifecycle so plan-trackin
 
 - `planning` — actively being planned (scaffold/start state).
 - `review` — planning is complete and the plan is awaiting human review. **When you finish a planning session and stop for approval, set `status: review`** (this is the signal plan-tracking tooling watches for). Do this whether or not the plan was scaffolded.
-- `approved` — approved by the human, or by the plan flow's `approveIf` gate; ready to execute. A gate approval records a mechanical judgement against a goal sentence the user wrote, the session entry says so, and execution-guide still waits for the user's instruction before it runs. Approval also stamps the frontmatter `approved:` date. Approval sets both fields (`status: approved` + `approved: <date>`); tooling may automate this and attach the plan note to the ticket. Only an `approved` plan should be worked: while a plan is in `review`, the only actions are approve and time tracking. The FIRST action after approval, before touching any file, is invoking the execution-guide skill — non-negotiable, and doubly so right after a /compact, which can summarize away previously loaded doctrine: the conductor supervises and delegates, it never implements directly, and execution-guide is where that contract lives. When the user asks for the execute flow by name, the execute-flow skill drives the run instead and loads execution-guide for the doc pass.
+- `approved` — approved by the human, or by the plan flow's `approveIf` gate; ready to execute. A gate approval records a mechanical judgement against a goal sentence the user wrote, a line under Plan Changes During Execution says so, and execution-guide still waits for the user's instruction before it runs. Approval also stamps the frontmatter `approved:` date. Approval sets both fields (`status: approved` + `approved: <date>`); tooling may automate this and attach the plan note to the ticket. Only an `approved` plan should be worked: while a plan is in `review`, the only actions are approve and time tracking. After approval the session asks the question in § After approval. Before a hand execution touches any file, invoke the execution-guide skill. This is non-negotiable, and doubly so right after a /compact, which can summarize away previously loaded doctrine: the conductor supervises and delegates, it never implements directly, and execution-guide is where that contract lives. When the user asks for the execute flow by name, including through a typed reply to that question, the execute-flow skill drives the run instead and loads execution-guide for the doc pass.
 - `in-progress` → `completed` (or `blocked` / `abandoned`) as execution proceeds.
+
+### After approval
+
+When this session sets `status: approved`, on the user's word or through the plan flow's `approveIf` gate, it ends its reply with one question in plain text and ends the turn. It never asks this question through AskUserQuestion, because the auto-mode permission classifier reads the user's typed messages and never an AskUserQuestion answer, as the Command shape under the permission classifier section of the git-safety doctrine states, and the reply that starts the run must be legible to it. It skips the question when the user's approving message already asked for the execute flow by name or said to stop, and when an `expedition` drives this session, because the expedition's gate to `implementing` asks the next step. This subsection is the only definition of the question, and a flow references it by name.
+
+The question, verbatim:
+
+    The plan is approved. Run the execute flow here now?
+    - `run the execute flow here` or `yes`: builds the plan in this session now (recommended). The build runs in its own worktree when another session is using the main checkout, when the main checkout holds changes, or when it sits on its default branch.
+    - `open a child session`: gives you one command to paste in a new terminal. The child builds the plan and messages this session when it finishes or stops.
+    - `stop` or `no`: nothing runs. Ask for the execute flow by name when you are ready.
+
+The `run the execute flow here` line comes first in every form of the question, because it is the reply that names the flow. When the context-sentinel hook has injected its ~200k token nudge in this session, "(recommended)" moves to the `open a child session` line, per the Context budget section of the orchestration doctrine, and the order stays.
+
+The user's next typed message answers the question:
+
+- `yes`, or a reply that asks to run the execute flow here, such as `run the execute flow here`, is the user asking for the execute flow by name. After a gate approval it is also the user's instruction that the human approval rule requires. Load the `execute-flow` skill (`../execute-flow/SKILL.md` from this skill's base directory) and follow it from its section 1 on this plan note.
+- A reply that asks for a child session, such as `open a child session`, hands the user the child launch command below and ends the turn. A later ask for a child session on an approved plan note hands the same command.
+- `stop` or `no` ends the turn. The next step waits on the user.
+- Any other reply answers nothing. The session handles it as an ordinary message and starts no flow.
+
+Child launch command. Read this session's own name from the first line of ListAgents, and the names of the other live sessions from the lines after it. ListAgents loads through ToolSearch with `select:ListAgents` when it is deferred. `<main>` is the main checkout of the repo that the note's `repo` names, `<repo>` is the basename of `<main>`, and `<parent name>` is this session's name. Hand no command, and say why in one sentence, in each of these cases:
+
+- ListAgents is absent or prints no own-name line, or another live session answers to this session's name. Tell the user to run `/rename <repo>-parent`, or to pick any name that no other live session uses and that differs from `<planName>`, and then to ask for the child again.
+- This session's own name is `<planName>`, the name the child takes. Give the same `/rename` advice.
+- A live session other than this one answers to `<planName>`. Name it, and say that it must end, with keep answered at any worktree exit prompt, before a new child starts.
+- `<main>`, the plan note path, or `<parent name>` holds a single quote, or the path or `<parent name>` holds a double quote.
+
+Otherwise hand the user this command for a new terminal window or tab:
+
+    cd '<main>' && claude -n '<planName>' 'Run the execute flow on the plan note "<plan note path>". When it finishes or stops, report to the session "<parent name>" by message.'
+
+The command's prompt is the user's own ask for the execute flow and the child's whole brief, because the plan note carries the run options and the prompt names the parent. Then tell the user each of these:
+
+- When this session runs in the main checkout, it holds the seat, so the child's execute flow opens the plan's worktree with no question.
+- The child messages this session when its run finishes or stops.
+- Before this session runs the ship flow or the seat run, the user ends the child.
+- The child leaves its worktree with ExitWorktree keep after its report, so its session ends with no worktree exit prompt.
+- When the child says it could not leave, the user answers keep at that prompt, because the seat run stops while a live session sits in the worktree and remove deletes the worktree and its branch.
+- The seat run also needs the main checkout to itself, so every other live session started in `<main>`, a coordinating session above this one included, ends before this session asks for it.
 
 ### Record the session on the plan
 
