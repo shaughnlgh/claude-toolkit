@@ -80,8 +80,8 @@ The ceiling is the `ceiling` key on the plan note, or the `ceiling` line of `<sc
 
 No ceiling permits a deploy. The plan flow runs no git under any ceiling. The execute flow mutates git only as follows.
 
-- Asking for the execute flow is the explicit request that Claude Code's EnterWorktree tool requires. When that tool is absent or refused, the flow stops with a report.
-- On a held or dirty seat, the flow opens a worktree with no question. It does so through EnterWorktree under any ceiling, or through `git fetch` and `git worktree add` for an existing branch under `mr` or `merge`.
+- Asking for the execute flow is the explicit request that Claude Code's EnterWorktree tool requires, and the request that ExitWorktree requires, which the flow calls only with keep: on the seat route only on a free seat, and after a parent report. When EnterWorktree is absent or refused, the flow stops with a report.
+- On a held or dirty seat, and on a free, clean seat whose main checkout sits on a default branch on a run from approved or start-work, as execute-flow section 2a defines, the flow opens a worktree with no question. It does so through EnterWorktree under any ceiling, or through `git fetch` and `git worktree add` for an existing branch under `mr` or `merge`.
 - The seat run runs under `mr` or `merge`, on a clean tree, with each command as its own call and each ref name single-quoted. It runs `git switch --detach` in the plan's worktree, then `git switch <branch>` in the main checkout, then `git add --` and `git commit` there for its own fixes. Then it runs `git switch <restore point>` in the main checkout, or `git switch --detach <sha>` for a detached restore point, and `git switch <branch>` in the worktree when the worktree HEAD has not moved.
 - Under `none`, every one of these commands is a paste-ready handoff and the run stops.
 
