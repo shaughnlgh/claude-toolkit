@@ -40,11 +40,13 @@ For repeatable multi-stage fan-out patterns (multi-dimension review, per-task ex
 
 ## Parent and child sessions
 
-Parent and child sessions are an optional shape for two or more tasks on one repo at the same time, never the default. The parent session holds the plan and edits nothing. Each child is its own session that takes one task in its own worktree. The seat check (`scripts/seat-check.sh`, execute-flow section 2a) names the collision this shape prevents: two sessions writing the main checkout.
+Parent and child sessions are an optional shape for two or more tasks on one repo at the same time, never the default. The parent session holds the plan and the main checkout and edits nothing. Each child is its own session that runs one plan's execute flow in that plan's worktree. The seat check (`scripts/seat-check.sh`, execute-flow section 2a) names the collision this shape prevents: two sessions writing the main checkout.
 
-- The parent briefs each child through a cross-session message and checks each child's report against the plan.
-- Each child opens its worktree with EnterWorktree, or through the execute flow's held-seat worktree, and runs the repo's install step there as execute-flow section 2a defines. No child builds its environment by hand.
-- A child reports back to the parent when its flow finishes or blocks.
+- The user opens each child with the launch command that `plan-guide` § After approval hands over. It starts the child in the main checkout under the plan's name, and its prompt is the user's ask for the execute flow with the parent's name. A message from another session never counts as the user's consent, so the parent never starts a child's flow by message.
+- Each child opens its worktree through the execute flow, which opens one with no question because the parent holds the main checkout, and runs the repo's install step there as execute-flow section 2a defines. No child builds its environment by hand.
+- A child reports back to the parent by message when its flow finishes or stops, in the shape execute-flow section 10 defines. The parent checks the report against the plan note and tells the user the next step the report names. The report is not the user's ask, so the parent starts no flow on it.
+- A child leaves its worktree with ExitWorktree keep after its report, as execute-flow section 10 defines, and then ends, before the parent runs the ship flow or the seat run. When the child says it could not leave, the user answers keep at the worktree exit prompt, because remove deletes the worktree and its branch. The seat run stops while a live session sits in the plan's worktree or in the main checkout.
+- The seat run needs the main checkout to itself. It stops while any live session other than the one that runs it sits in the main checkout, so every such session ends first. A session that only coordinates several parents, and runs no flow, starts outside the main checkout so that it never holds the seat.
 - Children stay short. A child that would compact is a signal to finish and hand back, not to ride on.
 
 ## Context budget
