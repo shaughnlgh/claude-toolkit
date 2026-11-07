@@ -4,7 +4,7 @@ summary: The host API behavior `watch-mr.sh` works around and the head, pipeline
 type: context
 status: active
 owner: Shaughn
-last_reviewed: 2026-10-21
+last_reviewed: 2026-11-07
 source_refs:
   - plugins/toolkit/scripts/watch-mr.sh
   - plugins/toolkit/scripts/tests/watch-mr/
@@ -13,7 +13,7 @@ source_refs:
 
 # Watch MR script
 
-`scripts/watch-mr.sh` waits on one GitLab MR or GitHub PR until its pipeline settles or a bot review lands. Its arguments, status lines, and exit codes are in [scripts.md](../scripts.md). This page lists the host behavior the script works around and the rules a change to the script or its suite must keep.
+`scripts/watch-mr.sh` waits on one GitLab MR or GitHub PR until its pipeline settles, a bot review lands, or a bot review in progress ends. Its arguments, status lines, and exit codes are in [scripts.md](../scripts.md). This page lists the host behavior the script works around and the rules a change to the script or its suite must keep.
 
 ## Host API behavior
 
@@ -22,6 +22,10 @@ source_refs:
 - GitLab timestamps carry a UTC offset, such as `+02:00` on `committed_date`, so the script orders them by a parsed epoch, never by a string compare. jq's `fromdateiso8601` accepts neither fractional seconds nor an offset, so the `ts` helper in the script's jq prelude parses both itself.
 - The GitHub REST reviews endpoint returns a bot login with a `[bot]` suffix, such as `coderabbitai[bot]`, and GraphQL returns the bare login. The `isbot` helper strips a trailing `[bot]` from both the author login and each `--bot` value before it compares them.
 - With `--bot` logins given, they are an allowlist on either host and the host's own bot flag is ignored. The GitLab notes API's basic user object carries no `bot` field, so GitLab threads mode requires `--bot`.
+- CodeRabbit edits one summary issue comment in place. That comment carries `<!-- This is an auto-generated comment: review in progress by coderabbit.ai -->` only while a review runs, and other markers, such as `summarize`, at other times, so review mode reads the marker text, never the comment's presence.
+- A finished CodeRabbit review on GitHub is a PR review whose `commit_id` is the head commit, so review mode lands it the way threads mode does.
+- GitLab threads mode never lands a note that carries the in-progress marker, because the first bot note after the anchor can be the in-progress note.
+- CodeRabbit posts on GitLab as the user that owns its token, a service account the installer names or a group access token bot with a generated username, and the note's author object says neither. GitLab review mode without `--bot` therefore counts the marker from any author, and a plain note that quotes the marker holds every wait busy until the bound. A GitLab ship run that uses CodeRabbit must name its login in `botAuthors`.
 - `glab` resolves the GitLab host from the git remote of the working directory, else from its default host, so a caller runs the script from the repo.
 
 ## Head matching

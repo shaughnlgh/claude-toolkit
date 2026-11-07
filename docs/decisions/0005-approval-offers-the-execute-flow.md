@@ -13,6 +13,8 @@ Date: 2026-11-07
 
 Status: Accepted
 
+Amended by [0006](0006-ship-flow-merges-unattended.md), which replaces the bullet "The parent starts no flow on a message".
+
 ## Context
 
 Plan approval ended the turn, so the user opened a new session, named it, and pasted an ask before any execute run started. A run from approved in a free, clean main checkout on its default branch stopped at the branch check until the user created the plan's branch by hand. The orchestration doctrine described parent and child sessions with no brief, report, name, or terminal. A message from another Claude Code session never counts as the user's consent, so a parent cannot start a child's flow by message. The auto-mode permission classifier reads the user's typed messages and never an AskUserQuestion answer. The execute flow named its worktree after the plan branch with each `/` turned into `-`, so two branches could share a directory, and its re-entry guard counted commits against whatever the main checkout had checked out. A session that ran inside the plan's worktree could not run the seat run.
