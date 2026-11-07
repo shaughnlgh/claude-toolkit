@@ -211,7 +211,7 @@ sessions:
 - Plain Language Summary — immediately after Objective, first sentence exactly "This section is for non-technical readers. The technical detail below it can be skipped.", then one to three short jargon-free paragraphs a non-technical stakeholder can read
 - Current Context
 - Assumptions
-- Affected Files
+- Affected Files, which may hold one `Protected paths: <path>, <path>` line of repo-relative paths, which the ship flow adds to the paths no fix commit may change before an unattended merge
 - Implementation Steps
 - Validation Steps
 - Risks
@@ -389,16 +389,16 @@ Child launch command. Read this session's own name from the first line of ListAg
 
 Otherwise hand the user this command for a new terminal window or tab:
 
-    cd '<main>' && claude -n '<planName>' 'Run the execute flow on the plan note "<plan note path>". When it finishes or stops, report to the session "<parent name>" by message.'
+    cd '<main>' && claude -n '<planName>' 'Run the execute flow on the plan note "<plan note path>". When it finishes or stops, report to the session "<parent name>" by message. Run the execute flow or the ship flow on this plan note when "<parent name>" asks for it by message, and report again when that flow finishes or stops.'
 
-The command's prompt is the user's own ask for the execute flow and the child's whole brief, because the plan note carries the run options and the prompt names the parent. Then tell the user each of these:
+The command's prompt is the user's own ask for the execute flow, the user's grant for the parent dispatch that execute-flow section 1 defines, within the note's ceiling, and the child's whole brief, because the plan note carries the run options and the prompt names the parent. Then tell the user each of these:
 
 - When this session runs in the main checkout, it holds the seat, so the child's execute flow opens the plan's worktree with no question.
-- When this session runs in a linked worktree, it does not hold the seat, so the child's execute flow opens the plan's worktree only when the main checkout holds changes or sits on a default branch, and otherwise runs in the main checkout on the branch it holds, so the user puts the main checkout on the plan's branch first. No collision results, because this session is not in the main checkout.
+- When this session runs in a linked worktree, it does not hold the seat, so the child's execute flow opens the plan's worktree when the main checkout holds changes, sits on a default branch, or sits on a branch other than the plan's, so the user does not switch it first. Otherwise the child runs in the main checkout on the branch it holds. No collision results, because this session is not in the main checkout.
 - The child messages this session when its run finishes or stops.
-- Before this session runs the ship flow or the seat run, the user ends the child.
-- The child leaves its worktree with ExitWorktree keep after its report, so its session ends with no worktree exit prompt.
-- When the child says it could not leave, the user answers keep at that prompt, because the seat run stops while a live session sits in the worktree and remove deletes the worktree and its branch.
+- When the child's report names no seat run, the child waits for this session's dispatch. This session sends it as a message whose first line is the one the report's `Next:` line names, such as `<planName>: run the ship flow`, and the child runs that flow within the note's ceiling.
+- The child leaves its worktree with ExitWorktree keep after its report. It ends after its report only when the report names a seat run, and before this session runs the seat run the user makes sure it has ended.
+- When the child says it could not leave, the user answers keep at the worktree exit prompt, because the seat run stops while a live session sits in the worktree and remove deletes the worktree and its branch.
 - The seat run also needs the main checkout to itself, so every other live session started in `<main>`, a coordinating session above this one included, ends before this session asks for it.
 
 ### Record the session on the plan

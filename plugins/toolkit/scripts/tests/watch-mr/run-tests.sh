@@ -33,6 +33,7 @@ case "$(basename "$0") $*" in
   "gh pr checks 7 -R o/r --json name,bucket") k=checks ;;
   "gh run list --commit $SHA -R o/r --limit 100 --json status,conclusion") k=runs ;;
   "gh api repos/o/r/pulls/7/reviews --paginate") k=reviews ;;
+  "gh api repos/o/r/issues/7/comments --paginate") k=comments ;;
   *) echo "stub: unexpected call: $(basename "$0") $*" >&2; exit 1 ;;
 esac
 n=$(( $(cat "$CASE/.n.$k" 2>/dev/null || echo 0) + 1 ))
@@ -68,8 +69,12 @@ GL=(gitlab g/sub/r 7)
 GH=(github o/r 7)
 glmr() { printf '{"sha":"%s","head_pipeline":{"id":55,"sha":"%s","status":"%s","created_at":"2026-10-01T08:00:00.000-02:00"}}' "${3:-$SHA}" "${2:-$SHA}" "$1"; }
 job() { printf '{"name":"%s","stage":"%s","status":"%s","allow_failure":%s}' "$1" "$2" "$3" "${4:-false}"; }
-note() { printf '{"system":%s,"created_at":"%s","author":{"username":"%s","bot":%s}}' "$1" "$2" "$3" "$4"; }
+note() { printf '{"system":%s,"created_at":"%s","author":{"username":"%s","bot":%s},"body":"%s"}' "$1" "$2" "$3" "$4" "${5:-}"; }
 ghuser() { printf '{"login":"%s","type":"%s"}' "$1" "$2"; }
+ghcomment() { printf '{"user":%s,"body":"%s"}' "$(ghuser "$1" "$2")" "$3"; }
+# The live CodeRabbit summary comment carries this marker line while a review runs.
+BUSY='<!-- This is an auto-generated comment: review in progress by coderabbit.ai -->\n\nCurrently processing new changes in this PR.'
+DONE='<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n\nWalkthrough.'
 
 echo "== usage errors =="
 new; expect_err "missing --sha exits 2" 2 "missing --sha" "${GL[@]}" pipeline --interval 1
@@ -155,6 +160,8 @@ new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T10:30:00.000Z s
 expect "under --bot only the listed login's note is LANDED, an unlisted bot note is skipped" 0 "LANDED $SHA coderabbitai" "${GL[@]}" threads --sha "$SHA" --interval 1 --bound 30s --bot coderabbitai
 new; fx mr "$(glmr running)"; fx notes "[{\"system\":false,\"created_at\":\"2026-10-01T10:30:00.000Z\",\"author\":{\"username\":\"coderabbitai\"},\"position\":{\"head_sha\":\"$NEW\"}}]"
 expect "a listed login's DiffNote on an earlier commit is not landed" 12 "BOUND $SHA 0" "${GL[@]}" threads --sha "$SHA" --interval 1 --bound 2s --bot coderabbitai
+new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T10:30:00.000Z coderabbitai false "$BUSY")]"
+expect "gitlab threads skips a listed note that carries the in-progress marker" 12 "BOUND $SHA 0" "${GL[@]}" threads --sha "$SHA" --interval 1 --bound 2s --bot coderabbitai
 
 echo "== github threads =="
 new; fx head "{\"headRefOid\":\"$SHA\"}"; fx reviews "[{\"commit_id\":\"$SHA\",\"user\":$(ghuser 'coderabbitai[bot]' Bot)}]"
@@ -175,6 +182,46 @@ new; fx head "{\"headRefOid\":\"$SHA\"}"; fx reviews "[{\"commit_id\":\"1111111\
 expect "a review whose commit_id is the literal short sha is not landed" 12 "BOUND 1111111 0" "${GH[@]}" threads --sha 1111111 --interval 1 --bound 2s
 new; fx head.1 "{\"headRefOid\":\"$SHA\"}"; fx head "{\"headRefOid\":\"$ALT\"}"; fx reviews '[]'
 expect "a new head sharing the short prefix in round two is MOVED" 14 "MOVED 1111111 $ALT" "${GH[@]}" threads --sha 1111111 --interval 1 --bound 30s
+
+echo "== github review =="
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx comments "[$(ghcomment 'coderabbitai[bot]' Bot "$BUSY")]"; fx reviews '[]'
+expect "a Bot comment with the marker keeps the wait busy until BOUND" 12 "BOUND $SHA 0" "${GH[@]}" review --sha "$SHA" --interval 1 --settle 1s --bound 3s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx comments '[]'; fx reviews '[]'
+expect "no marker and no review is QUIET after the settle window" 15 "QUIET $SHA 0" "${GH[@]}" review --sha "$SHA" --interval 1 --settle 2s --bound 30s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx comments "[$(ghcomment 'coderabbitai[bot]' Bot "$DONE")]"; fx reviews "[{\"commit_id\":\"$SHA\",\"user\":$(ghuser 'coderabbitai[bot]' Bot)}]"
+expect "no marker and a Bot review on the head is LANDED" 0 "LANDED $SHA coderabbitai[bot]" "${GH[@]}" review --sha "$SHA" --interval 1 --settle 2s --bound 30s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx comments.1 "[$(ghcomment 'coderabbitai[bot]' Bot "$BUSY")]"; fx comments "[$(ghcomment 'coderabbitai[bot]' Bot "$DONE")]"; fx reviews '[]'
+expect "the marker in round one and gone in round two ends QUIET" 15 "QUIET $SHA 0" "${GH[@]}" review --sha "$SHA" --interval 1 --settle 2s --bound 30s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx comments "[$(ghcomment alice User "$BUSY")]"; fx reviews '[]'
+expect "the marker in a comment by a non-Bot user is ignored" 15 "QUIET $SHA 0" "${GH[@]}" review --sha "$SHA" --interval 1 --settle 2s --bound 30s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx comments '[]'; fx reviews.1 '[]'; fx reviews "[{\"commit_id\":\"$SHA\",\"user\":$(ghuser 'coderabbitai[bot]' Bot)}]"
+expect "a Bot review that lands inside the settle window is LANDED" 0 "LANDED $SHA coderabbitai[bot]" "${GH[@]}" review --sha "$SHA" --interval 1 --settle 3s --bound 30s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx comments '[]'; fx reviews "[{\"commit_id\":\"$NEW\",\"user\":$(ghuser 'coderabbitai[bot]' Bot)}]"
+expect "a Bot review on an earlier commit is QUIET, not LANDED" 15 "QUIET $SHA 0" "${GH[@]}" review --sha "$SHA" --interval 1 --settle 2s --bound 30s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx comments "[$(ghcomment 'coderabbitai[bot]' Bot "$BUSY")]"; fx reviews "[{\"commit_id\":\"$SHA\",\"user\":$(ghuser 'coderabbitai[bot]' Bot)}]"
+expect "a Bot review on the head while the marker is present stays busy until BOUND" 12 "BOUND $SHA 0" "${GH[@]}" review --sha "$SHA" --interval 1 --settle 1s --bound 3s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx comments.1 '[]'; fx comments.2 "[$(ghcomment 'coderabbitai[bot]' Bot "$BUSY")]"; fx comments.3 "[$(ghcomment 'coderabbitai[bot]' Bot "$BUSY")]"; fx comments '[]'
+fx reviews.1 '[]'; fx reviews.2 '[]'; fx reviews "[{\"commit_id\":\"$SHA\",\"user\":$(ghuser 'coderabbitai[bot]' Bot)}]"
+expect "a marker after a quiet poll restarts the settle window" 0 "LANDED $SHA coderabbitai[bot]" "${GH[@]}" review --sha "$SHA" --interval 1 --settle 2s --bound 30s
+new; fx head "{\"headRefOid\":\"$NEW\"}"; fx comments '[]'; fx reviews '[]'
+expect "a moved head in review mode is MOVED" 14 "MOVED $SHA $NEW" "${GH[@]}" review --sha "$SHA" --interval 1 --bound 30s
+new; expect_err "a bad --settle exits 2" 2 "bad duration" "${GH[@]}" review --sha "$SHA" --settle soon
+
+echo "== gitlab review =="
+new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T10:30:00.000Z coderabbitai false "$BUSY")]"
+expect "a gitlab note with the marker keeps the wait busy until BOUND" 12 "BOUND $SHA 0" "${GL[@]}" review --sha "$SHA" --interval 1 --settle 1s --bound 3s
+new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T10:30:00.000Z coderabbitai false "$DONE")]"
+expect "gitlab review without --bot runs and ends QUIET" 15 "QUIET $SHA 0" "${GL[@]}" review --sha "$SHA" --interval 1 --settle 2s --bound 30s
+new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T10:30:00.000Z alice false),$(note false 2026-10-01T10:31:00.000Z review-svc false)]"
+expect "gitlab review with --bot lands a listed note" 0 "LANDED $SHA review-svc" "${GL[@]}" review --sha "$SHA" --interval 1 --settle 2s --bound 30s --bot review-svc
+new; fx mr "$(glmr running)"; fx notes.1 '[]'; fx notes "[$(note false 2026-10-01T10:31:00.000Z review-svc false)]"
+expect "gitlab review lands a listed note that arrives inside the settle window" 0 "LANDED $SHA review-svc" "${GL[@]}" review --sha "$SHA" --interval 1 --settle 3s --bound 30s --bot review-svc
+new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T09:00:00.000Z review-svc false)]"
+expect "gitlab review with --bot skips a listed note before the pipeline anchor and ends QUIET" 15 "QUIET $SHA 0" "${GL[@]}" review --sha "$SHA" --interval 1 --settle 2s --bound 30s --bot review-svc
+new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T10:30:00.000Z coderabbitai false "$BUSY"),$(note false 2026-10-01T10:31:00.000Z coderabbitai false)]"
+expect "a listed note on the head while the marker is present stays busy until BOUND" 12 "BOUND $SHA 0" "${GL[@]}" review --sha "$SHA" --interval 1 --settle 1s --bound 3s --bot coderabbitai
+new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T10:30:00.000Z alice false "$BUSY")]"
+expect "under --bot the marker in an unlisted author's note is ignored" 15 "QUIET $SHA 0" "${GL[@]}" review --sha "$SHA" --interval 1 --settle 2s --bound 30s --bot coderabbitai
 
 echo "== secrets =="
 grep -qE 'fake-gl-token-123|fake-gh-token-456' "$W/all" "$W"/case.*/calls && no "a token value reached output or a CLI argument" || ok "no token value in any output or CLI argument"
