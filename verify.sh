@@ -192,7 +192,43 @@ if grep -qF 'Seat run passed:' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Se
 if grep -qF '[e2e]' "$P/skills/plan-guide/SKILL.md" && grep -qF 'E2E_MARK.test' "$P/workflows/execute-runner.js"; then ok "plan-guide defines and execute-runner reads the [e2e] marker"; else no "[e2e] marker missing from plan-guide or execute-runner.js"; fi
 if [ -f "$P/skills/execute-flow/SKILL.md" ] && ! grep -qF 'AskUserQuestion' "$P/skills/execute-flow/SKILL.md"; then ok "execute-flow asks no question of its own"; else no "execute-flow carries an AskUserQuestion"; fi
 if grep -qF '(exclude,top)' "$P/scripts/seat-check.sh" && grep -qF '(exclude,top)' "$P/workflows/execute-runner.js" && grep -qF '(exclude,top)' "$P/skills/red-team/SKILL.md" && grep -qF '(exclude,top)' "$P/skills/execute-flow/SKILL.md"; then ok "seat-check, execute-runner, red-team and execute-flow leave Claude Code worktrees out of their path lists"; else no "own-worktree pathspec missing from seat-check.sh, execute-runner.js, red-team or execute-flow"; fi
-grep -qF "the worktree name \`<name>\` is \`<branch>\` with every \`/\` replaced by \`-\`" "$P/skills/execute-flow/SKILL.md" && ok "execute-flow names the worktree with each / in the branch replaced by -" || no "execute-flow no longer states the / to - rule for the worktree name"
+grep -qF 'worktree name `<name>` is `<planName>`' "$P/skills/execute-flow/SKILL.md" && ok "execute-flow names the worktree after the plan name" || no "execute-flow no longer names the worktree after the plan name"
+pa_sec="$(sed -n '/^### After approval$/,/^### Record the session on the plan$/p' "$P/skills/plan-guide/SKILL.md")"
+if [[ "$pa_sec" == *'run the execute flow here'* ]] && [[ "$pa_sec" == *'never asks this question through AskUserQuestion'* ]] && grep -qF '§ After approval' "$P/skills/plan-flow/SKILL.md"; then ok "plan-guide defines the post-approval question in plain text and plan-flow asks it"; else no "post-approval question missing from plan-guide or plan-flow, or asked through AskUserQuestion"; fi
+if grep -qF 'such as `yes` or `run the execute flow here`' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Type `run the execute flow here` to ask again' "$P/skills/execute-flow/SKILL.md" && grep -qF 'run the execute flow here' "$P/doctrine/workflow-routing.md"; then ok "execute-flow and workflow-routing take the typed post-approval reply as the ask by name, and a denial report quotes the retype"; else no "post-approval reply or its retype line missing from execute-flow or workflow-routing"; fi
+if grep -qF "claude -n '<planName>'" "$P/skills/plan-guide/SKILL.md" && grep -qF 'own name is `<planName>`' "$P/skills/plan-guide/SKILL.md" && grep -qF '§ After approval' "$P/doctrine/orchestration.md"; then ok "plan-guide hands the child launch command and orchestration points at it"; else no "child launch command missing from plan-guide or orchestration"; fi
+if grep -qF 'SendMessage' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Deferred to the seat: ' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Left the worktree with keep' "$P/skills/execute-flow/SKILL.md" && grep -qF 'execute-flow section 10' "$P/doctrine/orchestration.md"; then ok "execute-flow reports to a named parent session in the shape orchestration names, then leaves its worktree with keep"; else no "parent report or its ExitWorktree keep step missing from execute-flow or orchestration"; fi
+sr_step1="$(sed -n '/^## 11\. Seat run$/,$p' "$P/skills/execute-flow/SKILL.md" | grep -F '1. Seat check and location')"
+if [[ "$sr_step1" == *'On `seat: free`, call ExitWorktree with `action` set to `keep`'* ]] && [[ "$sr_step1" == *'before any ExitWorktree call'* ]] && [[ "$sr_step1" != *'return through EnterWorktree path'* ]]; then ok "the seat run leaves the worktree with ExitWorktree keep, only on a free seat"; else no "seat run step 1 does not leave the worktree with ExitWorktree keep on a free seat"; fi
+if grep -qF 'Unrecorded worktree rule' "$P/skills/execute-flow/SKILL.md" && grep -qF 'unrecorded worktree rule' "$ROOT/docs/context/context-worktree-seat.md"; then ok "execute-flow adopts an unrecorded worktree by the ownership rule"; else no "unrecorded worktree rule missing from execute-flow or context-worktree-seat.md"; fi
+own_rule="$(grep -F 'Ownership rule:' "$P/skills/execute-flow/SKILL.md")"
+if [ -n "$own_rule" ] && [[ "$own_rule" != *'rev-list'* ]]; then ok "execute-flow owns a worktree by plan name and branch, with no commit count"; else no "execute-flow ownership rule missing or still counts commits"; fi
+occ_rule="$(grep -F 'Occupant check: before an EnterWorktree `path` call on an existing worktree' "$P/skills/execute-flow/SKILL.md")"
+if [[ "$occ_rule" == *"--worktree '<path>'"* ]] && [[ "$occ_rule" == *'stop with the plan note untouched'* ]] && grep -qF 'run the occupant check below on `<path>`, then call EnterWorktree' "$P/skills/execute-flow/SKILL.md" && grep -qF 'run the section 1 occupant check on that directory, then call EnterWorktree' "$P/skills/execute-flow/SKILL.md"; then ok "execute-flow stops before re-entering a worktree another live session occupies"; else no "execute-flow occupant stop missing before a section 1 or section 2a worktree entry"; fi
+if grep -qF 'Default branch rule' "$P/skills/execute-flow/SKILL.md" && grep -qF '| free | 0 | from approved or start-work | a default branch | worktree |' "$P/skills/execute-flow/SKILL.md" && grep -qF 'default branch rule' "$ROOT/docs/context/context-worktree-seat.md"; then ok "execute-flow opens a worktree on a free, clean main checkout that sits on a default branch"; else no "default branch rule missing from execute-flow or context-worktree-seat.md"; fi
+# Claude Code truncates a skill's description plus when_to_use at 1,536 characters in the skill listing.
+dl="$(python3 - "$P/skills" <<'PY'
+import glob, os, re, sys
+over = []
+for f in sorted(glob.glob(os.path.join(sys.argv[1], '*', 'SKILL.md'))):
+    fm = open(f).read().split('\n---', 1)[0]
+    total = 0
+    for key in ('description', 'when_to_use'):
+        m = re.search(r'^' + key + r':[ \t]*(.*)\n((?:[ \t]+.*\n?|\n)*)', fm, re.M)
+        if not m:
+            continue
+        head, block = m.group(1).strip(), m.group(2)
+        if head[:1] in ('>', '|'):
+            parts = [l.strip() for l in block.splitlines() if l.strip()]
+            total += len(('\n' if head[:1] == '|' else ' ').join(parts))
+        else:
+            total += len(head.strip(chr(34) + chr(39)))
+    if total > 1536:
+        over.append(os.path.basename(os.path.dirname(f)) + ' ' + str(total))
+print(','.join(over) or 'NONE')
+PY
+)"
+[ "$dl" = "NONE" ] && ok "every skill's description and when_to_use fit the 1,536-character skill listing cap" || no "skill listing cap exceeded: ${dl:-python3 failed}"
 if grep -qF 'occupant: ' "$P/scripts/seat-check.sh" && grep -qF 'occupant:' "$P/skills/execute-flow/SKILL.md"; then ok "seat-check prints and execute-flow reads the worktree occupant line"; else no "occupant line missing from seat-check.sh or execute-flow"; fi
 # subagent-rules.sh only fires if hooks.json actually wires it to SubagentStart; a hook
 # file can exist and still never run.
@@ -486,4 +522,4 @@ echo "RESULT: $pass passed, $skip skipped, $fail failed"
 # Floor, not just zero-failures: silently deleting real checks must not read green.
 # Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
 # no node, no local plugin install) must not read as a vanished check.
-[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 87 ]
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 96 ]
