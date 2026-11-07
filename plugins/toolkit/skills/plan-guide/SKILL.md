@@ -394,6 +394,7 @@ Otherwise hand the user this command for a new terminal window or tab:
 The command's prompt is the user's own ask for the execute flow and the child's whole brief, because the plan note carries the run options and the prompt names the parent. Then tell the user each of these:
 
 - When this session runs in the main checkout, it holds the seat, so the child's execute flow opens the plan's worktree with no question.
+- When this session runs in a linked worktree, it does not hold the seat, so the child's execute flow opens the plan's worktree only when the main checkout holds changes or sits on a default branch, and otherwise runs in the main checkout on the branch it holds, so the user puts the main checkout on the plan's branch first. No collision results, because this session is not in the main checkout.
 - The child messages this session when its run finishes or stops.
 - Before this session runs the ship flow or the seat run, the user ends the child.
 - The child leaves its worktree with ExitWorktree keep after its report, so its session ends with no worktree exit prompt.
