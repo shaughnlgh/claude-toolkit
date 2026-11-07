@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Waits on one MR or PR until a terminal condition and prints one status line; exit codes 0 and 10 to 14 are outcomes, 2 and 3 script failures.
+# Waits on one MR or PR until a terminal condition and prints one status line; exit codes 0 and 10 to 15 are outcomes, 2 and 3 script failures.
 set -uo pipefail
 
 usage() {
-  printf 'watch-mr: %s\nusage: watch-mr.sh <github|gitlab> <remotePath> <number> <pipeline|threads> --sha <sha> [--bound <n>] [--stuck <n>] [--interval <seconds>] [--bot <login>]...\n' "$1" >&2
+  printf 'watch-mr: %s\nusage: watch-mr.sh <github|gitlab> <remotePath> <number> <pipeline|threads|review> --sha <sha> [--bound <n>] [--stuck <n>] [--settle <n>] [--interval <seconds>] [--bot <login>]...\n' "$1" >&2
   exit 2
 }
 # Minutes by default, seconds with a trailing s.
@@ -19,13 +19,14 @@ command -v jq >/dev/null 2>&1 || { echo "watch-mr: jq not found on PATH" >&2; ex
 [ $# -ge 4 ] || usage "missing arguments"
 host=$1 path=$2 num=$3 mode=$4
 shift 4
-sha="" bound=180 stuck=10 interval=30 bots='[]'
+sha="" bound=180 stuck=10 settle=2 interval=30 bots='[]'
 while [ $# -gt 0 ]; do
   [ $# -ge 2 ] || usage "missing value for $1"
   case $1 in
     --sha) sha=$2 ;;
     --bound) bound=$2 ;;
     --stuck) stuck=$2 ;;
+    --settle) settle=$2 ;;
     --interval) interval=$2 ;;
     --bot) bots=$(jq -cn --argjson a "$bots" --arg b "$2" '$a + [$b]') ;;
     *) usage "unknown option: $1" ;;
@@ -33,7 +34,7 @@ while [ $# -gt 0 ]; do
   shift 2
 done
 case $host in github | gitlab) ;; *) usage "unknown host: $host" ;; esac
-case $mode in pipeline | threads) ;; *) usage "unknown mode: $mode" ;; esac
+case $mode in pipeline | threads | review) ;; *) usage "unknown mode: $mode" ;; esac
 [ -n "$sha" ] || usage "missing --sha"
 [ "$host$mode" != gitlabthreads ] || [ "$bots" != '[]' ] || usage "gitlab threads needs --bot, because GitLab notes carry no bot flag"
 [[ $sha =~ ^[0-9a-fA-F]{7,64}$ ]] || usage "bad sha: $sha"
@@ -44,6 +45,7 @@ sha=$(tr 'A-F' 'a-f' <<<"$sha")
 interval=$((10#$interval)); [ "$interval" -ge 1 ] || interval=1
 to_secs bound_s "$bound"
 to_secs stuck_s "$stuck"
+to_secs settle_s "$settle"
 enc=$(jq -rn --arg p "$path" '$p | @uri')
 
 errf=$(mktemp) || { echo "watch-mr: cannot create a temp file" >&2; exit 3; }
@@ -60,7 +62,8 @@ get() {
   local raw
   raw=$("$@" 2>"$errf") && out=$(printf '%s' "$raw" | jq -cs 'add' 2>"$errf")
 }
-q() { jq -r --arg s "$full" --argjson bots "$bots" "$TS $1" <<<"$2" 2>"$errf"; }
+MARK='review in progress by coderabbit.ai'
+q() { jq -r --arg s "$full" --arg mark "$MARK" --argjson bots "$bots" "$TS $1" <<<"$2" 2>"$errf"; }
 
 stuck_check() {
   if [ "$1" = true ]; then
@@ -133,17 +136,22 @@ github_pipeline() {
   stuck_check "$held"
 }
 
-gitlab_threads() {
-  gitlab_mr || return 1
+# Lands the first note, from the anchor on, by a listed bot that is not an in-progress note; $1 is the notes JSON.
+gl_landed() {
   local anchor who
   anchor=$(q 'if .head_pipeline.sha == $s then .head_pipeline.created_at else "" end' "$mr") || return 1
   if [ -z "$anchor" ]; then
     get glab api "projects/$enc/repository/commits/$full" || return 1
     anchor=$(q '.committed_date' "$out") || return 1
   fi
-  get glab api "projects/$enc/merge_requests/$num/notes?per_page=100" --paginate || return 1
-  who=$(jq -r --arg a "$anchor" --arg s "$full" --argjson bots "$bots" "$TS"' ($a | ts) as $t | first(.[] | select(.system == false and (.author | isbot) and (.created_at | ts) >= $t and (.position.head_sha // $s) == $s) | .author.username) // empty' <<<"$out" 2>"$errf") || return 1
+  who=$(jq -r --arg a "$anchor" --arg s "$full" --arg mark "$MARK" --argjson bots "$bots" "$TS"' ($a | ts) as $t | first(.[] | select(.system == false and (.author | isbot) and ((.body // "") | contains($mark) | not) and (.created_at | ts) >= $t and (.position.head_sha // $s) == $s) | .author.username) // empty' <<<"$1" 2>"$errf") || return 1
   [ -z "$who" ] || finish 0 "LANDED $sha $who"
+}
+
+gitlab_threads() {
+  gitlab_mr || return 1
+  get glab api "projects/$enc/merge_requests/$num/notes?per_page=100" --paginate || return 1
+  gl_landed "$out"
 }
 
 github_threads() {
@@ -152,6 +160,37 @@ github_threads() {
   get gh api "repos/$path/pulls/$num/reviews" --paginate || return 1
   who=$(q 'first(.[] | select(.commit_id == $s and (.user | isbot)) | .user.login) // empty' "$out") || return 1
   [ -z "$who" ] || finish 0 "LANDED $sha $who"
+}
+
+quiet_at=""
+# A review is over once no comment has carried the marker for the whole --settle window.
+quiet_check() {
+  if [ "$1" = true ]; then quiet_at=""; return 0; fi
+  [ -n "$quiet_at" ] || quiet_at=$SECONDS
+  [ $((SECONDS - quiet_at)) -lt "$settle_s" ] || finish 15 "QUIET $sha $(((SECONDS - quiet_at) / 60))"
+}
+
+github_review() {
+  github_head || return 1
+  local busy who
+  get gh api "repos/$path/issues/$num/comments" --paginate || return 1
+  busy=$(q 'any(.[]; (.user | isbot) and ((.body // "") | contains($mark)))' "$out") || return 1
+  if [ "$busy" = false ]; then
+    get gh api "repos/$path/pulls/$num/reviews" --paginate || return 1
+    who=$(q 'first(.[] | select(.commit_id == $s and (.user | isbot)) | .user.login) // empty' "$out") || return 1
+    [ -z "$who" ] || finish 0 "LANDED $sha $who"
+  fi
+  quiet_check "$busy"
+}
+
+gitlab_review() {
+  gitlab_mr || return 1
+  local busy notes
+  get glab api "projects/$enc/merge_requests/$num/notes?per_page=100" --paginate || return 1
+  notes=$out
+  busy=$(q 'any(.[]; .system == false and ((.body // "") | contains($mark)) and ($bots == [] or (.author | isbot)))' "$notes") || return 1
+  if [ "$busy" = false ] && [ "$bots" != '[]' ]; then gl_landed "$notes" || return 1; fi
+  quiet_check "$busy"
 }
 
 fails=0

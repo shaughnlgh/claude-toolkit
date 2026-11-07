@@ -18,7 +18,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved this way.
 | `vault-fs.sh` | Atomic vault file ops — `rm`, `mv` | Refuses absolute paths, `..` traversal, symlink escape from the vault (canonical containment), non-regular-file targets, missing sources, unknown subcommands |
 | `git-ro.sh` | Read-only git in any directory — `status`, `diff`, `log`, `show` | Subcommand allowlist; refuses write options (`--output`/`-o`/`--ext-diff`); neutralizes pager, fsmonitor, ext-diff and textconv (the execute-on-read vectors) |
 | `seat-check.sh` | Reports which live Claude sessions hold a repo's main checkout, with its branch and dirty count | Read-only; never writes a file; reads sessions through `claude agents --json`; needs only `jq` and `git` |
-| `watch-mr.sh` | Waits on one GitLab MR or GitHub PR until its pipeline settles or a bot review lands, then prints one status line | Reads only, through `gh` and `glab`, which hold their own auth; never reads or prints a token; validates every argument; exits on a wall-clock bound |
+| `watch-mr.sh` | Waits on one GitLab MR or GitHub PR until its pipeline settles, a bot review lands, or a bot review in progress ends, then prints one status line | Reads only, through `gh` and `glab`, which hold their own auth; never reads or prints a token; validates every argument; exits on a wall-clock bound |
 | `override.sh` | Copy a plugin doctrine, rule, agent, or skill into `~/.claude/` to override it (drives `/override`) | Name only (no paths); refuses unknown/ambiguous names; won't clobber an existing override |
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
 | `validate-plan.py` | Validates a plan note against the plan-guide contract | Read-only — never edits the note; no network, no config, stdlib only |
@@ -135,35 +135,35 @@ Waits on one MR or PR until a terminal condition and prints one status line to s
 Invoke:
 
 ```bash
-bash "$PLUGIN_ROOT/scripts/watch-mr.sh" <github|gitlab> <remotePath> <number> <pipeline|threads> --sha <sha> [--bound <n>] [--stuck <n>] [--interval <seconds>] [--bot <login>]...
+bash "$PLUGIN_ROOT/scripts/watch-mr.sh" <github|gitlab> <remotePath> <number> <pipeline|threads|review> --sha <sha> [--bound <n>] [--stuck <n>] [--settle <n>] [--interval <seconds>] [--bot <login>]...
 ```
 
 - `remotePath` is `owner/repo` or `group/sub/repo`. The script URL-encodes the whole path once for the GitLab API. `glab` resolves the GitLab host from the git remote of the working directory, or uses its default host when run elsewhere, so run the script from the repo.
 - `number` is the PR number on GitHub and the MR iid on GitLab.
-- `--sha` is required in both modes. It names the commit the result must belong to. The script lowercases it. A short sha matches the head by prefix, and once the script sees the full head sha, later rounds and reads compare against that.
-- `--bound` and `--stuck` take minutes, or seconds with a trailing `s` (`9`, `20s`). `--bound` defaults to 180 and `--stuck` to 10. `--stuck` applies to pipeline mode only.
+- `--sha` is required in every mode. It names the commit the result must belong to. The script lowercases it. A short sha matches the head by prefix, and once the script sees the full head sha, later rounds and reads compare against that.
+- `--bound`, `--stuck` and `--settle` take minutes, or seconds with a trailing `s` (`9`, `20s`). `--bound` defaults to 180, `--stuck` to 10 and `--settle` to 2. `--stuck` applies to pipeline mode only and `--settle` to review mode only.
 - `--interval` is the number of seconds between polling rounds and defaults to 30, with a floor of 1. The first round runs at once.
-- `--bot` names a login whose review or note counts and can repeat. With one or more `--bot` logins, only those logins count, compared with any trailing `[bot]` removed from both sides, so `coderabbitai` matches `coderabbitai[bot]`. Without `--bot`, GitHub threads mode counts an author whose `user.type` is `Bot`. GitLab threads mode requires `--bot`, because the GitLab notes API carries no bot flag on its basic user object.
+- `--bot` names a login whose review or note counts and can repeat. With one or more `--bot` logins, only those logins count, compared with any trailing `[bot]` removed from both sides, so `coderabbitai` matches `coderabbitai[bot]`. Without `--bot`, GitHub threads and review modes count an author whose `user.type` is `Bot`. GitLab threads mode requires `--bot`, because the GitLab notes API carries no bot flag on its basic user object. GitLab review mode without `--bot` counts the in-progress marker from any author and never reads `LANDED`, so the ship runner passes its `botAuthors` as `--bot` to review mode.
+- Review mode is busy while a comment carries the marker `review in progress by coderabbit.ai`: on GitHub an issue comment by a bot, and on GitLab a non-system note, from a `--bot` login when any are given. Issue comments count only in review mode.
 
 | Exit | Line | Meaning |
 |---|---|---|
 | 0 | `GREEN <sha>` | pipeline mode: the pipeline for `<sha>` is `success` on GitLab, or every check passed or was skipped on GitHub |
-| 0 | `LANDED <sha> <author>` | threads mode: on GitHub, a bot review whose commit is `<sha>`; on GitLab, a non-system note from a `--bot` login created at or after the anchor, which is the head pipeline's creation time or, without a pipeline, the commit date. A note with a `position.head_sha`, such as a diff note, counts only when that sha is the head. Issue comments on GitHub never count. |
+| 0 | `LANDED <sha> <author>` | threads mode, and review mode while no comment carries the marker: on GitHub, a bot review whose commit is `<sha>`; on GitLab, a non-system note from a `--bot` login created at or after the anchor, which is the head pipeline's creation time or, without a pipeline, the commit date. A note with a `position.head_sha`, such as a diff note, counts only when that sha is the head, and a note that carries the marker never counts. In review mode on GitLab only a `--bot` login lands. |
 | 10 | `RED <sha> <names>` | pipeline mode: a job failed, was cancelled, or timed out; `<names>` is the comma-joined list of those jobs |
 | 11 | `STUCK <sha> <minutes>` | pipeline mode: for `--stuck`, at least one job exists and every job is terminal while the pipeline status is not. On GitHub the jobs are the Actions runs for `<sha>`, so a repo whose checks come only from another CI never reads as stuck. On GitLab the jobs are those outside the `external` stage, so an empty job list while the pipeline is being created never reads as stuck. |
-| 12 | `BOUND <sha> <minutes>` | `--bound` elapsed in either mode |
+| 12 | `BOUND <sha> <minutes>` | `--bound` elapsed in any mode |
 | 13 | `NONE <sha>` | pipeline mode: no pipeline for `<sha>` exists at the bound, or the pipeline for `<sha>` is `skipped` |
 | 14 | `MOVED <sha> <newHeadSha>` | the MR or PR head is no longer `<sha>`; exits on the first round that sees it |
+| 15 | `QUIET <sha> <minutes>` | review mode: for the whole `--settle` window no comment carried the marker and no review landed |
 | 2 | (stderr message) | usage error: missing arguments, unknown host, unknown mode, bad number, missing or bad `--sha`, bad remotePath, bad duration, bad interval, unknown option, missing option value, or GitLab threads mode without `--bot` |
 | 3 | (stderr message) | tool error: `jq` is not on PATH, checked before any API call, or `gh` or `glab` failed five rounds in a row; the last error text goes to stderr |
 
-Known limit: on GitLab, the first note from a listed login after the anchor lands, and that note can be the bot's in-progress note. A GitLab repo that needs the merge held for the review must wire the bot as an external pipeline job and let the pipeline wait cover it.
-
-The script never exits 1. Codes 0 and 10 to 14 are outcomes, and codes 2 and 3 are failures of the script itself. `<minutes>` is the whole minutes elapsed: since the start for `BOUND`, and since the stuck condition first held for `STUCK`.
+The script never exits 1. Codes 0 and 10 to 15 are outcomes, and codes 2 and 3 are failures of the script itself. `<minutes>` is the whole minutes elapsed: since the start for `BOUND`, since the stuck condition first held for `STUCK`, and for `QUIET` since the first round with no marker, counted again after any round that sees one.
 
 The ship-runner pipeline and threads verifiers run it as one blocking call with `--bound 9`, and the ship-flow conductor runs it as a background command with `--bound 180` to wait out a pending pipeline or review.
 
-Tests: `bash plugins/toolkit/scripts/tests/watch-mr/run-tests.sh` (52 behavior cases against stub `gh` and `glab` executables that answer from per-round fixtures; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/watch-mr/run-tests.sh` (71 behavior cases against stub `gh` and `glab` executables that answer from per-round fixtures; also run by `verify.sh`).
 
 ## override.sh
 
