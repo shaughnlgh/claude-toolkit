@@ -222,7 +222,7 @@ for f in sorted(glob.glob(os.path.join(sys.argv[1], '*', 'SKILL.md'))):
             parts = [l.strip() for l in block.splitlines() if l.strip()]
             total += len(('\n' if head[:1] == '|' else ' ').join(parts))
         else:
-            total += len(head.strip('"\''))
+            total += len(head.strip(chr(34) + chr(39)))
     if total > 1536:
         over.append(os.path.basename(os.path.dirname(f)) + ' ' + str(total))
 print(','.join(over) or 'NONE')
