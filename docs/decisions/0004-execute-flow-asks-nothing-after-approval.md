@@ -13,6 +13,8 @@ Date: 2026-11-06
 
 Status: Accepted
 
+Amended by [0006](0006-ship-flow-merges-unattended.md), which replaces the sentence that under `merge` the confirmation gate shows the message and the paths.
+
 ## Context
 
 The execute flow asked questions after the plan was approved: the seat question on a held main checkout, the default branch when `origin/HEAD` was missing, Merged or Fresh over a branch with no commits of its own, Hold or Proceed over foreign dirty paths, one question per adjudication list entry, and the remember pass consent gate. Every one of them stalls an unattended run until a person answers. A worktree run also deferred each Validation Step that needs the running local stack, and nothing ran those steps later, so a slice could ship with its end-to-end checks never run.
