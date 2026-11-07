@@ -1,13 +1,14 @@
 ---
 title: Plugin packaging
-summary: What the installed toolkit plugin contains, and why a file inside the plugin must not link to a file at the repo root.
+summary: What the installed toolkit plugin contains, why a file inside the plugin must not link to a file at the repo root, and the length cap on a skill listing.
 type: context
 status: active
 owner: Shaughn Le Grange - Hatlen
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-07
 source_refs:
   - .claude-plugin/marketplace.json
   - plugins/toolkit/
+  - verify.sh
 ---
 <!-- managed-by: toolkit -->
 
@@ -20,6 +21,10 @@ The marketplace entry in `.claude-plugin/marketplace.json` sets the source of th
 - A skill, command, doctrine, rule, or agent file must not link to a repo-root file. The link resolves in the repo and dangles in every install. Name the file in prose as a repo file that the plugin does not ship, as the `crawl` skill does for the brief template, or move the content under `plugins/toolkit/`.
 - A plugin file reaches another plugin file by a path relative to its own location, such as `../plan-guide/SKILL.md` from a skill's base directory.
 - Open item: `commands/setup.md` points at `docs/overrides.md`, and `doctrine/orchestration.md` points at `docs/hooks.md`.
+
+## Skill listing
+
+- Claude Code truncates a skill's `description` plus `when_to_use` at 1,536 characters in the skill listing, so a trigger phrase past that point never reaches the model. A `verify.sh` check counts the two folded frontmatter values of every `skills/*/SKILL.md` and fails when one skill exceeds the cap. A skill that needs more detail moves it into the body.
 
 ## Related docs
 
