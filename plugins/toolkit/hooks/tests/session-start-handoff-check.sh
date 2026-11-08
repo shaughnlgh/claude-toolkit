@@ -15,6 +15,7 @@ SH_STALE="This handoff could not be marked as used, so it may be stale: trust th
 SH_DIRS=()
 SH_MADE_TMP=""
 SH_WORK=""
+SH_PLUGIN_ROOT=""
 
 _sh_pass() {
   printf '  PASS  session-start-handoff :: %s\n' "$1"
@@ -66,12 +67,12 @@ _sh_layout() {
   printf '%s\n' "$3" > "$1/flow-run-options"
 }
 
-# $1 session id. Runs the hook on a compact payload. Sets SH_CTX and SH_ERR.
+# $1 session id. Runs the hook on a compact payload, with CLAUDE_PLUGIN_ROOT set only when SH_PLUGIN_ROOT is. Sets SH_CTX and SH_ERR.
 _sh_hook() {
   local out
   out="$(cd "$SH_WORK" && jq -nc --arg s "$1" '{source:"compact",session_id:$s}' \
     | env -u CLAUDE_PLUGIN_ROOT -u TOOLKIT_COMPACT_HANDOFF -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR \
-      HOME="$SH_WORK" bash "$SH_HOOK" 2>"$SH_WORK/stderr")"
+      HOME="$SH_WORK" ${SH_PLUGIN_ROOT:+"CLAUDE_PLUGIN_ROOT=$SH_PLUGIN_ROOT"} bash "$SH_HOOK" 2>"$SH_WORK/stderr")"
   SH_CTX="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)"
   SH_ERR="$(cat "$SH_WORK/stderr" 2>/dev/null)"
 }
@@ -406,6 +407,29 @@ check_sh_nolib_says_so() {
   _sh_pass "$label :: a hook copy without hooks/lib says the handoff was not reinjected"
 }
 
+check_sh_nolib_no_error() {
+  local label="nolib-no-error" sid="hooktest-sid-$$-$RANDOM$RANDOM" hook="$SH_HOOK"
+  if ! _sh_work || ! mkdir -p "$SH_WORK/nolib" || ! cp "$hook" "$SH_WORK/nolib/session-start.sh"; then _sh_fail "$label :: setup failed"; _sh_cleanup; return; fi
+  SH_HOOK="$SH_WORK/nolib/session-start.sh"; _sh_hook "$sid"; SH_HOOK="$hook"
+  _sh_cleanup
+  if [[ "$SH_ERR" == *"command not found"* ]]; then
+    _sh_fail "$label :: a hook copy without hooks/lib called a missing library function"; return
+  fi
+  _sh_pass "$label :: a hook copy without hooks/lib calls no missing library function"
+}
+
+check_sh_nonames_says_so() {
+  local label="nonames-says-so" sid="hooktest-sid-$$-$RANDOM$RANDOM" hook="$SH_HOOK"
+  if ! _sh_work || ! mkdir -p "$SH_WORK/plugin/hooks/lib" "$SH_WORK/plugin/rules" || ! cp "$hook" "$SH_WORK/plugin/hooks/session-start.sh" \
+    || ! cp "$ROOT/lib/session-scratchpad.sh" "$SH_WORK/plugin/hooks/lib/session-scratchpad.sh"; then _sh_fail "$label :: setup failed"; _sh_cleanup; return; fi
+  SH_HOOK="$SH_WORK/plugin/hooks/session-start.sh"; SH_PLUGIN_ROOT="$SH_WORK/plugin"; _sh_hook "$sid"; SH_HOOK="$hook"; SH_PLUGIN_ROOT=""
+  _sh_cleanup
+  if [[ "$SH_CTX" != *"hooks/lib/component-names.sh not found, so agent and skill overrides were not checked."* ]]; then
+    _sh_fail "$label :: a plugin copy without hooks/lib/component-names.sh did not say overrides were not checked"; return
+  fi
+  _sh_pass "$label :: a plugin copy without hooks/lib/component-names.sh says agent and skill overrides were not checked"
+}
+
 run_session_start_handoff_checks() {
   check_sh_first_run_injects
   check_sh_first_run_skips_inference
@@ -431,6 +455,8 @@ run_session_start_handoff_checks() {
   check_sh_plan_blank
   check_sh_plan_unsafe
   check_sh_nolib_says_so
+  check_sh_nolib_no_error
+  check_sh_nonames_says_so
 }
 
 if [[ -n "${SH_STANDALONE:-}" ]]; then
