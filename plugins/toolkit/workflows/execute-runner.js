@@ -1,8 +1,8 @@
 export const meta = {
   name: 'execute-runner',
-  description: 'Execute flow: runs an approved plan note through a baseline check, one implementer per Implementation Step, the Validation Steps with one fix round, the review-mr panel chosen by changed path with one fix round over the confirmed findings, which takes the nits only under nits fix and runs for them alone in round 1 outside a seat run, a cold read told what the panel already reported and, when nothing blocked, the Doc Update Pass and the remember pass, and returns the result for the execute-flow skill to record. The script writes no file itself: its verifiers write the diff captures under scratchDir and the remember worker writes vault notes. No worker runs mutating git in repoRoot. With seatRun, the script runs no Implementation Step, doc pass or remember pass, captures and reviews the diff from diffBase, and blocks on any captured path outside .claude/worktrees/ that no fix or earlier commit wrote.',
+  description: 'Execute flow: indexes an approved plan note by path through one verifier, so each worker reads its own lines after a sha256 and heading check, then runs it through a baseline check, one implementer per Implementation Step, the Validation Steps with one fix round, the review-mr panel chosen by changed path with one fix round over the confirmed findings, which takes the nits only under nits fix and runs for them alone in round 1 outside a seat run, a cold read told what the panel already reported and, when nothing blocked, the Doc Update Pass and the remember pass, and returns the result for the execute-flow skill to record. The script writes no file itself: its verifiers write the diff captures under scratchDir and the remember worker writes vault notes. No worker runs mutating git in repoRoot. With seatRun, the script runs no Implementation Step, doc pass or remember pass, captures and reviews the diff from diffBase, and blocks on any captured path outside .claude/worktrees/ that no fix or earlier commit wrote.',
   phases: [
-    { title: 'Prep', detail: 'verifier records the branch, the tree status and the baseline verify result' },
+    { title: 'Prep', detail: 'a verifier indexes the plan note by path, then a verifier records the branch, the tree status and the baseline verify result' },
     { title: 'Implement', detail: 'one implementer per Implementation Step, in order' },
     { title: 'Verify', detail: 'verifier runs the Validation Steps, one implementer fix round on a failure' },
     { title: 'Red team', detail: 'verifier captures the diff, the review-mr child runs the panel chosen by changed path and two cold dimensions' },
@@ -17,9 +17,9 @@ let a = args
 if (typeof a === 'string') {
   try { a = JSON.parse(a) } catch (e) { a = null }
 }
-const REQUIRED = ['planName', 'repoRoot', 'repoName', 'planContent', 'recallHits', 'scratchDir', 'pluginRoot', 'vaultRoot']
+const REQUIRED = ['planName', 'repoRoot', 'repoName', 'planPath', 'recallHits', 'scratchDir', 'pluginRoot', 'vaultRoot']
 if (!a || REQUIRED.some((k) => typeof a[k] !== 'string' || !a[k])) {
-  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planContent, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, baselineFailing?, priorChangedPaths?, maxFixRounds?, reviewRules?, reviewMr?, inWorktree?, models?, e2e?, nits?, seatRun?, diffBase?}')
+  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planPath, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, baselineFailing?, priorChangedPaths?, maxFixRounds?, reviewRules?, reviewMr?, inWorktree?, models?, e2e?, nits?, seatRun?, diffBase?}')
 }
 if (a.maxFixRounds != null && !(Number.isInteger(a.maxFixRounds) && a.maxFixRounds >= 0)) {
   throw new Error(`execute-runner maxFixRounds must be a non-negative integer, got ${JSON.stringify(a.maxFixRounds)}`)
@@ -41,6 +41,10 @@ if (a.seatRun && !(typeof a.diffBase === 'string' && SHA.test(a.diffBase))) thro
 if (a.diffBase != null && !a.seatRun) throw new Error('execute-runner diffBase is only valid with seatRun')
 const SEAT_RUN = a.seatRun === true
 const DIFF_BASE = SEAT_RUN ? a.diffBase : 'HEAD'
+const VAULT_DIR = `${a.vaultRoot.replace(/\/+$/, '')}/`
+// vault-fs.sh takes the vault-relative path inside a single-quoted shell word and refuses any `..`.
+const PLAN_REL = a.planPath.startsWith(VAULT_DIR) ? a.planPath.slice(VAULT_DIR.length) : ''
+if (!PLAN_REL.endsWith('.md') || /['\n]|\.\./.test(PLAN_REL)) throw new Error(`execute-runner planPath must be a .md note under vaultRoot whose vault-relative path holds no single quote, newline or .., got ${JSON.stringify(a.planPath)}`)
 // Claude Code creates linked worktrees here, and git lists each as one untracked directory that git diff --no-index cannot read.
 const OWN_WORKTREES = '.claude/worktrees/'
 // Keys the resolved map by the agent's short name. A blank field is omitted so the session value applies.
@@ -77,8 +81,6 @@ const outsideFence = (lines) => {
     return false
   })
 }
-const planLines = a.planContent.split('\n')
-const planOutside = outsideFence(planLines)
 const sectionIn = (lines, outside, name) => {
   const out = []
   let inSection = false
@@ -91,75 +93,98 @@ const sectionIn = (lines, outside, name) => {
   }
   return out.join('\n').trim()
 }
-const section = (name) => sectionIn(planLines, planOutside, name)
 const rulesLines = REVIEW_RULES.split('\n')
 const bullets = (text) => text.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('- '))
   .map((l) => l.slice(2).trim().split(/\s/)[0].replace(/^[`'"]+/, '').replace(/[`'".,:;]+$/, '')).filter(Boolean)
 const extraHighRisk = REVIEW_RULES ? bullets(sectionIn(rulesLines, outsideFence(rulesLines), 'High-risk paths')) : []
 const firstLine = (s) => String(s || '').split('\n')[0].trim().replace(/\.$/, '')
-const STEP_HEADING = /^###\s+\d+[.)]/
-const SUBHEADING = /^###\s/
-const NUMBERED = /^\d+[.)]\s/
-const items = (text) => {
-  if (!text) return []
-  const lines = text.split('\n')
-  const outside = outsideFence(lines)
-  const at = (re) => [...lines.keys()].filter((i) => outside[i] && re.test(lines[i]))
-  const heads = at(SUBHEADING)
-  const nums = at(NUMBERED)
-  const numberOf = (i) => parseInt(lines[i], 10)
-  const headingsBefore = (i) => heads.filter((h) => h < i).length
-  const oneList = nums.length > 0 && nums.every((i, k) => numberOf(i) === k + 1)
-  const listCrossesHeading = oneList && headingsBefore(nums[0]) !== headingsBefore(nums[nums.length - 1])
-  const byHeading = heads.length > 1 && nums.every((i) => i > heads[0]) && !listCrossesHeading
-  // A numbered line that does not top every number before it, such as a restarted sub-list, stays inside the step.
-  const rising = nums.filter((i, k) => nums.slice(0, k).every((j) => numberOf(j) < numberOf(i)))
-  const stepHeads = at(STEP_HEADING)
-  const starts = new Set(stepHeads.length ? stepHeads : byHeading ? heads : rising)
-  const groups = []
-  const preamble = []
-  lines.forEach((line, i) => {
-    if (starts.has(i)) groups.push([line])
-    else if (groups.length) groups[groups.length - 1].push(line)
-    else preamble.push(line)
-  })
-  if (!groups.length) return [{ heading: firstLine(text), text }]
-  return groups.map((g, i) => ({ heading: g[0].trim().replace(/^###\s+/, ''), text: (i ? g : preamble.concat(g)).join('\n').trim() }))
-}
-
-const objective = section('Objective')
-const assumptions = section('Assumptions')
-const risks = section('Risks')
-const implItems = items(section('Implementation Steps'))
-const implSteps = implItems.map((s) => s.text)
-const validationSteps = section('Validation Steps')
-const validationParsed = items(validationSteps)
-const validationItems = validationParsed.map((s) => s.text)
-// [e2e] after the step number on a Validation Step's own heading line marks it end-to-end.
-const E2E_MARK = /^(?:\d+[.)]\s+)?\[e2e\]/
-const e2eSteps = validationParsed.map((s, i) => (E2E_MARK.test(s.heading) ? i + 1 : 0)).filter(Boolean)
-const E2E_OUTCOME = a.e2e === 'skip' ? { status: 'manual', evidence: 'e2e: skip' } : a.inWorktree ? { status: 'deferred', evidence: 'needs the seat' } : null
-const E2E_RULE = E2E_OUTCOME && e2eSteps.length ? `End-to-end STEPs: ${e2eSteps.join(', ')}. Do not run them. Report each as ${E2E_OUTCOME.status} with ${E2E_OUTCOME.evidence} as evidence. ` : ''
-const SEAT_RUN_RULE = SEAT_RUN ? `The running local stack serves ${a.repoRoot}. Run every STEP against it${E2E_RULE ? ' apart from the end-to-end STEPs named above' : ', the end-to-end STEPs included'}, and report manual only for a step that needs a human. An end-to-end STEP is never pre-existing. ` : ''
-const settleE2E = (v) => (v ? { ...v, results: v.results.map((r, i) => {
-  if (!e2eSteps.includes(i + 1)) return r
-  if (E2E_OUTCOME) return { ...r, ...E2E_OUTCOME }
-  return SEAT_RUN && r.status === 'pre-existing' ? { ...r, status: 'fail' } : r
-}) } : v)
-const validationCount = validationItems.length
-const validationBlock = validationItems.map((s, i) => `STEP ${i + 1}:\n${s}`).join('\n\n')
-const relatedTopics = section('Related Topics')
-const currentContext = section('Current Context')
-const affectedFiles = section('Affected Files')
-const planChangesSection = section('Plan Changes During Execution')
-if (!implSteps.length) throw new Error('execute-runner: the plan has no Implementation Steps')
-
 const str = { type: 'string' }
 const num = { type: 'number' }
 const bool = { type: 'boolean' }
 const strList = { type: 'array', items: str }
 const list = (itemSchema) => ({ type: 'array', items: itemSchema })
 const obj = (properties) => ({ type: 'object', properties, required: Object.keys(properties) })
+const SHA256 = /^[0-9a-f]{64}$/
+// plan-index.py's E2E_MARK, so the script checks the relayed e2e flag against the relayed heading.
+const E2E_MARK = /^(?:[0-9]+[.)]\s+)?\[e2e\]/
+const PLAN_INDEX = obj({ error: str, sha256: str,
+  sections: list(obj({ name: str, line: num })),
+  implementationSteps: list(obj({ heading: str, line: num })),
+  validationSteps: list(obj({ heading: str, line: num, e2e: bool })) })
+phase('Prep')
+const planIndex = await agent(`Run exactly this command and nothing else, and change no file:
+bash ${a.pluginRoot}/scripts/vault-fs.sh index '${PLAN_REL}'
+It prints one JSON object. Return its sha256, sections, implementationSteps and validationSteps as printed, every string character for character and every number unchanged, and error as an empty string. If the command exits non-zero or prints no JSON object, return error as its output, sha256 as an empty string and every list empty. Return raw structured data only.`,
+  { label: 'plan:index', phase: 'Prep', schema: PLAN_INDEX, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
+// The index relays start lines only, so a slipped one fails this order check or an anchor a worker checks before it acts.
+const indexProblem = ((ix) => {
+  if (!ix) return null
+  if (ix.error) return `The plan index failed: ${ix.error}`
+  const rising = (rs) => rs.every((r, i) => Number.isInteger(r.line) && r.line >= 1 && (!i || r.line > rs[i - 1].line))
+  const inside = (steps, name) => {
+    const i = ix.sections.findIndex((s) => s.name === name)
+    if (i < 0) return !steps.length
+    const next = ix.sections[i + 1]
+    return steps.every((s) => s.line > ix.sections[i].line && (!next || s.line < next.line))
+  }
+  const why = !SHA256.test(ix.sha256) ? 'its sha256 is not 64 lowercase hex characters'
+    : !rising(ix.sections) ? 'its section heading lines do not rise'
+    : !rising(ix.implementationSteps) || !inside(ix.implementationSteps, 'Implementation Steps') ? 'an Implementation Step line falls outside its section or out of order'
+    : !rising(ix.validationSteps) || !inside(ix.validationSteps, 'Validation Steps') ? 'a Validation Step line falls outside its section or out of order'
+    : ix.validationSteps.some((s) => s.e2e !== E2E_MARK.test(s.heading)) ? 'a Validation Step e2e flag does not match its heading'
+    : ''
+  return why ? `The plan index for ${a.planPath} is inconsistent: ${why}` : null
+})(planIndex)
+const ix = planIndex && !indexProblem ? planIndex : { sha256: '', sections: [], implementationSteps: [], validationSteps: [] }
+// A section runs from its heading line to the line before the next heading, or to the end of the note.
+const rangeOf = (name) => {
+  const i = ix.sections.findIndex((s) => s.name === name)
+  if (i < 0) return null
+  const next = ix.sections[i + 1]
+  return { from: ix.sections[i].line, to: next ? next.line - 1 : null, first: name, after: next ? next.name : null }
+}
+// Step 1 starts at its section's heading, so text before the first marker stays with it, and each step ends where the next starts.
+const stepRanges = (steps, name) => {
+  const sec = rangeOf(name)
+  return steps.map((s, k) => {
+    const next = steps[k + 1]
+    return { ...s, from: k ? s.line : sec.from, to: next ? next.line - 1 : sec.to, first: k ? s.heading : sec.first, after: next ? next.heading : sec.after }
+  })
+}
+const pointer = (r) => `read ${r.to == null ? `from line ${r.from} to the end` : `lines ${r.from}-${r.to}`} of the plan note: line ${r.from} begins "${r.first}"${r.to == null ? '' : ` and line ${r.to + 1} begins "${r.after}"`}`
+const planBlock = (title, name) => {
+  const r = rangeOf(name)
+  return block(title, r ? pointer(r) : '')
+}
+const implItems = ix.implementationSteps.length ? stepRanges(ix.implementationSteps, 'Implementation Steps') : []
+const validationParsed = ix.validationSteps.length ? stepRanges(ix.validationSteps, 'Validation Steps') : []
+const hasValidation = validationParsed.length > 0
+const e2eSteps = validationParsed.map((s, i) => (s.e2e ? i + 1 : 0)).filter(Boolean)
+const E2E_OUTCOME = a.e2e === 'skip' ? { status: 'manual', evidence: 'e2e: skip' } : a.inWorktree ? { status: 'deferred', evidence: 'needs the seat' } : null
+const E2E_RULE = E2E_OUTCOME && e2eSteps.length ? `End-to-end STEPs: ${e2eSteps.join(', ')}. Do not run them. Report each as ${E2E_OUTCOME.status} with ${E2E_OUTCOME.evidence} as evidence. ` : ''
+const SEAT_RUN_RULE = SEAT_RUN ? `The running local stack serves ${a.repoRoot}. Run every STEP against it${E2E_RULE ? ' apart from the end-to-end STEPs named above' : ', the end-to-end STEPs included'}, and report manual only for a step that needs a human. An end-to-end STEP is never pre-existing. ` : ''
+const settleE2E = (v) => (v ? { ...v, results: v.results.map((r, i) => {
+  if (!e2eSteps.includes(i + 1) || isStop(r)) return r
+  if (E2E_OUTCOME) return { ...r, ...E2E_OUTCOME }
+  return SEAT_RUN && r.status === 'pre-existing' ? { ...r, status: 'fail' } : r
+}) } : v)
+const validationCount = validationParsed.length
+const validationBlock = validationParsed.map((s, i) => `STEP ${i + 1}:\n${pointer(s)}`).join('\n\n')
+const NOTE_CHANGED = 'The plan note changed mid-run'
+const INDEX_MISMATCH = 'The plan index does not match the plan note'
+const SHA_CHECK = `bash ${a.pluginRoot}/scripts/vault-fs.sh sha256 '${PLAN_REL}'`
+const CHANGED_LINE = `${NOTE_CHANGED}: sha256 <the printed value>, expected ${ix.sha256}.`
+const MISMATCH_LINE = `${INDEX_MISMATCH} at line <its number>, which begins <its first words>.`
+const planRead = (stop) => `PLAN NOTE: ${a.planPath}
+A block that says read lines A-B of the plan note stands for those lines of this file, and names the text that line A begins with and, unless the range runs to the end, the text that line B+1 begins with, each read after any leading # marks and the whitespace after them. Before your first read of the file, run exactly ${SHA_CHECK}. If it is denied or exits non-zero, read nothing from the file and ${stop('The sha check on the plan note failed: <its output>.')}. If it prints anything other than ${ix.sha256}, read nothing from the file and ${stop(CHANGED_LINE)}. Otherwise read each such block's lines and the line after them with the Read tool, offset at the first line and limit at the line count plus one, with no limit for a range that runs to the end. If a named line does not begin with the text the block gives, or a line after line A inside the range starts with ## and a space or tab outside a fenced block, act on nothing from that block and ${stop(MISMATCH_LINE)}. Otherwise act on the block's lines.`
+const STOP = (line) => `record "${line}" as your only blockers entry and stop`
+const FAIL = (line) => `return every STEP as fail with "${line}" as its evidence`
+const NONE = (line) => (line === CHANGED_LINE ? 'treat every such block as none' : 'treat that block as none')
+// A stop counts only on a fail result whose evidence opens with a stop sentence, because a step's evidence can quote one, as a grep for it does.
+const isStop = (r) => r.status === 'fail' && [NOTE_CHANGED, INDEX_MISMATCH].some((s) => String(r.evidence || '').replace(/^[\s"'`]+/, '').startsWith(s))
+const readStop = (v) => String((((v && v.results) || []).find(isStop) || {}).evidence || '')
+const stopped = (label, why) => `The verifier ${label} ran no Validation Step: ${why}`
+
 // Duplicated in review-mr.js: workflow scripts share no module.
 const unit = { type: 'number', minimum: 0, maximum: 1 }
 const TAG = { type: 'string', enum: ['important', 'nit', 'pre-existing'] }
@@ -171,6 +196,7 @@ const THRESHOLD = 0.6
 
 const BASELINE = obj({ branch: str, status: strList, verify: obj({ command: str, exitCode: num, failing: strList }) })
 const STEP = obj({ changedPaths: strList, deviations: strList, checksRun: strList, result: str, blockers: strList, topicMaterial: str })
+const FIX = obj({ ...STEP.properties, skipped: list(obj({ key: str, step: str })) })
 const VALIDATION = obj({ results: list(obj({ step: str, status: { type: 'string', enum: ['pass', 'fail', 'manual', 'pre-existing'].concat(a.inWorktree ? ['deferred'] : []) }, evidence: str })) })
 const DIFF = obj({ diffPath: str, hash12: str, empty: bool, paths: strList })
 const RECHECK = obj({ results: list(obj({ file: str, title: str, resolved: bool, evidence: str })) })
@@ -205,6 +231,8 @@ The diff command in 2 exits 1 on any difference. Tolerate that exit code, it is 
 Return diffPath, hash12, empty and paths. diffPath is the absolute path of the moved file. empty is true only when that file has zero bytes. paths holds every line the two commands in 4 printed, as repo-relative paths. Return raw structured data only. ${GIT_RULE}`
 const SHARED = `${CONTEXT}
 
+${planRead(STOP)}
+
 ${DOCTRINE}
 ${GIT_RULE}
 ${BLOCKER_RULE}
@@ -230,6 +258,7 @@ let review = null
 let panel = STANDING
 let panelRule = 'standing'
 let fixed = []
+let keptForSteps = []
 let open = []
 let coldResidual = null
 let coldUnverified = null
@@ -256,9 +285,9 @@ const collect = (paths, topicMaterial) => {
 const stepMap = (current) => implItems.map((s, i) => `${s.heading}${i === current ? ' (your step)' : ''}`).join('\n')
 const block = (title, body) => `${title}:\n${body || 'none'}`
 const changedBlock = (title) => block(title, changed.join('\n'))
-const SCOPE = [block('OBJECTIVE', objective), block('ASSUMPTIONS', assumptions)].join('\n\n')
-const implementBrief = (i) => [block('OBJECTIVE', objective), block('CURRENT CONTEXT', currentContext), block('ASSUMPTIONS', assumptions), block('AFFECTED FILES', affectedFiles),
-  block('VALIDATION STEPS', validationSteps), block('RISKS', risks), block('PLAN CHANGES DURING EXECUTION', planChangesSection), block('STEPS', stepMap(i)), block('YOUR STEP', implSteps[i]), changedBlock('ALREADY CHANGED')].join('\n\n')
+const SCOPE = [planBlock('OBJECTIVE', 'Objective'), planBlock('ASSUMPTIONS', 'Assumptions')].join('\n\n')
+const implementBrief = (i) => [planBlock('OBJECTIVE', 'Objective'), planBlock('CURRENT CONTEXT', 'Current Context'), planBlock('ASSUMPTIONS', 'Assumptions'), planBlock('AFFECTED FILES', 'Affected Files'),
+  planBlock('VALIDATION STEPS', 'Validation Steps'), planBlock('RISKS', 'Risks'), planBlock('PLAN CHANGES DURING EXECUTION', 'Plan Changes During Execution'), block('STEPS', stepMap(i)), block('YOUR STEP', pointer(implItems[i])), changedBlock('ALREADY CHANGED')].join('\n\n')
 const failingOf = (v) => v.results.filter((r) => r.status === 'fail')
 const lineOf = (r) => `${firstLine(r.step)}: ${r.evidence}`
 const setValidation = (v, runs) => {
@@ -293,6 +322,7 @@ const finish = () => {
       preExisting: review.preExisting || [],
       fixed,
       open,
+      keptForSteps,
       refuted: review.refuted || [],
       unverified: review.unverified || [],
       dropped: review.dropped || [],
@@ -315,12 +345,23 @@ const finish = () => {
   }
 }
 
-if (a.e2e === 'required' && validationSteps && !e2eSteps.length) {
+if (!planIndex) {
+  dead('verifier', 'plan:index')
+  return finish()
+}
+if (indexProblem) {
+  blocked.push(`${indexProblem}.`)
+  return finish()
+}
+if (!implItems.length) {
+  blocked.push('The plan has no Implementation Steps.')
+  return finish()
+}
+if (a.e2e === 'required' && hasValidation && !e2eSteps.length) {
   blocked.push(`The plan's e2e option is required and no Validation Step carries the [e2e] marker after its number.`)
   return finish()
 }
 
-phase('Prep')
 const verifyLine = a.verifyCommand
   ? 'run the verify command ' + a.verifyCommand
   : 'find and run the repo\'s verify or test command from AGENTS.md, CLAUDE.md, VERIFY.md or the package manifest. If you find none, run none, set command to none and exitCode to -1, and set failing to the one sentence No verify command was found'
@@ -330,10 +371,10 @@ In ${a.repoRoot}, run git branch --show-current and git status --porcelain, then
   { label: 'prep:baseline', phase: 'Prep', schema: BASELINE, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
 if (!baseline) dead('verifier', 'prep:baseline')
 else if (a.baselineFailing) baseline.verify = { ...baseline.verify, failing: a.baselineFailing }
-if (!validationSteps) blocked.push('The plan has no Validation Steps, so nothing proves the slice.')
+if (!hasValidation) blocked.push('The plan has no Validation Steps, so nothing proves the slice.')
 
 phase('Implement')
-for (let i = 0; i < (SEAT_RUN ? 0 : implSteps.length); i += 1) {
+for (let i = 0; i < (SEAT_RUN ? 0 : implItems.length); i += 1) {
   const label = `implement:${i + 1}`
   const r = await agent(`${SHARED}
 
@@ -355,6 +396,8 @@ phase('Verify')
 const SEAT_RULE = a.inWorktree ? `This run sits in a git worktree, and the running local stack serves the main checkout, not ${a.repoRoot}. Do not run a STEP that needs the running local stack: the site's URL, a browser check, a request to the local stack, or anything else that the main checkout's running services serve. Report such a STEP as deferred with needs the seat as evidence, and run every other STEP. Create nothing outside ${a.repoRoot}: no container, no database clone, no media mount, no hostname. ` : ''
 const runValidation = async (label, phaseName) => settleE2E(await agent(`${CONTEXT}
 
+${planRead(FAIL)}
+
 VALIDATION STEPS:
 ${validationBlock}
 
@@ -364,7 +407,7 @@ ${baseline ? JSON.stringify(baseline.verify) : 'none, the baseline check did not
 Run each STEP above that an agent can run here, against ${a.repoRoot}. Return exactly ${validationCount} results, one per STEP, in order, with step set to the STEP number and the step's first line, as in STEP 1: <first line>. status is pass or fail with the command output as evidence, never a guessed pass. status is manual, with the reason as evidence, for a step that needs a human or another session. status is pre-existing when a step fails only on a check that the baseline failing list already names. If a command is denied, report its step as fail with the denial as evidence. ${SEAT_RULE}${E2E_RULE}${SEAT_RUN_RULE}${STDIN_RULE} ${HOOK_RULE} Change no file. ${GIT_RULE} Return raw structured data only.`,
   { label, phase: phaseName, schema: VALIDATION, agentType: 'toolkit:verifier', ...modelOpts('verifier') }))
 
-if (!validationSteps) setValidation({ results: [] }, 0)
+if (!hasValidation) setValidation({ results: [] }, 0)
 else {
   let v = await runValidation('verify:validation', 'Verify')
   if (!v) {
@@ -372,6 +415,7 @@ else {
     return finish()
   }
   setValidation(v, 1)
+  if (readStop(v)) { blocked.push(stopped('verify:validation', readStop(v))); return finish() }
   if (!covers(v)) {
     failingOf(v).forEach((r) => blocked.push(`Validation step failed: ${firstLine(r.step)}.`))
     return finish()
@@ -382,7 +426,7 @@ else {
 
 ${SCOPE}
 
-${block('PLAN CHANGES DURING EXECUTION', planChangesSection)}
+${planBlock('PLAN CHANGES DURING EXECUTION', 'Plan Changes During Execution')}
 
 ${changedBlock('CHANGED PATHS')}
 
@@ -405,6 +449,7 @@ Fix only what makes these steps pass, in ${a.repoRoot}. ${RETURN_STEP}`,
       return finish()
     }
     setValidation(v, 2)
+    if (readStop(v)) { blocked.push(stopped('verify:revalidation', readStop(v))); return finish() }
     covers(v)
     const still = failingOf(v)
     if (still.length) {
@@ -433,16 +478,14 @@ if (diffRed && !diffRed.empty) {
   panel = picked.panel
   panelRule = picked.rule
   const contextBlock = `Repo: ${a.repoName} at ${a.repoRoot}. Plan name: ${a.planName}.
-OBJECTIVE:
-${objective || 'none'}
+${planRead(NONE)}
+${planBlock('OBJECTIVE', 'Objective')}
 CHANGED PATHS:
 ${changed.join('\n') || 'none'}
 SETTLED DECISIONS:
 The owner accepted the plan's Assumptions and Risks at approval. A finding that only restates one of them, or asks for scope or coverage the Assumptions exclude, is not a finding, unless the tree contradicts the decision, in which case report it as a normal finding. A breach of a written rule in rules/, doctrine/, CLAUDE.md, AGENTS.md or .claude/rules, or a doc line the tree contradicts, is never settled by an Assumption or Risk: report it as a normal finding and never lower its score on plan grounds.
-ASSUMPTIONS:
-${assumptions || 'none'}
-RISKS:
-${risks || 'none'}
+${planBlock('ASSUMPTIONS', 'Assumptions')}
+${planBlock('RISKS', 'Risks')}
 
 Apply the project rules in the CLAUDE.md, AGENTS.md and .claude/rules files under ${a.repoRoot} where they exist. When the diff ships executable commands embedded in prose, such as a skill, a workflow script's prompts or a doc, execute those exact commands against a scratch fixture covering the awkward cases (clean tree, dirty tree, untracked directories, unusual filenames) rather than judge them by reading. ${SCRATCH_ONLY} ${GIT_RULE}${REVIEW_RULES ? `\n\nREVIEW RULES (REVIEW.md on the default branch):\n${REVIEW_RULES}` : ''}`
   try {
@@ -471,7 +514,6 @@ if (review) {
   open = SEAT_RUN && !confirmedOpen.length ? [] : withNits
   let stageDead = false
   for (let round = 1; round <= MAX_FIX_ROUNDS && open.some((f) => f.bucket === 'confirmed' || round === 1); round += 1) {
-    const findings = open.map((f) => `${key(f)}\nDETAIL: ${f.detail}\nFAILURE SCENARIO: ${f.failure_scenario || 'none given'}`).join('\n\n')
     const entry = (f) => `${key(f)} [${f.finalTag || f.tag}, final score ${f.finalScore}, ${f.reproduced ? (f.finalScore < THRESHOLD ? 'cited line read' : 'reproduced') : 'not reproduced'}]\nCITATION: ${f.citation || 'none'}\nDETAIL: ${f.detail}\nFAILURE SCENARIO: ${f.failure_scenario || 'none given'}`
     const confirmedBlock = open.filter((f) => f.bucket === 'confirmed').map(entry).join('\n\n') || 'none'
     const nitBlock = open.filter((f) => f.bucket === 'nit').map(entry).join('\n\n') || 'none'
@@ -481,14 +523,16 @@ ${SCOPE}
 
 ${changedBlock('CHANGED PATHS')}
 
+${planBlock('VALIDATION STEPS', 'Validation Steps')}
+
 CONFIRMED FINDINGS:
 ${confirmedBlock}
 
 NITS:
 ${nitBlock}
 
-Fix each confirmed finding above in ${a.repoRoot} with the smallest change that removes the defect, and, when its tag is important and its finalScore is ${THRESHOLD} or above, fix every instance of that class of defect in the slice, not one line. Fix a confirmed finding tagged nit only at its cited line, and fix any confirmed finding below ${THRESHOLD} only at its cited line. For each nit, fix only the cited line, and only when the tree confirms the nit. ${RETURN_STEP}`,
-      { label: `fix:${round}`, phase: 'Fix', schema: STEP, agentType: 'toolkit:implementer', ...modelOpts('implementer') })
+Fix each confirmed finding above in ${a.repoRoot} with the smallest change that removes the defect, and, when its tag is important and its finalScore is ${THRESHOLD} or above, fix every instance of that class of defect in the slice, not one line. Fix a confirmed finding tagged nit only at its cited line, and fix any confirmed finding below ${THRESHOLD} only at its cited line. For each nit, fix only the cited line, and only when the tree confirms the nit. Leave a nit, or a confirmed finding whose finalScore is below ${THRESHOLD}, unfixed when its fix would make a step under VALIDATION STEPS fail, such as an edit to text that a step checks byte for byte, and return each one in skipped as one {key, step}, with key as its <file>: <title> exactly as listed above and step as the STEP number and first line of the Validation Step its fix would fail. Return skipped empty when you leave none. ${RETURN_STEP}`,
+      { label: `fix:${round}`, phase: 'Fix', schema: FIX, agentType: 'toolkit:implementer', ...modelOpts('implementer') })
     fixAttempts += 1
     if (!fix) {
       dead('implementer', `fix:${round}`)
@@ -503,6 +547,14 @@ Fix each confirmed finding above in ${a.repoRoot} with the smallest change that 
       stageDead = true
       break
     }
+    // A nit or a confirmed finding below THRESHOLD that the fix left for a Validation Step is settled, so it starts no later round.
+    const skippedFor = new Map((fix.skipped || []).map((s) => [s.key, s.step]))
+    const kept = open.filter((f) => skippedFor.has(key(f)) && (f.bucket === 'nit' || f.finalScore < THRESHOLD))
+    for (const f of kept) planChanges.push(`Fix round ${round} kept for a Validation Step: ${key(f)} [${f.finalTag || f.tag}, score ${f.score}, final ${f.finalScore}] (${skippedFor.get(key(f))})`)
+    keptForSteps = keptForSteps.concat(kept.map((f) => ({ ...f, round, step: skippedFor.get(key(f)) })))
+    open = open.filter((f) => !kept.includes(f))
+    if (!open.length) break
+    const findings = open.map((f) => `${key(f)}\nDETAIL: ${f.detail}\nFAILURE SCENARIO: ${f.failure_scenario || 'none given'}`).join('\n\n')
     const re = await agent(`${CONTEXT}
 
 FINDINGS:
@@ -563,11 +615,11 @@ if (!blocked.length) {
   if (!SEAT_RUN) {
     docPass = await agent(`${SHARED}
 
-${block('OBJECTIVE', objective)}
+${planBlock('OBJECTIVE', 'Objective')}
 
-${block('AFFECTED FILES', affectedFiles)}
+${planBlock('AFFECTED FILES', 'Affected Files')}
 
-${block('RELATED TOPICS', relatedTopics)}
+${planBlock('RELATED TOPICS', 'Related Topics')}
 
 ${changedBlock('CHANGED PATHS')}
 
@@ -580,9 +632,10 @@ Read the section headed Doc Update Pass in ${a.pluginRoot}/skills/execution-guid
       blockersOf('implementer', 'doc:pass', docPass)
     }
   }
-  if (validationSteps && validation && (rounds.length || (docPass && docPass.changedPaths && docPass.changedPaths.length))) {
+  if (hasValidation && validation && (rounds.length || (docPass && docPass.changedPaths && docPass.changedPaths.length))) {
     const vf = await runValidation('verify:final', 'Doc pass')
     if (!vf) dead('verifier', 'verify:final')
+    else if (readStop(vf)) blocked.push(stopped('verify:final', readStop(vf)))
     else {
       setValidation(vf, validation.runs + 1)
       covers(vf)
@@ -605,8 +658,9 @@ Scope: write only under the vault root folder ${a.vaultRoot} and the scratchpad 
 
 Known evidence: the cumulative diff at ${diffPost.diffPath}, the touched files ${changed.join(', ') || 'none'}, the Topic note material returns from this slice ${material.join(' ') || 'none'}, and the recall hits ${a.recallHits}.
 
-RELATED TOPICS:
-${relatedTopics || 'none'}
+${planRead(STOP)}
+
+${planBlock('RELATED TOPICS', 'Related Topics')}
 
 Task-specific constraints. The plugin root is ${a.pluginRoot}. Before your first write, read these files under that root: commands/obsidian-topic.md, doctrine/security.md, doctrine/repo-artifacts.md, and the usage header of scripts/vault-fs.sh.
 
