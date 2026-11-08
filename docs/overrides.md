@@ -14,8 +14,8 @@ You override by placing a same-named copy under your global `~/.claude/`. The `/
 |---|---|---|
 | **doctrine** | `~/.claude/doctrine/<name>.md` | The session-start hook detects it and announces it; the model reads your copy for that concern instead of the plugin's. |
 | **rules** | `~/.claude/rules/<name>.md` | The session-start hook injects your body in place of the plugin's rule (keep the file's frontmatter). |
-| **agents** | `~/.claude/agents/<name>.md` | Claude Code resolves your agent over the plugin's — for the **bare name**. Invoke it as `<name>`, not `toolkit:<name>` (the scoped name pins to the plugin). |
-| **skills** | `~/.claude/skills/<name>/` | Same as agents — resolved for the bare name. Copied as a whole directory. |
+| **agents** | `~/.claude/agents/<name>.md` | Claude Code resolves your agent over the plugin's — for the **bare name**. It matches an agent by its frontmatter `name` at any depth of `~/.claude/agents/`, not by its file name. Invoke it as `<name>`, not `toolkit:<name>` (the scoped name pins to the plugin). |
+| **skills** | `~/.claude/skills/<name>/` | Same as agents — resolved for the bare name, matched by the directory name or the frontmatter `name`. Copied as a whole directory. |
 
 Doctrine and rules are picked up because the hook loads them fresh each session. Agents and skills are resolved natively by Claude Code, so they work with no hook involvement, but only when invoked by their bare name.
 
@@ -33,7 +33,7 @@ To change only an agent's model or effort, do not copy the agent file. Set it in
 - **a name** (`/override conventions`) — auto-detects the type and copies it.
 - **a type and name** (`/override rules security`) — needed only for an ambiguous name (`security` is both a doctrine and a rule).
 
-It refuses unknown or ambiguous names, and never overwrites an override you have already created (edit that one directly). Under the hood it runs `scripts/override.sh`, which is self-locating and needs no config.
+It refuses unknown or ambiguous names, and never overwrites an override you have already created (edit that one directly). It also refuses when a user agent or personal skill under another file or directory name already carries that frontmatter `name`. Under the hood it runs `scripts/override.sh`, which is self-locating and needs no config.
 
 ## What you see each session
 

@@ -28,7 +28,7 @@ Run every check before writing the handoff. If a check fails, do the missing wor
 3. Every uncommitted change in the repo is named under `open:` in the handoff as uncommitted, with its paths. This skill never commits. Committing belongs to the ship flow or the human.
 4. Every running background task, agent, or shell is named under `open:` in the handoff.
 
-A repo file edit goes to a worker agent, per the orchestration doctrine (`../../doctrine/orchestration.md` from this skill's base directory). The conductor writes vault notes itself, atomically, through `vault-fs.sh mv`.
+A repo file edit goes to a worker agent, per the orchestration doctrine (`../../doctrine/orchestration.md` from this skill's base directory). The conductor writes vault notes itself, atomically, through `bash <plugin-root>/scripts/vault-fs.sh mv`, where `<plugin-root>` is `../..` from this skill's base directory resolved to an absolute path.
 
 ## Handoff
 

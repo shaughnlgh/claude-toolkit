@@ -2,14 +2,14 @@
 
 The toolkit ships a small set of scripts under `plugins/toolkit/scripts/`. Most are plain bash and stdlib-only Python with no dependencies. One is a vendored Node design-detector under `scripts/design-detector/` (the one piece of third-party code here — see below). Skills and the user invoke them directly rather than reimplementing the logic inline.
 
-All of them are called through the installed plugin root, resolved once and reused:
+All of them are called through the plugin root, resolved once and reused. A skill, command, or agent names the root of the copy Claude Code loaded, so a `claude --plugin-dir` session runs that copy's scripts. A shell outside them resolves the installed root:
 
 ```bash
 PLUGIN_ROOT="$(jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json)"
 bash "$PLUGIN_ROOT/scripts/<script>.sh" ...
 ```
 
-Each entry below assumes `$PLUGIN_ROOT` is already resolved this way.
+Each entry below assumes `$PLUGIN_ROOT` is already resolved.
 
 ## The set
 
@@ -140,13 +140,14 @@ Waits on one MR or PR until a terminal condition and prints one status line to s
 Invoke:
 
 ```bash
-bash "$PLUGIN_ROOT/scripts/watch-mr.sh" <github|gitlab> <remotePath> <number> <pipeline|threads|review> --sha <sha> [--bound <n>] [--stuck <n>] [--settle <n>] [--interval <seconds>] [--bot <login>]...
+bash "$PLUGIN_ROOT/scripts/watch-mr.sh" <github|gitlab> <remotePath> <number> <pipeline|threads|review> --sha <sha> [--bound <n>] [--stuck <n>] [--settle <n>] [--none <n>] [--interval <seconds>] [--bot <login>]...
 ```
 
 - `remotePath` is `owner/repo` or `group/sub/repo`. The script URL-encodes the whole path once for the GitLab API. `glab` resolves the GitLab host from the git remote of the working directory, or uses its default host when run elsewhere, so run the script from the repo.
 - `number` is the PR number on GitHub and the MR iid on GitLab.
 - `--sha` is required in every mode. It names the commit the result must belong to. The script lowercases it. A short sha matches the head by prefix, and once the script sees the full head sha, later rounds and reads compare against that.
-- `--bound`, `--stuck` and `--settle` take minutes, or seconds with a trailing `s` (`9`, `20s`). `--bound` defaults to 180, `--stuck` to 10 and `--settle` to 2. `--stuck` applies to pipeline mode only and `--settle` to review mode only.
+- `--bound`, `--stuck`, `--settle` and `--none` take minutes, or seconds with a trailing `s` (`9`, `20s`). `--bound` defaults to 180, `--stuck` to 10 and `--settle` to 2, and `--none` has no default. `--stuck` and `--none` apply to pipeline mode only and `--settle` to review mode only.
+- `--none` ends a pipeline watch early. Once it elapses while the last read showed no check or pipeline for `<sha>`, the script exits 13 `NONE` without waiting out `--bound`. A check or pipeline in the last read keeps the wait polling to `--bound`.
 - `--interval` is the number of seconds between polling rounds and defaults to 30, with a floor of 1. The first round runs at once.
 - `--bot` names a login whose review or note counts and can repeat. With one or more `--bot` logins, only those logins count, compared with any trailing `[bot]` removed from both sides, so `coderabbitai` matches `coderabbitai[bot]`. Without `--bot`, GitHub threads and review modes count an author whose `user.type` is `Bot`. GitLab threads mode requires `--bot`, because the GitLab notes API carries no bot flag on its basic user object. GitLab review mode without `--bot` counts the in-progress marker from any author and never reads `LANDED`, so the ship runner passes its `botAuthors` as `--bot` to review mode.
 - Review mode is busy while a comment carries the marker `review in progress by coderabbit.ai`: on GitHub an issue comment by a bot, and on GitLab a non-system note, from a `--bot` login when any are given. Issue comments count only in review mode.
@@ -154,21 +155,22 @@ bash "$PLUGIN_ROOT/scripts/watch-mr.sh" <github|gitlab> <remotePath> <number> <p
 | Exit | Line | Meaning |
 |---|---|---|
 | 0 | `GREEN <sha>` | pipeline mode: the pipeline for `<sha>` is `success` on GitLab, or every check passed or was skipped on GitHub |
-| 0 | `LANDED <sha> <author>` | threads mode, and review mode while no comment carries the marker: on GitHub, a bot review whose commit is `<sha>`; on GitLab, a non-system note from a `--bot` login created at or after the anchor, which is the head pipeline's creation time or, without a pipeline, the commit date. A note with a `position.head_sha`, such as a diff note, counts only when that sha is the head, and a note that carries the marker never counts. In review mode on GitLab only a `--bot` login lands. |
+| 0 | `LANDED <sha> <author>` | threads mode, and review mode while no comment carries the marker: on GitHub, the first bot review whose commit is `<sha>` and whose body does not say it did not review; on GitLab, a non-system note from a `--bot` login created at or after the anchor, which is the head pipeline's creation time or, without a pipeline, the commit date. A note with a `position.head_sha`, such as a diff note, counts only when that sha is the head, and a note that carries the marker never counts. In review mode on GitLab only a `--bot` login lands. |
 | 10 | `RED <sha> <names>` | pipeline mode: a job failed, was cancelled, or timed out; `<names>` is the comma-joined list of those jobs |
 | 11 | `STUCK <sha> <minutes>` | pipeline mode: for `--stuck`, at least one job exists and every job is terminal while the pipeline status is not. On GitHub the jobs are the Actions runs for `<sha>`, so a repo whose checks come only from another CI never reads as stuck. On GitLab the jobs are those outside the `external` stage, so an empty job list while the pipeline is being created never reads as stuck. |
-| 12 | `BOUND <sha> <minutes>` | `--bound` elapsed in any mode |
-| 13 | `NONE <sha>` | pipeline mode: no pipeline for `<sha>` exists at the bound, or the pipeline for `<sha>` is `skipped` |
+| 12 | `BOUND <sha> <minutes>` | `--bound` elapsed in any mode, unless the last read showed no pipeline for `<sha>` (13) or a refusal on `<sha>` with no review in progress (16) |
+| 13 | `NONE <sha>` | pipeline mode: the last read showed no pipeline for `<sha>` when `--none` elapsed or at the bound, or the pipeline for `<sha>` is `skipped` |
 | 14 | `MOVED <sha> <newHeadSha>` | the MR or PR head is no longer `<sha>`; exits on the first round that sees it |
-| 15 | `QUIET <sha> <minutes>` | review mode: for the whole `--settle` window no comment carried the marker and no review landed |
-| 2 | (stderr message) | usage error: missing arguments, unknown host, unknown mode, bad number, missing or bad `--sha`, bad remotePath, bad duration, bad interval, unknown option, missing option value, or GitLab threads mode without `--bot` |
+| 15 | `QUIET <sha> <minutes>` | review mode: for the whole `--settle` window no comment carried the marker, no review landed, and no bot review on `<sha>` said it did not review |
+| 16 | `UNREVIEWED <sha> <author> <text>` | GitHub threads and review modes: no bot review on `<sha>` landed and one said it did not review. Threads mode exits on the round that reads a refusal from every `--bot` login, else at the bound. Review mode exits when the settle window ends, or at the bound after a round with no marker. `<author>` is the first refusing bot and `<text>` the refusal sentence that opens its body, with whitespace joined to single spaces, cut at the first period after `this pull request`. |
+| 2 | (stderr message) | usage error: missing arguments, unknown host, unknown mode, bad number, missing or bad `--sha`, bad remotePath, bad duration, bad interval, unknown option, missing option value, `--none` outside pipeline mode, or GitLab threads mode without `--bot` |
 | 3 | (stderr message) | tool error: `jq` is not on PATH, checked before any API call, or `gh` or `glab` failed five rounds in a row; the last error text goes to stderr |
 
-The script never exits 1. Codes 0 and 10 to 15 are outcomes, and codes 2 and 3 are failures of the script itself. `<minutes>` is the whole minutes elapsed: since the start for `BOUND`, since the stuck condition first held for `STUCK`, and for `QUIET` since the first round with no marker, counted again after any round that sees one.
+The script never exits 1. Codes 0 and 10 to 16 are outcomes, and codes 2 and 3 are failures of the script itself. `<minutes>` is the whole minutes elapsed: since the start for `BOUND`, since the stuck condition first held for `STUCK`, and for `QUIET` since the first round with no marker, counted again after any round that sees one.
 
-The ship-runner pipeline and threads verifiers run it as one blocking call with `--bound 9`, and the ship-flow conductor runs it as a background command with `--bound 180` to wait out a pending pipeline or review.
+The ship-runner pipeline and threads verifiers run it as one blocking call with `--bound 9`, plus `--none 2` on the pipeline watch when the repo carries no CI configuration, and the ship-flow conductor runs it as a background command with `--bound 180` to wait out a pending pipeline or review.
 
-Tests: `bash plugins/toolkit/scripts/tests/watch-mr/run-tests.sh` (71 behavior cases against stub `gh` and `glab` executables that answer from per-round fixtures; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/watch-mr/run-tests.sh` (88 behavior cases against stub `gh` and `glab` executables that answer from per-round fixtures; also run by `verify.sh`).
 
 ## override.sh
 
@@ -180,7 +182,7 @@ Invoke:
 bash "$PLUGIN_ROOT/scripts/override.sh" [type] [name]
 ```
 
-With no arguments it lists everything overridable, grouped by type. With a name it auto-detects the type and copies it (doctrine/rules/agents as a single `.md`, a skill as its whole directory); with a `<type> <name>` pair it forces the type for an ambiguous name (`security` is both a doctrine and a rule). How each takes effect: doctrine and rules are picked up by the session-start hook (doctrine announced, a rule's body injected in place of the plugin's); agents and skills are resolved natively by Claude Code for the bare name. Guardrails: name only (no paths or `..`), refuses unknown or ambiguous names, and never clobbers an existing override. Self-locating, so it needs no config.
+With no arguments it lists everything overridable, grouped by type. With a name it auto-detects the type and copies it (doctrine/rules/agents as a single `.md`, a skill as its whole directory); with a `<type> <name>` pair it forces the type for an ambiguous name (`security` is both a doctrine and a rule). How each takes effect: doctrine and rules are picked up by the session-start hook (doctrine announced, a rule's body injected in place of the plugin's); agents and skills are resolved natively by Claude Code for the bare name. Guardrails: name only (no paths or `..`), refuses unknown or ambiguous names, and never clobbers an existing override. It also refuses an agent copy when a user agent under another file name already carries that frontmatter `name`, and a skill copy when a personal skill under another directory name already carries it, because Claude Code resolves each by that name. Self-locating, so it needs no config.
 
 ## merge-conflict-overview.py
 
@@ -257,7 +259,7 @@ Fields, by what each observably does: `vault_path` (per-machine, set during setu
 
 The default layer of per-agent model and effort routing. It is config, not an executable. `resolve-models.sh` reads it first, then the user file `~/.claude/toolkit-models.json`, then the plan note's run options. The result routes Agent-tool spawns through the `agent-model.sh` PreToolUse hook (see `docs/hooks.md`) and Workflow `agent()` calls through the runner scripts, without shadowing the agent files. The user file lists only the agents it re-routes, in the same shape, so later template defaults still reach every other agent.
 
-Fields: `agents` (one key per shipped agent name, each value a `{"model": ..., "effort": ...}` object; model is any Claude Code model alias or full model ID, effort is `low`, `medium`, `high`, `xhigh` or `max`; an empty string leaves the layers below in place; `haiku` is refused) and `_readme` (human guidance only, read by nothing). A user file value can also be a bare string, which sets the model only. An explicit per-call model or effort, or `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, wins over every layer.
+Fields: `agents` (one key per shipped agent name, each value a `{"model": ..., "effort": ...}` object; model is any Claude Code model alias or full model ID, and the Agent-tool path sends a full ID as the one family alias it names, effort is `low`, `medium`, `high`, `xhigh` or `max`; an empty string leaves the layers below in place; `haiku` is refused) and `_readme` (human guidance only, read by nothing). A user file value can also be a bare string, which sets the model only. An explicit per-call model or effort, or `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, wins over every layer.
 
 ## design-detector/
 
