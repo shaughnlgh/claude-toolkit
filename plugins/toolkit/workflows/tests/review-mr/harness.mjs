@@ -74,9 +74,13 @@ const cases = [
     const { agents } = await run(ONE_EACH, { ...ARGS, models: { verifier: { model: 'opus', effort: 'xhigh' } } })
     return verifyLabels(agents).every((k) => same(pick(agents[k], ['agentType', 'model', 'effort', 'phase']), { agentType: 'toolkit:verifier', model: 'opus', effort: 'xhigh', phase: 'Verify' }))
   }],
-  ['a reviewer takes its own map entry and a custom dimension takes neither key', async () => {
-    const { agents } = await run({}, { ...ARGS, models: { 'code-reviewer': { model: 'sonnet', effort: 'medium' } }, dimensions: [{ key: 'conventions', prompt: 'Check conventions.' }] })
-    return same({ reviewer: pick(agents['review:code-reviewer'], ['model', 'effort']), custom: pick(agents['review:conventions'], ['model', 'effort']) }, { reviewer: { model: 'sonnet', effort: 'medium' }, custom: { model: undefined, effort: undefined } })
+  ['a reviewer takes its own map entry and a custom dimension takes the code-reviewer entry', async () => {
+    const { agents } = await run({}, { ...ARGS, models: { 'code-reviewer': { model: 'sonnet', effort: 'medium' }, 'security-reviewer': { model: 'opus', effort: 'high' } }, dimensions: [{ key: 'conventions', prompt: 'Check conventions.' }] })
+    return same({ reviewer: pick(agents['review:security-reviewer'], ['model', 'effort']), custom: pick(agents['review:conventions'], ['model', 'effort']) }, { reviewer: { model: 'opus', effort: 'high' }, custom: { model: 'sonnet', effort: 'medium' } })
+  }],
+  ['a cold dimension takes the code-reviewer entry', async () => {
+    const { agents } = await run({}, { ...ARGS, models: { 'code-reviewer': { model: 'sonnet', effort: 'medium' } }, dimensions: [{ key: 'cold-read', prompt: 'Read cold.', cold: true }] })
+    return same(pick(agents['review:cold-read'], ['model', 'effort']), { model: 'sonnet', effort: 'medium' })
   }],
   ['a missing models map passes neither key to any call', async () => {
     const { agents } = await run(ONE_EACH)

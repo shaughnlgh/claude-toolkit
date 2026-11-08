@@ -190,6 +190,9 @@ else
 fi
 if grep -qF 'Seat run passed:' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Seat run passed:' "$P/skills/ship-flow/SKILL.md"; then ok "execute-flow writes and ship-flow reads the seat run outcome line"; else no "seat run outcome line missing from execute-flow or ship-flow"; fi
 if grep -qF '[e2e]' "$P/skills/plan-guide/SKILL.md" && grep -qF 'E2E_MARK.test' "$P/workflows/execute-runner.js"; then ok "plan-guide defines and execute-runner reads the [e2e] marker"; else no "[e2e] marker missing from plan-guide or execute-runner.js"; fi
+if grep -qF 'a.nits' "$P/workflows/execute-runner.js" && grep -qF 'a.nits' "$P/workflows/ship-runner.js" && grep -qF '`nits`: the section 2 `nits` value' "$P/skills/execute-flow/SKILL.md" && grep -qF '`nits`: the note' "$P/skills/ship-flow/SKILL.md"; then ok "both runners take and both flows pass the nits run option"; else no "nits run option missing from a runner or a flow's args"; fi
+if grep -qF 'toolkit-review-bots.json' "$P/commands/setup.md" && grep -qF 'toolkit-review-bots.json' "$P/skills/ship-flow/SKILL.md"; then ok "setup writes and ship-flow reads the review bot logins file"; else no "review bot logins file missing from setup or ship-flow"; fi
+if grep -qF 'a pass count at or above a floor' "$P/skills/plan-guide/SKILL.md" && grep -qF 'a pass count at or above a floor' "$P/workflows/plan-builder.js" && grep -qF 'a pass count at or above a floor' "$P/agents/plan-critic.md"; then ok "plan-guide, plan-builder and plan-critic carry the floor rule for a Validation Step"; else no "Validation Step floor rule missing from plan-guide, plan-builder or plan-critic"; fi
 if [ -f "$P/skills/execute-flow/SKILL.md" ] && ! grep -qF 'AskUserQuestion' "$P/skills/execute-flow/SKILL.md"; then ok "execute-flow asks no question of its own"; else no "execute-flow carries an AskUserQuestion"; fi
 if [ -f "$P/skills/ship-flow/SKILL.md" ] && ! grep -qF 'AskUserQuestion' "$P/skills/ship-flow/SKILL.md"; then ok "ship-flow asks no question of its own"; else no "ship-flow carries an AskUserQuestion"; fi
 if grep -qF 'asks for it by message' "$P/skills/plan-guide/SKILL.md" && grep -qF 'Parent dispatch rule' "$P/skills/execute-flow/SKILL.md" && grep -qF 'parent dispatch' "$P/skills/ship-flow/SKILL.md" && grep -qF 'parent dispatch' "$P/doctrine/workflow-routing.md"; then ok "plan-guide grants, execute-flow defines, and ship-flow and workflow-routing honor the parent dispatch"; else no "parent dispatch missing from plan-guide, execute-flow, ship-flow or workflow-routing"; fi
@@ -393,7 +396,7 @@ fi
 echo "== execute-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/execute-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "execute-runner control-flow suite" "$out" 198
+  suite_ok "execute-runner control-flow suite" "$out" 205
 else
   skip "skipped: node not found; execute-runner control-flow suite"
 fi
@@ -401,7 +404,7 @@ fi
 echo "== ship-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/ship-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "ship-runner control-flow suite" "$out" 250
+  suite_ok "ship-runner control-flow suite" "$out" 264
 else
   skip "skipped: node not found; ship-runner control-flow suite"
 fi
@@ -409,7 +412,7 @@ fi
 echo "== review-mr control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/review-mr/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "review-mr control-flow suite" "$out" 65
+  suite_ok "review-mr control-flow suite" "$out" 66
 else
   skip "skipped: node not found; review-mr control-flow suite"
 fi
