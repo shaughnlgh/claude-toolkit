@@ -182,6 +182,20 @@ if [ -n "$vp_ceil" ] && [ "$vp_ceil" = "$sr_ceil" ] && [ "$vp_ceil" = "$ss_ceil"
 else
   no "ceiling set drift -> validate-plan.py: [${vp_ceil:-<missing>}] ship-runner.js: [${sr_ceil:-<missing>}] session-start.sh: [${ss_ceil:-<missing>}]"
 fi
+# The Own PR Merge and Own MR Merge entries in setup.md quote mergeCmd in ship-runner.js, so their flags must match.
+mc_flags() { grep -oE -- '--[a-z-]+(=[a-z]+)?' | tr '\n' ' '; }
+mc="$(sed -n '/^const mergeCmd = /,/)$/p' "$P/workflows/ship-runner.js")"
+sr_gh="$(printf '%s\n' "$mc" | grep -F '`gh pr merge ' | mc_flags)"
+sr_gl="$(printf '%s\n' "$mc" | grep -F '`glab mr merge ' | mc_flags)"
+su_gh="$(sed -nE 's/.*Own PR Merge: .* with (gh pr merge [^.]*) is allowed when .*/\1/p' "$P/commands/setup.md" | mc_flags)"
+su_gl="$(sed -nE 's/.*Own MR Merge: .* with (glab mr merge [^.]*) is allowed when .*/\1/p' "$P/commands/setup.md" | mc_flags)"
+if [ -n "$sr_gh" ] && [ "$sr_gh" = "$su_gh" ] && [ -n "$sr_gl" ] && [ "$sr_gl" = "$su_gl" ]; then
+  ok "setup.md's Own PR Merge and Own MR Merge entries carry the flags of ship-runner.js mergeCmd"
+else
+  no "merge entry drift -> ship-runner.js gh: [${sr_gh:-<missing>}] setup.md Own PR Merge: [${su_gh:-<missing>}] ship-runner.js glab: [${sr_gl:-<missing>}] setup.md Own MR Merge: [${su_gl:-<missing>}]"
+fi
+ipj="$(grep -rl 'installed_plugins.json' "$P/skills" "$P/agents" "$P/commands" 2>/dev/null | grep -v '/commands/setup.md$')"
+[ -z "$ipj" ] && ok "only setup's CLAUDE.md blocks resolve the plugin root from installed_plugins.json" || no "installed_plugins.json plugin root in: $ipj"
 grep -qF '## Flows' "$P/doctrine/git-safety.md" && ok "git-safety carries the Flows section" || no "git-safety missing the Flows section"
 if grep -qF 'Worktree install:' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Worktree install:' "$ROOT/docs/context/context-worktree-seat.md" && grep -qF "runs the repo's install step there as execute-flow section 2a defines" "$P/doctrine/orchestration.md"; then
   ok "execute-flow, the worktree seat context, and orchestration carry the worktree install step"
@@ -315,16 +329,35 @@ rvh="$(mktemp -d)"; mkdir -p "$rvh/.claude/rules"; printf -- '---\nx: 1\n---\nRU
 rvout="$(echo '{}' | HOME="$rvh" bash "$P/hooks/session-start.sh" 2>/dev/null)"; rm -rf "$rvh"
 want "session-start announces a rule override" "$rvout" "Rule overrides active"
 want "session-start injects the override rule body (not just the banner)" "$rvout" "RULE_OVERRIDE_SENTINEL_XYZ"
-avh="$(mktemp -d)"; mkdir -p "$avh/.claude/agents"; : > "$avh/.claude/agents/code-reviewer.md"
+# agent and skill overrides match by frontmatter name, never by file name (isolated temp HOME)
+avh="$(mktemp -d)"; mkdir -p "$avh/.claude/agents/sub"; printf -- '---\nname: code-reviewer\n---\n' > "$avh/.claude/agents/sub/mine.md"
 avout="$(echo '{}' | HOME="$avh" bash "$P/hooks/session-start.sh" 2>/dev/null)"; rm -rf "$avh"
-want "session-start announces an agent override" "$avout" "Agent/skill overrides active"
+want "session-start announces an agent override by its frontmatter name" "$avout" "agent:code-reviewer"
+avh="$(mktemp -d)"; mkdir -p "$avh/.claude/agents"; printf -- '---\nname: my-verifier\n---\n' > "$avh/.claude/agents/verifier.md"
+avout="$(echo '{}' | HOME="$avh" bash "$P/hooks/session-start.sh" 2>/dev/null)"; rm -rf "$avh"
+case "$avout" in *"agent:verifier"*) no "session-start announces no agent override for a plugin agent's file name under another frontmatter name" ;; *) ok "session-start announces no agent override for a plugin agent's file name under another frontmatter name" ;; esac
+svh="$(mktemp -d)"; mkdir -p "$svh/.claude/skills/mine"; printf -- '---\nname: grill\n---\n' > "$svh/.claude/skills/mine/SKILL.md"
+svout="$(echo '{}' | HOME="$svh" bash "$P/hooks/session-start.sh" 2>/dev/null)"; rm -rf "$svh"
+want "session-start announces a skill override by its frontmatter name" "$svout" "skill:grill"
+svh="$(mktemp -d)"; mkdir -p "$svh/.claude/skills/grill"; printf -- '---\nname: other\n---\n' > "$svh/.claude/skills/grill/SKILL.md"
+svout="$(echo '{}' | HOME="$svh" bash "$P/hooks/session-start.sh" 2>/dev/null)"; rm -rf "$svh"
+want "session-start announces a skill override by its directory name" "$svout" "skill:grill"
 # auto mode: missing mutating git rules and an environment block naming another host are announced (isolated temp HOME)
 amh="$(mktemp -d)"; mkdir -p "$amh/.claude"
 printf '{"permissions":{"defaultMode":"auto","allow":["Bash(git push:*)"]},"autoMode":{"environment":["- Trusted repo: gitlab.example.com only"]}}\n' > "$amh/.claude/settings.json"
 amout="$(echo '{"source":"startup"}' | HOME="$amh" bash "$P/hooks/session-start.sh" 2>/dev/null)"
 want "session-start announces missing auto mode git rules" "$amout" "lacks these allow rules: Bash(git add:*) Bash(git commit:*)"
 want "session-start announces an environment block that omits this repo's host" "$amout" "does not name this repo's remote host"
-want "session-start status line points auto mode gaps at /setup" "$amout" "auto mode: git rules or trusted repos missing, run /setup"
+want "session-start status line points auto mode gaps at /setup" "$amout" "auto mode: classifier settings incomplete, run /setup"
+printf '{"permissions":{"defaultMode":"auto"},"autoMode":{"environment":["x"],"allow":["Own PR Merge: x"],"soft_deny":["y"],"hard_deny":["z"]}}\n' > "$amh/.claude/settings.json"
+amout="$(echo '{"source":"startup"}' | HOME="$amh" bash "$P/hooks/session-start.sh" 2>/dev/null)"
+want "session-start names every autoMode array without \$defaults" "$amout" 'no $defaults entry: environment allow soft_deny hard_deny.'
+printf '{"permissions":{"defaultMode":"auto"},"autoMode":{"environment":["$defaults","x"],"allow":["$defaults","x"],"soft_deny":["$defaults","x"],"hard_deny":["$defaults","x"]}}\n' > "$amh/.claude/settings.json"
+amout="$(echo '{"source":"startup"}' | HOME="$amh" bash "$P/hooks/session-start.sh" 2>/dev/null)"
+case "$amout" in *'no $defaults entry'*) no "session-start names no autoMode array that holds \$defaults" ;; *) ok "session-start names no autoMode array that holds \$defaults" ;; esac
+printf '{"permissions":{"defaultMode":"auto"},"autoMode":{"environment":["x"],"allow":["$defaults","x"]}}\n' > "$amh/.claude/settings.json"
+amout="$(echo '{"source":"startup"}' | HOME="$amh" bash "$P/hooks/session-start.sh" 2>/dev/null)"
+want "session-start names only the autoMode arrays without \$defaults" "$amout" 'no $defaults entry: environment.'
 printf '{"permissions":{"defaultMode":"default","allow":[]}}\n' > "$amh/.claude/settings.json"
 amout="$(echo '{"source":"startup"}' | HOME="$amh" bash "$P/hooks/session-start.sh" 2>/dev/null)"; rm -rf "$amh"
 case "$amout" in *"Auto mode is on"*) no "session-start stays silent on auto mode outside auto mode" ;; *) ok "session-start stays silent on auto mode outside auto mode" ;; esac
@@ -355,6 +388,15 @@ code "override refuses design rule (exit code)" "$dsrc" 1
 rm -rf "$dsh"
 doh="$(mktemp -d)"; HOME="$doh" bash "$P/scripts/override.sh" conventions >/dev/null 2>&1; HOME="$doh" bash "$P/scripts/override.sh" testing >/dev/null 2>&1
 { [ -f "$doh/.claude/doctrine/conventions.md" ] && [ -f "$doh/.claude/rules/testing.md" ]; } && ok "override copies doctrine + rule into ~/.claude" || no "override copy"; rm -rf "$doh"
+oah="$(mktemp -d)"; mkdir -p "$oah/.claude/agents/sub"; printf -- '---\nname: verifier\n---\n' > "$oah/.claude/agents/sub/mine.md"
+want "override refuses an agent a user agent under another file name already names" "$(HOME="$oah" bash "$P/scripts/override.sh" agents verifier 2>&1)" "'verifier' already exists as a user agent"
+rm -rf "$oah"
+osh="$(mktemp -d)"; mkdir -p "$osh/.claude/skills/mine"; printf -- '---\nname: grill\n---\n' > "$osh/.claude/skills/mine/SKILL.md"
+want "override refuses a skill a personal skill under another directory name already names" "$(HOME="$osh" bash "$P/scripts/override.sh" skills grill 2>&1)" "'grill' already exists as a user skill"
+rm -rf "$osh"
+onh="$(mktemp -d)"; mkdir -p "$onh/plugin/scripts" "$onh/plugin/agents"; cp "$P/scripts/override.sh" "$onh/plugin/scripts/"; cp "$P/agents/verifier.md" "$onh/plugin/agents/"
+want "override refuses an agent override when hooks/lib/component-names.sh is missing" "$(HOME="$onh" bash "$onh/plugin/scripts/override.sh" agents verifier 2>&1)" "refused: hooks/lib/component-names.sh not found"
+rm -rf "$onh"
 
 echo "== Plan validator =="
 out="$(bash "$P/scripts/tests/validate-plan/run-tests.sh" 2>/dev/null | tail -1)"

@@ -4,7 +4,7 @@ summary: How the toolkit resolves each agent's model and effort for Agent-tool s
 type: context
 status: active
 owner: Shaughn Le Grange - Hatlen
-last_reviewed: 2026-11-06
+last_reviewed: 2026-11-08
 source_refs:
   - plugins/toolkit/scripts/resolve-models.sh
   - plugins/toolkit/scripts/toolkit-models.json.template
@@ -24,7 +24,7 @@ source_refs:
 ## Limits of the Agent tool
 
 - The Agent tool's `model` input takes only a model alias (`sonnet`, `opus`, `haiku`, `fable`), never a full model ID or `inherit`, per the [Claude Code subagents docs](https://code.claude.com/docs/en/sub-agents). `inherit` exists only in agent definition frontmatter. No hook can therefore route an Agent-tool spawn to the parent session's model. The hook can only leave the field out, and the spawn then falls to the agent definition's model, a configured default subagent model, and the parent session's model, in that order.
-- Open item: the resolver accepts a full model ID and an `[1m]` suffix, and the hook passes either one to the Agent tool unchanged. Whether the Agent tool accepts such a value through `updatedInput` is not covered by any test.
+- The resolver accepts a full model ID and an `[1m]` suffix, and the workflow runners pass either one unchanged. The hook sends such a value to the Agent tool as the one family alias it names (`opus`, `sonnet`, `haiku` or `fable`), adds no model when it names none or several, and names the original value in a `systemMessage` either way. The mapping lives in the hook, not the resolver, so the workflow path keeps the full value. Fixtures `12` and `15` in `fixtures/agent-model/` pin both outcomes.
 - For that reason the resolver turns `inherit` into a blank field, the hook adds no blank field, and the template leaves `planner` blank.
 - The shipped agent files pin no `model` or `effort`, so the template is the only default layer. The orchestration invariants check in `verify.sh` fails when an agent file's frontmatter carries a `model:` or `effort:` line.
 - Check 8 in `commands/setup.md` is the only place that states the Claude Code version the hook's `effort` field was tested on. [commands.md](../commands.md) and [hooks.md](../hooks.md) point to it, so a newly tested version changes that one line.

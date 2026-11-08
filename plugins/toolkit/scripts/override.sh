@@ -70,6 +70,11 @@ fi
 if [ "$typ" = skills ]; then src="$ROOT/skills/$name"; dst="$HOMEC/skills/$name"
 else src="$ROOT/$typ/$name.md"; dst="$HOMEC/$typ/$name.md"; fi
 [ -e "$dst" ] && { echo "refused: an override already exists at $dst (edit it directly)" >&2; exit 1; }
+if [ "$typ" = agents ] || [ "$typ" = skills ]; then
+  . "$ROOT/hooks/lib/component-names.sh" 2>/dev/null || { echo "refused: hooks/lib/component-names.sh not found, so an existing override cannot be checked" >&2; exit 1; }
+  if [ "$typ" = agents ]; then taken="$(agent_names "$HOMEC/agents")"; else taken="$(skill_names "$HOMEC/skills")"; fi
+  printf '%s\n' "$taken" | grep -qxF -- "$name" && { echo "refused: '$name' already exists as a user ${typ%s} under $HOMEC/$typ (edit it directly)" >&2; exit 1; }
+fi
 mkdir -p "$(dirname "$dst")"
 if [ "$typ" = skills ]; then cp -R "$src" "$dst"; else cp "$src" "$dst"; fi
 

@@ -31,7 +31,7 @@ Before anything else, read the run options per `plan-guide` § Run options (`../
 
 ## 3. Recall
 
-Run `python3 <plugin-root>/scripts/topic-recall.py --repo <repoName> --repo-root <repoRoot> "<term one>" "<term two>"`, with each key term from the brief passed as its own quoted argument, because the terms are user text. The plugin root is `../..` from this skill's base directory, resolved to an absolute path. `<repoName>` is the basename of `<repoRoot>`. The two sources are the vault topic notes and the repo's `docs/`.
+Run `python3 <plugin-root>/scripts/topic-recall.py --repo <repoName> --repo-root <repoRoot> "<term one>" "<term two>"`, with each key term from the brief passed as its own quoted argument, because the terms are user text. The plugin root is `../..` from this skill's base directory, resolved to an absolute path. This root takes precedence over a CLAUDE.md line that resolves the installed root. `<repoName>` is the basename of `<repoRoot>`. The two sources are the vault topic notes and the repo's `docs/`.
 
 Read the exit code before the output:
 
