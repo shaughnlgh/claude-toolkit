@@ -107,7 +107,7 @@ Each check below uses a scratch repo with `ceiling: mr` and no ignore entry for 
 Each fires only on explicit request. Manual check: `test-first` runs the red-green loop only when `testing-gate` determined tests were required. `handoff` writes a continuation note to the vault. `resolving-merge-conflicts` gives an overview plus side-by-side and resolves by intent with confirmation, not a write-back GUI. `wayfinder` emits a parent umbrella plan plus child plan stubs.
 
 ### Commands
-- `/setup` (reports readiness; changes nothing without a yes).
+- `/setup` (reports readiness; changes nothing without a typed reply that names the offer, such as `yes Own PR Merge`).
 - `/company-rules` if a company rules plugin is also installed (a separate plugin, if your org ships one).
 
 ### Hooks enforce in-session

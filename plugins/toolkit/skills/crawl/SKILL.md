@@ -39,7 +39,7 @@ Crawl needs no particular brief shape. A brief written from the toolkit repo's b
 
 ## 2. Investigate
 
-Run topic recall first, as `plan-guide` step 1 does: run the toolkit's `scripts/topic-recall.py` over the vault topic notes and the repo's `docs/`, then search prior plan folders. The crawl never re-derives what the vault or the repo already knows.
+Run topic recall first, as `plan-guide` step 1 does: run `python3 <plugin-root>/scripts/topic-recall.py`, where `<plugin-root>` is `../..` from this skill's base directory resolved to an absolute path, over the vault topic notes and the repo's `docs/`, then search prior plan folders. The crawl never re-derives what the vault or the repo already knows.
 
 Then delegate an `explorer` fan-out scoped to the brief's specific claims, per the orchestration doctrine (model escalation for deep tracing; `verifier` instead when evidence needs commands run). The crawl asks two questions of every claim: is it true in the repo, and what does the brief not mention that this work will hit (adjacent modules, callers, migrations, config)?
 
