@@ -13,7 +13,7 @@ fi
 # $1 session id, $2 subagent_type, $3 cwd (optional), $4 hook path (optional). Prints the hook's stdout with no user file.
 _amo_hook() {
   jq -nc --arg s "$1" --arg a "$2" --arg c "${3:-}" '{session_id:$s,cwd:$c,tool_name:"Agent",tool_input:{description:"d",prompt:"p",subagent_type:$a}}' \
-    | HOME="$AMO_BASE/home" TOOLKIT_MODELS_FILE="$AMO_BASE/no-user-file.json" bash "${4:-$ROOT/agent-model.sh}" 2>/dev/null
+    | HOME="${AMO_HOME:-$AMO_BASE/home}" TOOLKIT_MODELS_FILE="$AMO_BASE/no-user-file.json" bash "${4:-$ROOT/agent-model.sh}" 2>/dev/null
 }
 
 # $1 label, $2 1 when the check held.
@@ -89,6 +89,70 @@ run_agent_model_options_checks() {
   _amo_report "the scoped name of a user-shadowed agent still gets its model" "$ok"
 
   ok=1
+  if mkdir -p "$AMO_BASE/project2/.claude/agents/sub" && printf -- '---\nname: code-reviewer\n---\n' > "$AMO_BASE/project2/.claude/agents/sub/other.md"; then
+    out="$(_amo_hook "$sid" code-reviewer "$AMO_BASE/project2")"
+    [[ -z "$out" ]] || ok=0
+  else
+    ok=0
+  fi
+  _amo_report "a nested project agent whose frontmatter name matches a bare name shadows it" "$ok"
+
+  ok=1
+  if mkdir -p "$AMO_BASE/home2/.claude/agents" && printf -- '---\nname: my-verifier\n---\n' > "$AMO_BASE/home2/.claude/agents/verifier.md"; then
+    out="$(AMO_HOME="$AMO_BASE/home2" _amo_hook "$sid" verifier)"
+    [[ "$out" == *'"model":'* ]] || ok=0
+  else
+    ok=0
+  fi
+  _amo_report "a user agent file named after a bare name with another frontmatter name does not shadow it" "$ok"
+
+  # find -L follows a symlinked agents folder.
+  ok=1
+  if mkdir -p "$AMO_BASE/dotfiles/agents" "$AMO_BASE/home3/.claude" && printf -- '---\nname: verifier\n---\n' > "$AMO_BASE/dotfiles/agents/mine.md" && ln -s "$AMO_BASE/dotfiles/agents" "$AMO_BASE/home3/.claude/agents"; then
+    out="$(AMO_HOME="$AMO_BASE/home3" _amo_hook "$sid" verifier)"
+    [[ -z "$out" ]] || ok=0
+  else
+    ok=0
+  fi
+  _amo_report "a user agents folder that links to another folder shadows a bare name by frontmatter name" "$ok"
+
+  ok=1
+  if mkdir -p "$AMO_BASE/home4/.claude/agents" && printf -- '---\r\nname: verifier\r\n---\r\n' > "$AMO_BASE/home4/.claude/agents/mine.md"; then
+    out="$(AMO_HOME="$AMO_BASE/home4" _amo_hook "$sid" verifier)"
+    [[ -z "$out" ]] || ok=0
+  else
+    ok=0
+  fi
+  _amo_report "a user agent file with CRLF line endings shadows a bare name" "$ok"
+
+  ok=1
+  if mkdir -p "$AMO_BASE/home5/.claude/agents" && printf -- "---\nname: 'verifier'\n---\n" > "$AMO_BASE/home5/.claude/agents/mine.md"; then
+    out="$(AMO_HOME="$AMO_BASE/home5" _amo_hook "$sid" verifier)"
+    [[ -z "$out" ]] || ok=0
+  else
+    ok=0
+  fi
+  _amo_report "a user agent file with a single-quoted frontmatter name shadows a bare name" "$ok"
+
+  ok=1
+  if mkdir -p "$AMO_BASE/home6/.claude/agents" && printf -- '---\nname: "verifier"\n---\n' > "$AMO_BASE/home6/.claude/agents/mine.md"; then
+    out="$(AMO_HOME="$AMO_BASE/home6" _amo_hook "$sid" verifier)"
+    [[ -z "$out" ]] || ok=0
+  else
+    ok=0
+  fi
+  _amo_report "a user agent file with a double-quoted frontmatter name shadows a bare name" "$ok"
+
+  ok=1
+  if mkdir -p "$AMO_BASE/home7/.claude/agents" && printf -- '---\nname: verifier # my copy\n---\n' > "$AMO_BASE/home7/.claude/agents/mine.md"; then
+    out="$(AMO_HOME="$AMO_BASE/home7" _amo_hook "$sid" verifier)"
+    [[ -z "$out" ]] || ok=0
+  else
+    ok=0
+  fi
+  _amo_report "a user agent file whose frontmatter name carries a trailing comment shadows a bare name" "$ok"
+
+  ok=1
   if mkdir -p "$AMO_BASE/plugin/hooks/lib" "$AMO_BASE/plugin/scripts" \
     && cp "$ROOT/agent-model.sh" "$AMO_BASE/plugin/hooks/agent-model.sh" \
     && cp "$ROOT/lib/session-scratchpad.sh" "$AMO_BASE/plugin/hooks/lib/session-scratchpad.sh" \
@@ -109,6 +173,16 @@ run_agent_model_options_checks() {
     ok=0
   fi
   _amo_report "without hooks/lib the hook adds nothing and says so in a systemMessage" "$ok"
+
+  ok=1
+  if mkdir -p "$AMO_BASE/nonames/hooks/lib" && cp "$ROOT/agent-model.sh" "$AMO_BASE/nonames/hooks/agent-model.sh" \
+    && cp "$ROOT/lib/session-scratchpad.sh" "$AMO_BASE/nonames/hooks/lib/session-scratchpad.sh"; then
+    out="$(_amo_hook "$sid" verifier "" "$AMO_BASE/nonames/hooks/agent-model.sh")"
+    [[ "$out" == *'component-names.sh not found'* && "$out" != *'updatedInput'* ]] || ok=0
+  else
+    ok=0
+  fi
+  _amo_report "a bare name without hooks/lib/component-names.sh adds nothing and says so in a systemMessage" "$ok"
 
   ok=1
   if mkdir -p "$AMO_BASE/nojq-bin" && ln -s "$(command -v cat)" "$AMO_BASE/nojq-bin/cat"; then
