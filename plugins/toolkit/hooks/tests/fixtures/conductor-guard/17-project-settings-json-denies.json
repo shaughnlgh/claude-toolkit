@@ -1,0 +1,7 @@
+{
+  "name": "conductor writing the project's shared .claude/settings.json is denied",
+  "stdin": { "session_id": "cg-17", "transcript_path": "/tmp/proj/session.jsonl", "cwd": "/repo", "tool_name": "Write", "tool_input": { "file_path": "/repo/.claude/settings.json" } },
+  "env": { "TOOLKIT_CONDUCTOR_EDITS": "0" },
+  "expect_exit": 0,
+  "expect_stdout_contains": ["deny", "Conductor guard"]
+}

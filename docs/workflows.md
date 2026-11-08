@@ -116,7 +116,7 @@ args: {planName, repoRoot, repoName, planContent, recallHits, scratchDir, plugin
 - `planContent` (required): the full text of the approved plan note.
 - `recallHits` (required): the text output of `topic-recall.py` for the plan's key terms.
 - `scratchDir` (required): absolute path to the session scratchpad, where the captures and fixtures go.
-- `pluginRoot` (required): absolute path to the installed plugin root, which the doc pass and the remember pass read from.
+- `pluginRoot` (required): absolute path to the plugin root that the flow skill resolved from its base directory, which the doc pass and the remember pass read from.
 - `vaultRoot` (required): the vault root folder, `<vault_path>/<root_folder>` from `~/.claude/obsidian-sync.json`.
 - `knownEvidence` (optional): facts the conductor already holds.
 - `verifyCommand` (optional): the command the baseline verifier runs.
@@ -205,7 +205,7 @@ args: {planName, repoRoot, repoName, host, remotePath, defaultBranch, branch, co
 - `commitMessage`, `mrTitle`, `mrBody` (required): the commit message and the PR or MR title and body.
 - `ceiling` (required): `none`, `mr`, or `merge`, the plan note's ceiling.
 - `tag` (optional): a boolean, default false. Under `merge` it adds the release stage, which tags the merge commit.
-- `scratchDir` and `pluginRoot` (required): the absolute scratchpad path and the plugin root whose `watch-mr.sh` and `seat-check.sh` the stages call, `<repoRoot>/plugins/toolkit` when the script launches from the toolkit checkout and the installed plugin root otherwise.
+- `scratchDir` and `pluginRoot` (required): the absolute scratchpad path and the plugin root whose `watch-mr.sh` and `seat-check.sh` the stages call, `<repoRoot>/plugins/toolkit` when the script launches from the toolkit checkout and otherwise the plugin root that the flow skill resolved from its base directory.
 - `paths` (required): a non-empty array of the repo-relative paths to stage.
 - `botAuthors` (optional): logins the user names to count as bots beside GitHub app authors. Each entry must be a host login: a letter or digit, then letters, digits, `.`, `_`, or `-`, with an optional `[bot]` suffix. When it is not empty, round 1 of the Threads phase waits for a review from these authors before the fetch, unless a fix was already pushed. Default `[]`.
 - `botLogins` (optional): the host's review bot logins from `~/.claude/toolkit-review-bots.json`, which the ship-flow skill passes on GitLab, where a note author carries no bot flag. Each entry must be a host login by the `botAuthors` rule. The fetch counts each one as a bot and the settle wait passes each one as a `--bot` flag, but a `botLogins` entry never starts the round-1 `threads:wait`, because a host-wide list does not say that the bot reviews this repo. Default `[]`.

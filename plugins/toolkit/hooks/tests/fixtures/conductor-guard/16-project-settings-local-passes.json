@@ -1,0 +1,7 @@
+{
+  "name": "conductor writing the project's own .claude/settings.local.json passes",
+  "stdin": { "session_id": "cg-16", "transcript_path": "/tmp/proj/session.jsonl", "cwd": "/repo", "tool_name": "Write", "tool_input": { "file_path": "/repo/.claude/settings.local.json" } },
+  "env": { "TOOLKIT_CONDUCTOR_EDITS": "0" },
+  "expect_exit": 0,
+  "expect_stdout_not_contains": ["permissionDecision"]
+}

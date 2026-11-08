@@ -3,6 +3,7 @@
 # shipped template defaults, then the user's ~/.claude/toolkit-models.json, then the plan-guide run options cache.
 # Model and effort are added per field, and a field the call already carries wins for that field only.
 # A bare name that a project or user agent file shadows gets nothing added, because that file's agent is the one spawned.
+# A shadowing agent is found by its frontmatter name, and a model that is not an Agent-tool alias is sent as the one family alias it names, or not at all.
 # Fails open: a missing jq, a missing hooks/lib, a resolver warning and a resolver failure each surface as a
 # systemMessage, and blank resolved fields add nothing. CLAUDE_CODE_SUBAGENT_MODEL_FORCE, when set, wins over the hook.
 # A partial updatedInput replaces tool_input wholesale and fails Agent-tool schema validation, so the emitted
@@ -22,9 +23,10 @@ NAME=$(printf '%s' "$INPUT" | jq -r '.tool_input.subagent_type // empty' 2>/dev/
 [ -n "${NAME#toolkit:}" ] || exit 0
 # A bare name that a project or user agent file shadows spawns that agent, which keeps its own frontmatter.
 if [ "$NAME" = "${NAME#toolkit:}" ]; then
+  . "$(dirname "${BASH_SOURCE[0]}")/lib/component-names.sh" 2>/dev/null || { printf '%s\n' '{"systemMessage":"toolkit agent-model: hooks/lib/component-names.sh not found, so the toolkit model config was not applied to this spawn"}'; exit 0; }
   CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
-  { [ -n "$CWD" ] && [ -f "$CWD/.claude/agents/$NAME.md" ]; } && exit 0
-  [ -f "$HOME/.claude/agents/$NAME.md" ] && exit 0
+  { [ -n "$CWD" ] && agent_names "$CWD/.claude/agents" | grep -qxF -- "$NAME"; } && exit 0
+  agent_names "$HOME/.claude/agents" | grep -qxF -- "$NAME" && exit 0
 fi
 NAME="${NAME#toolkit:}"
 
@@ -46,6 +48,16 @@ MODEL=$(printf '%s' "$RESOLVED" | jq -r --arg n "$NAME" '.agents[$n].model // ""
 EFFORT=$(printf '%s' "$RESOLVED" | jq -r --arg n "$NAME" '.agents[$n].effort // ""' 2>/dev/null)
 [ -n "$CALL_MODEL" ] && MODEL=""     # an explicit per-call field wins for that field only
 [ -n "$CALL_EFFORT" ] && EFFORT=""
+case "$MODEL" in
+  ''|sonnet|opus|haiku|fable) ;;
+  *)
+    FAMILY=$(printf '%s' "$MODEL" | grep -oE 'opus|sonnet|haiku|fable' | sort -u)
+    case "$FAMILY" in
+      opus|sonnet|haiku|fable) NOTE="[$NAME] model $MODEL is not an Agent-tool alias, sent as $FAMILY" ;;
+      *) NOTE="[$NAME] model $MODEL is not an Agent-tool alias and names no single model family, so no model was added"; FAMILY="" ;;
+    esac
+    MODEL="$FAMILY"; WARN="${WARN:+$WARN | }$NOTE" ;;
+esac
 
 printf '%s' "$INPUT" | jq -c --arg m "$MODEL" --arg e "$EFFORT" --arg sm "$WARN" '
   (.tool_input + (if $m != "" then {model: $m} else {} end) + (if $e != "" then {effort: $e} else {} end)) as $ti

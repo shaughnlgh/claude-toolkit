@@ -17,9 +17,9 @@ $ARGUMENTS
 
 ## What to do
 
-Resolve the installed plugin root, then run the override script:
+Run the override script from the plugin root:
 
-    PLUGIN_ROOT="$(jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json)"
+    PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
     bash "$PLUGIN_ROOT/scripts/override.sh" [type] [name]
 
 - **No name:** run it with no argument, show the grouped list, ask which one, then run again with the choice.

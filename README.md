@@ -108,6 +108,10 @@ After any update — auto or manual — run `/setup` to confirm you are current:
 
 `bash verify.sh` runs the mechanical acceptance battery (structure, manifest, hook fixtures, script guardrails, plan validator, topic recall, vault-fs containment, resolver, docs coverage) — free and fast. `bash functional-test.sh <mode>` adds live hermetic probes (real Claude calls, each in a throwaway workspace; `self-test` mode tests the harness itself for free) that prove rules injection, skill contract facts, and event-verified agent spawns against seeded fixtures. `VERIFY.md` documents what each layer proves and keeps the checklist for what only a real interactive session can show (interview loops, consent gates, live leaf-worker behavior, doctrine adherence, in-session hook enforcement).
 
+### Testing a branch
+
+`claude --plugin-dir <checkout>/plugins/toolkit` replaces the installed toolkit for that session, and hooks, skills, commands, and agents each resolve the plugin root from that copy. The global CLAUDE.md lines that `/setup` writes resolve the installed root only for calls outside a toolkit skill, command, or agent, and `/setup` offers the current lines to a user whose block predates them. The script allow rules match only the installed cache path, so a script call in such a session asks or goes to the classifier.
+
 ## Uninstall
 
 ```

@@ -19,6 +19,7 @@ if command -v jq >/dev/null 2>&1 && [ -n "$INPUT" ]; then
   SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 fi
 . "$(dirname "${BASH_SOURCE[0]}")/lib/session-scratchpad.sh" 2>/dev/null || SCRATCHPAD_LIB_MISSING=1
+. "$(dirname "${BASH_SOURCE[0]}")/lib/component-names.sh" 2>/dev/null || NAMES_LIB_MISSING=1
 VERBOSE="${TOOLKIT_SESSION_VERBOSE:-0}"
 CTX=""
 add() { [ -n "$CTX" ] && CTX="${CTX}
@@ -75,7 +76,7 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
     add "Toolkit write-time rules: 0/${NTOTAL} loaded (plugin rules unreadable or empty at ${CLAUDE_PLUGIN_ROOT}/rules) - proceeding without them."
   fi
   [ -f "${CLAUDE_PLUGIN_ROOT}/CLAUDE.md" ] && add "Toolkit doctrine: read the index at ${CLAUDE_PLUGIN_ROOT}/CLAUDE.md before multi-agent or planned work (binding essences plus per-section files; design rationale in README.md alongside). The subagent-rules hook injects the write-time rules into every worker at spawn. Doctrine sections still travel in delegation prompts per the worker handoff contract."
-  add "Toolkit standing rule (binds the conductor/main chat only): every file change is delegated to a worker agent, no matter how small, and the conductor-guard hook refuses a direct conductor edit unless TOOLKIT_CONDUCTOR_EDITS=1 is set for the whole session."
+  add "Toolkit standing rule (binds the conductor/main chat only): every file change is delegated to a worker agent, no matter how small, and the conductor-guard hook refuses a direct conductor edit unless TOOLKIT_CONDUCTOR_EDITS=1 is set for the session or in the project's .claude/settings.local.json env block."
   # Per-file doctrine overrides: a same-named file in ~/.claude/doctrine/ replaces the
   # plugin's copy for that concern. Detected here so it needs no pointer written anywhere.
   if [ -d "$HOME/.claude/doctrine" ]; then
@@ -90,17 +91,27 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
   [ -n "$RFALLBACK" ] && add "Rule override(s) empty or unreadable, plugin default used instead:${RFALLBACK}."
   [ -n "$RMISSING" ] && add "Rule file(s) unreadable, no override and no usable plugin default:${RMISSING}."
   [ -n "$RTRUNC" ] && add "Rule body(ies) exceeded the 64KB cap and were truncated to the first 64KB, rest omitted:${RTRUNC}."
-  # Agent/skill overrides: a same-named file/dir in ~/.claude/{agents,skills} shadows the
-  # plugin's (Claude Code resolves it natively for the bare name). Announced for visibility.
+  # Agent/skill overrides: a user agent whose frontmatter name matches a plugin agent's, or a personal skill whose
+  # directory name or frontmatter name matches a plugin skill's, shadows the plugin's for the bare name. Announced for visibility.
   ASOVR=""
-  for a in "$HOME"/.claude/agents/*.md; do
-    [ -f "$a" ] || continue; n=$(basename "$a" .md)
-    [ -f "${CLAUDE_PLUGIN_ROOT}/agents/${n}.md" ] && ASOVR="${ASOVR} agent:${n}"
-  done
-  for s in "$HOME"/.claude/skills/*/; do
-    [ -d "$s" ] || continue; n=$(basename "$s")
-    [ -d "${CLAUDE_PLUGIN_ROOT}/skills/${n}" ] && ASOVR="${ASOVR} skill:${n}"
-  done
+  if [ -n "${NAMES_LIB_MISSING:-}" ]; then
+    add "toolkit session-start: hooks/lib/component-names.sh not found, so agent and skill overrides were not checked."
+  else
+    USER_AGENTS=$(agent_names "$HOME/.claude/agents" | sort -u)
+    if [ -n "$USER_AGENTS" ]; then
+      PLUGIN_AGENTS=$(agent_names "${CLAUDE_PLUGIN_ROOT}/agents")
+      while IFS= read -r n; do
+        [ -n "$n" ] && printf '%s\n' "$PLUGIN_AGENTS" | grep -qxF -- "$n" && ASOVR="${ASOVR} agent:${n}"
+      done <<< "$USER_AGENTS"
+    fi
+    USER_SKILLS=$(skill_names "$HOME/.claude/skills" | sort -u)
+    if [ -n "$USER_SKILLS" ]; then
+      PLUGIN_SKILLS=$(skill_names "${CLAUDE_PLUGIN_ROOT}/skills")
+      while IFS= read -r n; do
+        [ -n "$n" ] && printf '%s\n' "$PLUGIN_SKILLS" | grep -qxF -- "$n" && ASOVR="${ASOVR} skill:${n}"
+      done <<< "$USER_SKILLS"
+    fi
+  fi
   [ -n "$ASOVR" ] && add "Agent/skill overrides active. Claude Code resolves your global version over the plugin's for the bare name (invoke bare, not toolkit:<name>):${ASOVR}."
 else
   if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then RULES_MISSING_PATH="${CLAUDE_PLUGIN_ROOT}/rules"; else RULES_MISSING_PATH="CLAUDE_PLUGIN_ROOT unset"; fi
@@ -126,7 +137,8 @@ fi
 
 # Auto mode check. Under auto mode every command no allow rule matches goes to the classifier,
 # which never sees the plan note's ceiling or the run options cache. Announce missing mutating git
-# rules, and an autoMode environment block that does not name this repo's remote host.
+# rules, an autoMode environment block that does not name this repo's remote host, and every
+# autoMode array without "$defaults", which replaces that section's built-in entries.
 AUTO_NOTE=""; AUTO_STATUS=""
 SETTINGS="$HOME/.claude/settings.json"
 if command -v jq >/dev/null 2>&1 && [ -f "$SETTINGS" ] && [ "$(jq -r '.permissions.defaultMode // empty' "$SETTINGS" 2>/dev/null)" = "auto" ]; then
@@ -148,11 +160,14 @@ if command -v jq >/dev/null 2>&1 && [ -f "$SETTINGS" ] && [ "$(jq -r '.permissio
   if [ -n "$ORIGIN_HOST" ] && jq -e '(.autoMode.environment // []) | length > 0' "$SETTINGS" >/dev/null 2>&1; then
     jq -e --arg h "$ORIGIN_HOST" '(.autoMode.environment // []) | map(select(type == "string" and contains($h))) | length > 0' "$SETTINGS" >/dev/null 2>&1 \
       || AUTO_NOTE="${AUTO_NOTE:+$AUTO_NOTE
-}The autoMode environment block in ~/.claude/settings.json does not name this repo's remote host (${ORIGIN_HOST}), so the classifier reads a push or MR here as a write to a foreign system. /setup check 6 offers a trusted-repos line."
+}The autoMode environment block in ~/.claude/settings.json does not name this repo's remote host (${ORIGIN_HOST}), so the classifier reads a push or MR here as a write to a foreign system. /setup check 6 offers a Source control entry for this host."
   fi
+  NODEF=$(jq -r '[("environment", "allow", "soft_deny", "hard_deny") as $k | select((.autoMode[$k] | type) == "array" and ((.autoMode[$k] | index("$defaults")) == null)) | $k] | join(" ")' "$SETTINGS" 2>/dev/null)
+  [ -n "$NODEF" ] && AUTO_NOTE="${AUTO_NOTE:+$AUTO_NOTE
+}"'autoMode arrays in ~/.claude/settings.json with no $defaults entry: '"$NODEF"'. Each one replaces Claude Code'"'"'s built-in entries for that section, future updates included, and an allow array without it turns off Git Push Destination and Session-Created Job Cleanup, so a push to this repo can be denied. /setup check 6 offers to add $defaults to each one.'
   if [ -n "$AUTO_NOTE" ]; then
     add "$AUTO_NOTE"
-    AUTO_STATUS="auto mode: git rules or trusted repos missing, run /setup"
+    AUTO_STATUS="auto mode: classifier settings incomplete, run /setup"
   fi
 fi
 
@@ -218,7 +233,7 @@ if [ "$SOURCE" = "compact" ]; then
   HANDOFF=""; SCRATCH=""; HANDOFFS=()
   if [ -n "${TOOLKIT_COMPACT_HANDOFF:-}" ]; then
     [ -f "$TOOLKIT_COMPACT_HANDOFF" ] && [ -r "$TOOLKIT_COMPACT_HANDOFF" ] && HANDOFF="$TOOLKIT_COMPACT_HANDOFF"
-  else
+  elif [ -z "${SCRATCHPAD_LIB_MISSING:-}" ]; then
     while IFS= read -r d; do
       [ -z "$SCRATCH" ] && SCRATCH="$d"
       [ -f "$d/compact-handoff.md" ] && [ -r "$d/compact-handoff.md" ] || continue

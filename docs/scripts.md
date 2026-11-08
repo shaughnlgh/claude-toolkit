@@ -2,14 +2,14 @@
 
 The toolkit ships a small set of scripts under `plugins/toolkit/scripts/`. Most are plain bash and stdlib-only Python with no dependencies. One is a vendored Node design-detector under `scripts/design-detector/` (the one piece of third-party code here — see below). Skills and the user invoke them directly rather than reimplementing the logic inline.
 
-All of them are called through the installed plugin root, resolved once and reused:
+All of them are called through the plugin root, resolved once and reused. A skill, command, or agent names the root of the copy Claude Code loaded, so a `claude --plugin-dir` session runs that copy's scripts. A shell outside them resolves the installed root:
 
 ```bash
 PLUGIN_ROOT="$(jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json)"
 bash "$PLUGIN_ROOT/scripts/<script>.sh" ...
 ```
 
-Each entry below assumes `$PLUGIN_ROOT` is already resolved this way.
+Each entry below assumes `$PLUGIN_ROOT` is already resolved.
 
 ## The set
 
@@ -175,7 +175,7 @@ Invoke:
 bash "$PLUGIN_ROOT/scripts/override.sh" [type] [name]
 ```
 
-With no arguments it lists everything overridable, grouped by type. With a name it auto-detects the type and copies it (doctrine/rules/agents as a single `.md`, a skill as its whole directory); with a `<type> <name>` pair it forces the type for an ambiguous name (`security` is both a doctrine and a rule). How each takes effect: doctrine and rules are picked up by the session-start hook (doctrine announced, a rule's body injected in place of the plugin's); agents and skills are resolved natively by Claude Code for the bare name. Guardrails: name only (no paths or `..`), refuses unknown or ambiguous names, and never clobbers an existing override. Self-locating, so it needs no config.
+With no arguments it lists everything overridable, grouped by type. With a name it auto-detects the type and copies it (doctrine/rules/agents as a single `.md`, a skill as its whole directory); with a `<type> <name>` pair it forces the type for an ambiguous name (`security` is both a doctrine and a rule). How each takes effect: doctrine and rules are picked up by the session-start hook (doctrine announced, a rule's body injected in place of the plugin's); agents and skills are resolved natively by Claude Code for the bare name. Guardrails: name only (no paths or `..`), refuses unknown or ambiguous names, and never clobbers an existing override. It also refuses an agent copy when a user agent under another file name already carries that frontmatter `name`, and a skill copy when a personal skill under another directory name already carries it, because Claude Code resolves each by that name. Self-locating, so it needs no config.
 
 ## merge-conflict-overview.py
 
@@ -252,7 +252,7 @@ Fields, by what each observably does: `vault_path` (per-machine, set during setu
 
 The default layer of per-agent model and effort routing. It is config, not an executable. `resolve-models.sh` reads it first, then the user file `~/.claude/toolkit-models.json`, then the plan note's run options. The result routes Agent-tool spawns through the `agent-model.sh` PreToolUse hook (see `docs/hooks.md`) and Workflow `agent()` calls through the runner scripts, without shadowing the agent files. The user file lists only the agents it re-routes, in the same shape, so later template defaults still reach every other agent.
 
-Fields: `agents` (one key per shipped agent name, each value a `{"model": ..., "effort": ...}` object; model is any Claude Code model alias or full model ID, effort is `low`, `medium`, `high`, `xhigh` or `max`; an empty string leaves the layers below in place; `haiku` is refused) and `_readme` (human guidance only, read by nothing). A user file value can also be a bare string, which sets the model only. An explicit per-call model or effort, or `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, wins over every layer.
+Fields: `agents` (one key per shipped agent name, each value a `{"model": ..., "effort": ...}` object; model is any Claude Code model alias or full model ID, and the Agent-tool path sends a full ID as the one family alias it names, effort is `low`, `medium`, `high`, `xhigh` or `max`; an empty string leaves the layers below in place; `haiku` is refused) and `_readme` (human guidance only, read by nothing). A user file value can also be a bare string, which sets the model only. An explicit per-call model or effort, or `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, wins over every layer.
 
 ## design-detector/
 
