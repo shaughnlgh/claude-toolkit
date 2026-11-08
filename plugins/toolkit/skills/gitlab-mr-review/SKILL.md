@@ -9,7 +9,7 @@ description: >-
 
 # GitLab MR Review
 
-Review a GitLab MR with the `review-mr` workflow (shipped with this plugin at `../../workflows/review-mr.js` relative to this skill's base directory), which merges the toolkit reviewer agents (`toolkit:code-reviewer`, `toolkit:security-reviewer`, `toolkit:silent-failure-hunter`, `toolkit:performance-reviewer`, `toolkit:pr-test-analyzer`, `toolkit:coupling-reviewer`) with MR-specific custom dimensions and an adversarial verify pass run by the `toolkit:verifier` agent. Each reviewer and the verifier run on the model and effort of their entries in the resolved `models` map, and a custom dimension inherits the session model. The main chat is the conductor: it prepares inputs, launches the workflow, adjudicates, and owns the final report.
+Review a GitLab MR with the `review-mr` workflow (shipped with this plugin at `../../workflows/review-mr.js` relative to this skill's base directory), which merges the toolkit reviewer agents (`toolkit:code-reviewer`, `toolkit:security-reviewer`, `toolkit:silent-failure-hunter`, `toolkit:performance-reviewer`, `toolkit:pr-test-analyzer`, `toolkit:coupling-reviewer`) with MR-specific custom dimensions and an adversarial verify pass run by the `toolkit:verifier` agent. Each registry reviewer and the verifier run on the model and effort of their entries in the resolved `models` map, and a custom dimension takes the `code-reviewer` entry. The main chat is the conductor: it prepares inputs, launches the workflow, adjudicates, and owns the final report.
 
 ## 1. Fetch the MR
 
