@@ -72,6 +72,11 @@ job() { printf '{"name":"%s","stage":"%s","status":"%s","allow_failure":%s}' "$1
 note() { printf '{"system":%s,"created_at":"%s","author":{"username":"%s","bot":%s},"body":"%s"}' "$1" "$2" "$3" "$4" "${5:-}"; }
 ghuser() { printf '{"login":"%s","type":"%s"}' "$1" "$2"; }
 ghcomment() { printf '{"user":%s,"body":"%s"}' "$(ghuser "$1" "$2")" "$3"; }
+ghreview() { printf '{"commit_id":"%s","user":%s,"body":"%s"}' "$1" "$(ghuser "$2" Bot)" "$3"; }
+COPILOT='copilot-pull-request-reviewer[bot]'
+QUOTA='Copilot was unable to review this pull request because the user who requested the review has insufficient remaining quota.'
+ERRORED='Copilot encountered an error and was unable to review this pull request.\nYou can try again by re-requesting a review.'
+NOFILES="Copilot wasn't able to review any files in this pull request."
 # The live CodeRabbit summary comment carries this marker line while a review runs.
 BUSY='<!-- This is an auto-generated comment: review in progress by coderabbit.ai -->\n\nCurrently processing new changes in this PR.'
 DONE='<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n\nWalkthrough.'
@@ -86,6 +91,7 @@ new; CASE="$C" PATH="$W/bin" "$BASH" "$WATCH" "${GH[@]}" pipeline --sha "$SHA" -
 new; expect_err "non-numeric bound exits 2" 2 "bad duration" "${GH[@]}" pipeline --sha "$SHA" --bound ten
 new; expect_err "a non-hex sha exits 2" 2 "bad sha" "${GH[@]}" pipeline --sha zzzzzzz
 new; expect_err "a remotePath with a space exits 2" 2 "bad remotePath" github "o/r r" 7 pipeline --sha "$SHA"
+new; expect_err "--none outside pipeline mode exits 2" 2 "--none applies to pipeline mode only" "${GH[@]}" review --sha "$SHA" --none 2
 
 echo "== gitlab pipeline =="
 new; fx mr "$(glmr success)"
@@ -98,6 +104,8 @@ new; fx mr.1 "$(glmr skipped)"; fx mr "$(glmr success)"
 expect "skipped is NONE on the first round" 13 "NONE $SHA" "${GL[@]}" pipeline --sha "$SHA" --interval 1 --bound 30s
 new; fx mr "{\"sha\":\"$SHA\",\"head_pipeline\":null}"
 expect "no pipeline is NONE at the bound" 13 "NONE $SHA" "${GL[@]}" pipeline --sha "$SHA" --interval 1 --bound 2s
+new; fx mr.1 "{\"sha\":\"$SHA\",\"head_pipeline\":null}"; fx mr "$(glmr success)"
+expect "a pipeline that appears inside the --none window is watched to GREEN" 0 "GREEN $SHA" "${GL[@]}" pipeline --sha "$SHA" --interval 1 --none 3s --bound 30s
 new; fx mr.1 "$(glmr running)"; fx mr "$(glmr success)"; fx jobs "[$(job unit test running)]"
 expect "running then success is GREEN" 0 "GREEN $SHA" "${GL[@]}" pipeline --sha "$SHA" --interval 1 --bound 30s
 new; fx mr "$(glmr running)"; fx jobs "[$(job unit test success),$(job lint test skipped),$(job coderabbit external running)]"
@@ -145,6 +153,12 @@ new; fx head "{\"headRefOid\":\"$SHA\"}"; fx checks.err "no checks reported on t
 expect "no checks reported is NONE at the bound" 13 "NONE $SHA" "${GH[@]}" pipeline --sha "$SHA" --interval 1 --bound 2s
 new; fx head "{\"headRefOid\":\"$SHA\"}"; fx checks '[]'
 expect "an empty checks list is NONE at the bound" 13 "NONE $SHA" "${GH[@]}" pipeline --sha "$SHA" --interval 1 --bound 2s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx checks.1 '[]'; fx checks '[{"name":"ci","bucket":"pass"}]'
+expect "a check that appears inside the --none window is watched to GREEN" 0 "GREEN $SHA" "${GH[@]}" pipeline --sha "$SHA" --interval 1 --none 3s --bound 30s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx checks.1 '[]'; fx checks.2 '[]'; fx checks.3 '[]'; fx checks '[{"name":"ci","bucket":"pass"}]'
+expect "no checks is NONE once --none passes, before a later check" 13 "NONE $SHA" "${GH[@]}" pipeline --sha "$SHA" --interval 1 --none 2s --bound 30s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx checks '[{"name":"ci","bucket":"pending"}]'; fx runs '[{"status":"in_progress","conclusion":""}]'
+expect "a pending check seen before --none runs on to BOUND" 12 "BOUND $SHA 0" "${GH[@]}" pipeline --sha "$SHA" --interval 1 --none 1s --bound 3s
 
 echo "== gitlab threads =="
 new; expect_err "gitlab threads without --bot exits 2" 2 "gitlab threads needs --bot" "${GL[@]}" threads --sha "$SHA" --interval 1
@@ -182,6 +196,22 @@ new; fx head "{\"headRefOid\":\"$SHA\"}"; fx reviews "[{\"commit_id\":\"1111111\
 expect "a review whose commit_id is the literal short sha is not landed" 12 "BOUND 1111111 0" "${GH[@]}" threads --sha 1111111 --interval 1 --bound 2s
 new; fx head.1 "{\"headRefOid\":\"$SHA\"}"; fx head "{\"headRefOid\":\"$ALT\"}"; fx reviews '[]'
 expect "a new head sharing the short prefix in round two is MOVED" 14 "MOVED 1111111 $ALT" "${GH[@]}" threads --sha 1111111 --interval 1 --bound 30s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx reviews.1 "[$(ghreview "$SHA" "$COPILOT" "$QUOTA")]"; fx reviews "[$(ghreview "$SHA" "$COPILOT" "$QUOTA"),$(ghreview "$SHA" "$COPILOT" Overview.)]"
+expect "a refusal from the only listed bot is UNREVIEWED in round one" 16 "UNREVIEWED $SHA $COPILOT $QUOTA" "${GH[@]}" threads --sha "$SHA" --interval 1 --bound 30s --bot copilot-pull-request-reviewer
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx reviews.1 "[$(ghreview "$SHA" "$COPILOT" "$QUOTA")]"; fx reviews "[$(ghreview "$SHA" "$COPILOT" "$QUOTA"),$(ghreview "$SHA" 'coderabbitai[bot]' Walkthrough.)]"
+expect "a refusal from one listed bot waits for the other listed bot's review in a later round" 0 "LANDED $SHA coderabbitai[bot]" "${GH[@]}" threads --sha "$SHA" --interval 1 --bound 30s --bot copilot-pull-request-reviewer --bot coderabbitai
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx reviews "[$(ghreview "$SHA" "$COPILOT" "$QUOTA")]"
+expect "a refusal from one of two listed bots is UNREVIEWED at the bound" 16 "UNREVIEWED $SHA $COPILOT $QUOTA" "${GH[@]}" threads --sha "$SHA" --interval 1 --bound 3s --bot copilot-pull-request-reviewer --bot coderabbitai
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx reviews "[$(ghreview "$SHA" "$COPILOT" "$ERRORED")]"
+expect "a refusal with no --bot is UNREVIEWED at the bound with its text cut after the refusal sentence" 16 "UNREVIEWED $SHA $COPILOT Copilot encountered an error and was unable to review this pull request." "${GH[@]}" threads --sha "$SHA" --interval 1 --bound 2s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx reviews "[$(ghreview "$SHA" "$COPILOT" "## Pull request overview\\nThis PR treats a review that says Copilot was unable to review this pull request as no review.")]"
+expect "a real review that quotes the refusal wording past its opening is LANDED" 0 "LANDED $SHA $COPILOT" "${GH[@]}" threads --sha "$SHA" --interval 1 --bound 30s --bot copilot-pull-request-reviewer
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx reviews "[$(ghreview "$SHA" "$COPILOT" "$QUOTA"),$(ghreview "$SHA" 'coderabbitai[bot]' Walkthrough.)]"
+expect "a real bot review after a refusal on the sha is LANDED" 0 "LANDED $SHA coderabbitai[bot]" "${GH[@]}" threads --sha "$SHA" --interval 1 --bound 30s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx reviews "[$(ghreview "$NEW" "$COPILOT" "$QUOTA")]"
+expect "a refusal on another sha is BOUND" 12 "BOUND $SHA 0" "${GH[@]}" threads --sha "$SHA" --interval 1 --bound 2s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx reviews "[$(ghreview "$SHA" "$COPILOT" "$QUOTA")]"
+expect "a refusal by an unlisted bot under --bot is BOUND" 12 "BOUND $SHA 0" "${GH[@]}" threads --sha "$SHA" --interval 1 --bound 2s --bot coderabbitai
 
 echo "== github review =="
 new; fx head "{\"headRefOid\":\"$SHA\"}"; fx comments "[$(ghcomment 'coderabbitai[bot]' Bot "$BUSY")]"; fx reviews '[]'
@@ -206,6 +236,15 @@ expect "a marker after a quiet poll restarts the settle window" 0 "LANDED $SHA c
 new; fx head "{\"headRefOid\":\"$NEW\"}"; fx comments '[]'; fx reviews '[]'
 expect "a moved head in review mode is MOVED" 14 "MOVED $SHA $NEW" "${GH[@]}" review --sha "$SHA" --interval 1 --bound 30s
 new; expect_err "a bad --settle exits 2" 2 "bad duration" "${GH[@]}" review --sha "$SHA" --settle soon
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx comments '[]'; fx reviews "[$(ghreview "$SHA" "$COPILOT" "$NOFILES")]"
+expect "a refusal with no marker is UNREVIEWED after the settle window" 16 "UNREVIEWED $SHA $COPILOT $NOFILES" "${GH[@]}" review --sha "$SHA" --interval 1 --settle 2s --bound 30s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx comments '[]'; fx reviews.1 "[$(ghreview "$SHA" "$COPILOT" "$QUOTA")]"; fx reviews.2 "[$(ghreview "$SHA" "$COPILOT" "$QUOTA")]"
+fx reviews "[$(ghreview "$SHA" "$COPILOT" "$QUOTA"),$(ghreview "$SHA" 'coderabbitai[bot]' Walkthrough.)]"
+expect "a real review that lands inside the settle window after a refusal is LANDED" 0 "LANDED $SHA coderabbitai[bot]" "${GH[@]}" review --sha "$SHA" --interval 1 --settle 3s --bound 30s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx comments "[$(ghcomment 'coderabbitai[bot]' Bot "$BUSY")]"; fx reviews "[$(ghreview "$SHA" "$COPILOT" "$QUOTA")]"
+expect "a marker beside a refusal keeps the wait busy until BOUND" 12 "BOUND $SHA 0" "${GH[@]}" review --sha "$SHA" --interval 1 --settle 1s --bound 3s
+new; fx head "{\"headRefOid\":\"$SHA\"}"; fx comments.1 '[]'; fx comments "[$(ghcomment 'coderabbitai[bot]' Bot "$BUSY")]"; fx reviews "[$(ghreview "$SHA" "$COPILOT" "$QUOTA")]"
+expect "a refusal read in a quiet round does not survive a later busy round to the bound" 12 "BOUND $SHA 0" "${GH[@]}" review --sha "$SHA" --interval 1 --settle 3s --bound 4s
 
 echo "== gitlab review =="
 new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T10:30:00.000Z coderabbitai false "$BUSY")]"
