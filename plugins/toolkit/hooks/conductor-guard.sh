@@ -5,9 +5,11 @@
 # (cwd), and the refusal reason tells the model to route the edit to a worker.
 # Subagent edits pass untouched. Conductor-owned artifacts always pass: any path under
 # ~/.claude/, under the vault_path in ~/.claude/obsidian-sync.json, or under the
-# /tmp/claude-*/ (or /private/tmp/claude-*/) scratchpad, as do other paths outside cwd.
-# TOOLKIT_CONDUCTOR_EDITS=1 is the human's override and disables the guard for the
-# session. Fails open without jq.
+# /tmp/claude-*/ (or /private/tmp/claude-*/) scratchpad, the project's own
+# <cwd>/.claude/settings.local.json, and other paths outside cwd.
+# TOOLKIT_CONDUCTOR_EDITS=1 is the human's override and disables the guard, set for one
+# session from the shell or for one project in the env block of that settings.local.json.
+# Fails open without jq.
 # Subagent detection rests on the documented agent_id payload field (transcript-path
 # fallback), a Claude Code version dependency; if worker edits start being refused,
 # that signal changed.
@@ -42,6 +44,8 @@ esac
 # Strip trailing slashes so "/repo/" and "/" compare correctly. An empty or root cwd
 # then yields the pattern "/*", so an abnormal payload guards every absolute path.
 while [ "$CWD" != "${CWD%/}" ]; do CWD="${CWD%/}"; done
+# The project's personal settings file is the human's own config, and protect-files.sh asks before any write to it.
+[ -n "$CWD" ] && [ "$FP" = "$CWD/.claude/settings.local.json" ] && exit 0
 GUARD=0
 case "$FP" in
   "$CWD"/*) GUARD=1 ;;
@@ -50,5 +54,5 @@ case "$FP" in
 esac
 [ "$GUARD" = "1" ] || exit 0
 
-jq -n '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Conductor guard: the main conversation tried to edit a project file directly. Toolkit doctrine (orchestration.md) delegates every change, however small, to a worker agent: route this edit to toolkit:implementer or to the worker already on the job. The human can allow direct conductor edits for a session with TOOLKIT_CONDUCTOR_EDITS=1."}}'
+jq -n '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Conductor guard: the main conversation tried to edit a project file directly. Toolkit doctrine (orchestration.md) delegates every change, however small, to a worker agent: route this edit to toolkit:implementer or to the worker already on the job. The human can allow direct conductor edits with TOOLKIT_CONDUCTOR_EDITS=1, for one session or, through /setup check 10, for one project."}}'
 exit 0
