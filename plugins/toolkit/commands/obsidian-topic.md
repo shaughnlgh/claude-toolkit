@@ -7,6 +7,8 @@ argument-hint: <topic name> [repo hint]
 
 Create or update a topic's canonical knowledge: in the vault, or — per Repo mode below — in the project repo when the topic qualifies. This file is the single source of truth for topic notes and repo-mode context docs alike (mode choice, location, frontmatter, structure, content rules, freshness, and the build/update process) — the plan-guide skill and CLAUDE.md point here.
 
+`<plugin-root>` in this file is `${CLAUDE_PLUGIN_ROOT}` when this file runs as `/toolkit:obsidian-topic`, and the directory above the `commands/` directory that holds this file when a skill reads it.
+
 ## Usage
 
 $ARGUMENTS
@@ -153,7 +155,7 @@ The conductor delegates one `implementer` worker with this brief, verbatim apart
 >
 > Known evidence: the cumulative diff at [diff path], the touched files [list], the Topic note material returns from this slice [pasted], and the recall hits [pasted].
 >
-> Task-specific constraints. Resolve the plugin root with `jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json`. Before your first write, read these files under that root: `commands/obsidian-topic.md`, `doctrine/security.md`, `doctrine/repo-artifacts.md`, and the usage header of `scripts/vault-fs.sh`.
+> Task-specific constraints. The plugin root is [plugin root]. Before your first write, read these files under that root: `commands/obsidian-topic.md`, `doctrine/security.md`, `doctrine/repo-artifacts.md`, and the usage header of `scripts/vault-fs.sh`.
 >
 > Routing: before any write, classify each durable fact. Class (a) is shareable engineering knowledge about this repo. Class (b) is cross-repo, not about any repo, or personal workflow. A class (a) fact routes only to a `docs/context/` doc that carries the `<!-- managed-by: toolkit -->` marker: an existing one that covers the subject, else a new `docs/context/context-<kebab>.md`. Never route a fact into a hand-written repo doc. If a hand-written repo doc covers the subject, name it as the related doc on the proposal. A class (b) fact routes to the vault topic note. If a vault note carries the repo-mode banner, route its new facts to the doc the banner names, never into the note.
 >
@@ -214,7 +216,7 @@ Search the vault for an existing note with that basename: project dirs under `<r
 - Follow the Structure, Content rules, and writing style above (plain sentences, no em dashes or semicolons as splitters, no version pins, distilled facts).
 - `source_refs`: repo-relative module roots and doc URLs only.
 - On create, set `created`, `updated`, and `verified` to the creation date (the evidence-gathering process above is a verification). On update, bump `updated` always; set `verified` only when the note's facts were actually checked this session (see Freshness and validation).
-- Use atomic writes: Write to a `.tmp.md` file beside the destination, then the toolkit's `vault-fs.sh mv`, in the `scripts/` directory at the plugin root (locate the plugin root via the installed cache path shown by /setup, or ../scripts relative to this commands/ directory).
+- Use atomic writes: Write to a `.tmp.md` file beside the destination, then `bash <plugin-root>/scripts/vault-fs.sh mv`.
 
 ### 6. Maintain the link graph
 
