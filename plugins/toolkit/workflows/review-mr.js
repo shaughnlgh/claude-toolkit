@@ -22,7 +22,8 @@ export const meta = {
 // repoState (optional) sentence describing the state of the tree at repoRoot, substituted into
 //   the reviewer and verifier prompts; defaults to the current MR target-branch sentence.
 // models (optional) the resolver's agents object keyed by short agent name (e.g. 'verifier'),
-//   each {model, effort}; a blank value and a missing entry inherit the session.
+//   each {model, effort}; a custom dimension takes the 'code-reviewer' entry, and a blank value
+//   and a missing entry inherit the session.
 
 // The harness may deliver args as a JSON string rather than a parsed object.
 let a = args
@@ -184,7 +185,7 @@ const results = await pipeline(
     phase: 'Review',
     schema: FINDINGS_SCHEMA,
     ...(d.agentType ? { agentType: d.agentType } : {}),
-    ...modelOpts((d.agentType || '').replace(/^toolkit:/, '')),
+    ...modelOpts(d.agentType ? d.agentType.replace(/^toolkit:/, '') : 'code-reviewer'),
   }),
   async (review, d) => {
     if (!review) return null
