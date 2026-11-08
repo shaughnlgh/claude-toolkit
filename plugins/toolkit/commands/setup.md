@@ -152,6 +152,18 @@ Run `bash <plugin-root>/scripts/resolve-models.sh` and read `~/.claude/toolkit-m
 
 The resolver output routes both spawn paths: the `agent-model.sh` hook on Agent-tool spawns and the `models` arg of the workflow runner scripts. Copying an agent under `~/.claude/agents/` is not needed for a model change, and doing so would freeze that agent's future updates instead.
 
+### 9. Review bot logins (ship flow on GitLab, optional)
+
+GitLab's note author carries no bot flag, so the ship flow counts a GitLab thread as a bot thread only when the host lists its author. The file is `~/.claude/toolkit-review-bots.json`, one array of logins per GitLab host. The ship flow looks an entry up by the host name in a repo's `origin` remote URL, after any user part and before any `:<port>`, so key each entry by that name. It matches the glab host from check 3 unless the remote uses an SSH config alias, and then the alias is the key:
+
+    {
+      "gitlab.example.com": ["review-bot"]
+    }
+
+- No authenticated GitLab host in check 3: report `no GitLab host` and ask nothing.
+- Otherwise, missing, or a GitLab host from check 3 has no entry: say that the ship flow treats every review thread on that host as a human thread and refuses the merge while one is open. Ask for the login each review bot posts as on that host, which is the author username on any note the bot left on an MR. Show the full file and write it only on an explicit yes, merged into any existing object.
+- Present: check that it parses as a JSON object whose values are arrays of logins matching `^[A-Za-z0-9][A-Za-z0-9._-]*(\[bot\])?$`. Flag any other entry, because the ship flow drops it.
+
 ## Readiness report
 
 End with a table:
@@ -169,6 +181,7 @@ End with a table:
 | Auto mode git rules + trusted repos | not auto / configured / offered / declined | check 6 |
 | Local conflicts | none / N found | migration (check 7) |
 | Worker model routing | default (template) / configured / needs fix | check 8 |
+| Ship flow bot threads on GitLab | configured / not configured / no GitLab host | check 9 |
 
 One line of verdict at the end: fully ready, or the single next action to get there.
 

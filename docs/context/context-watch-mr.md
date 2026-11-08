@@ -25,7 +25,7 @@ source_refs:
 - CodeRabbit edits one summary issue comment in place. That comment carries `<!-- This is an auto-generated comment: review in progress by coderabbit.ai -->` only while a review runs, and other markers, such as `summarize`, at other times, so review mode reads the marker text, never the comment's presence.
 - A finished CodeRabbit review on GitHub is a PR review whose `commit_id` is the head commit, so review mode lands it the way threads mode does.
 - GitLab threads mode never lands a note that carries the in-progress marker, because the first bot note after the anchor can be the in-progress note.
-- CodeRabbit posts on GitLab as the user that owns its token, a service account the installer names or a group access token bot with a generated username, and the note's author object says neither. GitLab review mode without `--bot` therefore counts the marker from any author, and a plain note that quotes the marker holds every wait busy until the bound. A GitLab ship run that uses CodeRabbit must name its login in `botAuthors`.
+- CodeRabbit posts on GitLab as the user that owns its token, a service account the installer names or a group access token bot with a generated username, and the note's author object says neither. GitLab review mode without `--bot` therefore counts the marker from any author, and a plain note that quotes the marker holds every wait busy until the bound. A GitLab ship run that uses CodeRabbit names its login through the ask's `botAuthors` or through the host's entry in `~/.claude/toolkit-review-bots.json`, which the ship flow passes as `botLogins`.
 - `glab` resolves the GitLab host from the git remote of the working directory, else from its default host, so a caller runs the script from the repo.
 
 ## Head matching
