@@ -15,13 +15,14 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved this way.
 
 | Script | What it does | Guardrails |
 |---|---|---|
-| `vault-fs.sh` | Atomic vault file ops — `rm`, `mv` | Refuses absolute paths, `..` traversal, symlink escape from the vault (canonical containment), non-regular-file targets, missing sources, unknown subcommands |
+| `vault-fs.sh` | Vault file ops `rm` and `mv`, and vault reads `sha256` and `index` | Refuses absolute paths, `..` traversal, symlink escape from the vault (canonical containment), non-regular-file targets, missing sources, unknown subcommands |
 | `git-ro.sh` | Read-only git in any directory — `status`, `diff`, `log`, `show` | Subcommand allowlist; refuses write options (`--output`/`-o`/`--ext-diff`); neutralizes pager, fsmonitor, ext-diff and textconv (the execute-on-read vectors) |
 | `seat-check.sh` | Reports which live Claude sessions hold a repo's main checkout, with its branch and dirty count | Read-only; never writes a file; reads sessions through `claude agents --json`; needs only `jq` and `git` |
 | `watch-mr.sh` | Waits on one GitLab MR or GitHub PR until its pipeline settles, a bot review lands, or a bot review in progress ends, then prints one status line | Reads only, through `gh` and `glab`, which hold their own auth; never reads or prints a token; validates every argument; exits on a wall-clock bound |
 | `override.sh` | Copy a plugin doctrine, rule, agent, or skill into `~/.claude/` to override it (drives `/override`) | Name only (no paths); refuses unknown/ambiguous names; won't clobber an existing override |
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
 | `validate-plan.py` | Validates a plan note against the plan-guide contract | Read-only — never edits the note; no network, no config, stdlib only |
+| `plan-index.py` | Indexes a plan note for the execute runner: its sha256, the line of every section heading, and each step's heading and start line | Read-only, stdlib only, prints one JSON object with no section text, exits 1 on a file that is not UTF-8 |
 | `topic-recall.py` | Lexical topic search over the vault index, with a frontmatter fallback and an optional repo `docs/` source | Read-only against the vault and the repo, stdlib only, skips symlinks and non-regular files, INDEX.md included, reads at most 64 KiB of each scanned note or doc, stops at a 3-second deadline |
 | `obsidian-sync.json.template` | Vault config template `setup` instantiates to `~/.claude/obsidian-sync.json` | n/a — config, not an executable |
 | `resolve-models.sh` | Resolves each shipped agent's model and effort from the template, the user file, and the plan note's run options, and prints one JSON map | Read-only; never writes a file; refuses Haiku and invalid values with a stderr warning; needs only `jq` |
@@ -37,7 +38,11 @@ Invoke:
 ```bash
 bash "$PLUGIN_ROOT/scripts/vault-fs.sh" rm <relpath>
 bash "$PLUGIN_ROOT/scripts/vault-fs.sh" mv <relpath-src> <relpath-dst>
+bash "$PLUGIN_ROOT/scripts/vault-fs.sh" sha256 <relpath>
+bash "$PLUGIN_ROOT/scripts/vault-fs.sh" index <relpath>
 ```
+
+`vault-fs.sh sha256` prints the sha256 of a vault file, and `vault-fs.sh index` runs `plan-index.py` on a vault plan note and prints the index the execute runner reads ([workflows.md](workflows.md#execute-runnerjs)). Both take one vault-relative path and apply the containment and regular-file checks that `rm` applies.
 
 The vault root is resolved from `~/.claude/obsidian-sync.json` (`vault_path` + `root_folder` — see the template below). If that file is missing or the resolved root doesn't exist as a directory, the script refuses outright.
 
@@ -49,9 +54,9 @@ Guardrails — this is the point of the script:
 - **Unknown subcommands are refused**, not silently ignored.
 - Every path refusal (traversal, containment, directory ops, missing source, missing destination directory, non-regular file, dangling symlink destination) names the resolved vault root and the expected relative form (`Projects/<repo>/...`). The unknown-subcommand refusal is the one exception; it carries no hint.
 
-What it does NOT provide, deliberately: directory creation, locking or concurrency control, content/frontmatter validation, or a general filesystem sandbox beyond these two operations.
+What it does NOT provide, deliberately: directory creation, locking or concurrency control, content/frontmatter validation, or a general filesystem sandbox beyond these operations.
 
-Tests: `bash plugins/toolkit/scripts/tests/vault-fs/run-tests.sh` (19 behavior cases in a temporary vault; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/vault-fs/run-tests.sh` (25 behavior cases in a temporary vault; also run by `verify.sh`).
 
 ## git-ro.sh
 

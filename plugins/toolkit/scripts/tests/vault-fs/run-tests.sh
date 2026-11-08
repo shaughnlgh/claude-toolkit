@@ -118,6 +118,36 @@ out="$(run mv 'Projects/src18.md' 'NoSuchDir/dest18.md')"; rc=$?
 out="$(run rm 'escape/target.md')"; rc=$?
 [ $rc -ne 0 ] && case "$out" in *"vault root: $VREAL"*"Projects/<repo>/"*) ok "19 outside-vault symlink refusal names root";; *) no "19 outside-vault symlink refusal names root" "$out";; esac || no "19 outside-vault symlink refusal names root" "rc=0"
 
+# 20. sha256 prints the sha256 of a vault note
+printf 'plan body\n' > "$V/Projects/plan - a.md"
+out="$(run sha256 'Projects/plan - a.md')"; rc=$?
+want="$(python3 -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$V/Projects/plan - a.md")"
+[ $rc -eq 0 ] && [ "$out" = "$want" ] && ok "20 sha256 of a vault note" || no "20 sha256 of a vault note" "rc=$rc $out"
+
+# 21. sha256 refuses an absolute path
+out="$(run sha256 "$V/Projects/plan - a.md")"; rc=$?
+[ $rc -eq 1 ] && case "$out" in refused:*) ok "21 sha256 absolute path refused";; *) no "21 sha256 absolute path refused" "$out";; esac || no "21 sha256 absolute path refused" "rc=$rc"
+
+# 22. sha256 refuses a directory
+out="$(run sha256 'Projects/demo dir')"; rc=$?
+[ $rc -eq 1 ] && case "$out" in refused:*) ok "22 sha256 directory refused";; *) no "22 sha256 directory refused" "$out";; esac || no "22 sha256 directory refused" "rc=$rc"
+
+# 23. index prints the plan index, whose sha256 equals the sha256 subcommand's
+printf '## Objective\n\nShip it.\n\n## Implementation Steps\n\n1. One.\n2. Two.\n' > "$V/Projects/plan - b.md"
+got="$(run index 'Projects/plan - b.md' | python3 -c 'import json, sys; d = json.load(sys.stdin); print(d["sha256"], d["sections"][1]["line"], [s["line"] for s in d["implementationSteps"]])')"
+[ "$got" = "$(run sha256 'Projects/plan - b.md') 5 [7, 8]" ] && ok "23 index of a vault plan note" || no "23 index of a vault plan note" "$got"
+
+# 24. index refuses a symlink inside the vault that resolves outside it
+printf '## Objective\n' > "$BASE/outside/plan - out.md"
+ln -s "$BASE/outside/plan - out.md" "$V/Projects/plan - link.md"
+out="$(run index 'Projects/plan - link.md')"; rc=$?
+[ $rc -eq 1 ] && case "$out" in refused:*) ok "24 index outside symlink refused";; *) no "24 index outside symlink refused" "$out";; esac || no "24 index outside symlink refused" "rc=$rc"
+
+# 25. index of a note that is not UTF-8 exits 1 with a plan-index line
+printf '## Objective\n\xff\n' > "$V/Projects/plan - bad.md"
+out="$(run index 'Projects/plan - bad.md')"; rc=$?
+[ $rc -eq 1 ] && case "$out" in plan-index:*) ok "25 index of a non-UTF-8 note fails";; *) no "25 index of a non-UTF-8 note fails" "$out";; esac || no "25 index of a non-UTF-8 note fails" "rc=$rc"
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
