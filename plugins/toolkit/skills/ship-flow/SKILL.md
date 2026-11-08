@@ -89,7 +89,8 @@ Print the preview in chat and ask nothing, because the note's recorded `ceiling`
 - the commit message, the MR title, and the MR body.
 - each path in `paths` on its own line.
 - the ceiling and `startAt`.
-- the `botAuthors` list, empty unless the user names bot logins. GitHub app authors and GitLab bot users count as bots without the list.
+- the `botAuthors` list, empty unless the user names bot logins, the `botLogins` list from section 7, and each login section 7 dropped. GitHub app authors count as bots without either list. On GitLab only a listed login counts as a bot, because the note author carries no bot flag.
+- the `nits` value. Under `skip`, say that a bot thread that asks only for a cosmetic change stays open and that an open thread refuses the merge.
 - when the ceiling is `mr` or higher, the fix templates:
   - the pipeline fix message template `fix(ci): <failing check> (ship-flow)`, bounded at `maxFixRounds` commits, default 1.
   - the review fix message template `fix(review): <thread summary> (ship-flow)`, bounded at one commit per fixable bot thread.
@@ -115,7 +116,10 @@ Build the args:
 - `host`, `remotePath`, `defaultBranch`, `branch`, `startAt`, `recordedSha`, `mr`, `mergedSha`: from section 3. Pass `mr` only when `startAt` is `merge` or `release`, and `mergedSha` only when `startAt` is `release`.
 - `commitMessage`, `mrTitle`, `mrBody`, `paths`: from section 4.
 - `ceiling`: the note's value from section 2, or `mr` when the section 5 seat cap applies. `tag`: the note's `tag_merge` value from section 2 as a boolean, `false` when the key is absent.
-- `botAuthors`: the logins the user's ask names, else `[]`. `maxFixRounds`: 1 unless the ask names another bound. `maxThreadRounds`: 3.
+- `nits`: the note's value from section 2.
+- `botAuthors`: the logins the user's ask names, else `[]`.
+- `botLogins`: on GitLab, the logins listed under the remote's host name, the leading segment of the section 3 `Repo:` line with any `:<port>` suffix removed, in `~/.claude/toolkit-review-bots.json`, read with the Read tool. A missing file, a file that does not parse, or no entry for the host gives `[]`. Drop each login that does not match `^[A-Za-z0-9][A-Za-z0-9._-]*(\[bot\])?$`. On GitHub pass none, because GitHub marks app authors itself.
+- `maxFixRounds`: 1 unless the ask names another bound. `maxThreadRounds`: 3.
 - `seatSha`: from section 5, only when a `Seat run passed:` line lifted the cap.
 - `tagName`, `tagMessage`: from section 3, only when `ceiling` is `merge` and `tag` is true.
 - `knownShas`: the shipping record's commit sha (`recordedSha`) plus every fix sha that Plan Changes During Execution records from an earlier ship-flow run and every sha on a `Seat run reviewed:` line, or an empty list.
@@ -143,11 +147,11 @@ The runner ends its run at its nine-minute watch bound, because a blocking call 
 
 Run section 8 for the returned result before starting the watcher, so the plan note is right if the session ends during the wait.
 
-Start the watcher with the Bash tool and `run_in_background: true`. For the pending sentence, run `bash <pluginRoot>/scripts/watch-mr.sh <host> <remotePath> <number> pipeline --sha <sha> --bound 180`. For the no-review sentence, run `bash <pluginRoot>/scripts/watch-mr.sh <host> <remotePath> <number> threads --sha <sha> --bound 180` with one `--bot "<login>"` per `botAuthors` entry. For the in-progress sentence, run `bash <pluginRoot>/scripts/watch-mr.sh <host> <remotePath> <number> review --sha <sha> --bound 180` with one `--bot "<login>"` per `botAuthors` entry. `<pluginRoot>` is the `pluginRoot` arg section 7 passed, so the watcher runs the same `watch-mr.sh` as the runner. `<number>` is `mr.number` and `<sha>` is the sha in the sentence. The watcher runs from the repo's working directory, which a ship-flow session already uses, and `glab` reads the GitLab host from the git remote there. Say in one chat line what the watcher waits for and that the run resumes on its own when the watcher exits, then end the turn. The harness wakes the conductor when the command exits. Never poll, never spawn an agent to wait, and never run the watcher in the foreground. Run one watcher at a time.
+Start the watcher with the Bash tool and `run_in_background: true`. For the pending sentence, run `bash <pluginRoot>/scripts/watch-mr.sh <host> <remotePath> <number> pipeline --sha <sha> --bound 180`. For the no-review sentence, run `bash <pluginRoot>/scripts/watch-mr.sh <host> <remotePath> <number> threads --sha <sha> --bound 180` with one `--bot "<login>"` per `botAuthors` entry. For the in-progress sentence, run `bash <pluginRoot>/scripts/watch-mr.sh <host> <remotePath> <number> review --sha <sha> --bound 180` with one `--bot "<login>"` per login in `botAuthors` and `botLogins`, each login once. The threads-mode watcher takes `botAuthors` only. `<pluginRoot>` is the `pluginRoot` arg section 7 passed, so the watcher runs the same `watch-mr.sh` as the runner. `<number>` is `mr.number` and `<sha>` is the sha in the sentence. The watcher runs from the repo's working directory, which a ship-flow session already uses, and `glab` reads the GitLab host from the git remote there. Say in one chat line what the watcher waits for and that the run resumes on its own when the watcher exits, then end the turn. The harness wakes the conductor when the command exits. Never poll, never spawn an agent to wait, and never run the watcher in the foreground. Run one watcher at a time.
 
 On the completion notification, read the exit code and the status line that `watch-mr.sh` prints:
 
-- `GREEN` or `LANDED` (exit 0), `QUIET` (exit 15), or `RED` (exit 10): spawn the section 3 verifier again and derive `startAt` again. If `startAt` is `merge` and the branch, the MR url and number, and the launch's ceiling are unchanged, rebuild the args per section 7 with the same `ceiling`, `paths`, `botAuthors`, `seatSha`, and `protectedPaths`, with `maxFixRounds` and `maxThreadRounds` set by the two budget rules below, and with `knownShas` and `priorFixShas` rebuilt from the note. Then relaunch per section 7, because the recorded ceiling covers this run and nothing the preview showed has changed. Any other `startAt` means the tree or the host changed during the wait, so report per section 9 and stop.
+- `GREEN` or `LANDED` (exit 0), `QUIET` (exit 15), or `RED` (exit 10): spawn the section 3 verifier again and derive `startAt` again. If `startAt` is `merge` and the branch, the MR url and number, and the launch's ceiling are unchanged, rebuild the args per section 7 with the same `ceiling`, `paths`, `botAuthors`, `botLogins`, `nits`, `seatSha`, and `protectedPaths`, with `maxFixRounds` and `maxThreadRounds` set by the two budget rules below, and with `knownShas` and `priorFixShas` rebuilt from the note. Then relaunch per section 7, because the recorded ceiling covers this run and nothing the preview showed has changed. Any other `startAt` means the tree or the host changed during the wait, so report per section 9 and stop.
 - `STUCK` (exit 11): report per section 9 with the line `The pipeline for <sha> is stuck: every job finished but the pipeline has not settled for <minutes> minutes.` and stop, because unsticking an external job is the user's call.
 - `BOUND` (exit 12), `NONE` (exit 13), `MOVED` (exit 14), or exit 2 or 3: report the status line, or the stderr text for exit 2 or 3, per section 9 and stop.
 
@@ -173,12 +177,12 @@ Then write `Fixed beyond the plan:` with one line per fix sha from every run of 
 
 Then write `Caveats:` with one line per item below that applies, or `none`:
 
-- each `pushedBackNeeded` thread with the review-threads push-back recipe (`../review-threads/SKILL.md` section 3), and each `human` thread for the user to settle.
+- each `pushedBackNeeded` thread whose `reason` is `nits: skip` as a nit that `nits: skip` left open for the user, each other `pushedBackNeeded` thread with the review-threads push-back recipe (`../review-threads/SKILL.md` section 3), and each `human` thread for the user to settle.
 - every `cleanup.skipped` sentence and `cleanup.failed` line.
 - each `cleanup.notRun` command, paste-ready behind `cd '<main>' &&`.
 - when `cleanup.ran` holds the `git pull` command and `cleanup.holders` is not empty, the sessions it names, because the main checkout fast-forwarded while those sessions sat in it.
 - when `merged` is set under `ceiling: merge` and `cleanup` is null, the full cleanup commands paste-ready behind `cd '<main>' &&`: `git worktree remove '<worktree>'` when a worktree was recorded, `git switch '<default>'` when the main checkout sits on the plan's branch, `git pull --ff-only origin '<default>'`, `git branch -d '<branch>'`, and `git push origin --delete '<branch>'`, each to run only after the user confirms that no other session sits in the worktree or the main checkout.
-- when `threads.review.outcome` is `quiet`, that the wait detected no bot review of `<sha>`, the sha that review wait read. On GitLab with an empty `botAuthors` list, say instead that the wait cannot detect a landed review there, because GitLab notes carry no bot flag.
+- when `threads.review.outcome` is `quiet`, that the wait detected no bot review of `<sha>`, the sha that review wait read. On GitLab with empty `botAuthors` and `botLogins` lists, say instead that the wait cannot detect a landed review there and that every thread counted as a human thread, because GitLab notes carry no bot flag, and name setup check 9, which records the host's review bot logins, and the host name the `botLogins` lookup used.
 - when this ask used its three thread fix rounds and a fixable bot thread is still open, that the thread round cap stopped the fixes.
 - when the section 5 seat cap applied, each `Validation deferred:` step, and that a seat run lifts the cap, asked for from a session started in the main checkout.
 - when a `blocked` sentence refuses the merge for commits no run recorded, each of those commits, and that the user must read them and then ask for the ship flow again.

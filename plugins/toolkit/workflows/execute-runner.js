@@ -1,12 +1,12 @@
 export const meta = {
   name: 'execute-runner',
-  description: 'Execute flow: runs an approved plan note through a baseline check, one implementer per Implementation Step, the Validation Steps with one fix round, the review-mr panel chosen by changed path with one fix round over the confirmed findings and the nits carried along, a cold read told what the panel already reported and, when nothing blocked, the Doc Update Pass and the remember pass, and returns the result for the execute-flow skill to record. The script writes no file itself: its verifiers write the diff captures under scratchDir and the remember worker writes vault notes. No worker runs mutating git in repoRoot. With seatRun, the script runs no Implementation Step, doc pass or remember pass, captures and reviews the diff from diffBase, and blocks on any captured path outside .claude/worktrees/ that no fix or earlier commit wrote.',
+  description: 'Execute flow: runs an approved plan note through a baseline check, one implementer per Implementation Step, the Validation Steps with one fix round, the review-mr panel chosen by changed path with one fix round over the confirmed findings, which takes the nits only under nits fix and runs for them alone in round 1 outside a seat run, a cold read told what the panel already reported and, when nothing blocked, the Doc Update Pass and the remember pass, and returns the result for the execute-flow skill to record. The script writes no file itself: its verifiers write the diff captures under scratchDir and the remember worker writes vault notes. No worker runs mutating git in repoRoot. With seatRun, the script runs no Implementation Step, doc pass or remember pass, captures and reviews the diff from diffBase, and blocks on any captured path outside .claude/worktrees/ that no fix or earlier commit wrote.',
   phases: [
     { title: 'Prep', detail: 'verifier records the branch, the tree status and the baseline verify result' },
     { title: 'Implement', detail: 'one implementer per Implementation Step, in order' },
     { title: 'Verify', detail: 'verifier runs the Validation Steps, one implementer fix round on a failure' },
     { title: 'Red team', detail: 'verifier captures the diff, the review-mr child runs the panel chosen by changed path and two cold dimensions' },
-    { title: 'Fix', detail: 'one round over the confirmed findings with the nits carried along, verifier rechecks, bounded by maxFixRounds' },
+    { title: 'Fix', detail: 'one round over the confirmed findings, verifier rechecks, bounded by maxFixRounds. Under nits fix the nits ride round 1 and start it alone outside a seat run, and a seat run starts no round for nits alone' },
     { title: 'Cold read', detail: 'verifier recaptures the diff, one cold code-reviewer reads it' },
     { title: 'Doc pass', detail: 'implementer runs the Doc Update Pass, verifier revalidates and captures the post-doc diff' },
     { title: 'Remember', detail: 'implementer routes the durable facts, only when nothing blocked' },
@@ -19,7 +19,7 @@ if (typeof a === 'string') {
 }
 const REQUIRED = ['planName', 'repoRoot', 'repoName', 'planContent', 'recallHits', 'scratchDir', 'pluginRoot', 'vaultRoot']
 if (!a || REQUIRED.some((k) => typeof a[k] !== 'string' || !a[k])) {
-  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planContent, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, baselineFailing?, priorChangedPaths?, maxFixRounds?, reviewRules?, reviewMr?, inWorktree?, models?, e2e?, seatRun?, diffBase?}')
+  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planContent, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, baselineFailing?, priorChangedPaths?, maxFixRounds?, reviewRules?, reviewMr?, inWorktree?, models?, e2e?, nits?, seatRun?, diffBase?}')
 }
 if (a.maxFixRounds != null && !(Number.isInteger(a.maxFixRounds) && a.maxFixRounds >= 0)) {
   throw new Error(`execute-runner maxFixRounds must be a non-negative integer, got ${JSON.stringify(a.maxFixRounds)}`)
@@ -33,6 +33,7 @@ const isModelEntry = (v) => !!v && typeof v === 'object' && !Array.isArray(v) &&
 if (a.models != null && (typeof a.models !== 'object' || Array.isArray(a.models) || !Object.values(a.models).every(isModelEntry))) throw new Error(`execute-runner models must map agent names to {model, effort} objects when given, got ${JSON.stringify(a.models)}`)
 const SHA = /^[0-9a-f]{7,40}$/
 if (a.e2e != null && a.e2e !== 'required' && a.e2e !== 'skip') throw new Error(`execute-runner e2e must be required or skip when given, got ${JSON.stringify(a.e2e)}`)
+if (a.nits != null && a.nits !== 'fix' && a.nits !== 'skip') throw new Error(`execute-runner nits must be fix or skip when given, got ${JSON.stringify(a.nits)}`)
 if (a.seatRun != null && typeof a.seatRun !== 'boolean') throw new Error(`execute-runner seatRun must be a boolean when given, got ${JSON.stringify(a.seatRun)}`)
 if (a.seatRun && a.inWorktree) throw new Error('execute-runner seatRun and inWorktree cannot both be true')
 if (a.seatRun && !a.baselineFailing) throw new Error('execute-runner seatRun requires baselineFailing, the failing names the worktree run recorded before the slice')
@@ -50,6 +51,7 @@ const modelOpts = (who) => {
 const refOk = (r) => typeof r === 'string' ? r.length > 0 : !!(r && typeof r === 'object' && typeof r.scriptPath === 'string' && r.scriptPath.length > 0)
 if (a.reviewMr != null && !refOk(a.reviewMr)) throw new Error('execute-runner reviewMr must be a workflow name or {scriptPath} when given')
 const MAX_FIX_ROUNDS = a.maxFixRounds ?? 1
+const NITS = a.nits ?? 'fix'
 const REVIEW_RULES = (a.reviewRules || '').trim()
 const REVIEW_MR = a.reviewMr ?? 'toolkit:review-mr'
 const STANDING = ['toolkit:code-reviewer', 'toolkit:silent-failure-hunter', 'toolkit:pr-test-analyzer']
@@ -464,9 +466,11 @@ if (review) {
   phase('Fix')
   const confirmedOpen = (review.confirmed || []).map((f) => ({ ...f, bucket: 'confirmed' }))
   const nitsOpen = (review.nits || []).map((f) => ({ ...f, bucket: 'nit' }))
-  open = confirmedOpen.length ? confirmedOpen.concat(nitsOpen) : []
+  const withNits = NITS === 'fix' ? confirmedOpen.concat(nitsOpen) : confirmedOpen
+  // The worktree run already offered a seat run's nits, so nits alone start no round there.
+  open = SEAT_RUN && !confirmedOpen.length ? [] : withNits
   let stageDead = false
-  for (let round = 1; round <= MAX_FIX_ROUNDS && open.some((f) => f.bucket === 'confirmed'); round += 1) {
+  for (let round = 1; round <= MAX_FIX_ROUNDS && open.some((f) => f.bucket === 'confirmed' || round === 1); round += 1) {
     const findings = open.map((f) => `${key(f)}\nDETAIL: ${f.detail}\nFAILURE SCENARIO: ${f.failure_scenario || 'none given'}`).join('\n\n')
     const entry = (f) => `${key(f)} [${f.finalTag || f.tag}, final score ${f.finalScore}, ${f.reproduced ? (f.finalScore < THRESHOLD ? 'cited line read' : 'reproduced') : 'not reproduced'}]\nCITATION: ${f.citation || 'none'}\nDETAIL: ${f.detail}\nFAILURE SCENARIO: ${f.failure_scenario || 'none given'}`
     const confirmedBlock = open.filter((f) => f.bucket === 'confirmed').map(entry).join('\n\n') || 'none'
