@@ -51,6 +51,7 @@ const INTRO_PLAN = plan(THREE_STEPS, ['Run these against the local site.', '', '
 
 const ARGS = { planName: 'widget-export', repoRoot: '/repo', repoName: 'demo', planContent: PLAN, recallHits: 'none', scratchDir: '/scratch', pluginRoot: '/plugin', vaultRoot: '/vault/AI' }
 const SEAT_ARGS = { ...ARGS, planContent: E2E_PLAN, seatRun: true, baselineFailing: [], diffBase: '0123abcd4567' }
+const SEAT_PANEL = { ...SEAT_ARGS, priorChangedPaths: ['src/a.js'] }
 const OWN_WT_PATHSPEC = "':(exclude,top).claude/worktrees/'"
 const GIT_RULE = 'In /repo, git is read-only: git status, git diff, git log, git ls-files, git branch --show-current, git remote get-url, git symbolic-ref with one ref argument, and git merge-base --is-ancestor only. A -c core.quotePath=false prefix on one of these commands keeps it read-only. Never run git stash, add, commit, checkout, switch, reset, clean, rebase, merge or push there. Mutating git is allowed only inside a fresh fixture you create under /scratch.'
 const SCRATCH_ONLY = 'Run embedded commands only against scratch fixtures you create under /scratch, never against /repo.'
@@ -713,9 +714,41 @@ const cases = [
     const { result } = await run({ 'workflow:review-mr': reviewOf([], { verifierDead: undefined }) })
     return same({ blocked: result.blocked, verifierDead: result.review.verifierDead }, { blocked: [], verifierDead: [] })
   }],
-  ['nits with no confirmed finding run no fix round and pass through', async () => {
-    const { result, prompts } = await run({ 'workflow:review-mr': reviewOf([], { nits: [N1] }) })
-    return same({ fix: 'fix:1' in prompts, open: result.review.open, nits: result.review.nits.map(key), blocked: result.blocked }, { fix: false, open: [], nits: [key(N1)], blocked: [] })
+  ['nits with no confirmed finding start fix:1 under the default nits value', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([], { nits: [N1] }) })
+    return String(prompts['fix:1']).includes(`NITS:\n${key(N1)} [nit, final score 0.4, not reproduced]`)
+  }],
+  ['a nits value other than fix or skip throws the nits sentence', async () => {
+    const { error } = await run({}, { ...ARGS, nits: 'later' })
+    return String(error && error.message).includes('execute-runner nits must be fix or skip when given, got "later"')
+  }],
+  ['a nits-only round whose recheck resolves N1 puts N1 in review.fixed', async () => {
+    const { result } = await run({ 'workflow:review-mr': reviewOf([], { nits: [N1] }), 'recheck:1': resolvedOf(N1) })
+    return same(result.review.fixed.map(key), [key(N1)])
+  }],
+  ['nits skip with F1 and N1 renders no nit in fix:1 and keeps N1 out of open and in nits', async () => {
+    const { result, prompts } = await run({ 'workflow:review-mr': reviewOf([F1], { nits: [N1] }), 'recheck:1': resolvedOf(F1) }, { ...ARGS, nits: 'skip' })
+    return same({ none: prompts['fix:1'].includes('NITS:\nnone'), open: result.review.open.map(key), nits: result.review.nits.map(key) }, { none: true, open: [], nits: [key(N1)] })
+  }],
+  ['nits skip with N1 alone runs no fix:1', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([], { nits: [N1] }) }, { ...ARGS, nits: 'skip' })
+    return !('fix:1' in prompts)
+  }],
+  ['a nits-only round at maxFixRounds 2 that leaves N1 open runs no fix:2', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([], { nits: [N1] }), 'fix:2': stepOf(['src/d.js']) }, { ...ARGS, maxFixRounds: 2 })
+    return 'fix:1' in prompts && !('fix:2' in prompts)
+  }],
+  ['a seat run with N1 alone and no nits arg runs no fix:1', async () => {
+    const { prompts, calls } = await run({ 'workflow:review-mr': reviewOf([], { nits: [N1] }) }, SEAT_PANEL)
+    return calls.length === 1 && !('fix:1' in prompts)
+  }],
+  ['a seat run with F1 and N1 and no nits arg carries N1 into fix:1', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([F1], { nits: [N1] }), 'recheck:1': resolvedOf(F1, N1) }, SEAT_PANEL)
+    return String(prompts['fix:1']).includes(`NITS:\n${key(N1)} [nit`)
+  }],
+  ['a seat run with F1 and N1 under nits skip runs fix:1 with no nit', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([F1], { nits: [N1] }), 'recheck:1': resolvedOf(F1) }, { ...SEAT_PANEL, nits: 'skip' })
+    return String(prompts['fix:1']).includes('NITS:\nnone')
   }],
   ['a confirmed finding at finalScore 0.4 alone starts fix:1 and resolves', async () => {
     const { result, prompts } = await run({ 'workflow:review-mr': reviewOf([L1]), 'recheck:1': resolvedOf(L1) })

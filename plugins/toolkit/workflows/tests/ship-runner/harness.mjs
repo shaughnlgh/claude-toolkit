@@ -109,6 +109,7 @@ const GL_WAIT = `bash /plugin/scripts/watch-mr.sh gitlab g/r 7 threads --sha ${C
 const GH_REVIEW = `bash /plugin/scripts/watch-mr.sh github o/r 7 review --sha ${C} --bound 9`
 const GL_REVIEW = `bash /plugin/scripts/watch-mr.sh gitlab g/r 7 review --sha ${C} --bound 9`
 const BOTS = { ...ARGS, botAuthors: ['coderabbitai'] }
+const LOGINS = { ...ARGS, botLogins: ['CodeRabbitAI'] }
 const NOT_LANDED = { 'threads:wait': { landed: false, ...ok } }
 const BOT2 = { ...BOT, id: 'T3', summary: 'Guard the empty widget' }
 const fixAt = (sha) => ({ ...threadFixOf(['src/a.js']), sha, shortSha: sha.slice(0, 7) })
@@ -233,6 +234,9 @@ const cases = [
   ['maxFixRounds -1 throws', () => throwsWith({ ...ARGS, maxFixRounds: -1 }, 'ship-runner maxFixRounds must be a non-negative integer, got -1')],
   ['botAuthors that is not an array throws', () => throwsWith({ ...ARGS, botAuthors: 'coderabbitai' }, 'ship-runner botAuthors must be an array of strings, got "coderabbitai"')],
   ['a botAuthors entry that is not a host login throws', () => throwsWith({ ...ARGS, botAuthors: ['coderabbitai', 'x; rm -rf /'] }, 'ship-runner botAuthors must be host logins, got "x; rm -rf /"')],
+  ['a nits value other than fix or skip throws', () => throwsWith({ ...ARGS, nits: 'some' }, 'ship-runner nits must be one of fix, skip, got "some"')],
+  ['botLogins that is not an array throws', () => throwsWith({ ...ARGS, botLogins: 'CodeRabbitAI' }, 'ship-runner botLogins must be an array of strings, got "CodeRabbitAI"')],
+  ['a botLogins entry that is not a host login throws', () => throwsWith({ ...ARGS, botLogins: ['CodeRabbitAI', 'x y'] }, 'ship-runner botLogins must be host logins, got "x y"')],
   ['recordedSha that is not a string throws', () => throwsWith({ ...ARGS, recordedSha: 7 }, 'ship-runner recordedSha must be a string, got 7')],
   ['mr with number 0 throws', () => throwsWith({ ...ARGS, mr: { url: PR_URL, number: 0 } }, 'ship-runner mr must be {url, number}, got')],
   ['empty paths throws', () => throwsWith({ ...ARGS, paths: [] }, 'ship-runner requires args')],
@@ -517,6 +521,10 @@ const cases = [
     const { prompts } = await run({}, { ...ARGS, botAuthors: ['coderabbitai', 'reviewbot'] })
     return prompts['threads:wait'].includes(`${GH_WAIT} --bot "coderabbitai" --bot "reviewbot"`)
   }],
+  ['with botAuthors and botLogins both set, the threads:wait call carries only the botAuthors flags', async () => {
+    const { prompts } = await run({}, { ...BOTS, botLogins: ['reviewbot'] })
+    return same({ author: prompts['threads:wait'].includes(`Run ${GH_WAIT} --bot "coderabbitai" as one Bash call`), login: prompts['threads:wait'].includes('--bot "reviewbot"') }, { author: true, login: false })
+  }],
   ['a [bot] login passes the args check and lands double-quoted on the threads:wait call', async () => {
     const { prompts } = await run({}, { ...ARGS, botAuthors: ['coderabbitai[bot]'] })
     return prompts['threads:wait'].includes(`${GH_WAIT} --bot "coderabbitai[bot]" as one Bash call`)
@@ -543,6 +551,23 @@ const cases = [
     const { result, prompts } = await run({ 'threads:settle': settleOf('busy') })
     return same({ blocked: result.blocked, fetch: 'threads:fetch:1' in prompts, merge: 'merge:mr' in prompts, threads: result.threads },
       { blocked: [`A bot review of ${PR_URL} was still in progress for ${C} at the watch bound.`], fetch: false, merge: false, threads: null })
+  }],
+  ['botLogins alone runs threads:settle, not threads:wait, in round 1', async () => {
+    const { prompts } = await run({}, LOGINS)
+    return same({ settle: before(labels(prompts), 'threads:settle', 'threads:fetch:1'), wait: 'threads:wait' in prompts }, { settle: true, wait: false })
+  }],
+  ['the threads:settle command carries one --bot flag per botLogins entry', async () => {
+    const { prompts } = await run({}, { ...ARGS, botLogins: ['CodeRabbitAI', 'reviewbot'] })
+    return prompts['threads:settle'].includes(`Run ${GH_REVIEW} --bot "CodeRabbitAI" --bot "reviewbot" as one Bash call`)
+  }],
+  ['the fetch prompt lists a botLogins login under BOT AUTHORS', async () => {
+    const { prompts } = await run({}, LOGINS)
+    return prompts['threads:fetch:1'].includes('BOT AUTHORS:\nCodeRabbitAI\n')
+  }],
+  ['the fetch prompt carries the nit sentence and no GitLab bot field clause', async () => {
+    const { prompts } = await run()
+    const p = prompts['threads:fetch:1']
+    return same({ nit: p.includes('nit is true when the thread asks only for a cosmetic change, such as wording, naming, formatting, a comment, or a style preference, that changes no behavior, or when the bot labels it trivial or a nitpick.'), field: p.includes('bot true on GitLab') }, { nit: true, field: false })
   }],
   ['the settle outcome and login land on threads.review', async () => {
     const { result } = await run({ 'threads:settle': settleOf('landed', 'coderabbitai[bot]') })
@@ -618,6 +643,30 @@ const cases = [
   }],
   ['botAuthors turns a named author into a bot whose thread is fixed', async () => {
     const { result } = await run({ 'threads:fetch:1': threadsOf({ ...BOT, author: 'reviewbot', isBot: false }) }, { ...ARGS, botAuthors: ['reviewbot'] })
+    return same(ids(result.threads.fixed), ['T1'])
+  }],
+  ['botLogins turns a listed author returned with isBot false into a bot whose thread is fixed', async () => {
+    const { result } = await run({ 'threads:fetch:1': threadsOf({ ...BOT, author: 'CodeRabbitAI', isBot: false }) }, LOGINS)
+    return same(ids(result.threads.fixed), ['T1'])
+  }],
+  ['under nits skip a fixable nit thread lands in pushedBackNeeded with the nits: skip reason and runs no threads:fix', async () => {
+    const { result, prompts } = await run({ 'threads:fetch:1': threadsOf({ ...BOT, nit: true }) }, { ...ARGS, nits: 'skip' })
+    return same({ back: result.threads.pushedBackNeeded.map((t) => [t.id, t.reason]), fix: 'threads:fix:1' in prompts }, { back: [['T1', 'nits: skip']], fix: false })
+  }],
+  ['under nits fix a nit thread outside paths lands in pushedBackNeeded with no reason', async () => {
+    const { result } = await run({ 'threads:fetch:1': threadsOf({ ...BOT, nit: true, file: 'src/z.js' }) }, { ...ARGS, nits: 'fix' })
+    return same(result.threads.pushedBackNeeded.map((t) => [t.id, t.reason]), [['T1', undefined]])
+  }],
+  ['with no nits arg a fixable nit thread is fixed', async () => {
+    const { result } = await run({ 'threads:fetch:1': threadsOf({ ...BOT, nit: true }) })
+    return same(ids(result.threads.fixed), ['T1'])
+  }],
+  ['under nits skip a fixable thread that is not a nit is fixed', async () => {
+    const { result } = await run({ 'threads:fetch:1': threadsOf({ ...BOT, nit: false }) }, { ...ARGS, nits: 'skip' })
+    return same(ids(result.threads.fixed), ['T1'])
+  }],
+  ['under nits fix a fixable nit thread is fixed', async () => {
+    const { result } = await run({ 'threads:fetch:1': threadsOf({ ...BOT, nit: true }) }, { ...ARGS, nits: 'fix' })
     return same(ids(result.threads.fixed), ['T1'])
   }],
   ['a bot thread with fixable false lands in pushedBackNeeded with no fix', async () => {
