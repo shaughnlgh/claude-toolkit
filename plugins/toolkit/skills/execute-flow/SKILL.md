@@ -378,7 +378,7 @@ Every note write below is atomic and followed by `validate-plan.py`, with exit 0
     - after a moved worktree HEAD, its sha, the sentence that the worktree stays detached on that commit so nothing is lost, and that the user moves the commit onto `<branch>` and then runs `cd '<worktree>' && git switch '<branch>'`.
     - `The running local stack served <branch> during the seat run, so a schema, data or cache change it applied stays after the restore.`
 
-    The next step reads: the ship flow pushes the seat-run commit and merges once the pipeline is green on it.
+    The next step reads: the ship flow pushes the seat-run commit and merges once the pipeline is green on it, or once the host shows no check for it in a repo with no CI configuration.
 
 The record lines that this section writes on the plan note:
 

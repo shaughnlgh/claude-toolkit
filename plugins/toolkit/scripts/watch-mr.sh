@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Waits on one MR or PR until a terminal condition and prints one status line; exit codes 0 and 10 to 15 are outcomes, 2 and 3 script failures.
+# Waits on one MR or PR until a terminal condition and prints one status line; exit codes 0 and 10 to 16 are outcomes, 2 and 3 script failures.
 set -uo pipefail
 
 usage() {
-  printf 'watch-mr: %s\nusage: watch-mr.sh <github|gitlab> <remotePath> <number> <pipeline|threads|review> --sha <sha> [--bound <n>] [--stuck <n>] [--settle <n>] [--interval <seconds>] [--bot <login>]...\n' "$1" >&2
+  printf 'watch-mr: %s\nusage: watch-mr.sh <github|gitlab> <remotePath> <number> <pipeline|threads|review> --sha <sha> [--bound <n>] [--stuck <n>] [--settle <n>] [--none <n>] [--interval <seconds>] [--bot <login>]...\n' "$1" >&2
   exit 2
 }
 # Minutes by default, seconds with a trailing s.
@@ -19,7 +19,7 @@ command -v jq >/dev/null 2>&1 || { echo "watch-mr: jq not found on PATH" >&2; ex
 [ $# -ge 4 ] || usage "missing arguments"
 host=$1 path=$2 num=$3 mode=$4
 shift 4
-sha="" bound=180 stuck=10 settle=2 interval=30 bots='[]'
+sha="" bound=180 stuck=10 settle=2 interval=30 bots='[]' none=""
 while [ $# -gt 0 ]; do
   [ $# -ge 2 ] || usage "missing value for $1"
   case $1 in
@@ -27,6 +27,7 @@ while [ $# -gt 0 ]; do
     --bound) bound=$2 ;;
     --stuck) stuck=$2 ;;
     --settle) settle=$2 ;;
+    --none) none=$2 ;;
     --interval) interval=$2 ;;
     --bot) bots=$(jq -cn --argjson a "$bots" --arg b "$2" '$a + [$b]') ;;
     *) usage "unknown option: $1" ;;
@@ -36,6 +37,7 @@ done
 case $host in github | gitlab) ;; *) usage "unknown host: $host" ;; esac
 case $mode in pipeline | threads | review) ;; *) usage "unknown mode: $mode" ;; esac
 [ -n "$sha" ] || usage "missing --sha"
+[ -z "$none" ] || [ "$mode" = pipeline ] || usage "--none applies to pipeline mode only"
 [ "$host$mode" != gitlabthreads ] || [ "$bots" != '[]' ] || usage "gitlab threads needs --bot, because GitLab notes carry no bot flag"
 [[ $sha =~ ^[0-9a-fA-F]{7,64}$ ]] || usage "bad sha: $sha"
 sha=$(tr 'A-F' 'a-f' <<<"$sha")
@@ -46,16 +48,21 @@ interval=$((10#$interval)); [ "$interval" -ge 1 ] || interval=1
 to_secs bound_s "$bound"
 to_secs stuck_s "$stuck"
 to_secs settle_s "$settle"
+none_s=""
+[ -z "$none" ] || to_secs none_s "$none"
 enc=$(jq -rn --arg p "$path" '$p | @uri')
 
 errf=$(mktemp) || { echo "watch-mr: cannot create a temp file" >&2; exit 3; }
 trap 'rm -f "$errf"' EXIT
-out="" mr="" at_bound=bound stuck_at="" full=$sha
+out="" mr="" at_bound=bound stuck_at="" full=$sha unrev=""
 TS='def ts: capture("^(?<d>.{19})(?<f>\\.[0-9]+)?(Z|(?<sg>[+-])(?<h>[0-9]{2}):?(?<m>[0-9]{2}))$")
   | (.d + "Z" | fromdateiso8601) + ("0" + (.f // "") | tonumber)
     - (if .sg then (if .sg == "-" then -1 else 1 end) * ((.h | tonumber) * 3600 + (.m | tonumber) * 60) else 0 end);
 def nb: sub("\\[bot\\]$"; "");
-def isbot: if ($bots | length) > 0 then ((.username // .login) | nb) as $l | any($bots[]; nb == $l) else (.bot == true) or (.type == "Bot") end;'
+def isbot: if ($bots | length) > 0 then ((.username // .login) | nb) as $l | any($bots[]; nb == $l) else (.bot == true) or (.type == "Bot") end;
+# A refusal opens the body, so only the first 1000 characters are read and the match is anchored there.
+def refusal: (.body // "") | .[0:1000] | gsub("\\s+"; " ") | capture("^ ?(?<t>Copilot [^.]{0,40}(was unable to review|wasn.t able to review any files in) this pull request[^.]*\\.?)"; "i").t;
+def refused: [refusal] | length > 0;'
 
 # Paginated output may arrive as several concatenated arrays, so slurp and merge.
 get() {
@@ -148,6 +155,14 @@ gl_landed() {
   [ -z "$who" ] || finish 0 "LANDED $sha $who"
 }
 
+# Lands the first bot review on the head that is not a refusal, else keeps the first refusal there in unrev. $1 is the reviews JSON.
+gh_landed() {
+  local who
+  who=$(q 'first(.[] | select(.commit_id == $s and (.user | isbot) and (refused | not)) | .user.login) // empty' "$1") || return 1
+  [ -z "$who" ] || finish 0 "LANDED $sha $who"
+  unrev=$(q 'first(.[] | select(.commit_id == $s and (.user | isbot) and refused) | "\(.user.login) \(refusal)") // empty' "$1") || return 1
+}
+
 gitlab_threads() {
   gitlab_mr || return 1
   get glab api "projects/$enc/merge_requests/$num/notes?per_page=100" --paginate || return 1
@@ -156,10 +171,12 @@ gitlab_threads() {
 
 github_threads() {
   github_head || return 1
-  local who
+  local all
   get gh api "repos/$path/pulls/$num/reviews" --paginate || return 1
-  who=$(q 'first(.[] | select(.commit_id == $s and (.user | isbot)) | .user.login) // empty' "$out") || return 1
-  [ -z "$who" ] || finish 0 "LANDED $sha $who"
+  gh_landed "$out" || return 1
+  # A refusal ends the wait at once only when every listed bot refused, because another listed bot may still review.
+  all=$(q '[.[] | select(.commit_id == $s and refused) | .user.login | nb] as $r | ($bots | length) > 0 and all($bots[]; nb | IN($r[]))' "$out") || return 1
+  [ "$all" = false ] || finish 16 "UNREVIEWED $sha $unrev"
 }
 
 quiet_at=""
@@ -167,18 +184,20 @@ quiet_at=""
 quiet_check() {
   if [ "$1" = true ]; then quiet_at=""; return 0; fi
   [ -n "$quiet_at" ] || quiet_at=$SECONDS
-  [ $((SECONDS - quiet_at)) -lt "$settle_s" ] || finish 15 "QUIET $sha $(((SECONDS - quiet_at) / 60))"
+  [ $((SECONDS - quiet_at)) -lt "$settle_s" ] && return 0
+  [ -z "$unrev" ] || finish 16 "UNREVIEWED $sha $unrev"
+  finish 15 "QUIET $sha $(((SECONDS - quiet_at) / 60))"
 }
 
 github_review() {
   github_head || return 1
-  local busy who
+  local busy
   get gh api "repos/$path/issues/$num/comments" --paginate || return 1
   busy=$(q 'any(.[]; (.user | isbot) and ((.body // "") | contains($mark)))' "$out") || return 1
+  unrev=""
   if [ "$busy" = false ]; then
     get gh api "repos/$path/pulls/$num/reviews" --paginate || return 1
-    who=$(q 'first(.[] | select(.commit_id == $s and (.user | isbot)) | .user.login) // empty' "$out") || return 1
-    [ -z "$who" ] || finish 0 "LANDED $sha $who"
+    gh_landed "$out" || return 1
   fi
   quiet_check "$busy"
 }
@@ -204,8 +223,10 @@ while :; do
       exit 3
     fi
   fi
+  [ -n "$none_s" ] && [ "$at_bound" = none ] && [ "$SECONDS" -ge "$none_s" ] && finish 13 "NONE $sha"
   if [ "$SECONDS" -ge "$bound_s" ]; then
     [ "$at_bound" = none ] && finish 13 "NONE $sha"
+    [ -z "$unrev" ] || finish 16 "UNREVIEWED $sha $unrev"
     finish 12 "BOUND $sha $((SECONDS / 60))"
   fi
   left=$((bound_s - SECONDS))
