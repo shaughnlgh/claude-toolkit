@@ -133,7 +133,7 @@ for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js workflows/p
          skills/gitlab-mr-review/scripts/post_mr_comments.py \
          skills/grill/SKILL.md skills/plan-flow/SKILL.md skills/execute-flow/SKILL.md \
          skills/ship-flow/SKILL.md \
-         scripts/vault-fs.sh scripts/git-ro.sh scripts/seat-check.sh scripts/watch-mr.sh; do
+         scripts/vault-fs.sh scripts/plan-index.py scripts/git-ro.sh scripts/seat-check.sh scripts/watch-mr.sh; do
   [ -f "$P/$f" ] && ok "present: $f" || no "MISSING: $f"
 done
 # node --check says nothing about a workflow script either way, because the bodies use top-level await and return, so compile each body in an AsyncFunction, which accepts both.
@@ -203,7 +203,8 @@ else
   no "worktree install step missing from execute-flow, context-worktree-seat.md, or orchestration.md"
 fi
 if grep -qF 'Seat run passed:' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Seat run passed:' "$P/skills/ship-flow/SKILL.md"; then ok "execute-flow writes and ship-flow reads the seat run outcome line"; else no "seat run outcome line missing from execute-flow or ship-flow"; fi
-if grep -qF '[e2e]' "$P/skills/plan-guide/SKILL.md" && grep -qF 'E2E_MARK.test' "$P/workflows/execute-runner.js"; then ok "plan-guide defines and execute-runner reads the [e2e] marker"; else no "[e2e] marker missing from plan-guide or execute-runner.js"; fi
+if grep -qF '[e2e]' "$P/skills/plan-guide/SKILL.md" && grep -qF 'E2E_MARK' "$P/scripts/plan-index.py" && grep -qF 'E2E_MARK.test' "$P/workflows/execute-runner.js"; then ok "plan-guide defines the [e2e] marker, and plan-index.py and execute-runner.js read it"; else no "[e2e] marker missing from plan-guide, plan-index.py or execute-runner.js"; fi
+if grep -qF 'vault-fs.sh index' "$P/workflows/execute-runner.js" && grep -qF 'vault-fs.sh sha256' "$P/workflows/execute-runner.js" && grep -qE '^  index\)' "$P/scripts/vault-fs.sh" && grep -qE '^  sha256\)' "$P/scripts/vault-fs.sh" && grep -qF '`planPath`:' "$P/skills/execute-flow/SKILL.md"; then ok "execute-runner indexes the plan note through vault-fs.sh index and sha256, and execute-flow passes planPath"; else no "plan index by path missing from execute-runner.js, vault-fs.sh or execute-flow"; fi
 if grep -qF 'a.nits' "$P/workflows/execute-runner.js" && grep -qF 'a.nits' "$P/workflows/ship-runner.js" && grep -qF '`nits`: the section 2 `nits` value' "$P/skills/execute-flow/SKILL.md" && grep -qF '`nits`: the note' "$P/skills/ship-flow/SKILL.md"; then ok "both runners take and both flows pass the nits run option"; else no "nits run option missing from a runner or a flow's args"; fi
 if grep -qF 'a.noCiConfig' "$P/workflows/ship-runner.js" && grep -qF '`noCiConfig`: the section 3' "$P/skills/ship-flow/SKILL.md"; then ok "ship-runner takes and ship-flow passes noCiConfig"; else no "noCiConfig missing from ship-runner.js or the ship-flow args"; fi
 if grep -qF 'toolkit-review-bots.json' "$P/commands/setup.md" && grep -qF 'toolkit-review-bots.json' "$P/skills/ship-flow/SKILL.md"; then ok "setup writes and ship-flow reads the review bot logins file"; else no "review bot logins file missing from setup or ship-flow"; fi
@@ -408,7 +409,7 @@ suite_ok "topic-recall behavior suite" "$out" 45
 
 echo "== vault-fs containment =="
 out="$(bash "$P/scripts/tests/vault-fs/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "vault-fs behavior suite" "$out" 19
+suite_ok "vault-fs behavior suite" "$out" 25
 
 echo "== git-ro execution boundary =="
 out="$(bash "$P/scripts/tests/git-ro/run-tests.sh" 2>/dev/null | tail -1)"
@@ -439,7 +440,7 @@ fi
 echo "== execute-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/execute-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "execute-runner control-flow suite" "$out" 205
+  suite_ok "execute-runner control-flow suite" "$out" 258
 else
   skip "skipped: node not found; execute-runner control-flow suite"
 fi

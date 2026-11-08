@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-# Vault file ops (rm|mv) with containment guardrails.
+# Vault file ops (rm|mv) and reads (sha256|index) with containment guardrails.
 # - Inputs are vault-relative only; absolute paths and any `..` are refused lexically.
 # - Every effective source/destination is then canonically resolved (symlinks and
 #   all) and must remain inside the canonical vault root — a symlinked directory
@@ -28,7 +28,7 @@ PY
 # Single source for the hint every path refusal appends (not the unknown-command one).
 HINT="(vault root: $ROOT, expected form: Projects/<repo>/...)"
 
-cmd="${1:?usage: vault-fs.sh rm|mv <relpath> [dst]}"
+cmd="${1:?usage: vault-fs.sh rm|mv|sha256|index <relpath> [dst]}"
 
 # Cheap lexical guard first; canonical containment (canon) below catches what
 # this cannot: escape through a symlinked directory inside the vault.
@@ -100,5 +100,13 @@ case "$cmd" in
     canon "$s" file
     canon "$d" dest
     mv "$s" "$d"; echo "moved: $s -> $d" ;;
+  sha256)
+    t="$(resolve "${2:?path required}")"
+    canon "$t" file
+    python3 -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$t" ;;
+  index)
+    t="$(resolve "${2:?path required}")"
+    canon "$t" file
+    python3 "$(dirname "${BASH_SOURCE[0]}")/plan-index.py" "$t" ;;
   *) echo "refused: unknown command: $cmd" >&2; exit 1 ;;
 esac
