@@ -4,7 +4,7 @@ summary: The host API behavior `watch-mr.sh` works around and the head, pipeline
 type: context
 status: active
 owner: Shaughn Le Grange - Hatlen
-last_reviewed: 2026-11-07
+last_reviewed: 2026-11-08
 source_refs:
   - plugins/toolkit/scripts/watch-mr.sh
   - plugins/toolkit/scripts/tests/watch-mr/
@@ -24,6 +24,7 @@ source_refs:
 - With `--bot` logins given, they are an allowlist on either host and the host's own bot flag is ignored. The GitLab notes API's basic user object carries no `bot` field, so GitLab threads mode requires `--bot`.
 - CodeRabbit edits one summary issue comment in place. That comment carries `<!-- This is an auto-generated comment: review in progress by coderabbit.ai -->` only while a review runs, and other markers, such as `summarize`, at other times, so review mode reads the marker text, never the comment's presence.
 - A finished CodeRabbit review on GitHub is a PR review whose `commit_id` is the head commit, so review mode lands it the way threads mode does.
+- Copilot posts a `COMMENTED` review on the head commit whose body says it did not review, such as `Copilot was unable to review this pull request because the user who requested the review has insufficient remaining quota.`, `Copilot encountered an error and was unable to review this pull request.`, or `Copilot wasn't able to review any files in this pull request.` The `refusal` helper in the jq prelude reads the first 1000 characters of the body and returns its opening sentence when that sentence starts `Copilot ` and reaches the refusal phrase within 40 more characters, with whitespace joined to single spaces and cut at the first period after `this pull request`, and `refused` tests for it. The start anchor keeps a real review that quotes the phrase later in its body a review, and the 1000-character cut keeps the regex cheap on a long body. GitLab notes carry no known refusal, so `gl_landed` has no such check.
 - GitLab threads mode never lands a note that carries the in-progress marker, because the first bot note after the anchor can be the in-progress note.
 - CodeRabbit posts on GitLab as the user that owns its token, a service account the installer names or a group access token bot with a generated username, and the note's author object says neither. GitLab review mode without `--bot` therefore counts the marker from any author, and a plain note that quotes the marker holds every wait busy until the bound. A GitLab ship run that uses CodeRabbit names its login through the ask's `botAuthors` or through the host's entry in `~/.claude/toolkit-review-bots.json`, which the ship flow passes as `botLogins`.
 - `glab` resolves the GitLab host from the git remote of the working directory, else from its default host, so a caller runs the script from the repo.
@@ -38,6 +39,11 @@ source_refs:
 - On GitLab only pipeline status `success` reads `GREEN`. `skipped` reads `NONE` at once, and `failed` or `canceled` reads `RED`. Every other status, `manual` included, keeps the wait polling, because a blocking manual job holds the later stages.
 - The stuck check counts a job whose status is `manual` as settled, so a pipeline that waits only on a blocking manual job reads `STUCK` once the stuck window passes.
 - `STUCK` needs a non-empty job list in which every job is settled: on GitHub the Actions runs for the commit, read with `gh run list --commit <sha> --limit 100`, and on GitLab the jobs outside the `external` stage. An empty list never reads as stuck.
+- `--none` reads `at_bound`, which each pipeline round sets from its own read, so the early `NONE` fires only while the last read showed no check or pipeline for the sha, and a check seen inside the window runs on to `--bound`. The suite's case whose checks appear after the window and its case whose pending check shows before it guard both sides.
+
+## Refusal reviews
+
+- A refusal can sit on the head before another listed bot posts its review, so a refusal never ends a wait on sight. Both GitHub modes land the first bot review on the head that is not a refusal. Threads mode reads `UNREVIEWED` at once only when every `--bot` login refused, review mode only when its settle window ends, and both at the bound. The suite's later-round cases guard that hold.
 
 ## Testing the script
 
