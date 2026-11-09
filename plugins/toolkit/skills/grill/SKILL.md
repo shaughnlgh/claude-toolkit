@@ -168,7 +168,7 @@ Handoff to plan-guide:
 - ADRs: docs/decisions/0007-cache-invalidation-strategy.md
 ```
 
-Tell the user that `plan-guide` (`../plan-guide/SKILL.md` from this skill's base directory) should feed these paths into its Current Context and Related Topics, and skip re-deriving the terms and decisions already pinned here.
+Tell the user that `plan-guide` (`<plugin-root>/skills/plan-guide/SKILL.md`) should feed these paths into its Current Context and Related Topics, and skip re-deriving the terms and decisions already pinned here. `<plugin-root>` is `../..` from this skill's base directory resolved to an absolute path. This root takes precedence over a CLAUDE.md line that resolves the installed root. When `../../.claude-plugin/plugin.json` does not exist relative to this skill's base directory, as in a `/override` copy under `~/.claude/skills/`, the plugin root is the installed root instead, the path that `jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json` prints, as the setup CLAUDE.md block resolves it.
 
 Then stop. Grill does not continue into planning, does not loop back into another round of questions, and does not start drafting a plan in the same turn.
 

@@ -36,7 +36,7 @@ The conductor reconciles conflicting findings against the cited evidence. Produc
 
 ## 4. Artifacts
 
-Derive the incident name per plan-guide's name derivation (ticket key first). Write into that name's plan directory with the atomic write, subject to plan-guide's "Do not write if" list, whose exception names the incident note:
+Derive the incident name per plan-guide's name derivation (ticket key first), from the task alone when no ticket is given. An incident names no branch, so this skill never asks the ticket question. Write into that name's plan directory with the atomic write, subject to plan-guide's "Do not write if" list, whose exception names the incident note:
 
 - `incident - <name>.md`: the technical writeup. Scope fence, evidence sources checked, findings per source with citations, verdict and provenance, chain of events, outside-scope list. Redact customer PII before writing. Keep item ids, timestamps, and error codes. Where a finding cannot be written without PII, cite its location (table and key, log source and timestamp) instead of quoting it.
 - The stakeholder summary, as a section at the top of the same note under "Summary for stakeholders": plain language, short, Slack-ready, domain nouns kept, uncertainty stated directly with the verdict's provenance label (verified, derived, or judgment), never softened or padded with filler.
