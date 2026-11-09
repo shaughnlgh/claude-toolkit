@@ -92,6 +92,7 @@ const TAB_HEADING_PLAN = PLAN.replace('## Risks', '##\tRisks')
 const SECTIONED_PLAN = PLAN.replace('## Assumptions', '## Current Context\n\nThe exporter lives in src/a.js.\n\n## Affected Files\n\n- src/a.js: exporter\n\n## Plan Changes During Execution\n\n- Step 1: streamed rows instead.\n\n## Assumptions')
 
 const E2E_PLAN = plan(THREE_STEPS, ['1. Run the unit tests.', '2. [e2e] Load the widget page.'])
+const SHOTS_PLAN = plan(THREE_STEPS, ['1. Run the unit tests.', '2. [e2e] [shots] Load the widget page.', '3. [e2e] Load the list page.'])
 const INTRO_PLAN = plan(THREE_STEPS, ['Run these against the local site.', '', '1. [e2e] Load the widget page.', '2. Run the unit tests.'])
 
 const ARGS = { planName: 'widget-export', repoRoot: '/repo', repoName: 'demo', planPath: PLAN_PATH, recallHits: 'none', scratchDir: '/scratch', pluginRoot: '/plugin', vaultRoot: '/vault/AI' }
@@ -169,10 +170,12 @@ const changedLine = (text) => `The plan note changed mid-run: sha256 <the printe
 const MISMATCH_LINE = 'The plan index does not match the plan note at line <its number>, which begins <its first words>.'
 // A validation return whose verifier stopped on its plan read, so every step fails with the stop sentence.
 const stoppedOf = (why) => ({ results: VALIDATION_LINES.map((step) => ({ step, status: 'fail', evidence: why })) })
+const SHA_FAILED_LINE = 'The sha check on the plan note failed: vault-fs: cannot resolve vault root.'
+const shotsValidationOf = (status2, shots2, shots3 = []) => ({ results: [resultOf('pass'), { step: '2. [e2e] [shots] Load the widget page.', status: status2, evidence: `widget page: ${status2}`, screenshots: shots2 }, { step: '3. [e2e] Load the list page.', status: 'pass', evidence: 'list page: pass', screenshots: shots3 }] })
 const rulesOf = (bullet) => `# Review rules\n## Paths to skip\n- LICENSE\n## High-risk paths\n- ${bullet}\n## Always check\n- docs/x.md`
 
 // Runs the flow with per-label overrides. A null override is a dead stage, an Error makes the child workflow throw.
-async function run(overrides = {}, args = ARGS) {
+async function run(overrides = {}, args = ARGS, fn = flow) {
   const { plan: text = PLAN, ...flowArgs } = args
   const script = { ...DEFAULTS, 'plan:index': indexOf(text), ...overrides }
   const prompts = {}
@@ -190,7 +193,7 @@ async function run(overrides = {}, args = ARGS) {
     return v ?? null
   }
   try {
-    const result = await flow(flowArgs, agent, workflow, () => {}, () => {})
+    const result = await fn(flowArgs, agent, workflow, () => {}, () => {})
     return { result, prompts, reads: Object.fromEntries(Object.entries(prompts).map(([k, p]) => [k, readOf(p, text)])), agents, calls }
   } catch (error) {
     return { error, prompts, agents, calls }
@@ -198,6 +201,12 @@ async function run(overrides = {}, args = ARGS) {
 }
 
 const same = (actual, expected) => JSON.stringify(actual) === JSON.stringify(expected)
+// Compiles the runner with recorded results the way run-checkpoint.py writes them.
+const replayFlow = (replay) => new AsyncFunction('args', 'agent', 'workflow', 'phase', 'log', source.replace(/^const REPLAY = null$/m, `const REPLAY = ${JSON.stringify(replay)}`))
+const recordedOf = (runner, child = {}, text = PLAN, args = ARGS) => ({ args, index: indexOf(text), runner, child })
+const UP_TO_PANEL = { 'prep:baseline': [DEFAULTS['prep:baseline']], 'implement:1': [DEFAULTS['implement:1']], 'implement:2': [DEFAULTS['implement:2']], 'implement:3': [DEFAULTS['implement:3']], 'verify:validation': [PASS], 'diff:red-team': [DEFAULTS['diff:red-team']] }
+const CHILD_RECORDED = { 'review:code-reviewer': [{ findings: [], open_questions: [] }] }
+const UNUSED_LINE = (n) => `The continuation left ${n} of its recorded results unused, so its control flow differs from the recorded run.`
 const implementLabels = (prompts) => Object.keys(prompts).filter((k) => k.startsWith('implement:'))
 const stepText = (prompts, n) => prompts[`implement:${n}`].split('YOUR STEP:\n')[1].split('\n\nALREADY CHANGED:')[0]
 const byLabel = (agents, field) => Object.fromEntries(Object.keys(agents).sort().map((k) => [k, agents[k][field]]))
@@ -1265,6 +1274,28 @@ const cases = [
     const { result } = await run({ 'verify:validation': stoppedOf(why) }, { ...ARGS, plan: plan(THREE_STEPS, ['1. [e2e] Load the widget page.', '2. [e2e] Export one widget in the browser.']), inWorktree: true })
     return same(result.blocked, [`The verifier verify:validation ran no Validation Step: ${why}`])
   }],
+  ['a validation run whose sha check failed blocks before fix:validation', async () => {
+    const { result, prompts } = await run({ 'verify:validation': stoppedOf(SHA_FAILED_LINE) })
+    return same({ blocked: result.blocked, fix: 'fix:validation' in prompts }, { blocked: [`The verifier verify:validation ran no Validation Step: ${SHA_FAILED_LINE}`], fix: false })
+  }],
+  ['a verify:revalidation whose sha check failed blocks with one sentence', async () => {
+    const { result } = await run({ 'verify:validation': FAIL, 'verify:revalidation': stoppedOf(SHA_FAILED_LINE) })
+    return same(result.blocked, [`The verifier verify:revalidation ran no Validation Step: ${SHA_FAILED_LINE}`])
+  }],
+  ['a verify:final whose sha check failed blocks with one sentence', async () => {
+    const { result } = await run({ ...FULL_RUN, 'verify:final': stoppedOf(SHA_FAILED_LINE) })
+    return same(result.blocked, [`The verifier verify:final ran no Validation Step: ${SHA_FAILED_LINE}`])
+  }],
+  ['a worktree run whose every Validation Step is e2e still blocks on a failed sha check', async () => {
+    const { result } = await run({ 'verify:validation': stoppedOf(SHA_FAILED_LINE) }, { ...ARGS, plan: plan(THREE_STEPS, ['1. [e2e] Load the widget page.', '2. [e2e] Export one widget in the browser.']), inWorktree: true })
+    return same(result.blocked, [`The verifier verify:validation ran no Validation Step: ${SHA_FAILED_LINE}`])
+  }],
+  ['the panel names its plan blocks before it treats a stopped block as none', async () => {
+    const { calls } = await run()
+    const c = calls[0].args.contextBlock
+    const none = c.indexOf('treat that block as none')
+    return same({ objective: c.indexOf('OBJECTIVE:') < none, risks: c.indexOf('RISKS:') < none }, { objective: true, risks: true })
+  }],
   ['a passing Validation Step whose evidence quotes a stop sentence does not block', async () => {
     const quoted = { results: [{ ...PASS.results[0], evidence: "grep -l 'The plan note changed mid-run' plugins/toolkit/workflows/execute-runner.js printed plugins/toolkit/workflows/execute-runner.js" }, PASS.results[1]] }
     const { result, prompts } = await run({ 'verify:validation': quoted })
@@ -1323,6 +1354,100 @@ const cases = [
     const { prompts } = await run({}, { ...ARGS, plan: plan([long, '2. Wire the route.']) })
     const p = prompts['implement:1']
     return same({ cut: p.includes(`STEPS:\n${long.slice(0, 120)} (your step)\n`), whole: p.includes(long.slice(0, 121)) }, { cut: true, whole: false })
+  }],
+  ['the plan index marks only the [e2e] [shots] step with shots', async () => {
+    return same(indexOf(SHOTS_PLAN).validationSteps.map((s) => s.shots), [false, true, false])
+  }],
+  ['the validation schema requires screenshots', async () => {
+    const { agents } = await run()
+    return agents['verify:validation'].schema.properties.results.items.required.includes('screenshots')
+  }],
+  ['the validation prompt names the Screenshot STEPs and forbids opening an image', async () => {
+    const shots = (await run({ 'verify:validation': shotsValidationOf('pass', []) }, { ...ARGS, plan: SHOTS_PLAN })).prompts['verify:validation']
+    const plain = (await run()).prompts['verify:validation']
+    return same({ named: shots.includes('Screenshot STEPs: 2.'), forbids: shots.includes('Never open, Read or describe an image file'), plain: plain.includes('Screenshot STEPs:') }, { named: true, forbids: true, plain: false })
+  }],
+  ['a [shots] step returns its first five screenshots', async () => {
+    const seven = ['1', '2', '3', '4', '5', '6', '7'].map((n) => `shots/${n}.png`)
+    const { result } = await run({ 'verify:validation': shotsValidationOf('pass', seven) }, { ...ARGS, plan: SHOTS_PLAN })
+    return same(result.validation.results[1].screenshots, seven.slice(0, 5))
+  }],
+  ['an unmarked [e2e] step returns no screenshots', async () => {
+    const { result } = await run({ 'verify:validation': shotsValidationOf('pass', [], ['shots/a.png', 'shots/b.png']) }, { ...ARGS, plan: SHOTS_PLAN })
+    return same(result.validation.results[2].screenshots, [])
+  }],
+  ['a manual [shots] step returns no screenshots', async () => {
+    const { result } = await run({ 'verify:validation': shotsValidationOf('manual', ['shots/1.png']) }, { ...ARGS, plan: SHOTS_PLAN })
+    return same(result.validation.results[1].screenshots, [])
+  }],
+  ['e2e skip returns no screenshots for a [shots] step', async () => {
+    const { result } = await run({ 'verify:validation': shotsValidationOf('pass', ['shots/1.png']) }, { ...ARGS, plan: SHOTS_PLAN, e2e: 'skip' })
+    return same(result.validation.results[1].screenshots, [])
+  }],
+  ['a result with no screenshots key reads as no screenshots', async () => {
+    const { screenshots, ...bare } = shotsValidationOf('pass', ['shots/1.png']).results[1]
+    const v = shotsValidationOf('pass', [])
+    const { result } = await run({ 'verify:validation': { results: [v.results[0], bare, v.results[2]] } }, { ...ARGS, plan: SHOTS_PLAN })
+    return same(result.validation.results[1].screenshots, [])
+  }],
+  ['an index with no shots key names no Screenshot STEPs and returns no screenshots', async () => {
+    const ix = indexOf(SHOTS_PLAN)
+    const { result, prompts } = await run({ 'plan:index': { ...ix, validationSteps: ix.validationSteps.map(({ shots, ...s }) => s) }, 'verify:validation': shotsValidationOf('pass', ['shots/1.png']) }, { ...ARGS, plan: SHOTS_PLAN })
+    return same({ named: prompts['verify:validation'].includes('Screenshot STEPs:'), shots: result.validation.results[1].screenshots }, { named: false, shots: [] })
+  }],
+  ['a relayed shots flag that the heading does not carry fails the index check', async () => {
+    const ix = indexOf(SHOTS_PLAN)
+    const { result } = await run({ 'plan:index': { ...ix, validationSteps: ix.validationSteps.map((s, i) => (i === 2 ? { ...s, shots: true } : s)) } }, { ...ARGS, plan: SHOTS_PLAN })
+    return same(result.blocked, [`${INCONSISTENT} a Validation Step shots flag does not match its heading.`])
+  }],
+  ['a stop result on a [shots] step returns no screenshots', async () => {
+    const why = 'The plan note changed mid-run: sha256 x, expected y.'
+    const v = shotsValidationOf('fail', ['shots/1.png'])
+    const { result } = await run({ 'verify:validation': { results: v.results.map((r) => ({ ...r, status: 'fail', evidence: why })) } }, { ...ARGS, plan: SHOTS_PLAN })
+    return same(result.validation.results[1].screenshots, [])
+  }],
+  ['a replay makes no agent call for a recorded label', async () => {
+    const { prompts } = await run({}, ARGS, replayFlow(recordedOf(UP_TO_PANEL)))
+    return same(Object.keys(prompts).sort(), ['cold:read', 'diff:final', 'diff:post-doc', 'doc:pass', 'plan:index', 'remember:pass'])
+  }],
+  ['a replay of a full run past the panel makes no agent call but plan:index', async () => {
+    const live = await run(FULL_RUN)
+    const recorded = Object.fromEntries(Object.keys(live.prompts).filter((k) => k !== 'plan:index').map((k) => [k, [{ ...DEFAULTS, ...FULL_RUN }[k]]]))
+    const { result, prompts } = await run({ 'workflow:review-mr': FULL_RUN['workflow:review-mr'] }, ARGS, replayFlow(recordedOf(recorded)))
+    return same({ prompts: Object.keys(prompts), blocked: result.blocked, fix: 'fix:1' in recorded && 'recheck:1' in recorded && 'cold:read' in recorded && 'fix:validation' in recorded }, { prompts: ['plan:index'], blocked: [], fix: true })
+  }],
+  ['a replay calls agent() from the first label it holds no result for', async () => {
+    const { prompts } = await run({}, ARGS, replayFlow(recordedOf({ 'prep:baseline': [DEFAULTS['prep:baseline']], 'implement:1': [DEFAULTS['implement:1']] })))
+    return same(implementLabels(prompts), ['implement:2', 'implement:3'])
+  }],
+  ['plan:index runs live on a replay', async () => {
+    const { prompts } = await run({}, ARGS, replayFlow(recordedOf(UP_TO_PANEL)))
+    return same({ index: 'plan:index' in prompts, implement: implementLabels(prompts) }, { index: true, implement: [] })
+  }],
+  ['a replay whose step headings differ from the recorded index blocks before prep:baseline', async () => {
+    const other = plan(['1. Add the importer in src/a.js.', ...THREE_STEPS.slice(1)])
+    const { result, prompts } = await run({}, ARGS, replayFlow(recordedOf(UP_TO_PANEL, {}, other)))
+    return same({ blocked: result.blocked, baseline: 'prep:baseline' in prompts }, { blocked: ["The plan's step headings differ from the recorded run's plan:index, so the run cannot continue from its journal."], baseline: false })
+  }],
+  ['a recorded result left unused blocks the run', async () => {
+    const { result } = await run({}, ARGS, replayFlow(recordedOf({ 'implement:1': [DEFAULTS['implement:1']] })))
+    return same(result.blocked, [UNUSED_LINE(1)])
+  }],
+  ['a replay passes the review-mr child its recorded results', async () => {
+    const { calls } = await run({ 'workflow:review-mr': reviewOf([], { replayed: 1 }) }, ARGS, replayFlow(recordedOf(UP_TO_PANEL, CHILD_RECORDED)))
+    return same(calls[0].args.replay, CHILD_RECORDED)
+  }],
+  ['a child that replays fewer results than were recorded blocks the run', async () => {
+    const { result } = await run({ 'workflow:review-mr': reviewOf([], { replayed: 0 }) }, ARGS, replayFlow(recordedOf(UP_TO_PANEL, CHILD_RECORDED)))
+    return result.blocked.includes(UNUSED_LINE(1))
+  }],
+  ['a run with no recorded results passes the child no replay arg', async () => {
+    const { calls } = await run({}, ARGS, replayFlow(recordedOf({})))
+    return !('replay' in calls[0].args)
+  }],
+  ['a replay runs on the recorded args with the launch scratchDir', async () => {
+    const { prompts } = await run({}, ARGS, replayFlow(recordedOf(UP_TO_PANEL, {}, PLAN, { ...ARGS, planName: 'recorded-plan', scratchDir: '/old-scratch' })))
+    return same({ plan: prompts['doc:pass'].includes('Plan name: recorded-plan.'), scratch: prompts['diff:final'].includes('/scratch/slice.diff.tmp'), old: prompts['diff:final'].includes('/old-scratch') }, { plan: true, scratch: true, old: false })
   }],
 ]
 

@@ -332,6 +332,23 @@ const cases = [
     const { result } = await run({}, JSON.stringify(ARGS))
     return same(Object.keys(result), RETURN_KEYS)
   }],
+  ['a replayed label makes no agent call', async () => {
+    const { prompts } = await run({}, { ...ARGS, replay: { 'review:code-reviewer': [findingsOf()] } })
+    return same(Object.keys(prompts).filter((k) => k.startsWith('review:')).sort(), KEYS.filter((k) => k !== 'code-reviewer').map((k) => `review:${k}`).sort())
+  }],
+  ['a replay returns the count of recorded results it used', async () => {
+    const { result } = await run({}, { ...ARGS, replay: { 'review:code-reviewer': [findingsOf()], 'review:not-run': [findingsOf()] } })
+    return result.replayed === 1
+  }],
+  ['a replay of a review and its verify issues neither prompt', async () => {
+    const replay = { 'review:code-reviewer': [findingsOf(finding('src/a.js', 'Kept'))], 'verify:code-reviewer': [verdictsOf(verdict(0, 0.7))] }
+    const { result, prompts } = await run({}, { ...ARGS, replay })
+    return same({ asked: ['review:code-reviewer', 'verify:code-reviewer'].filter((k) => k in prompts), replayed: result.replayed }, { asked: [], replayed: 2 })
+  }],
+  ['a replay arg that is not a label map throws', async () => {
+    const { error } = await run({}, { ...ARGS, replay: ['review:code-reviewer'] })
+    return String(error && error.message).includes('review-mr replay must map labels to lists of results when given')
+  }],
 ]
 
 let passed = 0
