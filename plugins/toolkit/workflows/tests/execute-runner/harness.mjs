@@ -206,7 +206,7 @@ const replayFlow = (replay) => new AsyncFunction('args', 'agent', 'workflow', 'p
 const recordedOf = (runner, child = {}, text = PLAN, args = ARGS) => ({ args, index: indexOf(text), runner, child })
 const UP_TO_PANEL = { 'prep:baseline': [DEFAULTS['prep:baseline']], 'implement:1': [DEFAULTS['implement:1']], 'implement:2': [DEFAULTS['implement:2']], 'implement:3': [DEFAULTS['implement:3']], 'verify:validation': [PASS], 'diff:red-team': [DEFAULTS['diff:red-team']] }
 const CHILD_RECORDED = { 'review:code-reviewer': [{ findings: [], open_questions: [] }] }
-const UNUSED_LINE = (n) => `The continuation left ${n} of its recorded results unused, so its control flow differs from the recorded run.`
+const UNUSED_LINE = (n) => `The continuation left ${n} of its recorded results unused, so its control flow differs from the recorded run. The likely cause is a review-mr child without replay support.`
 const implementLabels = (prompts) => Object.keys(prompts).filter((k) => k.startsWith('implement:'))
 const stepText = (prompts, n) => prompts[`implement:${n}`].split('YOUR STEP:\n')[1].split('\n\nALREADY CHANGED:')[0]
 const byLabel = (agents, field) => Object.fromEntries(Object.keys(agents).sort().map((k) => [k, agents[k][field]]))
@@ -1371,6 +1371,10 @@ const cases = [
     const seven = ['1', '2', '3', '4', '5', '6', '7'].map((n) => `shots/${n}.png`)
     const { result } = await run({ 'verify:validation': shotsValidationOf('pass', seven) }, { ...ARGS, plan: SHOTS_PLAN })
     return same(result.validation.results[1].screenshots, seven.slice(0, 5))
+  }],
+  ['a [shots] step drops a screenshot path that holds a single quote, a newline or a carriage return', async () => {
+    const { result } = await run({ 'verify:validation': shotsValidationOf('pass', ["shots/it's.png", 'shots/a\nb.png', 'shots/c\rd.png', 'shots/ok.png']) }, { ...ARGS, plan: SHOTS_PLAN })
+    return same(result.validation.results[1].screenshots, ['shots/ok.png'])
   }],
   ['an unmarked [e2e] step returns no screenshots', async () => {
     const { result } = await run({ 'verify:validation': shotsValidationOf('pass', [], ['shots/a.png', 'shots/b.png']) }, { ...ARGS, plan: SHOTS_PLAN })
