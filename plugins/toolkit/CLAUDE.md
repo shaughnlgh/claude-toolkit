@@ -1,4 +1,4 @@
-# Toolkit Doctrine Index
+# Toolkit doctrine index
 
 This is the toolkit's working doctrine, one concern per file under `doctrine/`. Each line below carries the section's binding essence; read the file for the full detail (paths relative to this file). The design rationale lives in `README.md` beside this file.
 
