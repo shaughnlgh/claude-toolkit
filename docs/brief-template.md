@@ -1,46 +1,30 @@
 # Brief template
 
-A brief is the note that opens a piece of work. The `crawl` skill ingests it, and on the plan-guide route crawl writes it beside the plan note as `brief - <plan-name>.md`. On the wayfinder route wayfinder writes it beside the parent plan. Copy the block below, keep every heading, and write each paragraph as one line.
+A brief is the note that opens a piece of work. The `crawl` skill ingests it, and on the plan-guide route crawl writes it beside the plan note as `brief - <plan-name>.md`. On the wayfinder route wayfinder writes it beside the parent plan. Copy the block below and write each paragraph as one line. Mission Control's New work prompt carries a copy of this block, so the two change together.
 
 ```markdown
----
-type: brief
-repo: <repo name>
-status: draft
-created: <YYYY-MM-DD>
----
-
-# Brief: <one line naming the outcome>
+# <What you want, in one line>
 
 ## Goal
+<What should be true when this is done, and who it's for.>
 
-<One sentence: the outcome, for whom, and the limit the work must respect.>
+## Background
+<What you know: the ticket, the problem, an example, anything already decided.>
 
-## Context already decided
+## Pieces (if you can see them)
+1. <A part of the work and what it does.>
 
-- <One decision per bullet that the work builds on and must not reopen.>
+## Limits (if any)
+- <A deadline, a platform, something not to touch.>
 
-## Pieces
-
-1. **<Piece name>.** <What it does, in two or three sentences.>
-
-## Constraints
-
-- <One constraint per bullet: doctrine, platform, audience, or deadline.>
-
-## Open questions
-
-- <One question per bullet that only the author can answer. Write "None" when there are none.>
-
-## Route expectation
-
-<One line: single plan, or multi-part with the pieces that go first, and why.>
+## What I don't know
+- <Anything you want the agent to find out, like how two modules connect.>
 ```
 
-- `status`: `draft` while the author writes it, `ready` when the author hands it over. Crawl does not read this field.
-- Goal: the sentence the plan's Objective is checked against. A goal with two outcomes is two briefs.
-- Context already decided: the decisions the author does not want reopened. Crawl still verifies each one against the repo like any other claim in the brief.
-- Pieces: a single-plan brief has one piece. A multi-part brief numbers each piece, so the decomposition can start from them.
-- Constraints: what every piece must respect. A constraint that only one piece needs belongs in that piece.
-- Open questions: the questions the author knows only they can answer. Crawl lists them with the open questions it finds.
-- Route expectation: the author's guess. Crawl routes on the evidence it gathers, not on this line.
+- Goal: the one section a brief needs. The plan's Objective is checked against it, and a goal with two outcomes is two briefs.
+- Background: what the author already knows. Crawl verifies each claim in it against the repo, and a decision written here stays settled.
+- Pieces: a single-plan brief can leave this out. A multi-part brief numbers each piece, so the decomposition can start from them.
+- Limits: what every piece must respect.
+- What I don't know: what the author wants the agent to find out. Crawl answers what the repo can answer and lists the rest as open questions.
+
+Leave out any section you have nothing for. The agent asks about what it needs, and crawl recommends the route from the evidence it gathers.

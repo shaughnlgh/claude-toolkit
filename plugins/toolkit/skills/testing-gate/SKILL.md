@@ -11,7 +11,7 @@ When this skill is active, before writing or editing code, read `tests`. When a 
 
 > Do we require tests for this task, or is manual verification sufficient?
 
-Present this question via the AskUserQuestion form per the communication doctrine, recommended answer first. When a plan note exists, record the answer as `tests: required` or `tests: manual` on the note. When no plan note exists, write `<scratchpad>/flow-run-options` as a blank `plan:` line followed by the `tests:` line, so no plan flow reads that cache. The key and its values are defined in `plan-guide` § Run options.
+Present this question via the AskUserQuestion form per the communication doctrine, recommended answer first. When a plan note exists, record the answer as `tests: required` or `tests: manual` on the note. When no plan note exists, write `<scratchpad>/flow-run-options` as a blank `plan:` line followed by the `tests:` line and any `ticket:` and `ticket_work:` lines the file already held, so no plan flow reads that cache. The key and its values are defined in `plan-guide` § Run options.
 
 ## After the answer is known
 - If tests are required: use the test setup that already exists in the repo, and follow the `test-first` skill for the red-green-refactor loop

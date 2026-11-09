@@ -13,6 +13,8 @@ Date: 2026-07-22
 
 Status: Accepted
 
+Amended by [0007](0007-ticket-question-and-creation-on-yes.md), which adds ticket creation through the same jira-cli transport. The transport choice stands.
+
 ## Context
 
 The toolkit's Jira adapter skill needs a CLI transport for fetching tickets headlessly. Two candidates were audited: ankitpokhrel/jira-cli (community, Go, homebrew-core, MIT) and Atlassian's official acli (vendor tap, closed source, prebuilt binary). The toolkit's credential convention is env vars exported from ~/.zshrc, referenced by name only, and its dependency doctrine requires auditable maintenance state, install surface, and typo-squatting posture.

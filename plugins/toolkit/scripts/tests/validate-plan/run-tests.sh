@@ -65,6 +65,8 @@ run "40 verifier_effort outside the set is a violation" "$FX/2026-11-05-runopts-
 run "41 tag_merge: yes is a violation (true or false only)" "$FX/2026-11-05-runopts-tagyes/plan - runopts-tagyes.md" 1 "tag_merge: must be one of false, true"
 run "42 all eight run option keys bare read as absent and validate" "$FX/2026-11-05-runopts-bare/plan - runopts-bare.md" 0 "OK:"
 run "43 a note with none of the run option keys validates" "$FX/2026-01-01-runopts-absent/plan - runopts-absent.md" 0 "OK:"
+run "44 ticket: none (go without a ticket) validates" "$FX/2026-11-08-ticket-none/plan - ticket-none.md" 0 "OK:"
+run "45 ticket: issue-12 (an issue number) validates" "$FX/2026-11-08-ticket-issue/plan - ticket-issue.md" 0 "OK:"
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
