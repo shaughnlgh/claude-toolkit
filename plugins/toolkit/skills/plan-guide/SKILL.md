@@ -236,6 +236,8 @@ A plan a reader cannot see the code off is not finished. In Implementation Steps
 
 Show enough that plan-critic and the human can judge the approach from the plan, and the implementer builds from it without re-deriving the design. Prose alone is not enough for non-trivial work.
 
+Every Implementation Step in a plan the execute flow runs is work an implementer finishes inside the plan's worktree, such as code, config, tests, docs or a migration file. A wayfinder parent plan is never executed, so its decomposition steps fall outside this rule. A deploy, a production change, or any other action a person takes after the merge goes in Rollback Notes under a line that reads `After merge, for you:`. That line holds only what no flow does under the note's `ceiling`, so it never repeats the merge tag the ship flow pushes under `tag_merge: true`. The execute flow hands each Implementation Step to an implementer, so a step the implementer cannot finish blocks the run.
+
 ### Validation Steps
 
 - Number the steps 1, 2, 3, so the execute runner reads each as its own step.
