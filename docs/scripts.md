@@ -2,7 +2,7 @@
 
 The toolkit ships a small set of scripts under `plugins/toolkit/scripts/`. Most are plain bash and stdlib-only Python with no dependencies. One is a vendored Node design-detector under `scripts/design-detector/` (the one piece of third-party code here — see below). Skills and the user invoke them directly rather than reimplementing the logic inline.
 
-All of them are called through the plugin root, resolved once and reused. A skill, command, or agent names the root of the copy Claude Code loaded, so a `claude --plugin-dir` session runs that copy's scripts. A shell outside them resolves the installed root:
+All of them are called through the plugin root, resolved once and reused. A skill, command, or agent names the root of the copy Claude Code loaded, so a `claude --plugin-dir` session runs that copy's scripts. A `/override` copy of a skill or agent sits outside the plugin, so it runs the installed root's scripts. A shell outside them resolves the installed root:
 
 ```bash
 PLUGIN_ROOT="$(jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json)"
@@ -217,7 +217,7 @@ Exit codes: `0` valid, `1` contract violation(s) (each printed as `VIOLATION: ..
 
 When it runs: the `plan-guide` skill requires a passing validation after every plan-note write, before presenting a plan for approval, before starting execution, and at session closure.
 
-Tests: `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` (44 behavior cases over 43 fixtures plus a direct nonexistent-path case; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` (46 behavior cases over 45 fixtures plus a direct nonexistent-path case; also run by `verify.sh`).
 
 ## topic-recall.py
 

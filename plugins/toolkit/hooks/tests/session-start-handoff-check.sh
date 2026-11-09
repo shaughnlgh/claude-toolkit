@@ -386,6 +386,16 @@ check_sh_plan_blank() {
   _sh_pass "$label :: a blank plan line reads as <unset>"
 }
 
+check_sh_noplan_ticket_lines() {
+  local label="noplan-ticket-lines"
+  _sh_ceiling "$label" $'plan:\nticket: none\nticket_work: x\nceiling: mr' || { _sh_cleanup; return; }
+  _sh_cleanup
+  if [[ "$SH_CTX" != *"git ceiling mr for plan <unset>."* ]]; then
+    _sh_fail "$label :: a no-plan cache with ticket lines did not read as ceiling mr for plan <unset>"; return
+  fi
+  _sh_pass "$label :: a no-plan cache with ticket lines reads as ceiling mr for plan <unset>"
+}
+
 check_sh_plan_unsafe() {
   local label="plan-unsafe"
   _sh_ceiling "$label" $'plan: exa$mple\nceiling: mr' || { _sh_cleanup; return; }
@@ -453,6 +463,7 @@ run_session_start_handoff_checks() {
   check_sh_ceiling_padded
   check_sh_ceiling_inner_space
   check_sh_plan_blank
+  check_sh_noplan_ticket_lines
   check_sh_plan_unsafe
   check_sh_nolib_says_so
   check_sh_nolib_no_error
