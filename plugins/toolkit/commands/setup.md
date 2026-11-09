@@ -224,6 +224,18 @@ The conductor guard denies the main session's edits inside the project unless `T
 
 On that reply, write the entry into the existing object of `<top level>/.claude/settings.local.json` with the Edit or Write tool, and create the file when it is absent. The conductor guard passes that one path, and `protect-files.sh` asks the user to confirm the write. The override takes effect from the next session.
 
+### 11. Ticket tracker (ticket question, optional)
+
+The ticket question in the `plan-guide` skill's Run options section picks a repo's tracker from its `origin` remote, and `~/.claude/toolkit-trackers.json` overrides that pick for a repo whose tracker differs. The skill's Ticket subsection defines the file: each key is a host, or a host plus the remote path without `.git`, read from the `origin` URL after any user part and without any `:<port>`, and each value is `github`, `jira`, or `none`. A host plus path entry wins over a host entry:
+
+    {
+      "gitlab.example.com/someone/side-project": "none"
+    }
+
+- Missing: report `origin defaults` and ask nothing. The ticket question then uses GitHub issues for a github.com origin, Jira for another host when the session's project rules name ticket key prefixes and jira-cli is configured, and no tracker otherwise.
+- Present: check that it parses as a JSON object whose keys match `^[A-Za-z0-9.-]+(/[A-Za-z0-9._-]+)*$`, a host or a host plus remote path, and whose values are `github`, `jira`, or `none`. Flag any other entry and report `needs fix`, because the ticket question reads it as no entry. A file that does not parse also reports `needs fix`, because the ticket question then uses the origin defaults for every repo. Report `configured` when every entry passes.
+- Never write or rewrite the file. Name each flagged entry and why it fails, and leave the edit to the user.
+
 ## Readiness report
 
 End with a table:
@@ -233,7 +245,7 @@ End with a table:
 | Agents | always ready | — |
 | Review capability (reviewer agents, testing-gate skill) | always ready | — |
 | gitlab-mr-review | ready / not ready | glab auth |
-| jira skill (ticket to brief) | ready / not ready | jira-cli + JIRA_API_TOKEN |
+| jira skill (ticket to brief and ticket creation) | ready / not ready | jira-cli + JIRA_API_TOKEN |
 | Planning workflow (plan-guide, obsidian-topic) | ready / not ready | vault config |
 | Write-time rules | main: always ready (session start); subagents: configured / offered / declined | subagents only: check 6 |
 | Prompt-free scripts + orchestration env | configured / offered / declined | check 6 |
@@ -246,6 +258,7 @@ End with a table:
 | Local conflicts | none / N found | migration (check 7) |
 | Worker model routing | default (template) / configured / needs fix | check 8 |
 | Ship flow bot threads on GitLab | configured / not configured / no GitLab host | check 9 |
+| Ticket tracker | origin defaults / configured / needs fix | check 11 |
 
 One line of verdict at the end: fully ready, or the single next action to get there.
 

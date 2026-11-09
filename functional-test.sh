@@ -333,9 +333,9 @@ probe_skills() {
   skill_probe "wayfinder knows its outputs" \
     "Load the wayfinder skill. Report as the answer what kinds of plan notes it emits." \
     "('umbrella' in a or 'parent' in a) and ('child' in a or 'stub' in a)"
-  skill_probe "jira knows its fail-fast probe, verbatim-fetch rule, and read-only boundary" \
-    "Load the jira skill. Without fetching any real ticket, answer these four questions in one message: (1) the exact command it runs first to fail fast on auth, (2) the exact flag that fetches ticket content byte-for-byte, (3) the flag it must never use as a content source, (4) does it ever write back to Jira, answered yes or no." \
-    "'jira me' in a and '--raw' in a and '--plain' in a and ('no' in a or 'never' in a or 'read-only' in a)"
+  skill_probe "jira knows its fail-fast probe, verbatim-fetch rule, and create-only write boundary" \
+    "Load the jira skill. Without fetching any real ticket, answer these five questions in one message: (1) the exact command it runs first to fail fast on auth, (2) the exact flag that fetches ticket content byte-for-byte, (3) the flag it must never use as a content source, (4) does it ever transition, comment on, or edit an existing Jira ticket, answered yes or no, (5) what the user must see and answer before it creates a ticket." \
+    "'jira me' in a and '--raw' in a and '--plain' in a and ('no' in a or 'never' in a) and 'draft' in a"
   skill_probe "red-team knows its engine and standing panel" \
     "Load the red-team skill. Report as the answer: the workflow it reuses for the review and the reviewer agents that are always on its panel." \
     "'review-mr' in a and 'code-reviewer' in a and 'silent-failure-hunter' in a and 'pr-test-analyzer' in a"

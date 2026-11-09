@@ -17,7 +17,7 @@ Scope, stated honestly: this gives an overview of the conflicts, a side-by-side 
 
 ## 1. Run the overview first
 
-Before touching any file, see the scope of the conflict. `<plugin-root>` is `../..` from this skill's base directory, the directory that holds this SKILL.md, resolved to an absolute path, so a `--plugin-dir` session runs the loaded copy's scripts. This root takes precedence over a CLAUDE.md line that resolves the installed root. Run the helper:
+Before touching any file, see the scope of the conflict. `<plugin-root>` is `../..` from this skill's base directory, the directory that holds this SKILL.md, resolved to an absolute path, so a `--plugin-dir` session runs the loaded copy's scripts. This root takes precedence over a CLAUDE.md line that resolves the installed root. When `../../.claude-plugin/plugin.json` does not exist relative to this skill's base directory, as in a `/override` copy under `~/.claude/skills/`, the plugin root is the installed root instead, the path that `jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json` prints, as the setup CLAUDE.md block resolves it. Run the helper:
 
 ```
 python3 <plugin-root>/scripts/merge-conflict-overview.py

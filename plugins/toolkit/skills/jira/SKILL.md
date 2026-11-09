@@ -1,14 +1,15 @@
 ---
 name: jira
 description: >-
-  Read-only Jira ticket-to-brief adapter. Use when a Jira issue key (like PROJ-123) or a
-  Jira ticket URL needs fetching — typically invoked by crawl's ingest step or an
-  expedition's ingestion, or directly when the user asks to fetch a Jira ticket. Fetches
-  the issue via the jira-cli CLI and returns a verbatim brief in conversation: metadata,
-  full description, comments, and issue links, never paraphrased. Read-only — it never
-  transitions, comments on, or creates tickets, and never writes vault or repo files;
-  the calling skill owns any brief file. Do not fire for GitLab issues or MRs (glab
-  handles those) or when the user has already pasted the ticket body.
+  Jira ticket adapter. Use when a Jira issue key (like PROJ-123) or a Jira ticket URL
+  needs fetching, typically from crawl's ingest step or an expedition's ingestion, or
+  when the user asks to fetch one, and when plan-guide's ticket question reaches the
+  user's yes to a drafted Jira ticket. Fetches the issue via the jira-cli CLI and returns
+  a verbatim brief in conversation: metadata, full description, comments, and issue
+  links, never paraphrased. Creates a ticket only on the user's yes to a draft it was
+  shown, never transitions, comments on, or edits a ticket, and never writes vault or
+  repo files. Do not fire for GitLab issues or MRs (glab handles those) or when the user
+  has already pasted the ticket body.
 ---
 
 # Jira
@@ -48,6 +49,17 @@ Return the brief in conversation. This skill writes no files anywhere — the ca
 
 Verbatim means verbatim: no paraphrase, no reordering, no dropping of boilerplate. Judgment about the ticket — readiness, gaps, scope — belongs to crawl and grill, never to this skill.
 
+## 5. Create, on a yes
+
+Run only from the ticket question in plan-guide § Run options: the project read and the search when its create procedure reaches them, and the create after the user's Create it answer. Fail fast per section 1 first.
+
+- Configured project: `awk '/^project:/{p=1;next} /^[^ ]/{p=0} p&&/^ +key:/{print $2; exit}' "${JIRA_CONFIG_FILE:-$HOME/.config/.jira/.config.yml}"` prints jira-cli's configured project key, the project its board setting serves.
+- Search: `jira issue list -p '<PROJECT>' -q 'statusCategory != Done AND text ~ "<words>"' --plain --no-headers --columns key,summary`. A key list is a search result, not ticket content, so `--plain` is allowed here. Fetch a ticket the user picks with `--raw` per section 3.
+- Draft fields, filled before the draft is shown. The assignee is the login `jira me` prints when the project's rules default it to the reporter. When `<PROJECT>` equals the configured project, the sprint id comes from `jira sprint list --state active --table --plain --no-headers --columns id,name`, because jira-cli reads the board from its config. One row gives its id. Any other row count, or another project, asks the user for the sprint id or none.
+- Create: `jira issue create --no-input -p '<PROJECT>' -t '<type>' -s '<summary>' -a '<login>' -l '<label>' --template '<scratchpad>/ticket-draft.md'`. `-p` always carries the project the draft showed. Pass one `-l` per label the rules require and none when they name none, and leave out `-a` when the rules name no assignee. The new key is the first match of `[A-Z][A-Z0-9]*-[0-9]+` in the output. When no key matches, report the output and ask the user for the key.
+- Sprint: `jira sprint add '<sprint id>' '<KEY>'` for the key the create just returned, when the draft names a sprint.
+- Values: `<PROJECT>` matches `^[A-Z][A-Z0-9]*$`, the sprint id `^[0-9]+$`, each label `^[A-Za-z0-9_-]+$`, and the type, summary, and login carry no single quote. A value that fails stops the create and names the value.
+
 ## Errors
 
 - Key not found or no permission: report the CLI's exact error and the key tried; suggest verifying the key and the account's project access. Do not iterate over guessed keys.
@@ -55,4 +67,4 @@ Verbatim means verbatim: no paraphrase, no reordering, no dropping of boilerplat
 
 ## Boundary
 
-Read-only, always: `jira me` and `jira issue view` only — never transition, assign, label, comment, or create. No vault writes, no repo writes, no ticket-readiness judgment, no custom-field mapping. One ticket per invocation; if issue links look worth fetching, ask before fetching them.
+Reads: `jira me`, `jira issue view`, the configured project read, and the section 5 search through `jira issue list` and `jira sprint list`. The one write is section 5 on the user's own yes to a shown draft: `jira issue create`, and `jira sprint add` for the key that create returned (the ticket question ADR in the repo's `docs/decisions/`). Never transition, assign, label, comment on, or edit an existing ticket. No vault writes, no repo writes, no ticket-readiness judgment, no custom-field mapping. One ticket per invocation. If issue links look worth fetching, ask before fetching them.

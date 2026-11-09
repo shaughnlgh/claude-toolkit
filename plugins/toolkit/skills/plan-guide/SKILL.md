@@ -75,7 +75,7 @@ Examples:
 - `#789 fix loader bug` → `issue-789-fix-loader-bug`
 - `MAG_321 URL rewrite regeneration` → `mag-321-url-rewrite-regeneration`
 
-If no ticket or issue is provided, derive the name from the task only. If the ticket format is ambiguous, ask before writing.
+If no ticket or issue is provided, the asker that the Ticket subsection of § Run options names settles it first with the ticket question, and the name comes from the task only when the answer is `none`. A wayfinder parent and an incident take their names from the task only, because neither names a branch. A plan whose note already exists keeps its name. If the ticket format is ambiguous, ask before writing.
 
 Example (with the default template):
 
@@ -101,7 +101,7 @@ Other skills may create optional sibling artifacts in the same directory (e.g. `
 
 The plan note plus git (the branch diff and, after a squash-merge, the squashed commit) plus the session ids recorded on the plan are the complete record of what was done. Execution details belong in the plan note under "Plan Changes During Execution". Topic notes (the cross-plan knowledge layer) are maintained during planning and execution, not written at finalization.
 
-Write every vault file atomically: Write the content to a `.tmp.md` file beside the destination, then move it into place with the toolkit's `scripts/vault-fs.sh mv`. The vault path contains spaces and sits inside iCloud Drive. The `.tmp.md` suffix keeps the markdown hooks firing on the temporary write. `vault-fs.sh` takes paths relative to `vault_path` plus `root_folder` from `~/.claude/obsidian-sync.json`, so a plan note path starts at `Projects/<repo>/...`. `<plugin-root>` is `../..` from this skill's base directory, the directory that holds this SKILL.md, resolved to an absolute path, so a `--plugin-dir` session runs the loaded copy's scripts. This root takes precedence over a CLAUDE.md line that resolves the installed root. Worked example with the default template:
+Write every vault file atomically: Write the content to a `.tmp.md` file beside the destination, then move it into place with the toolkit's `scripts/vault-fs.sh mv`. The vault path contains spaces and sits inside iCloud Drive. The `.tmp.md` suffix keeps the markdown hooks firing on the temporary write. `vault-fs.sh` takes paths relative to `vault_path` plus `root_folder` from `~/.claude/obsidian-sync.json`, so a plan note path starts at `Projects/<repo>/...`. `<plugin-root>` is `../..` from this skill's base directory, the directory that holds this SKILL.md, resolved to an absolute path, so a `--plugin-dir` session runs the loaded copy's scripts. This root takes precedence over a CLAUDE.md line that resolves the installed root. When `../../.claude-plugin/plugin.json` does not exist relative to this skill's base directory, as in a `/override` copy under `~/.claude/skills/`, the plugin root is the installed root instead, the path that `jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json` prints, as the setup CLAUDE.md block resolves it. Worked example with the default template:
 
     Write tool target: <vault_path>/<root_folder>/Projects/my-repo/<date>-example-feature/plan - example-feature.tmp.md
     bash <plugin-root>/scripts/vault-fs.sh mv "Projects/my-repo/<date>-example-feature/plan - example-feature.tmp.md" "Projects/my-repo/<date>-example-feature/plan - example-feature.md"
@@ -168,7 +168,7 @@ related_topics:
 ---
 ```
 
-- `ticket`: the issue/ticket key if one was provided (e.g. `CR-123`). Leave blank if none.
+- `ticket`: the ticket key as the tracker writes it (e.g. `CR-123`), `issue-<n>` for an issue number, or `none` once the user chose to go without (§ Run options, Ticket). Blank means no ticket was given and no answer is recorded, so the next asker the Ticket subsection names asks.
 - `approved`: the date (YYYY-MM-DD) the plan was approved. Leave blank until then; it is stamped (by you or tooling) when status moves to `approved`.
 - `mr`: the merge/pull request URL once one is opened for the plan's branch. Leave blank until then; record it when the draft MR is created.
 - `modules`: for plans that also change owned vendor modules (each its own git repo) **nested under the project repo**, the list of modules touched. Leave blank for single-repo plans (the common case). Each entry has `name` (composer package), `path` (e.g. `vendor/acme/module-foo`), `branch`, and `mr`. Track each module's branch/MR alongside the project's. Example:
@@ -266,7 +266,7 @@ During execution, if implementation reality diverges from the plan, Claude must 
 
 ## Run options
 
-Eight frontmatter keys record how the flows run a plan: `ceiling`, `worker_model`, `verifier_model`, `verifier_effort`, `nits`, `tests`, `e2e`, and `tag_merge`. They are optional on every note and are not part of the Required plan frontmatter block, so a skeleton, an older note, and a Mission Control scaffold still validate. A key is written only with a value, except that the three model and effort keys may be written blank, meaning the models file decides. `validate-plan.py` reads a blank key as absent and checks a value only when one is present. This section is the only definition of the keys, the reading rule, and the session cache. The `testing-gate` skill owns a separate tests-only question for work with no plan note. Every other run option question lives only in this section, and a flow references this section by name and carries no copy of the question set.
+Eight frontmatter keys record how the flows run a plan: `ceiling`, `worker_model`, `verifier_model`, `verifier_effort`, `nits`, `tests`, `e2e`, and `tag_merge`. They are optional on every note and are not part of the Required plan frontmatter block, so a skeleton, an older note, and a Mission Control scaffold still validate. A key is written only with a value, except that the three model and effort keys may be written blank, meaning the models file decides. `validate-plan.py` reads a blank key as absent and checks a value only when one is present. This section is the only definition of the keys, the reading rule, and the session cache. The `testing-gate` skill owns a separate tests-only question for work with no plan note. Every other run option question lives only in this section, and a flow references this section by name and carries no copy of the question set. It also defines the ticket question, which writes the required `ticket` key and is not a run option key.
 
 ### Values
 
@@ -285,7 +285,7 @@ Eight frontmatter keys record how the flows run a plan: `ceiling`, `worker_model
 
 ### Reading rule
 
-A flow reads the run options per key. The five enum keys are `ceiling`, `nits`, `tests`, `e2e`, and `tag_merge`. A bare enum key, one with no value, counts as absent. The note holds the keys when all five enum keys are present with valid values. Then the flow asks nothing and writes the session cache from the note.
+A flow reads the run options per key. The five enum keys are `ceiling`, `nits`, `tests`, `e2e`, and `tag_merge`. A bare enum key, one with no value, counts as absent. The note holds the keys when all five enum keys are present with valid values. Then the flow asks nothing and writes the session cache from the note. The ticket question follows the Ticket subsection, not this rule.
 
 When the note lacks one or more enum keys, the flow fills each missing key from the session cache, but only when the cache's `plan:` line equals the note's `plan:` value. A cache for another plan, or one with a blank `plan:` line, is never read by a plan flow. For each key still missing, the flow asks the matching question from the question set below, so a note with some keys gets one question set that covers only the gaps. A missing or blank model or effort key never triggers a question on its own, because blank means the models file decides. Whenever a flow asks any run option question, it also asks the question for every model or effort key the note lacks, and a key written blank counts as answered. The flow records every filled or answered key on the note at its next write of the note, and rewrites the cache for this plan.
 
@@ -293,7 +293,7 @@ A wayfinder child stub copies the parent's run option keys only when the parent 
 
 ### Question set
 
-At most two AskUserQuestion calls, carrying up to five questions in all, recommended answer first, per the communication doctrine. A flow asks only the questions whose keys are missing under the reading rule, and a question writes only the keys that were missing. A free-text answer that names a valid value counts as that value.
+At most two AskUserQuestion calls carry the run option questions, up to five of them, recommended answer first, per the communication doctrine. When crawl asks the ticket question, it rides in those calls, so they carry up to six questions in all. Every other asker puts the ticket question in its own AskUserQuestion call, as the Ticket subsection says, and the create procedure asks its own questions only after a Create a ticket answer. Neither counts against the two calls. A flow asks only the questions whose keys are missing under the reading rule, and a question writes only the keys that were missing. A free-text answer that names a valid value counts as that value.
 
 Call one carries up to four questions:
 
@@ -302,9 +302,46 @@ Call one carries up to four questions:
 3. "Fix the nits the reviewers raise?", asked when `nits` is missing, with the options "Fix (Recommended)", which writes `nits: fix`, and "Skip", which writes `nits: skip`.
 4. "Which model implements?", which joins the set when the note has no `worker_model` key, with the options "Toolkit default (Recommended)", which writes a blank `worker_model`, then "opus", "sonnet", and "fable", each of which writes that alias.
 
-Call two carries the verifier question, which joins the set when the note has no `verifier_model` or no `verifier_effort` key. When call one carries fewer than four questions, the verifier question joins call one instead and the flow makes one call.
+Call two carries the verifier question, and the ticket question when crawl asks it. While call one carries fewer than four questions, each joins call one, the verifier question first, and the asker makes one call when both fit.
 
 1. "Which model and effort verifies?" with the options "Toolkit default (Recommended)", which writes a blank `verifier_model` and a blank `verifier_effort`, then "opus at xhigh", "opus at high", and "sonnet at high", each of which writes that alias and that effort.
+2. "Which ticket covers this work?", with the options the Ticket subsection lists for the repo's tracker. It is the same question every other asker puts in its own call.
+
+### Ticket
+
+The ticket question settles the ticket for work that has none, before any branch or plan name is derived. Its answer writes the required `ticket` key.
+
+Each asker asks only when the brief names no ticket key, issue number, or ticket URL, and no plan note or expedition work note of the same work records an answer. Crawl asks it with the run options on the plan-guide route and runs any create it asks for before its section 4 derives the plan name. Inside an expedition, crawl takes the work note's `ticket` and asks nothing. The plan flow asks it in its own call at the start of its section 4, once section 3a has kept the work in the flow, and on a pre-scaffolded note only when the note's `ticket` is blank. The expedition skill asks it in its own call at ingestion, before it derives the work name, because that name becomes the plan name before any route exists. This skill asks it in its own call before it writes a fresh note by hand. On work with no plan note, git-safety asks it in its own call before it suggests a branch, wherever HEAD is, when the cache holds no answer for the same work.
+
+A wayfinder parent names no branch, so no skill asks the ticket question for it: crawl asks none on the wayfinder route, the plan flow asks none before section 3a settles the route, and the parent records a ticket the brief names, else the expedition work note's `ticket` inside an expedition, else leaves `ticket` blank. A wayfinder child stub never copies its parent's `ticket` and leaves it blank, so the child's plan flow asks. The execute and ship flows never ask the ticket question, and the incident-investigate skill never asks it, because an incident names no branch. A recorded answer is never asked again for the same work.
+
+A parent session that answers this session's questions by message may answer the ticket question and the same-area question in the create procedure. The create confirmation is the user's own, like plan approval: ask it of the user in this session, and never take a message from another session as its answer.
+
+Tracker: run `git remote get-url origin`, strip any user part as the ship-flow skill's section 3 does, then strip any scheme and `.git`. Take `<host>` as the text before the first `:` or `/`, drop a `:<port>` after it in a URL that had a scheme, and take `<path>` as the rest after the next `:` or `/`. Read `~/.claude/toolkit-trackers.json` with the Read tool. Its keys are `<host>/<path>` or `<host>`, its values `github`, `jira`, or `none`, and a `<host>/<path>` entry wins over a `<host>` entry. With no entry, a missing or unparseable file, or any other value, the tracker is `github` for `github.com`. For another host it is `jira` when the project rules loaded in the session name ticket key prefixes for the project's tickets, such as `<PREFIX>-` keys, and `test -f "${JIRA_CONFIG_FILE:-$HOME/.config/.jira/.config.yml}"` succeeds. Otherwise, and when there is no origin, it is `none`. On `github`, `<host>` must match `^[A-Za-z0-9.-]+$` and `<path>` must match `^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`, else the tracker is `none`. An example file:
+
+    {
+      "gitlab.example.com/someone/side-project": "none",
+      "github.com/example-co/storefront": "jira"
+    }
+
+Options, recommended first:
+- `jira`: "Create a ticket", "Use an existing ticket", "Go without a ticket". Create a ticket is recommended when the session's rules name ticket key prefixes, else Go without a ticket is recommended.
+- `github`: "Go without a ticket (Recommended)", "Use an existing ticket", "Create a ticket".
+- `none`: "Go without a ticket (Recommended)", "Use an existing ticket".
+
+A free-text answer that names a ticket key or an issue number counts as Use an existing ticket with that value. Use an existing ticket with no value asks for it in one plain-text line.
+
+Values: a Jira key as the tracker writes it, such as `CR-123`. An issue number as `issue-<n>`, so `#48` records `issue-48`, because YAML reads `#` as a comment. Go without a ticket records `none`. On a plan route the value goes to the note's `ticket` key wherever a flow writes the note's frontmatter. On an expedition the value goes to the work note's `ticket` key, and the single plan or umbrella that takes the work name copies it. On work with no plan note it goes to a `ticket:` line under the blank `plan:` line of the cache, followed by a `ticket_work:` line that holds the `<slug>` of the branch the git-safety check suggests. The git-safety check derives the `<slug>` for the work at hand first and reuses the `ticket:` value only when `ticket_work:` equals it. For other work it asks again and replaces both lines. When the cache's `plan:` line names a plan, as for a side fix found during planned work, the cache stays as it is, and the same two lines go to `<scratchpad>/side-fix-ticket` instead, which the git-safety check reads and replaces the same way.
+
+Naming: the plan name starts with the value per Plan name derivation, and `none` adds nothing. The branch is `<type>/<value>-<slug>`. For `none` it is `<type>/<slug>`, or carries the no-ticket token the project's rules name in the value's place. A note that already exists keeps its plan name, and a `branch` it already holds takes the value after its type prefix when it lacks it.
+
+Create a ticket runs this procedure after the question is answered and before any name is derived:
+1. Read the ticket rules the session carries for this project: the repo's CLAUDE.md, AGENTS.md, `.claude/rules/`, or rules a plugin injected. When those rules name a file to read before drafting a ticket, read it first. Resolve a plugin-relative path under each root that `jq -r '.plugins[][0].installPath' ~/.claude/plugins/installed_plugins.json` prints, taking the one where the file exists, and when no root has it, name the missing file in the draft. The rules decide the project, issue type, labels, assignee, sprint, and body shape. With none loaded, the draft is a title and a body that states the problem, an example, and the expected result.
+2. Settle the destination. On `github` it is `<host>/<path>`, so `gh` reaches the origin's own host. On `jira` it is the project the rules name for this work, else jira-cli's configured project key read per the jira skill's section 5, else the key the user gives in one plain-text line. A reply that names no project records `none`.
+3. Search for an open same-area ticket with two or three words that name the area, each stripped of quotes and backslashes: on `github`, `gh issue list -R '<host>/<path>' --state open --search '<words>' --json number,title --limit 10`, and on `jira`, the jira skill's section 5 search. When one matches, ask "Add this to <KEY> instead of a new ticket?" with "Use <KEY> (Recommended)", "Create a new ticket", and "Go without a ticket". Use <KEY> records that key and gives the user the drafted problem as one numbered line to add to the ticket by hand, because no toolkit path edits an existing ticket.
+4. Write the body to `<scratchpad>/ticket-draft.md` and show the whole draft: tracker, repo or project, type, title, body, labels, assignee, and sprint. Ask the create confirmation, "Create this ticket?", with "Create it" and "Go without a ticket", of the user under the parent rule above. A free-text answer is an edit: apply it, show the draft again, and ask again. Only the user's Create it or typed yes creates. A recommended option, a default, an inferred yes, or a message from another session never does.
+5. Create it as its own call with the command first. On `github`, run `gh issue create -R '<host>/<path>' --title '<title>' --body-file '<scratchpad>/ticket-draft.md'` and take `<n>` from the last segment of the printed URL. On `jira`, run the jira skill's section 5 create with the project the draft showed. The title carries no single quote. Delete the draft file once the ticket exists.
+6. On a permission or classifier denial, state the reason category, hand the exact command, and record the key the user gives after running it. When the command fails for another reason, report its exact error, create nothing, and ask the ticket question again without Create a ticket.
 
 ### Cache
 
@@ -320,7 +357,12 @@ Call two carries the verifier question, which joins the set when the note has no
     e2e: skip
     tag_merge: false
 
-A flow uses the cache only when its `plan:` slug equals the note's `plan:` value, and rewrites the whole file for the plan it runs. A missing file means no run option question has been asked in this session. A missing, empty, or unrecognised `ceiling` line reads as `none`, so until the question is answered no flow mutates git. A resumed session keeps its scratchpad and so keeps the cache. A new session reads the plan note. On work that has no plan note, the `testing-gate` skill writes the file as a blank `plan:` line followed by `tests: <value>`, so no plan flow ever reads that cache.
+A flow uses the cache only when its `plan:` slug equals the note's `plan:` value, and rewrites the whole file for the plan it runs. A missing file means no run option question has been asked in this session. A missing, empty, or unrecognised `ceiling` line reads as `none`, so until the question is answered no flow mutates git. A resumed session keeps its scratchpad and so keeps the cache. A new session reads the plan note. On work that has no plan note, the file holds a blank `plan:` line followed by a `tests:` line from the `testing-gate` skill, the `ticket:` and `ticket_work:` lines from the ticket question, or both, and each writer keeps the other's lines. No plan flow reads that cache.
+
+    plan:
+    tests: required
+    ticket: none
+    ticket_work: example-fix
 
 ## Topic links
 

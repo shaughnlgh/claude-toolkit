@@ -13,6 +13,8 @@ Date: 2026-11-05
 
 Status: Accepted
 
+Amended by [0007](0007-ticket-question-and-creation-on-yes.md), which replaces the sentence that a flow asks at most two AskUserQuestion calls carrying up to five questions in all.
+
 ## Context
 
 Each flow asked a git-permission question at the start of a session and recorded the answer in a scratchpad file, the ship flow asked a second question for the stage to stop at, and the testing gate asked its own question. Nothing on the plan note recorded any answer, so a plan executed across two sessions, or by a second person, was asked again, and an unattended run had no record to read. The toolkit is moving to one run from a brief to a merged MR with human input only between planning and execution, which needs every option a flow acts on to live where the flows, Mission Control, and the user can all read and edit it.
