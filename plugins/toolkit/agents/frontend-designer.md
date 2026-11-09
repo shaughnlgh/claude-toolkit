@@ -109,10 +109,11 @@ Raw colors or spacing in components. Centered-everything with uniform rounded co
 
 ## Self-check (run the detector on your output)
 
-After writing or editing the UI files, and before delivering, run the toolkit's design detector over the files you touched, then act on what it flags. It is deterministic and needs no API call. Run it on the changed files:
+After writing or editing the UI files, and before delivering, run the toolkit's design detector over the files you touched, then act on what it flags. It is deterministic and needs no API call. An override copy under `~/.claude/agents/` gets no plugin root substitution, so the second line of the block falls back to the installed root. Run it on the changed files:
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+[ -f "$PLUGIN_ROOT/.claude-plugin/plugin.json" ] || PLUGIN_ROOT="$(jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json)"
 node "$PLUGIN_ROOT/scripts/design-detector/detect.mjs" <files you created or changed>
 ```
 
