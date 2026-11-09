@@ -4,9 +4,9 @@ description: >-
   Plan flow: one run that turns a brief into a validated plan note. Use only when the
   user asks for the plan flow by name ("run the plan flow", "plan flow this brief",
   "run the plan workflow"), including on a pre-scaffolded plan note: status planning,
-  ticket frontmatter or a Brief section, and empty or template Implementation Steps
-  and Validation Steps. Its Brief section is the brief, or else its Objective, Current
-  Context, and ticket. Never fires from crawl. Reads the run options from the plan note or the session cache and asks only for the keys neither has,
+  ticket frontmatter, a Brief section, or a brief file beside it, and empty or template Implementation Steps
+  and Validation Steps. Its Brief section or brief file is the brief, or else its Objective, Current
+  Context, and ticket. Never fires from crawl on its own: a typed yes or `run the plan flow` to crawl's offer is the ask by name. Reads the run options from the plan note or the session cache and asks only for the keys neither has,
   runs topic recall, runs a route check that
   recommends wayfinder on a multi-part brief, launches the plan-builder
   workflow (discovery, planner draft, plan-critic pre-mortem with a revise loop, cold
@@ -23,7 +23,7 @@ Plan-flow is the conductor side of the `plan-builder` workflow, shipped with thi
 
 ## 1. Trigger
 
-Fire only when the user asks for the plan flow by name. Asking for "the plan workflow" counts as asking by name. A `crawl` route never fires this skill. A pre-scaffolded plan note is accepted, and section 5 writes into that note in place instead of creating a new plan directory. A note is pre-scaffolded when its status is `planning`, it has `ticket` frontmatter or a Brief section, and its Implementation Steps and Validation Steps are empty or still hold template text. Its Current Context and Objective may hold scaffold text. The brief of a pre-scaffolded note is its Brief section when it has one, otherwise its Objective, its Current Context, and its `ticket` frontmatter. Any other plan note, including one whose Implementation Steps are filled, belongs to `plan-guide`, so load `plan-guide` instead. Trivial work needs no plan, so it never fires this skill. Without a pre-scaffolded note, the brief is the user's text for the work, quoted verbatim.
+Fire only when the user asks for the plan flow by name. Asking for "the plan workflow" counts as asking by name. A `crawl` route never fires this skill on its own. A typed reply to the plan flow offer that ends `crawl` section 4, when it picks the plan flow, such as `yes` or `run the plan flow`, counts as asking by name. A pre-scaffolded plan note is accepted, and section 5 writes into that note in place instead of creating a new plan directory. A note is pre-scaffolded when its status is `planning`, it has `ticket` frontmatter, a Brief section, or a `brief - <plan>.md` file beside it, where `<plan>` is the note's `plan` value, and its Implementation Steps and Validation Steps are empty or still hold template text. Its Current Context and Objective may hold scaffold text. The brief of a pre-scaffolded note is its Brief section when it has one, else that brief file, otherwise its Objective, its Current Context, and its `ticket` frontmatter. Any other plan note, including one whose Implementation Steps are filled, belongs to `plan-guide`, so load `plan-guide` instead. Trivial work needs no plan, so it never fires this skill. Without a pre-scaffolded note, the brief is the user's text for the work, quoted verbatim.
 
 ## 2. Run options
 
@@ -43,6 +43,8 @@ On `2` or `3`, stop and report the exit code and stderr to the user. Never pass 
 
 ## 3a. Route
 
+When this run started from the plan flow offer that ends `crawl` section 4, keep the plan-guide route the user confirmed in crawl, state it in one sentence, and continue to section 4 with no question, because crawl chose that route on explorer evidence that the recall hits do not match.
+
 Apply the route rubric from section 3 of the `crawl` skill (`<plugin-root>/skills/crawl/SKILL.md`) to the evidence available at this point, which is the recall hits. Run no explorer fan-out, because the plan-builder's discovery phase does the deep reading later. A brief that reads as several independent workstreams yields a wayfinder recommendation that the user confirms, never a settled route, because wayfinder investigates before it decomposes. Several workstreams means several subsystems or repos, an issue list rather than one issue, or work that cannot be one branch and one plan. Otherwise the route is this flow.
 
 When the recommendation is wayfinder, ask once through AskUserQuestion: "This brief reads as <N> independent workstreams: <one clause each>. Map it with wayfinder, or plan it as one flow?" with the options in this order:
@@ -56,7 +58,9 @@ When there is no wayfinder recommendation, state the route to the user in one se
 
 ## 4. Launch
 
-Settle the ticket first, per the Ticket subsection of `plan-guide` § Run options. When the brief names no ticket key, issue number, or ticket URL, no expedition work note of the same work records a `ticket`, and either no note exists yet or the note's `ticket` is blank, ask the ticket question in its own AskUserQuestion call. Section 3a has kept the work in this flow by now, so the answer always serves a branch. When the answer is Create a ticket, run the create procedure in that subsection before deriving `planName`. On a pre-scaffolded note, write the answer to its `ticket` key at once with the atomic write, so a rerun neither asks again nor creates a second ticket. On a fresh brief, keep it with section 2's answers for section 5. Derive `planName` per `plan-guide` naming and build the args: `brief`, `repoRoot` as an absolute path, `repoName`, `planName`, `recallHits`, and the optional `knownEvidence` (facts this session already verified, each with its file:line), `approveIf` (one goal sentence the plan must meet, only when the user gave one), and `maxRounds` (revise rounds, default 2), and `models` (the `agents` object the resolver run in the next paragraph prints, left out when the resolver is missing or fails).
+Settle the ticket first, per the Ticket subsection of `plan-guide` § Run options. When the brief names no ticket key, issue number, or ticket URL, no expedition work note of the same work records a `ticket`, and either no note exists yet or the note's `ticket` is blank, ask the ticket question in its own AskUserQuestion call. Section 3a has kept the work in this flow by now, so the answer always serves a branch. When the answer is Create a ticket, run the create procedure in that subsection before deriving `planName`. On a pre-scaffolded note, write the answer to its `ticket` key at once with the atomic write, so a rerun neither asks again nor creates a second ticket. On a fresh brief, keep it with section 2's answers for section 5. Derive `planName` per `plan-guide` naming and build the args: `brief`, `repoRoot` as an absolute path, `repoName`, `planName`, `recallHits`, and the optional `knownEvidence` (facts this session already verified, each with its file:line, and the crawl sections the next paragraph names), `approveIf` (one goal sentence the plan must meet, only when the user gave one), and `maxRounds` (revise rounds, default 2), and `models` (the `agents` object the resolver run in the next paragraph prints, left out when the resolver is missing or fails).
+
+Whenever the brief comes from the `brief - <plan>.md` file, on a run started from the plan flow offer that ends `crawl` section 4 or on any by-name run, `knownEvidence` also carries the note's Current Context, Assumptions and Open Questions, which crawl wrote into the note, each under its own heading, after this line: `Crawl checked the brief against the repo. Where these sections correct the brief, the correction holds.` The brief stays the brief file's verbatim text, so the crawl's corrections and open questions reach plan-builder only through `knownEvidence`.
 
 Append one line to `brief` that names the branch shape: `Ticket: <ticket>. The branch is <type>/<ticket>-<slug>.` for a key or `issue-<n>`, and `No ticket. The branch is <type>/<slug>.` for `none`, with the project's no-ticket token in the ticket's place when the project's rules name one.
 

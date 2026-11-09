@@ -3,6 +3,7 @@
 #   <fixture path relative to fixtures/> | <expected exit> | <expected output substring>
 # A literal "-" substring means "no specific message asserted".
 # Case 13 (nonexistent path) is invoked directly, not via a fixture file.
+# A readback case asserts the sessions name that the validator's own parser reads.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,6 +19,25 @@ run() { # $1 name, $2 path, $3 expected exit, $4 substring
   else
     printf '  FAIL  %s (exit %s, wanted %s)\n        %s\n' "$1" "$actual" "$3" "$(printf '%s' "$out" | head -3)"
     FAIL=$((FAIL+1))
+  fi
+}
+
+readback() { # $1 name, $2 path, $3 sessions entry index from 0, $4 expected name
+  local out
+  out="$(python3 -I - "$V" "$2" "$3" 2>&1 <<'PY'
+import importlib.util, re, sys
+spec = importlib.util.spec_from_file_location("validate_plan", sys.argv[1])
+vp = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(vp)
+text = open(sys.argv[2], encoding="utf-8").read()
+fm = vp.parse_frontmatter(re.match(r"^---\n(.*?)\n---\n", text, re.S).group(1).split("\n"))
+print(fm["sessions"][int(sys.argv[3])].get("name", ""))
+PY
+)"
+  if [ "$out" = "$4" ]; then
+    printf '  PASS  %s\n' "$1"; PASS=$((PASS+1))
+  else
+    printf '  FAIL  %s (read %s, wanted %s)\n' "$1" "$out" "$4"; FAIL=$((FAIL+1))
   fi
 }
 
@@ -67,6 +87,8 @@ run "42 all eight run option keys bare read as absent and validate" "$FX/2026-11
 run "43 a note with none of the run option keys validates" "$FX/2026-01-01-runopts-absent/plan - runopts-absent.md" 0 "OK:"
 run "44 ticket: none (go without a ticket) validates" "$FX/2026-11-08-ticket-none/plan - ticket-none.md" 0 "OK:"
 run "45 ticket: issue-12 (an issue number) validates" "$FX/2026-11-08-ticket-issue/plan - ticket-issue.md" 0 "OK:"
+run "46 sessions entries with double-quoted name keys accepted" "$FX/2026-01-18-session-names/plan - session-names.md" 0 "OK:"
+readback "47 a double-quoted session name with a space and a colon reads back unchanged" "$FX/2026-01-18-session-names/plan - session-names.md" 1 "PROJ-12 Fix checkout: totals"
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
