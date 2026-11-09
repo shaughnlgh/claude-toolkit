@@ -59,9 +59,26 @@ On the plan-guide and wayfinder routes, once the route is confirmed, ask the run
 
 ## 4. Hand off with the evidence
 
-- **plan-guide route:** load `plan-guide` (`<plugin-root>/skills/plan-guide/SKILL.md`), create the plan directory per its canonical layout, write `brief - <plan-name>.md` beside the plan note (the verbatim brief plus its source reference — ticket URL or "dictated"), and scaffold the plan note with the crawl's evidence pre-filled into Current Context, Assumptions, and Open Questions, `status: planning`. Write the run option keys from section 3 into the scaffolded note's frontmatter, write the ticket the brief names, else the expedition work note's `ticket` inside an expedition, else section 3's ticket answer, to its `ticket` key, and write `<scratchpad>/flow-run-options` with `plan: <plan-name>` as its first line followed by the run option keys. Planning continues under plan-guide as normal, treating the crawl-filled sections as this session's ground truth rather than re-deriving them.
+- **plan-guide route:** load `plan-guide` (`<plugin-root>/skills/plan-guide/SKILL.md`), create the plan directory per its canonical layout, write `brief - <plan-name>.md` beside the plan note (the verbatim brief plus its source reference, ticket URL or "dictated"), and scaffold the plan note with the crawl's evidence pre-filled into Current Context, Assumptions, and Open Questions, `status: planning`. Write the run option keys from section 3 into the scaffolded note's frontmatter, write the ticket the brief names, else the expedition work note's `ticket` inside an expedition, else section 3's ticket answer, to its `ticket` key, and write `<scratchpad>/flow-run-options` with `plan: <plan-name>` as its first line followed by the run option keys. Then end the reply with the plan flow offer below.
 - **wayfinder route:** load `wayfinder` (`<plugin-root>/skills/wayfinder/SKILL.md`) and hand it the brief and the full evidence and the run option answers, which wayfinder writes into the parent note and copies into every child stub. Wayfinder's alignment step presents the lay of the land from this evidence instead of re-investigating, and wayfinder itself writes the `brief - <plan-name>.md` file beside the parent plan when it emits it (that write is wayfinder's, per its step 4).
 - **no-plan route:** no artifacts. Proceed directly under `testing-gate`.
+
+Plan flow offer: on the plan-guide route, after the scaffold, end the reply with one question in plain text and end the turn. Never ask it through AskUserQuestion, because the permission classifier reads the user's typed messages, as `plan-guide` § After approval states. Skip it when an `expedition` drives this session, because the expedition's gates sequence planning.
+
+Before the question, read this session's own name from the first line of ListAgents, which loads through ToolSearch with `select:ListAgents` when it is deferred. The own name is the session name on that line, without the bracketed short id after it. When ListAgents is absent, prints no own-name line, or prints a name that does not start `parent-`, put this line directly above the question, with `<planName>` set to the scaffolded note's `plan` value:
+
+    To mark this session as the plan's parent, run `/rename parent-<planName>` before you answer.
+
+The question, verbatim:
+
+    The plan note is scaffolded. Run the plan flow on it now?
+    - `run the plan flow` or `yes`: plans the note in this session with the plan-builder workflow and stops for your approval (recommended).
+    - `plan by hand` or `no`: planning continues in this session under plan-guide.
+
+The user's next typed message answers it. A slash command such as `/rename` answers nothing.
+
+- `yes`, or a reply that asks to run the plan flow, such as `run the plan flow`, is the user asking for the plan flow by name. Load `plan-flow` (`<plugin-root>/skills/plan-flow/SKILL.md`) and follow it from section 1 on the scaffolded note. Pass it as `knownEvidence` the crawl's verified facts, each with its file:line, and the Current Context, Assumptions and Open Questions that this section wrote into the note, which hold the crawl's corrections to the brief and its open questions, as plan-flow section 4 defines. Leave the brief file as the verbatim brief.
+- Any other reply starts no flow. Planning continues under plan-guide as normal, treating the crawl-filled sections as this session's ground truth rather than re-deriving them.
 
 ## Boundary
 
