@@ -193,13 +193,14 @@ repos:
     mr:
 ```
 
-- `sessions`: the Claude Code work session(s) tied to this plan, oldest first — at most one entry per session id. A plan can span many sessions; most have just one for now. Each entry has `date`, a one-line `summary`, and optionally `id` (the session id / transcript file). The entry is created when a work session starts (planning and execution alike) and its summary is updated to the real outcome as the session ends (see Record the session on the plan), so the plan carries its full session history. The `id` is the reference point back into the actual transcript if the blow-by-blow is ever needed. Example:
+- `sessions`: the Claude Code work session(s) tied to this plan, oldest first, at most one entry per session id. A plan can span many sessions; most have just one for now. Each entry has `date`, a one-line `summary`, optionally `id` (the session id / transcript file), and optionally `name` (this session's own name as a double-quoted string, per Record the session on the plan). The entry is created when a work session starts (planning and execution alike) and its summary is updated to the real outcome as the session ends (see Record the session on the plan), so the plan carries its full session history. The `id` is the reference point back into the actual transcript if the blow-by-blow is ever needed. Example:
 
 ```yaml
 sessions:
   - date: 2026-06-14
     summary: Initial plan + first implementation pass
     id:
+    name: "parent-csv-export"
 ```
 
 - `related_topics`: plain strings, not wiki links. Use wiki links only in the body.
@@ -407,39 +408,49 @@ Drive the plan note's frontmatter `status` through its lifecycle so plan-trackin
 
 When this session sets `status: approved`, on the user's word or through the plan flow's `approveIf` gate, it ends its reply with one question in plain text and ends the turn. It never asks this question through AskUserQuestion, because the auto-mode permission classifier reads the user's typed messages and never an AskUserQuestion answer, as the Command shape under the permission classifier section of the git-safety doctrine states, and the reply that starts the run must be legible to it. It skips the question when the user's approving message already asked for the execute flow by name or said to stop, and when an `expedition` drives this session, because the expedition's gate to `implementing` asks the next step. This subsection is the only definition of the question, and a flow references it by name.
 
-The question, verbatim:
+The question takes one of two forms, verbatim. It takes the child form when this session's own name, read from the first line of ListAgents, which loads through ToolSearch with `select:ListAgents` when it is deferred, starts with `parent-`, because a crawl parent hands the build to a child, or when the context-sentinel hook has injected its ~200k token nudge in this session, per the Context budget section of the orchestration doctrine. The own name is the session name on that first line, without the bracketed short id after it. Otherwise it takes the run-here form. In each form `yes` sits on the line marked (recommended), so a bare `yes` takes the recommendation.
+
+The run-here form:
 
     The plan is approved. Run the execute flow here now?
     - `run the execute flow here` or `yes`: builds the plan in this session now (recommended). The build runs in its own worktree when another session is using the main checkout, when the main checkout holds changes, or when it sits on its default branch.
     - `open a child session`: gives you one command to paste in a new terminal. The child builds the plan and messages this session when it finishes or stops.
     - `stop` or `no`: nothing runs. Ask for the execute flow by name when you are ready.
 
-The `run the execute flow here` line comes first in every form of the question, because it is the reply that names the flow. When the context-sentinel hook has injected its ~200k token nudge in this session, "(recommended)" moves to the `open a child session` line, per the Context budget section of the orchestration doctrine, and the order stays.
+The child form:
+
+    The plan is approved. Open a child session to build it?
+    - `run the execute flow here`: builds the plan in this session now. The build runs in its own worktree when another session is using the main checkout, when the main checkout holds changes, or when it sits on its default branch.
+    - `open a child session` or `yes`: gives you one command to paste in a new terminal (recommended). The child builds the plan and messages this session when it finishes or stops.
+    - `stop` or `no`: nothing runs. Ask for the execute flow by name when you are ready.
+
+The `run the execute flow here` line comes first in every form of the question, because it is the reply that names the flow.
 
 The user's next typed message answers the question:
 
-- `yes`, or a reply that asks to run the execute flow here, such as `run the execute flow here`, is the user asking for the execute flow by name. After a gate approval it is also the user's instruction that the human approval rule requires. Load the `execute-flow` skill (`<plugin-root>/skills/execute-flow/SKILL.md`) and follow it from its section 1 on this plan note.
-- A reply that asks for a child session, such as `open a child session`, hands the user the child launch command below and ends the turn. A later ask for a child session on an approved plan note hands the same command.
+- `yes` in the run-here form, or a reply that asks to run the execute flow here, such as `run the execute flow here`, is the user asking for the execute flow by name. After a gate approval it is also the user's instruction that the human approval rule requires. Load the `execute-flow` skill (`<plugin-root>/skills/execute-flow/SKILL.md`) and follow it from its section 1 on this plan note.
+- A reply that asks for a child session, such as `open a child session`, or `yes` in the child form, hands the user the child launch command below and ends the turn. A later ask for a child session on an approved plan note hands the same command.
 - `stop` or `no` ends the turn. The next step waits on the user.
 - Any other reply answers nothing. The session handles it as an ordinary message and starts no flow.
 
-Child launch command. Read this session's own name from the first line of ListAgents, and the names of the other live sessions from the lines after it. ListAgents loads through ToolSearch with `select:ListAgents` when it is deferred. `<main>` is the main checkout of the repo that the note's `repo` names, `<repo>` is the basename of `<main>`, and `<parent name>` is this session's name. Hand no command, and say why in one sentence, in each of these cases:
+Child launch command. Read this session's own name from the first line of ListAgents, and the names of the other live sessions from the lines after it. The own name is the session name on the first line, without the bracketed short id after it. ListAgents loads through ToolSearch with `select:ListAgents` when it is deferred. `<main>` is the main checkout of the repo that the note's `repo` names, `<repo>` is the basename of `<main>`, and `<parent name>` is this session's name. Hand no command, and say why in one sentence, in each of these cases:
 
-- ListAgents is absent or prints no own-name line, or another live session answers to this session's name. Tell the user to run `/rename <repo>-parent`, or to pick any name that no other live session uses and that differs from `<planName>`, and then to ask for the child again.
-- This session's own name is `<planName>`, the name the child takes. Give the same `/rename` advice.
-- A live session other than this one answers to `<planName>`. Name it, and say that it must end, with keep answered at any worktree exit prompt, before a new child starts.
+- ListAgents is absent. Tell the user that this session cannot read its own name, so a child could not report to it, and that the reply `run the execute flow here` runs the flow in this session.
+- ListAgents prints no own-name line, or another live session answers to this session's name. Tell the user to run `/rename parent-<planName>`, or to pick any name that no other live session uses and that differs from `child-<planName>` and `<planName>`, and then to ask for the child again.
+- This session's own name is `child-<planName>`, the name the child takes, or `<planName>`, which plan-tracking tooling also reads as a child. Give the same `/rename` advice.
+- A live session other than this one answers to `child-<planName>` or `<planName>`. Name it, and say that it must end, with keep answered at any worktree exit prompt, before a new child starts.
 - `<main>`, the plan note path, or `<parent name>` holds a single quote, or the path or `<parent name>` holds a double quote.
 
 Otherwise hand the user this command for a new terminal window or tab:
 
-    cd '<main>' && claude -n '<planName>' 'Run the execute flow on the plan note "<plan note path>". When it finishes or stops, report to the session "<parent name>" by message. Run the execute flow or the ship flow on this plan note when "<parent name>" asks for it by message, and report again when that flow finishes or stops.'
+    cd '<main>' && claude -n 'child-<planName>' 'Run the execute flow on the plan note "<plan note path>". When it finishes or stops, report to the session "<parent name>" by message. Run the execute flow or the ship flow on this plan note when "<parent name>" asks for it by message, and report again when that flow finishes or stops.'
 
 The command's prompt is the user's own ask for the execute flow, the user's grant for the parent dispatch that execute-flow section 1 defines, within the note's ceiling, and the child's whole brief, because the plan note carries the run options and the prompt names the parent. Then tell the user each of these:
 
 - When this session runs in the main checkout, it holds the seat, so the child's execute flow opens the plan's worktree with no question.
 - When this session runs in a linked worktree, it does not hold the seat, so the child's execute flow opens the plan's worktree when the main checkout holds changes, sits on a default branch, or sits on a branch other than the plan's, so the user does not switch it first. Otherwise the child runs in the main checkout on the branch it holds. No collision results, because this session is not in the main checkout.
 - The child messages this session when its run finishes or stops.
-- When the child's report names no seat run, the child waits for this session's dispatch. This session sends it as a message whose first line is the one the report's `Next:` line names, such as `<planName>: run the ship flow`, and the child runs that flow within the note's ceiling.
+- When the child's report names no seat run, the child waits for this session's dispatch. This session sends it to the session that the report's `Next:` line names, which is `child-<planName>` for a child this command started, as a message whose first line is the one that line quotes, such as `<planName>: run the ship flow`, and the child runs that flow within the note's ceiling.
 - The child leaves its worktree with ExitWorktree keep after its report. It ends after its report only when the report names a seat run, and before this session runs the seat run the user makes sure it has ended.
 - When the child says it could not leave, the user answers keep at the worktree exit prompt, because the seat run stops while a live session sits in the worktree and remove deletes the worktree and its branch.
 - The seat run also needs the main checkout to itself, so every other live session started in `<main>`, a coordinating session above this one included, ends before this session asks for it.
@@ -450,11 +461,13 @@ Record the session id UP FRONT, not at the end. Your session id is the UUID dire
 
 At session start:
 - If your current session id is already on the list (a resumed conversation that kept its id), update that entry — do not append.
-- Otherwise append one new entry (date, a short "in progress" summary, your session id). If the plan note does not exist yet (no scaffold), derive the plan name and create the note skeleton (the full 18-key frontmatter — blank values except `type: plan` and `status: planning`, which the validator requires non-blank — carrying that `sessions:` entry, and all 13 required `##` headings present but empty, so it passes the validation gate) as one of the FIRST actions of the session, before deep exploration, then fill the body in as planning proceeds.
+- Otherwise append one new entry (date, a short "in progress" summary, your session id, and `name` per the Session name paragraph below). If the plan note does not exist yet (no scaffold), derive the plan name and create the note skeleton (the full 18-key frontmatter, blank values except `type: plan` and `status: planning`, which the validator requires non-blank, carrying that `sessions:` entry, and all 13 required `##` headings present but empty, so it passes the validation gate) as one of the FIRST actions of the session, before deep exploration, then fill the body in as planning proceeds.
 - If resumption minted a genuinely new session id (a new transcript), that is a new session: append a new entry for it.
 - Every live session has an id — the scratchpad path is always in your context, so derivation always succeeds. Never leave `id:` blank on an entry you create, and never invent a placeholder value: if you truly cannot locate the scratchpad path, that is an error to surface to the human, not a reason to skip the id. A blank id only ever appears on a manually pre-scaffolded entry.
 
-During the session and before stopping, update that same entry's summary to the real one-line outcome. If the note carries a pre-scaffolded blank-id entry that is clearly this session's work, claim it — fill in your id rather than appending a duplicate; if ownership is ambiguous (say, two blank-id entries on the same date), stop and report the ambiguity rather than guessing. Record the id yourself — do not rely on tooling to backfill it.
+Session name: each time this session creates, claims, or updates its entry, read its own name from the first line of ListAgents, which loads through ToolSearch with `select:ListAgents` when it is deferred, and write it as the entry's `name` when it differs. The own name is the session name on that line, without the bracketed short id after it. Always write the value as a double-quoted YAML scalar, such as `name: "PROJ-12 Fix checkout: totals"`, because a session name can hold spaces and a colon, and a plain scalar such as `123` or `true` reads as a number or a boolean. Plan-tracking tooling reads it: a name that starts `parent-` marks the plan's parent session, and one that starts `child-` marks a child. When ListAgents is absent, prints no own-name line, or prints a name that holds a double quote, a backslash, or a control character such as a tab or a newline, write no new `name` and leave the entry's existing `name` as it is. Never escape a character inside the quotes, and never write a blank or guessed name.
+
+During the session and before stopping, update that same entry's summary to the real one-line outcome. If the note carries a pre-scaffolded blank-id entry that is clearly this session's work, claim it: fill in your id and `name` rather than appending a duplicate; if ownership is ambiguous (say, two blank-id entries on the same date), stop and report the ambiguity rather than guessing. Record the id yourself. Do not rely on tooling to backfill it.
 
 ## Session Closure
 
