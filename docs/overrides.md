@@ -17,7 +17,7 @@ You override by placing a same-named copy under your global `~/.claude/`. The `/
 | **agents** | `~/.claude/agents/<name>.md` | Claude Code resolves your agent over the plugin's — for the **bare name**. It matches an agent by its frontmatter `name` at any depth of `~/.claude/agents/`, not by its file name. Invoke it as `<name>`, not `toolkit:<name>` (the scoped name pins to the plugin). |
 | **skills** | `~/.claude/skills/<name>/` | Same as agents — resolved for the bare name, matched by the directory name or the frontmatter `name`. Copied as a whole directory. |
 
-Doctrine and rules are picked up because the hook loads them fresh each session. Agents and skills are resolved natively by Claude Code, so they work with no hook involvement, but only when invoked by their bare name. A copied skill or agent sits outside the plugin, so it runs the scripts of the installed plugin root.
+Doctrine and rules are picked up because the hook loads them fresh each session. Agents and skills are resolved natively by Claude Code, so they work with no hook involvement, but only when invoked by their bare name. A copied skill or agent sits outside the plugin, so it runs the scripts of the installed plugin root, and a copied skill reads the doctrine, commands, workflows, and other skills it names from that root too.
 
 Two rules are exceptions: `frontend` and `design` are reference-only (never injected), so there is nothing for a rule override to replace. `frontend`'s content lives in the `frontend-designer` agent — override that instead. `design` is just an index over the `rules/design/` catalog, with no equivalent component to override. `/override` will tell you this if you try.
 

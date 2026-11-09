@@ -388,12 +388,12 @@ check_sh_plan_blank() {
 
 check_sh_noplan_ticket_lines() {
   local label="noplan-ticket-lines"
-  _sh_ceiling "$label" $'plan:\ntests: required\nticket: none\nticket_work: example-fix' || { _sh_cleanup; return; }
+  _sh_ceiling "$label" $'plan:\nticket: none\nticket_work: x\nceiling: mr' || { _sh_cleanup; return; }
   _sh_cleanup
-  if [[ "$SH_CTX" != *"git ceiling none for plan <unset>."* ]]; then
-    _sh_fail "$label :: a no-plan cache with ticket lines did not read as ceiling none for plan <unset>"; return
+  if [[ "$SH_CTX" != *"git ceiling mr for plan <unset>."* ]]; then
+    _sh_fail "$label :: a no-plan cache with ticket lines did not read as ceiling mr for plan <unset>"; return
   fi
-  _sh_pass "$label :: a no-plan cache with ticket lines reads as ceiling none for plan <unset>"
+  _sh_pass "$label :: a no-plan cache with ticket lines reads as ceiling mr for plan <unset>"
 }
 
 check_sh_plan_unsafe() {

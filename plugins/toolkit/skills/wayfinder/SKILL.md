@@ -116,4 +116,4 @@ Wayfinder does not:
 - Approve anything. Approval is the user's, per plan, same as always.
 - Fully plan a child. It stubs each one and stops. The child's own planning session does the rest.
 
-For a single bounded task, use `plan-guide` (`../plan-guide/SKILL.md` from this skill's base directory) directly. Wayfinder only earns its keep when one thing is actually many things.
+For a single bounded task, use `plan-guide` (`<plugin-root>/skills/plan-guide/SKILL.md`) directly. `<plugin-root>` is `../..` from this skill's base directory resolved to an absolute path. This root takes precedence over a CLAUDE.md line that resolves the installed root. When `../../.claude-plugin/plugin.json` does not exist relative to this skill's base directory, as in a `/override` copy under `~/.claude/skills/`, the plugin root is the installed root instead, the path that `jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json` prints, as the setup CLAUDE.md block resolves it. Wayfinder only earns its keep when one thing is actually many things.

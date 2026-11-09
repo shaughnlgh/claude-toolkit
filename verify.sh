@@ -207,6 +207,9 @@ for f in "$P"/skills/*/SKILL.md; do
   done < <(grep -E '(plugin root|`<plugin-root>`) is `\.\./\.\.` from this skill' "$f")
 done
 if [ "$pr_n" -gt 0 ] && [ -z "$pr_bad" ]; then ok "each of the ${pr_n} skill plugin-root sentences states its precedence and falls back to the installed root when ../.. holds no plugin manifest"; else no "skill plugin-root sentence without the precedence sentence or the plugin manifest fallback (${pr_n} found) ->${pr_bad}"; fi
+# A /override copy reaches plugin files only through <plugin-root>, so ../ survives only in the plugin-root sentence.
+bare_rel="$(cd "$P" && grep -nE '(^|[^.])\.\./' skills/*/SKILL.md | sed -e 's/`\.\.\/\.\.` from this skill//g' -e 's/`\.\.\/\.\.\/\.claude-plugin\/plugin\.json` does not exist//g' | grep -E '(^|[^.])\.\./' | cut -d: -f1,2 | tr '\n' ' ')"
+[ -z "$bare_rel" ] && ok "no skill line outside its plugin-root sentence reaches a plugin file by a bare ../.. or ../<name>/ path" || no "skill line reaches a plugin file by a bare ../.. or ../<name>/ path instead of <plugin-root>: $bare_rel"
 fd_blk="$(sed -n '/^```bash$/,/^```$/p' "$P/agents/frontend-designer.md")"
 if [ -n "$ir_jq" ] && [[ "$fd_blk" == *'[ -f "$PLUGIN_ROOT/.claude-plugin/plugin.json" ] || PLUGIN_ROOT="$('"$ir_jq"')"'* ]]; then ok "frontend-designer's detector block falls back to the installed root when its plugin root holds no plugin manifest"; else no "frontend-designer detector block lacks the plugin manifest fallback"; fi
 grep -qF '## Flows' "$P/doctrine/git-safety.md" && ok "git-safety carries the Flows section" || no "git-safety missing the Flows section"
@@ -594,4 +597,4 @@ echo "RESULT: $pass passed, $skip skipped, $fail failed"
 # Floor, not just zero-failures: silently deleting real checks must not read green.
 # Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
 # no node, no local plugin install) must not read as a vanished check.
-[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 96 ]
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 97 ]
