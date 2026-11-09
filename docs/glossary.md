@@ -9,7 +9,11 @@ The verbatim planning input: the user's words plus any ticket content, captured 
 
 ### Ticket Adapter
 
-A skill that turns an external ticket reference into a brief. Read-only by default: fetching and recording is the adapter's job, judging or changing the ticket is not.
+A skill that turns an external ticket reference into a brief. Fetching and recording is the adapter's job. It creates a ticket only on the user's yes to a draft it showed, and never judges or changes an existing ticket.
+
+### Ticket question
+
+The one question, asked before any branch or plan name is derived for work with no ticket, whether to use an existing ticket, create one, or go without. The answer is recorded once, on the plan note's `ticket` key or in the session cache beside the work it answers, so it is never asked twice for the same work.
 
 ### Topic recall
 
@@ -37,7 +41,7 @@ The `ceiling` run option on a plan note: `none`, `mr`, or `merge`. It is the sta
 
 ### flow-run-options
 
-The file at `<scratchpad>/flow-run-options` that caches a plan note's run option keys for the session. Its first line is `plan: <slug>`, naming the plan it serves, and a flow reads it only for that plan. One `key: value` line follows per key. A missing file means unasked. A missing, empty, or unrecognised `ceiling` line reads as `none`. A resumed session keeps its scratchpad and so keeps the cache. A new session reads the plan note.
+The file at `<scratchpad>/flow-run-options` that caches a plan note's run option keys for the session. Its first line is `plan: <slug>`, naming the plan it serves, and a flow reads it only for that plan. One `key: value` line follows per key. A missing file means unasked. A missing, empty, or unrecognised `ceiling` line reads as `none`. On work with no plan note, the file holds a blank `plan:` line followed by the testing gate's `tests:` line, the ticket question's `ticket:` and `ticket_work:` lines, or both, and no plan flow reads it. A resumed session keeps its scratchpad and so keeps the cache. A new session reads the plan note.
 
 ### Seat run
 
