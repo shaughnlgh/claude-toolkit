@@ -15,7 +15,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved.
 
 | Script | What it does | Guardrails |
 |---|---|---|
-| `vault-fs.sh` | Vault file ops `rm` and `mv`, and vault reads `sha256` and `index` | Refuses absolute paths, `..` traversal, symlink escape from the vault (canonical containment), non-regular-file targets, missing sources, unknown subcommands |
+| `vault-fs.sh` | Vault file ops `rm`, `mv` and `cp`, image attachments `attach`, and vault reads `sha256` and `index` | Refuses absolute paths, `..` traversal, symlink escape from the vault (canonical containment), non-regular-file targets, missing sources, unknown subcommands; attach: PNG or JPEG of at most 10 MiB from inside a git checkout, never over an existing file |
 | `git-ro.sh` | Read-only git in any directory — `status`, `diff`, `log`, `show` | Subcommand allowlist; refuses write options (`--output`/`-o`/`--ext-diff`); neutralizes pager, fsmonitor, ext-diff and textconv (the execute-on-read vectors) |
 | `seat-check.sh` | Reports which live Claude sessions hold a repo's main checkout, with its branch and dirty count | Read-only; never writes a file; reads sessions through `claude agents --json`; needs only `jq` and `git` |
 | `watch-mr.sh` | Waits on one GitLab MR or GitHub PR until its pipeline settles, a bot review lands, or a bot review in progress ends, then prints one status line | Reads only, through `gh` and `glab`, which hold their own auth; never reads or prints a token; validates every argument; exits on a wall-clock bound |
@@ -23,6 +23,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved.
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
 | `validate-plan.py` | Validates a plan note against the plan-guide contract | Read-only — never edits the note; no network, no config, stdlib only |
 | `plan-index.py` | Indexes a plan note for the execute runner: its sha256, the line of every section heading, and each step's heading and start line | Read-only, stdlib only, prints one JSON object with no section text, exits 1 on a file that is not UTF-8 |
+| `run-checkpoint.py` | Prints an execute-runner Workflow run's checkpoint from its journal, and with `--replay` writes a runner copy that replays the recorded results | Reads only the run folders it is given and their run summaries, refuses a folder that is not a run folder under `~/.claude/projects`, stdlib only, writes only the `--replay` copy, and refuses a replay of a run that may still be live, died inside a stage that edits the tree, whose run summary lacks the args or the `const REPLAY = null` line, whose recorded `pluginRoot` is gone, or that another plan or checkout recorded |
 | `topic-recall.py` | Lexical topic search over the vault index, with a frontmatter fallback and an optional repo `docs/` source | Read-only against the vault and the repo, stdlib only, skips symlinks and non-regular files, INDEX.md included, reads at most 64 KiB of each scanned note or doc, stops at a 3-second deadline |
 | `obsidian-sync.json.template` | Vault config template `setup` instantiates to `~/.claude/obsidian-sync.json` | n/a — config, not an executable |
 | `resolve-models.sh` | Resolves each shipped agent's model and effort from the template, the user file, and the plan note's run options, and prints one JSON map | Read-only; never writes a file; refuses Haiku and invalid values with a stderr warning; needs only `jq` |
@@ -31,7 +32,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved.
 
 ## vault-fs.sh
 
-Atomic file ops (`rm`, `mv`) scoped to the Obsidian vault, so skills like `plan-guide` and `handoff` never touch the filesystem with a raw shell command.
+Atomic file ops (`rm`, `mv`, `cp`) and image attachments (`attach`) scoped to the Obsidian vault, so skills like `plan-guide` and `handoff` never touch the filesystem with a raw shell command.
 
 Invoke:
 
@@ -40,6 +41,8 @@ bash "$PLUGIN_ROOT/scripts/vault-fs.sh" rm <relpath>
 bash "$PLUGIN_ROOT/scripts/vault-fs.sh" mv <relpath-src> <relpath-dst>
 bash "$PLUGIN_ROOT/scripts/vault-fs.sh" sha256 <relpath>
 bash "$PLUGIN_ROOT/scripts/vault-fs.sh" index <relpath>
+bash "$PLUGIN_ROOT/scripts/vault-fs.sh" cp <relpath-src> <relpath-dst>
+bash "$PLUGIN_ROOT/scripts/vault-fs.sh" attach <checkout> <src-relpath> <dst-relpath>
 ```
 
 `vault-fs.sh sha256` prints the sha256 of a vault file, and `vault-fs.sh index` runs `plan-index.py` on a vault plan note and prints the index the execute runner reads ([workflows.md](workflows.md#execute-runnerjs)). Both take one vault-relative path and apply the containment and regular-file checks that `rm` applies.
@@ -47,16 +50,18 @@ bash "$PLUGIN_ROOT/scripts/vault-fs.sh" index <relpath>
 The vault root is resolved from `~/.claude/obsidian-sync.json` (`vault_path` + `root_folder` — see the template below). If that file is missing or the resolved root doesn't exist as a directory, the script refuses outright.
 
 Guardrails — this is the point of the script:
-- **Refuses absolute paths and traversal lexically.** Any path starting with `/` or containing `..` is rejected before it's joined to the vault root — relative vault paths only.
+- **Refuses absolute paths and traversal lexically.** Any path starting with `/` or containing `..` is rejected before it's joined to the vault root — relative vault paths only. `attach` takes its checkout as an absolute path and its source relative to that checkout, and refuses a source with `..`.
 - **Canonical containment, symlinks included.** Every effective source and destination is resolved to its canonical path (a not-yet-existing destination via its existing parent) and must remain inside the canonical vault root, compared path-aware (`/vault-other` does not count as inside `/vault`). A symlinked directory inside the vault pointing outside it is refused; a symlink resolving to another location inside the vault is allowed. Fails closed with a `refused:` reason when containment cannot be established.
 - **Regular files only.** Directory sources and destinations, non-regular files, dangling symlink destinations, and a missing source are all refused.
 - **`mv` replaces an existing destination file by design.** Write-to-`.tmp.md` then `mv` is the toolkit's atomic-write mechanism — do not expect a no-clobber guard.
+- **`cp` replaces an existing destination like `mv`.**
+- **`attach` is the one operation that reads outside the vault, and only an image inside a git checkout.** The checkout root must hold `.git` and must not be the home directory or one of its parents, the source must resolve inside it and open with PNG or JPEG bytes, it must be at most 10 MiB, the destination extension must match the image type, and an existing destination is refused.
 - **Unknown subcommands are refused**, not silently ignored.
 - Every path refusal (traversal, containment, directory ops, missing source, missing destination directory, non-regular file, dangling symlink destination) names the resolved vault root and the expected relative form (`Projects/<repo>/...`). The unknown-subcommand refusal is the one exception; it carries no hint.
 
 What it does NOT provide, deliberately: directory creation, locking or concurrency control, content/frontmatter validation, or a general filesystem sandbox beyond these operations.
 
-Tests: `bash plugins/toolkit/scripts/tests/vault-fs/run-tests.sh` (25 behavior cases in a temporary vault; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/vault-fs/run-tests.sh` (42 behavior cases in a temporary vault; also run by `verify.sh`).
 
 ## git-ro.sh
 
@@ -248,6 +253,41 @@ Exit codes: `0` with hits or with none, or after `--version`, `2` if `~/.claude/
 Embedding seam: `rank()` is the only function an embedding backend replaces. It receives the candidates, the query words, the repo name, and the docs index path. Loading, path resolution, and rendering stay as they are, so the CLI and its output do not change.
 
 Tests: `bash plugins/toolkit/scripts/tests/topic-recall/run-tests.sh` (45 behavior cases in temporary vaults and repos with an overridden HOME). `verify.sh` also runs it.
+
+## run-checkpoint.py
+
+Reads the checkpoint of an execute-runner Workflow run from the runtime's own records, so a run that died with its session continues from a new session. The execute-flow skill runs it before a continuation.
+
+Invoke:
+
+```bash
+python3 "$PLUGIN_ROOT/scripts/run-checkpoint.py" [--replay <out.js> --plan <planName> --repo-root <path>] -- <run-folder>...
+```
+
+Each run folder is `~/.claude/projects/<project slug>/<session id>/subagents/workflows/<runId>/`, oldest first when one run continued another. Each folder argument must be an absolute path, and the execute-flow skill passes the folders after `--`, so a folder value that begins with `-` is never read as an option. The script resolves `~` from `HOME` and refuses, with exit 1, a folder argument that does not begin with `/`, or a folder whose real path is not exactly that layout under the real path of `~/.claude/projects`, so a symlink inside it that resolves elsewhere is refused too. The script reads the folder's `journal.jsonl` and the run summary `<session id>/workflows/<runId>.json`, which the runtime writes when a run ends and rewrites when a resumed run ends. The summary's `timestamp`, an ISO 8601 UTC time, is the time the run ended.
+
+A stage is one agent call: a `started` journal entry with its label and phase. Its state is `done` when a `result` entry carries the same agent id, or a `failed` entry does, because the agent returned nothing and the run carried on, so the stage replays as null. Otherwise it is `open`. A last journal line that is not JSON is a write torn by a dying session, so the script ignores it and its stage stays open. Every journal line begins `{"type":`, so a torn line that begins `{"type":"result"` lost only part of a result whose `started` entry is intact. A line that is not JSON anywhere else exits 2. A stage whose phase begins `▸ ` belongs to a child workflow, which the runtime records under the phase `▸ <child name>`. An open stage of an older run is dropped, because the run that continued it ran that stage again.
+
+Output: one JSON object with `runs` (each run id with its summary `status`, null when no summary exists), `done` (the count of done stages), `open` (the labels of open stages), `stages` (run, label, occurrence, phase and state of each), `changedPaths` (the union, in first-seen order, of every done runner stage's `changedPaths`), `capture` (the label, `hash12` and `paths` of the newest done capture, a runner result that carries `diffPath` and `paths`, or null), and `replay` (null without `--replay`).
+
+`--replay <out.js>` needs `--plan` and `--repo-root`, the plan and checkout the continuation is for, and writes a copy of the first run's own script, taken byte for byte from its run summary, with the line `const REPLAY = null` replaced by the recorded run: the first run's args, the newest `plan:index` result as `index`, and each runner and child label's done results in call order. The runner continues on those args with the launch's own `scratchDir`, runs `plan:index` live, and blocks when the step headings differ from the recorded index. Each call takes the next recorded result for its label until the first label with none left, then calls agents from there on. The child `review-mr` gets the child results as its `replay` arg. The `replay` field reports the copy's `path`, its 12-character `sha256` prefix, and the `runnerResults` and `childResults` counts.
+
+Before it writes the copy, `--replay` checks that:
+
+- the newest run has a summary whose status is not `running`, whose `timestamp` parses, and whose run folder's `journal.jsonl` was last modified no more than 1 second after that `timestamp`, which the runtime cuts to the millisecond, else the run may still be live, because a resume keeps the runId and writes into the same folder behind the summary of the run it resumed
+- the first run's summary holds `args` and a `script` with the `const REPLAY = null` line exactly once
+- in every run folder, the recorded `args.planName` equals `--plan`, and the real path of `args.repoRoot` equals the real path of `--repo-root`, so a run folder that another plan or checkout recorded is never replayed. A continuation launches with `scratchDir` alone, so for a run whose script holds a non-null `REPLAY` record, the script reads the args from that record alone and refuses when the record holds none
+- the recorded `pluginRoot` still holds `scripts/vault-fs.sh`, because the copy runs on the recorded args and the plugin cache keeps no old versioned directory, so the execute-flow skill falls back to a fresh rerun
+- no journal ends in a torn line that does not begin `{"type":"result"`, because such a line can be the `started` entry of a writer stage
+- no open runner stage is `implement:<n>`, `fix:<round>`, `fix:validation` or `doc:pass`, whose partial edits have no record
+- some run recorded a `plan:index` result
+- every recorded capture's diff file still exists
+
+The writer-stage labels in the script's `WRITER` never change once a runner with a `REPLAY` line has shipped, because that runner's journals carry them. A renamed writer stage keeps its old label in `WRITER`.
+
+Exit codes: `0` on success, `1` when `--replay` refuses or a run folder is not `<slug>/<session id>/subagents/workflows/<runId>` under `~/.claude/projects`, `2` on a `--replay` without `--plan` and `--repo-root`, an unreadable journal or summary, a non-JSON summary, a non-JSON journal line other than the last, or a journal entry that lacks a field the script reads, and `3` when `--replay` finds that the newest run may still be live. Every refusal goes to stderr as a `refused:` line.
+
+Tests: `bash plugins/toolkit/scripts/tests/run-checkpoint/run-tests.sh` (52 behavior cases over synthetic journals and summaries). `verify.sh` also runs it.
 
 ## obsidian-sync.json.template
 

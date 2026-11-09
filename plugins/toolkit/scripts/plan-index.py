@@ -15,6 +15,8 @@ STEP_HEADING = re.compile("###" + S + "+[0-9]+[.)]")
 NUMBERED = re.compile("[0-9]+[.)]" + S)
 # [e2e] after the step number on a Validation Step's own heading line marks it end-to-end.
 E2E_MARK = re.compile("(?:[0-9]+[.)]" + S + r"+)?\[e2e\]")
+# [shots] directly after [e2e] marks an end-to-end step whose screenshots go to the evidence note.
+SHOTS_MARK = re.compile("(?:[0-9]+[.)]" + S + r"+)?\[e2e\]" + S + r"*\[shots\]")
 STEP_SECTIONS = (("Implementation Steps", "implementationSteps"), ("Validation Steps", "validationSteps"))
 HEADING_MAX = 120
 
@@ -88,6 +90,7 @@ def main():
             step = {"heading": heading[:HEADING_MAX], "line": body[0] + at + 1}
             if key == "validationSteps":
                 step["e2e"] = bool(E2E_MARK.match(heading))
+                step["shots"] = bool(SHOTS_MARK.match(heading))
             index[key].append(step)
     print(json.dumps(index, ensure_ascii=False))
 
