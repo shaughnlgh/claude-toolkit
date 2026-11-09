@@ -148,6 +148,90 @@ printf '## Objective\n\xff\n' > "$V/Projects/plan - bad.md"
 out="$(run index 'Projects/plan - bad.md')"; rc=$?
 [ $rc -eq 1 ] && case "$out" in plan-index:*) ok "25 index of a non-UTF-8 note fails";; *) no "25 index of a non-UTF-8 note fails" "$out";; esac || no "25 index of a non-UTF-8 note fails" "rc=$rc"
 
+# cp and attach fixtures: a git checkout at BASE/repo holding a PNG and a JPEG with real magic headers.
+R="$BASE/repo"
+mkdir -p "$R/.git" "$R/out" "$BASE/norepo"
+python3 -c 'import sys; open(sys.argv[1], "wb").write(b"\x89PNG\r\n\x1a\n" + bytes(range(256))); open(sys.argv[2], "wb").write(b"\xff\xd8\xff\xe0" + bytes(range(256)))' "$R/out/s1.png" "$R/out/s2.jpg"
+
+# 26. cp makes a byte-identical .tmp.md copy and keeps the source
+printf 'plan body\nline two\n' > "$V/Projects/plan - c.md"
+out="$(run cp 'Projects/plan - c.md' 'Projects/plan - c.tmp.md')"; rc=$?
+[ $rc -eq 0 ] && cmp -s "$V/Projects/plan - c.md" "$V/Projects/plan - c.tmp.md" && [ -f "$V/Projects/plan - c.md" ] && ok "26 cp makes a byte-identical copy" || no "26 cp makes a byte-identical copy" "rc=$rc $out"
+
+# 27. cp replaces an existing .tmp.md copy
+echo stale > "$V/Projects/plan - c.tmp.md"
+out="$(run cp 'Projects/plan - c.md' 'Projects/plan - c.tmp.md')"; rc=$?
+[ $rc -eq 0 ] && cmp -s "$V/Projects/plan - c.md" "$V/Projects/plan - c.tmp.md" && ok "27 cp replaces an existing copy" || no "27 cp replaces an existing copy" "rc=$rc $out"
+
+# 28. cp refuses an absolute source
+out="$(run cp "$V/Projects/plan - c.md" 'Projects/abs.tmp.md')"; rc=$?
+[ $rc -eq 1 ] && [ ! -e "$V/Projects/abs.tmp.md" ] && case "$out" in "refused: relative vault paths only"*) ok "28 cp absolute source refused";; *) no "28 cp absolute source refused" "$out";; esac || no "28 cp absolute source refused" "rc=$rc"
+
+# 29. cp refuses a directory source
+out="$(run cp 'Projects/demo dir' 'Projects/dir.tmp.md')"; rc=$?
+[ $rc -eq 1 ] && [ ! -e "$V/Projects/dir.tmp.md" ] && case "$out" in "refused: directory operations are not allowed"*) ok "29 cp directory source refused";; *) no "29 cp directory source refused" "$out";; esac || no "29 cp directory source refused" "rc=$rc"
+
+# 30. cp refuses a source symlink inside the vault that resolves outside it
+ln -s "$BASE/outside/target.md" "$V/Projects/out-link.md"
+out="$(run cp 'Projects/out-link.md' 'Projects/out-link.tmp.md')"; rc=$?
+[ $rc -eq 1 ] && [ ! -e "$V/Projects/out-link.tmp.md" ] && case "$out" in "refused: path resolves outside the vault"*) ok "30 cp outside symlink source refused";; *) no "30 cp outside symlink source refused" "$out";; esac || no "30 cp outside symlink source refused" "rc=$rc"
+
+# 31. attach copies a PNG byte-identical into Projects/
+out="$(run attach "$R" 'out/s1.png' 'Projects/evidence-s1.png')"; rc=$?
+[ $rc -eq 0 ] && cmp -s "$R/out/s1.png" "$V/Projects/evidence-s1.png" && ok "31 attach copies a PNG" || no "31 attach copies a PNG" "rc=$rc $out"
+
+# 32. attach copies a JPEG to a .jpg destination
+out="$(run attach "$R" 'out/s2.jpg' 'Projects/evidence-s2.jpg')"; rc=$?
+[ $rc -eq 0 ] && cmp -s "$R/out/s2.jpg" "$V/Projects/evidence-s2.jpg" && ok "32 attach copies a JPEG" || no "32 attach copies a JPEG" "rc=$rc $out"
+
+# 33. attach refuses an existing destination and leaves its bytes unchanged
+echo keep > "$V/Projects/taken.png"
+out="$(run attach "$R" 'out/s1.png' 'Projects/taken.png')"; rc=$?
+[ $rc -eq 1 ] && [ "$(cat "$V/Projects/taken.png")" = "keep" ] && case "$out" in "refused: attachment destination exists"*) ok "33 attach existing destination refused";; *) no "33 attach existing destination refused" "$out";; esac || no "33 attach existing destination refused" "rc=$rc"
+
+# 34. attach refuses a text file named .png
+echo 'not an image' > "$R/out/fake.png"
+out="$(run attach "$R" 'out/fake.png' 'Projects/fake.png')"; rc=$?
+[ $rc -eq 1 ] && [ ! -e "$V/Projects/fake.png" ] && case "$out" in "refused: source is not a PNG or JPEG"*) ok "34 attach text file named png refused";; *) no "34 attach text file named png refused" "$out";; esac || no "34 attach text file named png refused" "rc=$rc"
+
+# 35. attach refuses a source symlink that resolves outside the checkout
+cp "$R/out/s1.png" "$BASE/outside/s1.png"
+ln -s "$BASE/outside/s1.png" "$R/out/link.png"
+out="$(run attach "$R" 'out/link.png' 'Projects/link.png')"; rc=$?
+[ $rc -eq 1 ] && [ ! -e "$V/Projects/link.png" ] && case "$out" in "refused: source resolves outside the checkout"*) ok "35 attach outside symlink source refused";; *) no "35 attach outside symlink source refused" "$out";; esac || no "35 attach outside symlink source refused" "rc=$rc"
+
+# 36. attach refuses a .. source
+out="$(run attach "$R" 'out/../out/s1.png' 'Projects/dotdot.png')"; rc=$?
+[ $rc -eq 1 ] && [ ! -e "$V/Projects/dotdot.png" ] && case "$out" in "refused: source must be relative to the checkout, no '..'"*) ok "36 attach dot-dot source refused";; *) no "36 attach dot-dot source refused" "$out";; esac || no "36 attach dot-dot source refused" "rc=$rc"
+
+# 37. attach refuses a root with no .git
+cp "$R/out/s1.png" "$BASE/norepo/s1.png"
+out="$(run attach "$BASE/norepo" 's1.png' 'Projects/norepo.png')"; rc=$?
+[ $rc -eq 1 ] && [ ! -e "$V/Projects/norepo.png" ] && case "$out" in "refused: not a git checkout root"*) ok "37 attach root without .git refused";; *) no "37 attach root without .git refused" "$out";; esac || no "37 attach root without .git refused" "rc=$rc"
+
+# 38. attach refuses a .jpg destination for a PNG
+out="$(run attach "$R" 'out/s1.png' 'Projects/wrong.jpg')"; rc=$?
+[ $rc -eq 1 ] && [ ! -e "$V/Projects/wrong.jpg" ] && case "$out" in "refused: destination extension does not match"*) ok "38 attach jpg destination for a PNG refused";; *) no "38 attach jpg destination for a PNG refused" "$out";; esac || no "38 attach jpg destination for a PNG refused" "rc=$rc"
+
+# 39. attach refuses a sparse PNG over 10 MiB
+printf '\x89PNG\r\n\x1a\n' > "$R/out/big.png"
+truncate -s 10485761 "$R/out/big.png"
+out="$(run attach "$R" 'out/big.png' 'Projects/big.png')"; rc=$?
+[ $rc -eq 1 ] && [ ! -e "$V/Projects/big.png" ] && case "$out" in "refused: source is over 10 MiB"*) ok "39 attach PNG over 10 MiB refused";; *) no "39 attach PNG over 10 MiB refused" "$out";; esac || no "39 attach PNG over 10 MiB refused" "rc=$rc"
+
+# 40. cp refuses a destination through an outside-pointing symlinked directory
+out="$(run cp 'Projects/plan - c.md' 'escape/leak.tmp.md')"; rc=$?
+[ $rc -eq 1 ] && [ ! -e "$BASE/outside/leak.tmp.md" ] && case "$out" in "refused: path resolves outside the vault"*) ok "40 cp dest via outside symlink refused";; *) no "40 cp dest via outside symlink refused" "$out";; esac || no "40 cp dest via outside symlink refused" "rc=$rc"
+
+# 41. attach refuses a destination through an outside-pointing symlinked directory
+out="$(run attach "$R" 'out/s1.png' 'escape/leak.png')"; rc=$?
+[ $rc -eq 1 ] && [ ! -e "$BASE/outside/leak.png" ] && case "$out" in "refused: path resolves outside the vault"*) ok "41 attach dest via outside symlink refused";; *) no "41 attach dest via outside symlink refused" "$out";; esac || no "41 attach dest via outside symlink refused" "rc=$rc"
+
+# 42. attach refuses a checkout that holds the home directory
+mkdir -p "$BASE/home/.git" "$BASE/home/Desktop" && cp "$R/out/s1.png" "$BASE/home/Desktop/s1.png"
+out="$(run attach "$BASE/home" 'Desktop/s1.png' 'Projects/home.png')"; rc=$?
+[ $rc -eq 1 ] && [ ! -e "$V/Projects/home.png" ] && case "$out" in "refused: the checkout holds the home directory"*) ok "42 attach checkout holding the home directory refused";; *) no "42 attach checkout holding the home directory refused" "$out";; esac || no "42 attach checkout holding the home directory refused" "rc=$rc"
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1

@@ -1,12 +1,13 @@
 #!/bin/bash
 set -euo pipefail
-# Vault file ops (rm|mv) and reads (sha256|index) with containment guardrails.
-# - Inputs are vault-relative only; absolute paths and any `..` are refused lexically.
+# Vault file ops (rm|mv|cp), image attachments from a git checkout (attach) and reads (sha256|index) with containment guardrails.
+# - Vault inputs are vault-relative only; absolute paths and any `..` are refused lexically.
 # - Every effective source/destination is then canonically resolved (symlinks and
 #   all) and must remain inside the canonical vault root — a symlinked directory
 #   pointing outside the vault is refused even though the input path looks relative.
 # - mv REPLACES an existing destination file by design: write to a `.tmp.md` file
 #   beside the destination then mv is the toolkit's atomic-write mechanism.
+# - cp replaces an existing destination like mv. attach copies one PNG or JPEG of at most 10 MiB from inside a git checkout and never replaces a destination.
 # - Regular files only. No directory ops, no locking, no content validation.
 # Vault root resolves from the user's obsidian-sync.json (see obsidian-sync.json.template)
 CFG="$HOME/.claude/obsidian-sync.json"
@@ -28,7 +29,7 @@ PY
 # Single source for the hint every path refusal appends (not the unknown-command one).
 HINT="(vault root: $ROOT, expected form: Projects/<repo>/...)"
 
-cmd="${1:?usage: vault-fs.sh rm|mv|sha256|index <relpath> [dst]}"
+cmd="${1:?usage: vault-fs.sh rm|mv|cp|sha256|index <relpath> [dst], or attach <checkout> <src-relpath> <dst-relpath>}"
 
 # Cheap lexical guard first; canonical containment (canon) below catches what
 # this cannot: escape through a symlinked directory inside the vault.
@@ -108,5 +109,45 @@ case "$cmd" in
     t="$(resolve "${2:?path required}")"
     canon "$t" file
     python3 "$(dirname "${BASH_SOURCE[0]}")/plan-index.py" "$t" ;;
+  cp)
+    s="$(resolve "${2:?src required}")"; d="$(resolve "${3:?dst required}")"
+    canon "$s" file
+    canon "$d" dest
+    cp "$s" "$d"; echo "copied: $s -> $d" ;;
+  attach)
+    d="$(resolve "${4:?dst required}")"
+    if [ -e "$d" ] || [ -L "$d" ]; then echo "refused: attachment destination exists: $4 $HINT" >&2; exit 1; fi
+    canon "$d" dest
+    s="$(python3 - "${2:?checkout required}" "${3:?src required}" "$d" <<'PY'
+import os, sys
+root_in, rel, dst = sys.argv[1], sys.argv[2], sys.argv[3]
+def refuse(msg):
+    sys.stderr.write("refused: %s (checkout: %s)\n" % (msg, root_in))
+    sys.exit(1)
+root = os.path.realpath(root_in)
+if not os.path.exists(os.path.join(root, ".git")):
+    refuse("not a git checkout root")
+# A dotfiles repo at the home directory would let the allow rule copy any image under it.
+if os.path.commonpath([root, os.path.realpath(os.path.expanduser("~"))]) == root:
+    refuse("the checkout holds the home directory")
+if rel.startswith("/") or ".." in rel:
+    refuse("source must be relative to the checkout, no '..': %s" % rel)
+real = os.path.realpath(os.path.join(root, rel))
+if os.path.commonpath([root, real]) != root:
+    refuse("source resolves outside the checkout: %s" % rel)
+if not os.path.isfile(real):
+    refuse("source is not a regular file: %s" % rel)
+if os.path.getsize(real) > 10 * 1024 * 1024:
+    refuse("source is over 10 MiB: %s" % rel)
+head = open(real, "rb").read(8)
+kind = "png" if head == b"\x89PNG\r\n\x1a\n" else "jpeg" if head[:3] == b"\xff\xd8\xff" else ""
+if not kind:
+    refuse("source is not a PNG or JPEG image: %s" % rel)
+if os.path.splitext(dst)[1].lower() not in ((".png",) if kind == "png" else (".jpg", ".jpeg")):
+    refuse("destination extension does not match the %s source" % kind)
+print(real)
+PY
+)"
+    cp "$s" "$d"; echo "attached: $s -> $d" ;;
   *) echo "refused: unknown command: $cmd" >&2; exit 1 ;;
 esac

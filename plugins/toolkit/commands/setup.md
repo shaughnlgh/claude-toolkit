@@ -54,23 +54,31 @@ Optional additions, each shown verbatim, explained in one line, and applied only
       Bash(bash <home>/.claude/plugins/cache/shaughn-toolkit/toolkit/*/scripts/vault-fs.sh *)
       Bash(bash <home>/.claude/plugins/cache/shaughn-toolkit/toolkit/*/scripts/git-ro.sh *)
       Bash(bash <home>/.claude/plugins/cache/shaughn-toolkit/toolkit/*/scripts/watch-mr.sh *)
+      Read(//<vault_path without its leading slash>/<root_folder>/**)
 
-  Explain the trade honestly: without them, the first vault write per repo prompts once and the ship flow's background watcher prompts before it starts ("always allow" works but embeds the version hash, so it re-prompts after updates). The vault and git scripts are guard-railed (relative-path-only vault ops; read-only git) and reviewable in the plugin. `watch-mr.sh` only reads an MR or PR through `gh` or `glab` and exits with a status, so the ship flow can wait on a pipeline in the background without a prompt. When the rules are accepted, ALSO offer to append this usage block to the user's global `~/.claude/CLAUDE.md` (they are one unit, because the rules only match invocations written this way):
+  Build the fourth rule, the vault Read rule, from `~/.claude/obsidian-sync.json` with this command:
+
+      python3 -c 'import json, os; d = json.load(open(os.path.expanduser("~/.claude/obsidian-sync.json"))); print("Read(/" + d["vault_path"].rstrip("/") + "/" + d["root_folder"].strip("/") + "/**)")'
+
+  If `vault_path` does not start with `/`, report that and offer no Read rule. Treat the vault Read rule as missing whenever `permissions.allow` lacks that exact rule, whatever `Edit(...)` rules it holds. If the three script rules are present and the vault Read rule is missing, offer the Read rule alone, ending with `Reply "yes vault read rule" to add it.`
+
+  Explain the trade honestly: without them, the first vault write per repo prompts once and the ship flow's background watcher prompts before it starts ("always allow" works but embeds the version hash, so it re-prompts after updates). The vault and git scripts are guard-railed and reviewable in the plugin. The vault ops take paths relative to the vault root, and `attach` also reads one PNG or JPEG of at most 10 MiB from inside a git checkout under the same allow rule. The git script runs read-only commands. Without the Read rule, outside auto mode, each execute-runner worker that reads its plan lines prompts, and so do the remember pass's read-backs and the Read before each changed-lines note write. The Read rule covers every project's notes under the vault root. `watch-mr.sh` only reads an MR or PR through `gh` or `glab` and exits with a status, so the ship flow can wait on a pipeline in the background without a prompt. When the rules are accepted, ALSO offer to append this usage block to the user's global `~/.claude/CLAUDE.md` (they are one unit, because the rules only match invocations written this way):
 
       ## Toolkit Scripts
       Inside a toolkit skill, command, or agent, use the plugin root it names.
       Elsewhere, resolve the installed root first, e.g.
       `jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json`,
       then invoke with that literal absolute path (matches the allowlist rule).
-      - `bash <plugin-root>/scripts/vault-fs.sh rm|mv ...` - vault file ops with
-        guardrails; atomic writes: Write tool to a `.tmp.md` file beside the destination, then vault-fs.sh mv.
+      - `bash <plugin-root>/scripts/vault-fs.sh rm|mv|cp|sha256|index ...` and `vault-fs.sh attach <checkout> <src> <dst>` - vault file ops with
+        guardrails; atomic writes: a new file is Written to a `.tmp.md` file beside the destination, then vault-fs.sh mv;
+        a change to an existing plan note is vault-fs.sh cp to that `.tmp.md` file, an Edit on it, then vault-fs.sh mv.
         Vault root resolves from `~/.claude/obsidian-sync.json`.
       - `bash <plugin-root>/scripts/git-ro.sh <dir> <status|diff|log|show>` -
         read-only git anywhere; mutation subcommands refused.
       - `bash <plugin-root>/scripts/watch-mr.sh <host> <remotePath> <number> pipeline|threads|review --sha <sha> [--bound <n>]` -
         waits on an MR or PR pipeline or bot review and exits with one status line. The ship flow starts it in the background.
 
-  When the global CLAUDE.md already holds this block and the block lacks `use the plugin root it names`, show its resolution lines beside the new ones and offer to replace only those lines. Never write this command's own substituted plugin root into the block, because the user's file would then pin one version's path.
+  When the global CLAUDE.md already holds this block and the block lacks `use the plugin root it names`, show its resolution lines beside the new ones and offer to replace only those lines. As an offer of its own, when the block is present and its vault-fs entry lacks `cp`, show that entry beside the new one and offer to replace only that entry, ending with `Reply "yes Toolkit Scripts vault-fs line" to replace it.` A block that lacks both `use the plugin root it names` and `cp` gets both offers. Never write this command's own substituted plugin root into the block, because the user's file would then pin one version's path.
 - **Read-only command allowlist.** The workflows lean on read-only `gh`/`glab`/`jira` calls that otherwise prompt on every new machine. Offer these `permissions.allow` rules (all inherently read-only subcommands — never offer mutating ones like `gh api -X`, `gh pr merge`, or `glab mr merge`, which must keep prompting):
 
       Bash(gh pr view:*)
@@ -248,7 +256,7 @@ End with a table:
 | jira skill (ticket to brief and ticket creation) | ready / not ready | jira-cli + JIRA_API_TOKEN |
 | Planning workflow (plan-guide, obsidian-topic) | ready / not ready | vault config |
 | Write-time rules | main: always ready (session start); subagents: configured / offered / declined | subagents only: check 6 |
-| Prompt-free scripts + orchestration env | configured / offered / declined | check 6 |
+| Prompt-free scripts, vault read rule + orchestration env | configured / offered / declined | check 6 |
 | Auto-update | on / offered / declined | check 6 |
 | Auto mode git rules | not auto / configured / offered / declined | check 6 |
 | Auto mode trusted hosts | not auto / configured / offered / declined / pending (human) | check 6 |
