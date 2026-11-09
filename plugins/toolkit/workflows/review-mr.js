@@ -1,7 +1,7 @@
 export const meta = {
   name: 'review-mr',
   description: 'Multi-dimension diff review: fan out global reviewer agents + custom dimensions, each finding self-scored and cited, then one batched verifier per dimension in chunks of eight',
-  whenToUse: 'Invoked by the gitlab-mr-review skill (fetched MR diffs, target-branch checkout) or the red-team skill (local uncommitted slice diffs), or as a child workflow by the execute-runner workflow (the slice diff of the execute flow), with args = {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?, models?}. Reviews a saved unified diff against the local code at repoRoot whose state repoState declares.',
+  whenToUse: 'Invoked by the gitlab-mr-review skill (fetched MR diffs, target-branch checkout) or the red-team skill (local uncommitted slice diffs), or as a child workflow by the execute-runner workflow (the slice diff of the execute flow), with args = {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?, models?, replay?}. Reviews a saved unified diff against the local code at repoRoot whose state repoState declares.',
   phases: [
     { title: 'Review', detail: 'registry reviewer agents + custom prompt dimensions over the diff' },
     { title: 'Verify', detail: 'one batched adversarial verifier per dimension in chunks of eight, owning the final tag, score and reproduction' },
@@ -24,6 +24,9 @@ export const meta = {
 // models (optional) the resolver's agents object keyed by short agent name (e.g. 'verifier'),
 //   each {model, effort}; a custom dimension takes the 'code-reviewer' entry, and a blank value
 //   and a missing entry inherit the session.
+// replay (optional) recorded results keyed by agent label, each a list in call order; a label
+//   with a result left returns it in place of an agent call, and the return gains replayed,
+//   the count of results used.
 
 // The harness may deliver args as a JSON string rather than a parsed object.
 let a = args
@@ -32,11 +35,22 @@ if (typeof a === 'string') {
 }
 
 if (!a || !a.diffPath || !a.repoRoot || !a.contextBlock) {
-  throw new Error('review-mr requires args: {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?, models?}')
+  throw new Error('review-mr requires args: {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?, models?, replay?}')
 }
 const isModelEntry = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.entries(v).every(([k, x]) => (k === 'model' || k === 'effort') && typeof x === 'string')
 if (a.models != null && (typeof a.models !== 'object' || Array.isArray(a.models) || !Object.values(a.models).every(isModelEntry))) {
   throw new Error(`review-mr models must map agent names to {model, effort} objects when given, got ${JSON.stringify(a.models)}`)
+}
+if (a.replay != null && (typeof a.replay !== 'object' || Array.isArray(a.replay) || !Object.values(a.replay).every(Array.isArray))) {
+  throw new Error('review-mr replay must map labels to lists of results when given')
+}
+const REPLAY = a.replay || null
+let replayed = 0
+const call = (prompt, opts) => {
+  const q = (REPLAY && REPLAY[opts.label]) || []
+  if (!q.length) return agent(prompt, opts)
+  replayed += 1
+  return Promise.resolve(q.shift())
 }
 // Keys the resolved map by the agent's short name. A blank field is omitted so the session value applies; the resolver already turned inherit into blank.
 const modelOpts = (who) => {
@@ -180,7 +194,7 @@ log(`Fanning out ${DIMENSIONS.length} review dimensions (${registryDimensions.le
 
 const results = await pipeline(
   DIMENSIONS,
-  (d) => agent(d.prompt, {
+  (d) => call(d.prompt, {
     label: `review:${d.key}`,
     phase: 'Review',
     schema: FINDINGS_SCHEMA,
@@ -198,7 +212,7 @@ const results = await pipeline(
     for (let c = 0; c * VERIFY_BATCH < kept.length; c += 1) {
       const chunk = kept.slice(c * VERIFY_BATCH, (c + 1) * VERIFY_BATCH)
       const listing = chunk.map((f, i) => `${i}. [${f.tag}] score ${f.score} ${f.file}${f.line ? ':' + f.line : ''} ${f.title}\n   CITATION: ${f.citation}\n   DETAIL: ${f.detail}\n   FAILURE SCENARIO: ${f.failure_scenario}`).join('\n\n')
-      const v = await agent(verifyPrompt(d.key, listing), { label: c ? `verify:${d.key}:${c + 1}` : `verify:${d.key}`, phase: 'Verify', schema: VERDICTS_SCHEMA, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
+      const v = await call(verifyPrompt(d.key, listing), { label: c ? `verify:${d.key}:${c + 1}` : `verify:${d.key}`, phase: 'Verify', schema: VERDICTS_SCHEMA, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
       if (!v) verifierDead = true
       const byIndex = new Map(((v && v.verdicts) || []).map((x) => [x.index, x]))
       chunk.forEach((f, i) => {
@@ -233,4 +247,4 @@ const unverified = all.filter((f) => !f.verdict).concat(metBar.filter((f) => !f.
 
 log(`${all.length} verified findings: ${confirmed.length} confirmed, ${nits.length} nits, ${preExisting.length} pre-existing, ${refuted.length} refuted, ${unverified.length} unverified, ${dropped.length} dropped; ${openQuestions.length} open questions; verifier dead for ${verifierDead.join(', ') || 'none'}`)
 
-return { confirmed, nits, preExisting, refuted, unverified, dropped, openQuestions, dead, verifierDead, panel: REVIEWERS, dimensions: CUSTOM.map((d) => d.key) }
+return { confirmed, nits, preExisting, refuted, unverified, dropped, openQuestions, dead, verifierDead, panel: REVIEWERS, dimensions: CUSTOM.map((d) => d.key), ...(REPLAY ? { replayed } : {}) }

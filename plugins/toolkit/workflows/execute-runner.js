@@ -13,10 +13,14 @@ export const meta = {
   ],
 }
 
+// A continuation's recorded run, which scripts/run-checkpoint.py writes into a copy of the dead run's own script: its args, its plan:index return as index, and each runner and child label's returns in call order.
+const REPLAY = null
 let a = args
 if (typeof a === 'string') {
   try { a = JSON.parse(a) } catch (e) { a = null }
 }
+// A continuation runs on the recorded args with the launch's own scratchDir.
+if (REPLAY && a) a = { ...REPLAY.args, scratchDir: a.scratchDir }
 const REQUIRED = ['planName', 'repoRoot', 'repoName', 'planPath', 'recallHits', 'scratchDir', 'pluginRoot', 'vaultRoot']
 if (!a || REQUIRED.some((k) => typeof a[k] !== 'string' || !a[k])) {
   throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planPath, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, baselineFailing?, priorChangedPaths?, maxFixRounds?, reviewRules?, reviewMr?, inWorktree?, models?, e2e?, nits?, seatRun?, diffBase?}')
@@ -107,14 +111,25 @@ const obj = (properties) => ({ type: 'object', properties, required: Object.keys
 const SHA256 = /^[0-9a-f]{64}$/
 // plan-index.py's E2E_MARK, so the script checks the relayed e2e flag against the relayed heading.
 const E2E_MARK = /^(?:[0-9]+[.)]\s+)?\[e2e\]/
+// plan-index.py's SHOTS_MARK, so a relayed shots flag that the heading does not carry fails the index check.
+const SHOTS_MARK = /^(?:[0-9]+[.)]\s+)?\[e2e\]\s*\[shots\]/
 const PLAN_INDEX = obj({ error: str, sha256: str,
   sections: list(obj({ name: str, line: num })),
   implementationSteps: list(obj({ heading: str, line: num })),
-  validationSteps: list(obj({ heading: str, line: num, e2e: bool })) })
+  validationSteps: list(obj({ heading: str, line: num, e2e: bool, shots: bool })) })
+let replaying = REPLAY !== null
+// Returns the next recorded result for a label until the first label with none left, then calls agent() for that call and every later one.
+const call = (prompt, opts) => {
+  const q = replaying ? REPLAY.runner[opts.label] || [] : []
+  if (q.length) return Promise.resolve(q.shift())
+  replaying = false
+  return agent(prompt, opts)
+}
+const childRecorded = REPLAY ? Object.values(REPLAY.child).reduce((n, q) => n + q.length, 0) : 0
 phase('Prep')
 const planIndex = await agent(`Run exactly this command and nothing else, and change no file:
 bash ${a.pluginRoot}/scripts/vault-fs.sh index '${PLAN_REL}'
-It prints one JSON object. Return its sha256, sections, implementationSteps and validationSteps as printed, every string character for character and every number unchanged, and error as an empty string. If the command exits non-zero or prints no JSON object, return error as its output, sha256 as an empty string and every list empty. Return raw structured data only.`,
+It prints one JSON object. Return its sha256, sections, implementationSteps and validationSteps as printed, every string character for character and every number unchanged, and error as an empty string. Return shots as false for a Validation Step whose printed entry has no shots key. If the command exits non-zero or prints no JSON object, return error as its output, sha256 as an empty string and every list empty. Return raw structured data only.`,
   { label: 'plan:index', phase: 'Prep', schema: PLAN_INDEX, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
 // The index relays start lines only, so a slipped one fails this order check or an anchor a worker checks before it acts.
 const indexProblem = ((ix) => {
@@ -132,10 +147,14 @@ const indexProblem = ((ix) => {
     : !rising(ix.implementationSteps) || !inside(ix.implementationSteps, 'Implementation Steps') ? 'an Implementation Step line falls outside its section or out of order'
     : !rising(ix.validationSteps) || !inside(ix.validationSteps, 'Validation Steps') ? 'a Validation Step line falls outside its section or out of order'
     : ix.validationSteps.some((s) => s.e2e !== E2E_MARK.test(s.heading)) ? 'a Validation Step e2e flag does not match its heading'
+    : ix.validationSteps.some((s) => s.shots === true && !SHOTS_MARK.test(s.heading)) ? 'a Validation Step shots flag does not match its heading'
     : ''
   return why ? `The plan index for ${a.planPath} is inconsistent: ${why}` : null
 })(planIndex)
 const ix = planIndex && !indexProblem ? planIndex : { sha256: '', sections: [], implementationSteps: [], validationSteps: [] }
+const headingsOf = (x) => JSON.stringify([x.implementationSteps, x.validationSteps].map((l) => l.map((s) => s.heading)))
+// plan:index runs live because the launch write changed the note's sha256, so only the step headings must match the recorded run.
+const replayHeads = !REPLAY || headingsOf(ix) === headingsOf(REPLAY.index)
 // A section runs from its heading line to the line before the next heading, or to the end of the note.
 const rangeOf = (name) => {
   const i = ix.sections.findIndex((s) => s.name === name)
@@ -160,28 +179,37 @@ const implItems = ix.implementationSteps.length ? stepRanges(ix.implementationSt
 const validationParsed = ix.validationSteps.length ? stepRanges(ix.validationSteps, 'Validation Steps') : []
 const hasValidation = validationParsed.length > 0
 const e2eSteps = validationParsed.map((s, i) => (s.e2e ? i + 1 : 0)).filter(Boolean)
+const shotSteps = validationParsed.map((s, i) => (s.shots === true ? i + 1 : 0)).filter(Boolean)
+const MAX_SHOTS = 5
+const SHOTS_LIST = shotSteps.length ? `Screenshot STEPs: ${shotSteps.join(', ')}. ` : ''
+// Paths only: an image a worker opens stays in its context as image tokens.
+const SCREENSHOT_RULE = `${SHOTS_LIST}For each Screenshot STEP that you run, screenshots lists each PNG or JPEG file that this run of the STEP wrote into the output directory its command names, such as the --output directory of npx playwright test, as a path relative to ${a.repoRoot}, at most ${MAX_SHOTS}. screenshots is an empty list for every other STEP. Never open, Read or describe an image file.`
+const shotsOf = (r, n) => (shotSteps.includes(n) && r.status !== 'manual' && r.status !== 'deferred' && Array.isArray(r.screenshots)
+  ? r.screenshots.filter((p) => typeof p === 'string' && p.trim() && !/['\n\r]/.test(p)).slice(0, MAX_SHOTS) : [])
 const E2E_OUTCOME = a.e2e === 'skip' ? { status: 'manual', evidence: 'e2e: skip' } : a.inWorktree ? { status: 'deferred', evidence: 'needs the seat' } : null
 const E2E_RULE = E2E_OUTCOME && e2eSteps.length ? `End-to-end STEPs: ${e2eSteps.join(', ')}. Do not run them. Report each as ${E2E_OUTCOME.status} with ${E2E_OUTCOME.evidence} as evidence. ` : ''
 const SEAT_RUN_RULE = SEAT_RUN ? `The running local stack serves ${a.repoRoot}. Run every STEP against it${E2E_RULE ? ' apart from the end-to-end STEPs named above' : ', the end-to-end STEPs included'}, and report manual only for a step that needs a human. An end-to-end STEP is never pre-existing. ` : ''
 const settleE2E = (v) => (v ? { ...v, results: v.results.map((r, i) => {
-  if (!e2eSteps.includes(i + 1) || isStop(r)) return r
-  if (E2E_OUTCOME) return { ...r, ...E2E_OUTCOME }
-  return SEAT_RUN && r.status === 'pre-existing' ? { ...r, status: 'fail' } : r
+  const s = { ...r, screenshots: isStop(r) ? [] : shotsOf(r, i + 1) }
+  if (!e2eSteps.includes(i + 1) || isStop(r)) return s
+  if (E2E_OUTCOME) return { ...s, ...E2E_OUTCOME, screenshots: [] }
+  return SEAT_RUN && s.status === 'pre-existing' ? { ...s, status: 'fail' } : s
 }) } : v)
 const validationCount = validationParsed.length
 const validationBlock = validationParsed.map((s, i) => `STEP ${i + 1}:\n${pointer(s)}`).join('\n\n')
 const NOTE_CHANGED = 'The plan note changed mid-run'
 const INDEX_MISMATCH = 'The plan index does not match the plan note'
+const SHA_FAILED = 'The sha check on the plan note failed'
 const SHA_CHECK = `bash ${a.pluginRoot}/scripts/vault-fs.sh sha256 '${PLAN_REL}'`
 const CHANGED_LINE = `${NOTE_CHANGED}: sha256 <the printed value>, expected ${ix.sha256}.`
 const MISMATCH_LINE = `${INDEX_MISMATCH} at line <its number>, which begins <its first words>.`
 const planRead = (stop) => `PLAN NOTE: ${a.planPath}
-A block that says read lines A-B of the plan note stands for those lines of this file, and names the text that line A begins with and, unless the range runs to the end, the text that line B+1 begins with, each read after any leading # marks and the whitespace after them. Before your first read of the file, run exactly ${SHA_CHECK}. If it is denied or exits non-zero, read nothing from the file and ${stop('The sha check on the plan note failed: <its output>.')}. If it prints anything other than ${ix.sha256}, read nothing from the file and ${stop(CHANGED_LINE)}. Otherwise read each such block's lines and the line after them with the Read tool, offset at the first line and limit at the line count plus one, with no limit for a range that runs to the end. If a named line does not begin with the text the block gives, or a line after line A inside the range starts with ## and a space or tab outside a fenced block, act on nothing from that block and ${stop(MISMATCH_LINE)}. Otherwise act on the block's lines.`
+A block that says read lines A-B of the plan note stands for those lines of this file, and names the text that line A begins with and, unless the range runs to the end, the text that line B+1 begins with, each read after any leading # marks and the whitespace after them. Before your first read of the file, run exactly ${SHA_CHECK}. If it is denied or exits non-zero, read nothing from the file and ${stop(`${SHA_FAILED}: <its output>.`)}. If it prints anything other than ${ix.sha256}, read nothing from the file and ${stop(CHANGED_LINE)}. Otherwise read each such block's lines and the line after them with the Read tool, offset at the first line and limit at the line count plus one, with no limit for a range that runs to the end. If a named line does not begin with the text the block gives, or a line after line A inside the range starts with ## and a space or tab outside a fenced block, act on nothing from that block and ${stop(MISMATCH_LINE)}. Otherwise act on the block's lines.`
 const STOP = (line) => `record "${line}" as your only blockers entry and stop`
 const FAIL = (line) => `return every STEP as fail with "${line}" as its evidence`
 const NONE = (line) => (line === CHANGED_LINE ? 'treat every such block as none' : 'treat that block as none')
 // A stop counts only on a fail result whose evidence opens with a stop sentence, because a step's evidence can quote one, as a grep for it does.
-const isStop = (r) => r.status === 'fail' && [NOTE_CHANGED, INDEX_MISMATCH].some((s) => String(r.evidence || '').replace(/^[\s"'`]+/, '').startsWith(s))
+const isStop = (r) => r.status === 'fail' && [NOTE_CHANGED, INDEX_MISMATCH, SHA_FAILED].some((s) => String(r.evidence || '').replace(/^[\s"'`]+/, '').startsWith(s))
 const readStop = (v) => String((((v && v.results) || []).find(isStop) || {}).evidence || '')
 const stopped = (label, why) => `The verifier ${label} ran no Validation Step: ${why}`
 
@@ -197,7 +225,7 @@ const THRESHOLD = 0.6
 const BASELINE = obj({ branch: str, status: strList, verify: obj({ command: str, exitCode: num, failing: strList }) })
 const STEP = obj({ changedPaths: strList, deviations: strList, checksRun: strList, result: str, blockers: strList, topicMaterial: str })
 const FIX = obj({ ...STEP.properties, skipped: list(obj({ key: str, step: str })) })
-const VALIDATION = obj({ results: list(obj({ step: str, status: { type: 'string', enum: ['pass', 'fail', 'manual', 'pre-existing'].concat(a.inWorktree ? ['deferred'] : []) }, evidence: str })) })
+const VALIDATION = obj({ results: list(obj({ step: str, status: { type: 'string', enum: ['pass', 'fail', 'manual', 'pre-existing'].concat(a.inWorktree ? ['deferred'] : []) }, evidence: str, screenshots: strList })) })
 const DIFF = obj({ diffPath: str, hash12: str, empty: bool, paths: strList })
 const RECHECK = obj({ results: list(obj({ file: str, title: str, resolved: bool, evidence: str })) })
 const COLD = { type: 'object', properties: { findings: list({ type: 'object',
@@ -305,9 +333,11 @@ const covers = (v) => {
   blocked.push(`Validation returned ${v.results.length} results for ${validationCount} steps.`)
   return false
 }
-const capture = (label, phaseName) => agent(CAPTURE_PROMPT, { label, phase: phaseName, schema: DIFF, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
+const capture = (label, phaseName) => call(CAPTURE_PROMPT, { label, phase: phaseName, schema: DIFF, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
 
 const finish = () => {
+  const left = REPLAY && replayHeads ? Object.values(REPLAY.runner).reduce((n, q) => n + q.length, 0) + childRecorded - (review && Number.isInteger(review.replayed) ? review.replayed : 0) : 0
+  if (left) blocked.push(`The continuation left ${left} of its recorded results unused, so its control flow differs from the recorded run. The likely cause is a review-mr child without replay support.`)
   log(`incomplete: ${incomplete.join(', ') || 'none'}`)
   return {
     baseline,
@@ -353,6 +383,10 @@ if (indexProblem) {
   blocked.push(`${indexProblem}.`)
   return finish()
 }
+if (!replayHeads) {
+  blocked.push(`The plan's step headings differ from the recorded run's plan:index, so the run cannot continue from its journal.`)
+  return finish()
+}
 if (!implItems.length) {
   blocked.push('The plan has no Implementation Steps.')
   return finish()
@@ -365,7 +399,7 @@ if (a.e2e === 'required' && hasValidation && !e2eSteps.length) {
 const verifyLine = a.verifyCommand
   ? 'run the verify command ' + a.verifyCommand
   : 'find and run the repo\'s verify or test command from AGENTS.md, CLAUDE.md, VERIFY.md or the package manifest. If you find none, run none, set command to none and exitCode to -1, and set failing to the one sentence No verify command was found'
-baseline = await agent(`${CONTEXT}
+baseline = await call(`${CONTEXT}
 
 In ${a.repoRoot}, run git branch --show-current and git status --porcelain, then ${verifyLine}. ${STDIN_RULE} Return branch, status as the git status --porcelain lines, and verify with the command you ran, its exit code, and failing as the names of the checks it reported as failed. Change no file. ${GIT_RULE} Return raw structured data only.`,
   { label: 'prep:baseline', phase: 'Prep', schema: BASELINE, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
@@ -376,7 +410,7 @@ if (!hasValidation) blocked.push('The plan has no Validation Steps, so nothing p
 phase('Implement')
 for (let i = 0; i < (SEAT_RUN ? 0 : implItems.length); i += 1) {
   const label = `implement:${i + 1}`
-  const r = await agent(`${SHARED}
+  const r = await call(`${SHARED}
 
 ${implementBrief(i)}
 
@@ -394,7 +428,7 @@ Implement YOUR STEP in ${a.repoRoot} and nothing beyond it. STEPS lists every st
 
 phase('Verify')
 const SEAT_RULE = a.inWorktree ? `This run sits in a git worktree, and the running local stack serves the main checkout, not ${a.repoRoot}. Do not run a STEP that needs the running local stack: the site's URL, a browser check, a request to the local stack, or anything else that the main checkout's running services serve. Report such a STEP as deferred with needs the seat as evidence, and run every other STEP. Create nothing outside ${a.repoRoot}: no container, no database clone, no media mount, no hostname. ` : ''
-const runValidation = async (label, phaseName) => settleE2E(await agent(`${CONTEXT}
+const runValidation = async (label, phaseName) => settleE2E(await call(`${CONTEXT}
 
 ${planRead(FAIL)}
 
@@ -404,7 +438,7 @@ ${validationBlock}
 BASELINE VERIFY RESULT:
 ${baseline ? JSON.stringify(baseline.verify) : 'none, the baseline check did not run'}
 
-Run each STEP above that an agent can run here, against ${a.repoRoot}. Return exactly ${validationCount} results, one per STEP, in order, with step set to the STEP number and the step's first line, as in STEP 1: <first line>. status is pass or fail with the command output as evidence, never a guessed pass. status is manual, with the reason as evidence, for a step that needs a human or another session. status is pre-existing when a step fails only on a check that the baseline failing list already names. If a command is denied, report its step as fail with the denial as evidence. ${SEAT_RULE}${E2E_RULE}${SEAT_RUN_RULE}${STDIN_RULE} ${HOOK_RULE} Change no file. ${GIT_RULE} Return raw structured data only.`,
+Run each STEP above that an agent can run here, against ${a.repoRoot}. Return exactly ${validationCount} results, one per STEP, in order, with step set to the STEP number and the step's first line, as in STEP 1: <first line>. status is pass or fail with the command output as evidence, never a guessed pass. status is manual, with the reason as evidence, for a step that needs a human or another session. status is pre-existing when a step fails only on a check that the baseline failing list already names. If a command is denied, report its step as fail with the denial as evidence. ${SEAT_RULE}${E2E_RULE}${SEAT_RUN_RULE}${SCREENSHOT_RULE} ${STDIN_RULE} ${HOOK_RULE} Change no file. ${GIT_RULE} Return raw structured data only.`,
   { label, phase: phaseName, schema: VALIDATION, agentType: 'toolkit:verifier', ...modelOpts('verifier') }))
 
 if (!hasValidation) setValidation({ results: [] }, 0)
@@ -422,7 +456,7 @@ else {
   }
   const failing = failingOf(v)
   if (failing.length) {
-    const fix = await agent(`${SHARED}
+    const fix = await call(`${SHARED}
 
 ${SCOPE}
 
@@ -478,7 +512,6 @@ if (diffRed && !diffRed.empty) {
   panel = picked.panel
   panelRule = picked.rule
   const contextBlock = `Repo: ${a.repoName} at ${a.repoRoot}. Plan name: ${a.planName}.
-${planRead(NONE)}
 ${planBlock('OBJECTIVE', 'Objective')}
 CHANGED PATHS:
 ${changed.join('\n') || 'none'}
@@ -486,10 +519,11 @@ SETTLED DECISIONS:
 The owner accepted the plan's Assumptions and Risks at approval. A finding that only restates one of them, or asks for scope or coverage the Assumptions exclude, is not a finding, unless the tree contradicts the decision, in which case report it as a normal finding. A breach of a written rule in rules/, doctrine/, CLAUDE.md, AGENTS.md or .claude/rules, or a doc line the tree contradicts, is never settled by an Assumption or Risk: report it as a normal finding and never lower its score on plan grounds.
 ${planBlock('ASSUMPTIONS', 'Assumptions')}
 ${planBlock('RISKS', 'Risks')}
+${planRead(NONE)}
 
 Apply the project rules in the CLAUDE.md, AGENTS.md and .claude/rules files under ${a.repoRoot} where they exist. When the diff ships executable commands embedded in prose, such as a skill, a workflow script's prompts or a doc, execute those exact commands against a scratch fixture covering the awkward cases (clean tree, dirty tree, untracked directories, unusual filenames) rather than judge them by reading. ${SCRATCH_ONLY} ${GIT_RULE}${REVIEW_RULES ? `\n\nREVIEW RULES (REVIEW.md on the default branch):\n${REVIEW_RULES}` : ''}`
   try {
-    review = await workflow(REVIEW_MR, { diffPath: diffRed.diffPath, repoRoot: a.repoRoot, contextBlock, repoState: REPO_STATE, dimensions: DIMENSIONS, registryReviewers: panel, ...(a.models ? { models: a.models } : {}) })
+    review = await workflow(REVIEW_MR, { diffPath: diffRed.diffPath, repoRoot: a.repoRoot, contextBlock, repoState: REPO_STATE, dimensions: DIMENSIONS, registryReviewers: panel, ...(a.models ? { models: a.models } : {}), ...(replaying ? { replay: REPLAY.child } : {}) })
     if (review == null) {
       review = null
       blocked.push('The review-mr child workflow returned nothing.')
@@ -517,7 +551,7 @@ if (review) {
     const entry = (f) => `${key(f)} [${f.finalTag || f.tag}, final score ${f.finalScore}, ${f.reproduced ? (f.finalScore < THRESHOLD ? 'cited line read' : 'reproduced') : 'not reproduced'}]\nCITATION: ${f.citation || 'none'}\nDETAIL: ${f.detail}\nFAILURE SCENARIO: ${f.failure_scenario || 'none given'}`
     const confirmedBlock = open.filter((f) => f.bucket === 'confirmed').map(entry).join('\n\n') || 'none'
     const nitBlock = open.filter((f) => f.bucket === 'nit').map(entry).join('\n\n') || 'none'
-    const fix = await agent(`${SHARED}
+    const fix = await call(`${SHARED}
 
 ${SCOPE}
 
@@ -555,7 +589,7 @@ Fix each confirmed finding above in ${a.repoRoot} with the smallest change that 
     open = open.filter((f) => !kept.includes(f))
     if (!open.length) break
     const findings = open.map((f) => `${key(f)}\nDETAIL: ${f.detail}\nFAILURE SCENARIO: ${f.failure_scenario || 'none given'}`).join('\n\n')
-    const re = await agent(`${CONTEXT}
+    const re = await call(`${CONTEXT}
 
 FINDINGS:
 ${findings}
@@ -590,7 +624,7 @@ if (diffRed && diffFinal && !fixAttempts && diffRed.hash12 !== diffFinal.hash12)
 }
 if (diffFinal && !diffFinal.empty) {
   const posted = review ? ['confirmed', 'nits', 'preExisting'].flatMap((k) => review[k] || []).map(key) : []
-  const cold = await agent(`Read the full unified diff at ${diffFinal.diffPath}. ${REPO_STATE} repoRoot is ${a.repoRoot}.
+  const cold = await call(`Read the full unified diff at ${diffFinal.diffPath}. ${REPO_STATE} repoRoot is ${a.repoRoot}.
 
 ${EXTERNAL_PROMPT}
 
@@ -613,7 +647,7 @@ phase('Doc pass')
 // A blocked slice defers the doc pass to the conductor, the same as the remember pass.
 if (!blocked.length) {
   if (!SEAT_RUN) {
-    docPass = await agent(`${SHARED}
+    docPass = await call(`${SHARED}
 
 ${planBlock('OBJECTIVE', 'Objective')}
 
@@ -652,7 +686,7 @@ Read the section headed Doc Update Pass in ${a.pluginRoot}/skills/execution-guid
 
 phase('Remember')
 if (!blocked.length && !SEAT_RUN) {
-  const rem = await agent(`Objective: route the durable facts this slice surfaced. Fold the vault-bound facts into vault topic notes, and stage the repo-bound facts as proposed doc content for the conductor's consent gate.
+  const rem = await call(`Objective: route the durable facts this slice surfaced. Fold the vault-bound facts into vault topic notes, and stage the repo-bound facts as proposed doc content for the conductor's consent gate.
 
 Scope: write only under the vault root folder ${a.vaultRoot} and the scratchpad ${S}. You must not write any repo file.
 
