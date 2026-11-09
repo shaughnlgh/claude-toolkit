@@ -185,7 +185,7 @@ const SHOTS_LIST = shotSteps.length ? `Screenshot STEPs: ${shotSteps.join(', ')}
 // Paths only: an image a worker opens stays in its context as image tokens.
 const SCREENSHOT_RULE = `${SHOTS_LIST}For each Screenshot STEP that you run, screenshots lists each PNG or JPEG file that this run of the STEP wrote into the output directory its command names, such as the --output directory of npx playwright test, as a path relative to ${a.repoRoot}, at most ${MAX_SHOTS}. screenshots is an empty list for every other STEP. Never open, Read or describe an image file.`
 const shotsOf = (r, n) => (shotSteps.includes(n) && r.status !== 'manual' && r.status !== 'deferred' && Array.isArray(r.screenshots)
-  ? r.screenshots.filter((p) => typeof p === 'string' && p.trim()).slice(0, MAX_SHOTS) : [])
+  ? r.screenshots.filter((p) => typeof p === 'string' && p.trim() && !/['\n\r]/.test(p)).slice(0, MAX_SHOTS) : [])
 const E2E_OUTCOME = a.e2e === 'skip' ? { status: 'manual', evidence: 'e2e: skip' } : a.inWorktree ? { status: 'deferred', evidence: 'needs the seat' } : null
 const E2E_RULE = E2E_OUTCOME && e2eSteps.length ? `End-to-end STEPs: ${e2eSteps.join(', ')}. Do not run them. Report each as ${E2E_OUTCOME.status} with ${E2E_OUTCOME.evidence} as evidence. ` : ''
 const SEAT_RUN_RULE = SEAT_RUN ? `The running local stack serves ${a.repoRoot}. Run every STEP against it${E2E_RULE ? ' apart from the end-to-end STEPs named above' : ', the end-to-end STEPs included'}, and report manual only for a step that needs a human. An end-to-end STEP is never pre-existing. ` : ''
@@ -337,7 +337,7 @@ const capture = (label, phaseName) => call(CAPTURE_PROMPT, { label, phase: phase
 
 const finish = () => {
   const left = REPLAY && replayHeads ? Object.values(REPLAY.runner).reduce((n, q) => n + q.length, 0) + childRecorded - (review && Number.isInteger(review.replayed) ? review.replayed : 0) : 0
-  if (left) blocked.push(`The continuation left ${left} of its recorded results unused, so its control flow differs from the recorded run.`)
+  if (left) blocked.push(`The continuation left ${left} of its recorded results unused, so its control flow differs from the recorded run. The likely cause is a review-mr child without replay support.`)
   log(`incomplete: ${incomplete.join(', ') || 'none'}`)
   return {
     baseline,
