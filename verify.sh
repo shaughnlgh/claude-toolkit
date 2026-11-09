@@ -133,7 +133,7 @@ for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js workflows/p
          skills/gitlab-mr-review/scripts/post_mr_comments.py \
          skills/grill/SKILL.md skills/plan-flow/SKILL.md skills/execute-flow/SKILL.md \
          skills/ship-flow/SKILL.md \
-         scripts/vault-fs.sh scripts/plan-index.py scripts/git-ro.sh scripts/seat-check.sh scripts/watch-mr.sh; do
+         scripts/vault-fs.sh scripts/plan-index.py scripts/run-checkpoint.py scripts/git-ro.sh scripts/seat-check.sh scripts/watch-mr.sh; do
   [ -f "$P/$f" ] && ok "present: $f" || no "MISSING: $f"
 done
 # node --check says nothing about a workflow script either way, because the bodies use top-level await and return, so compile each body in an AsyncFunction, which accepts both.
@@ -221,6 +221,21 @@ fi
 if grep -qF 'Seat run passed:' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Seat run passed:' "$P/skills/ship-flow/SKILL.md"; then ok "execute-flow writes and ship-flow reads the seat run outcome line"; else no "seat run outcome line missing from execute-flow or ship-flow"; fi
 if grep -qF '[e2e]' "$P/skills/plan-guide/SKILL.md" && grep -qF 'E2E_MARK' "$P/scripts/plan-index.py" && grep -qF 'E2E_MARK.test' "$P/workflows/execute-runner.js"; then ok "plan-guide defines the [e2e] marker, and plan-index.py and execute-runner.js read it"; else no "[e2e] marker missing from plan-guide, plan-index.py or execute-runner.js"; fi
 if grep -qF 'vault-fs.sh index' "$P/workflows/execute-runner.js" && grep -qF 'vault-fs.sh sha256' "$P/workflows/execute-runner.js" && grep -qE '^  index\)' "$P/scripts/vault-fs.sh" && grep -qE '^  sha256\)' "$P/scripts/vault-fs.sh" && grep -qF '`planPath`:' "$P/skills/execute-flow/SKILL.md"; then ok "execute-runner indexes the plan note through vault-fs.sh index and sha256, and execute-flow passes planPath"; else no "plan index by path missing from execute-runner.js, vault-fs.sh or execute-flow"; fi
+if grep -qE '^  cp\)' "$P/scripts/vault-fs.sh" && grep -qE '^  attach\)' "$P/scripts/vault-fs.sh" && grep -qF 'vault-fs.sh attach' "$P/skills/execute-flow/SKILL.md" && grep -qF 'SCREENSHOT_RULE' "$P/workflows/execute-runner.js" && grep -qF 'SCREENSHOT_RULE' "$P/skills/execute-flow/SKILL.md" && grep -qF 'const MAX_SHOTS = 5' "$P/workflows/execute-runner.js" && grep -qF "the runner's \`MAX_SHOTS\`" "$P/skills/execute-flow/SKILL.md"; then ok "vault-fs.sh carries cp and attach, and execute-flow attaches screenshots under SCREENSHOT_RULE and the MAX_SHOTS cap"; else no "cp, attach, SCREENSHOT_RULE or the MAX_SHOTS cap missing from vault-fs.sh, execute-flow or execute-runner.js"; fi
+if (for f in skills/plan-guide/SKILL.md skills/execute-flow/SKILL.md skills/ship-flow/SKILL.md skills/plan-flow/SKILL.md skills/handoff/SKILL.md; do grep -qF 'vault-fs.sh cp' "$P/$f" || exit 1; done) && ! grep -rqF 'Write the note to a `.tmp.md` file beside it' "$P" && ! grep -rqF 'same atomic write' "$P"; then ok "every skill that changes an existing plan note names the vault-fs.sh cp changed-lines path"; else no "a plan note writer still restates the whole-file write or lacks vault-fs.sh cp"; fi
+if (for f in skills/plan-guide/SKILL.md workflows/plan-builder.js agents/plan-critic.md; do for t in 'scratch vault' 'Projects/<repo>-scratch/'; do grep -qF -- "$t" "$P/$f" || exit 1; done; done); then ok "plan-guide, plan-builder and plan-critic keep fixture plan notes in a scratch vault and live-session notes under Projects/<repo>-scratch/"; else no "fixture or live-session note rule missing from plan-guide, plan-builder or plan-critic"; fi
+if grep -qF 'SHOTS_MARK' "$P/scripts/plan-index.py" && grep -qF -- '--output tests/' "$P/skills/plan-guide/SKILL.md" && (for f in skills/plan-guide/SKILL.md workflows/plan-builder.js agents/plan-critic.md; do for t in '[shots]' 'captures on pass' 'anonymised'; do grep -qF -- "$t" "$P/$f" || exit 1; done; done); then ok "plan-guide, plan-builder and plan-critic bind a [shots] step to its own output directory, capture on pass and anonymised data, and plan-index.py reads the marker"; else no "[shots] marker, capture-on-pass or screenshot data rule missing from plan-guide, plan-builder, plan-critic or plan-index.py"; fi
+if grep -qxF 'const REPLAY = null' "$P/workflows/execute-runner.js" && grep -qF 'REPLAY_LINE = "const REPLAY = null"' "$P/scripts/run-checkpoint.py" && grep -qF 'a.replay' "$P/workflows/review-mr.js" && grep -qF 'run-checkpoint.py' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Launch: execute run' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Run: <runId>' "$P/skills/execute-flow/SKILL.md"; then ok "execute-runner.js holds the REPLAY line that run-checkpoint.py replaces, review-mr takes replay, and execute-flow records the Launch and Run lines and reads the checkpoint"; else no "REPLAY line, review-mr replay arg, or execute-flow launch record or checkpoint read missing"; fi
+if python3 - "$P/workflows/execute-runner.js" "$P/scripts/run-checkpoint.py" <<'PY'
+import re, sys
+src, cp = (open(p, encoding="utf-8").read() for p in sys.argv[1:])
+writer = re.compile(re.search(r'^WRITER = re\.compile\(r"(.+)"\)$', cp, re.M).group(1))
+named = re.search(r"const label = `([^`]+)`", src).group(1)
+labels = [m.group(1) or m.group(2) or named for m in re.finditer(r"\{ (?:label: (?:'([^']+)'|`([^`]+)`)|label), [^\n]*agentType: 'toolkit:implementer'", src)]
+labels = [re.sub(r"\$\{[^}]+\}", "1", l) for l in labels if l != "remember:pass"]
+sys.exit(0 if len(labels) >= 4 and all(writer.match(l) for l in labels) else 1)
+PY
+then ok "run-checkpoint.py's WRITER matches every execute-runner implementer label that edits the tree"; else no "an execute-runner implementer label other than remember:pass is missing from run-checkpoint.py's WRITER"; fi
 if grep -qF 'a.nits' "$P/workflows/execute-runner.js" && grep -qF 'a.nits' "$P/workflows/ship-runner.js" && grep -qF '`nits`: the section 2 `nits` value' "$P/skills/execute-flow/SKILL.md" && grep -qF '`nits`: the note' "$P/skills/ship-flow/SKILL.md"; then ok "both runners take and both flows pass the nits run option"; else no "nits run option missing from a runner or a flow's args"; fi
 if grep -qF 'a.noCiConfig' "$P/workflows/ship-runner.js" && grep -qF '`noCiConfig`: the section 3' "$P/skills/ship-flow/SKILL.md"; then ok "ship-runner takes and ship-flow passes noCiConfig"; else no "noCiConfig missing from ship-runner.js or the ship-flow args"; fi
 if grep -qF 'toolkit-review-bots.json' "$P/commands/setup.md" && grep -qF 'toolkit-review-bots.json' "$P/skills/ship-flow/SKILL.md"; then ok "setup writes and ship-flow reads the review bot logins file"; else no "review bot logins file missing from setup or ship-flow"; fi
@@ -443,7 +458,11 @@ suite_ok "topic-recall behavior suite" "$out" 45
 
 echo "== vault-fs containment =="
 out="$(bash "$P/scripts/tests/vault-fs/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "vault-fs behavior suite" "$out" 25
+suite_ok "vault-fs behavior suite" "$out" 42
+
+echo "== run-checkpoint journal read =="
+out="$(bash "$P/scripts/tests/run-checkpoint/run-tests.sh" 2>/dev/null | tail -1)"
+suite_ok "run-checkpoint behavior suite" "$out" 25
 
 echo "== git-ro execution boundary =="
 out="$(bash "$P/scripts/tests/git-ro/run-tests.sh" 2>/dev/null | tail -1)"
@@ -474,7 +493,7 @@ fi
 echo "== execute-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/execute-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "execute-runner control-flow suite" "$out" 258
+  suite_ok "execute-runner control-flow suite" "$out" 284
 else
   skip "skipped: node not found; execute-runner control-flow suite"
 fi
@@ -490,7 +509,7 @@ fi
 echo "== review-mr control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/review-mr/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "review-mr control-flow suite" "$out" 66
+  suite_ok "review-mr control-flow suite" "$out" 70
 else
   skip "skipped: node not found; review-mr control-flow suite"
 fi
