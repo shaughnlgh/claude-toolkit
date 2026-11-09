@@ -34,7 +34,7 @@ After plan approval and explicit user instruction to execute:
 
 ### Build minimal
 
-The plan says what to build; build the least that satisfies it. The subagent-rules hook injects the write-time rules at spawn, but doctrine itself still does not travel on its own, so pass task-relevant doctrine sections down in every implementation delegation, following the handoff template in `../../doctrine/orchestration.md` from this skill's base directory: shortest working diff, no unrequested abstractions, reuse before adding, and trace and grep the callers before changing a shared function. Prefer deleting code to adding it. Mark any deliberate shortcut with a greppable `TODO(author):` comment naming the ceiling and the upgrade path. See `../../doctrine/minimalism.md` from this skill's base directory.
+The plan says what to build; build the least that satisfies it. The subagent-rules hook injects the write-time rules at spawn, but doctrine itself still does not travel on its own, so pass task-relevant doctrine sections down in every implementation delegation, following the handoff template in `<plugin-root>/doctrine/orchestration.md`: shortest working diff, no unrequested abstractions, reuse before adding, and trace and grep the callers before changing a shared function. Prefer deleting code to adding it. Mark any deliberate shortcut with a greppable `TODO(author):` comment naming the ceiling and the upgrade path. See `<plugin-root>/doctrine/minimalism.md`.
 
 ### Progress format
 
@@ -57,7 +57,7 @@ The plan says what to build; build the least that satisfies it. The subagent-rul
 
 ## Slice Finalization
 
-When the user signals a completed implementation slice, the `red-team` skill (`../red-team/SKILL.md` from this skill's base directory) owns finalization: it recommends the adversarial review, runs it on confirmation, and ends with a commit suggestion. It invokes this skill's Doc Update Pass once, after its fixes, and runs the remember pass once after the doc pass.
+When the user signals a completed implementation slice, the `red-team` skill (`<plugin-root>/skills/red-team/SKILL.md`) owns finalization: it recommends the adversarial review, runs it on confirmation, and ends with a commit suggestion. It invokes this skill's Doc Update Pass once, after its fixes, and runs the remember pass once after the doc pass.
 
 ## Doc Update Pass
 

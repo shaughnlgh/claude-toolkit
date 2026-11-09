@@ -4,7 +4,7 @@ summary: What the installed toolkit plugin contains, why a file inside the plugi
 type: context
 status: active
 owner: Shaughn
-last_reviewed: 2026-11-08
+last_reviewed: 2026-11-09
 source_refs:
   - .claude-plugin/marketplace.json
   - plugins/toolkit/
@@ -19,7 +19,7 @@ The marketplace entry in `.claude-plugin/marketplace.json` sets the source of th
 ## Links from plugin files
 
 - A skill, command, doctrine, rule, or agent file must not link to a repo-root file. The link resolves in the repo and dangles in every install. Name the file in prose as a repo file that the plugin does not ship, as the `crawl` skill does for the brief template, or move the content under `plugins/toolkit/`.
-- A plugin file reaches another plugin file by a path relative to its own location, such as `../plan-guide/SKILL.md` from a skill's base directory.
+- A skill reaches another plugin file through its plugin root, such as `<plugin-root>/skills/plan-guide/SKILL.md` or `<plugin-root>/workflows/<name>.js`, and never by a bare `../..` or `../<name>/` path, because a `/override` copy under `~/.claude/skills/<name>/` resolves such a path inside `~/.claude/`. A `verify.sh` check fails when a skill line outside its plugin-root sentence carries such a path.
 - Open item: `commands/setup.md` points at `docs/overrides.md`, and `doctrine/orchestration.md` points at `docs/hooks.md`.
 
 ## Plugin root
