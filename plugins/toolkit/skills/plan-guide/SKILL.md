@@ -174,7 +174,7 @@ related_topics:
 - `ticket`: the ticket key as the tracker writes it (e.g. `CR-123`), `issue-<n>` for an issue number, or `none` once the user chose to go without (§ Run options, Ticket). Blank means no ticket was given and no answer is recorded, so the next asker the Ticket subsection names asks.
 - `approved`: the date (YYYY-MM-DD) the plan was approved. Leave blank until then; it is stamped (by you or tooling) when status moves to `approved`.
 - `mr`: the merge/pull request URL once one is opened for the plan's branch. Leave blank until then; record it when the draft MR is created.
-- `modules`: for plans that also change owned vendor modules (each its own git repo) **nested under the project repo**, the list of modules touched. Leave blank for single-repo plans (the common case). Each entry has `name` (composer package), `path` (e.g. `vendor/acme/module-foo`), `branch`, and `mr`. Track each module's branch/MR alongside the project's. Example:
+- `modules`: for plans that also change owned vendor modules (each its own git repo) **nested under the project repo**, the list of modules touched. Leave blank for single-repo plans (the common case). Each entry has `name` (composer package), `path` (§ Repos and modules), `branch`, and `mr`. Track each module's branch/MR alongside the project's. Example:
 
 ```yaml
 modules:
@@ -184,7 +184,7 @@ modules:
     mr:
 ```
 
-- `repos`: for plans that span multiple **sibling top-level repos** (each its own `~/projects/<repo>`, not nested under another), the list of code repos touched. Use this when `repo` is a grouping rather than a single code repo (e.g. a storefront umbrella covering a backend repo plus a PWA repo). Each entry has `repo` (the `~/projects` dir name), `branch`, and `mr`. Each is its own work component with its own branch/MR. Leave `branch` blank at plan level in this case (the per-repo branches live here). Use `modules` for nested vendor modules and `repos` for sibling repos; a plan can use either, both, or neither. Example:
+- `repos`: for plans that span multiple **sibling top-level repos** (each its own `<projects root>/<repo>`, not nested under another), the list of code repos touched. Use this when `repo` is a grouping rather than a single code repo (e.g. a storefront umbrella covering a backend repo plus a PWA repo). Each entry has `repo` (the directory name under the projects root), `branch`, and `mr`. Each is its own work component with its own branch/MR. Use `modules` for nested vendor modules and `repos` for sibling repos; a plan can use either, both, or neither. § Repos and modules defines the repo set, the branch default and the ship order. Example:
 
 ```yaml
 repos:
@@ -208,6 +208,16 @@ sessions:
 
 - `related_topics`: plain strings, not wiki links. Use wiki links only in the body.
 - Do not invent ticket values. Do not invent tags or topics — use obvious project/task topics only.
+
+### Repos and modules
+
+This subsection is the one definition of the repo set, the module path, the branch default and the ship order. The execute flow (execute-flow section 2b) and the ship flow (ship-flow section 3b) read them from here.
+
+- Repo set: the `repos:` entries, or the note's `repo` when `repos:` is empty, plus each `modules:` entry, nested under the note's `repo`. With `repos:` set, the note's `repo` is a grouping name unless an entry names it. A note whose repo set holds two or more members is a several-repos note. The flows run a several-repos note from a session started in the projects root, the directory that holds each repo as `<projects root>/<repo>`.
+- Module path: a module's `path` is where Composer installs the package in the project, and it ends with `vendor/<name>`, such as `vendor/acme/module-pay` or `src/vendor/acme/module-pay`. The path keeps that form even when the project keeps the module's working checkout elsewhere through execute-flow section 2b's `Module checkout path:` line.
+- Branch default: an entry's `branch` wins, and a blank entry `branch` takes the plan-level `branch`.
+- Ship order: the `repos:` entries in list order, with each repo's modules, in `modules:` order, directly before the repo they nest under. On a note with no `repos:` list, the order is the modules in list order and then the note's `repo`. List the repos in the order they must merge, such as a back end before the app that calls it. The ship flow opens every repo's PR or MR before it merges any, then merges in this order.
+- The ship flow records each repo's PR or MR in its entry's `mr` field. In a several-repos plan, each Implementation Step names the repo it changes.
 
 ### Required plan sections (each as a `##` heading)
 
@@ -453,13 +463,14 @@ The user's next typed message answers the question:
 - `stop` or `no` ends the turn. The next step waits on the user.
 - Any other reply answers nothing. The session handles it as an ordinary message and starts no flow.
 
-Child launch command. Read this session's own name from the first line of ListAgents, and the names of the other live sessions from the lines after it. The own name is the session name on the first line, without the bracketed short id after it. ListAgents loads through ToolSearch with `select:ListAgents` when it is deferred. `<main>` is the main checkout of the repo that the note's `repo` names, `<repo>` is the basename of `<main>`, and `<parent name>` is this session's name. Hand no command, and say why in one sentence, in each of these cases:
+Child launch command. Read this session's own name from the first line of ListAgents, and the names of the other live sessions from the lines after it. The own name is the session name on the first line, without the bracketed short id after it. ListAgents loads through ToolSearch with `select:ListAgents` when it is deferred. `<main>` is the main checkout of the repo that the note's `repo` names, `<repo>` is the basename of `<main>`, and `<parent name>` is this session's name. On a several-repos note (§ Repos and modules), `<projects root>` takes the place of `<main>` in the command and in the cases below: the directory that holds this session's main checkout, or this session's own directory when it runs in no checkout. Hand no command, and say why in one sentence, in each of these cases:
 
 - ListAgents is absent. Tell the user that this session cannot read its own name, so a child could not report to it, and that the reply `run the execute flow here` runs the flow in this session.
 - ListAgents prints no own-name line, or another live session answers to this session's name. Tell the user to run `/rename parent-<planName>`, or to pick any name that no other live session uses and that differs from `child-<planName>` and `<planName>`, and then to ask for the child again.
 - This session's own name is `child-<planName>`, the name the child takes, or `<planName>`, which plan-tracking tooling also reads as a child. Give the same `/rename` advice.
 - A live session other than this one answers to `child-<planName>` or `<planName>`. Name it, and say that it must end, with keep answered at any worktree exit prompt, before a new child starts.
 - `<main>`, the plan note path, or `<parent name>` holds a single quote, or the path or `<parent name>` holds a double quote.
+- On a several-repos note, `<projects root>/<name>` holds no `.git` directory for a top-level repo `<name>` of the set. Name each missing repo.
 
 Otherwise hand the user this command for a new terminal window or tab:
 
