@@ -158,8 +158,8 @@ const HANDS_OFF_TEXT = HANDS_OFF.map((c) => (c.endsWith('/') ? `under ${c}` : c)
 const TEST_DIRS = (CV && CV.testDirs) || []
 const freshFailures = (v) => (v.failing || []).filter((n) => !(CV.failing || []).includes(n))
 const verifyFails = (v) => v.exitCode !== 0 && (!(v.failing || []).length || freshFailures(v).length > 0)
-// A test file has test or spec in its file name, or sits in a tests, test or __tests__ directory, the forms the repo suites use.
-const isTestFile = (p) => /test|spec/i.test(p.slice(p.lastIndexOf('/') + 1)) || p.split('/').slice(0, -1).some((d) => ['tests', 'test', '__tests__'].includes(d))
+// A test file names test, tests or spec as a token set off by . _ or - or as a capitalised suffix before the extension, or sits in a tests, test or __tests__ directory.
+const isTestFile = (p) => /(^|[._-])(tests?|spec)[._-]|[a-z0-9](Tests?|Spec)\.\w+$/.test(p.slice(p.lastIndexOf('/') + 1)) || p.split('/').slice(0, -1).some((d) => ['tests', 'test', '__tests__'].includes(d))
 const carriedPathOk = (p, dirs = TEST_DIRS) => !handsOff(p) && (a.paths.includes(p) || (isTestFile(p) && dirs.some((d) => p.startsWith(d))))
 
 const str = { type: 'string' }
@@ -503,7 +503,7 @@ const CARRIED_TEXT = CARRIED.map((f) => `- ${carriedName({ file: f.file, title: 
 const carriedStage = async () => {
   phase('Carried')
   const before = headSha
-  const tests = TEST_DIRS.length ? ` You may also add or change test files under ${TEST_DIRS.join(', ')}, so each fix carries a regression test. A test file has test or spec in its file name, or sits in a directory named tests, test or __tests__.` : ''
+  const tests = TEST_DIRS.length ? ` You may also add or change test files under ${TEST_DIRS.join(', ')}, so each fix carries a regression test. A test file has test, tests or spec in its file name as a word set off by a dot, underscore or hyphen, as in a.test.js, x_test.go or test_a.py, or as a capitalised suffix before the extension, as in PaymentTest.php or UserSpec.rb, or sits in a directory named tests, test or __tests__.` : ''
   const FIX_CMDS = `file edits, git add -- with the paths you changed, git commit -F -, git push origin ${a.branch}, and git rev-parse HEAD`
   const fix = await run('implementer', 'carried:fix', 'Carried', FIX, `${CONTEXT}
 
