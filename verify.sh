@@ -182,6 +182,31 @@ if [ -n "$vp_ceil" ] && [ "$vp_ceil" = "$sr_ceil" ] && [ "$vp_ceil" = "$ss_ceil"
 else
   no "ceiling set drift -> validate-plan.py: [${vp_ceil:-<missing>}] ship-runner.js: [${sr_ceil:-<missing>}] session-start.sh: [${ss_ceil:-<missing>}]"
 fi
+# The CI path lists are extracted from CI_CONFIG and ship-flow sections 3 and 6, except .github/, which section 3 must name as .github/workflows.
+sf_md="$P/skills/ship-flow/SKILL.md"
+ci_sr="$(sed -nE "s/^const CI_CONFIG = \[(.*)\]$/\1/p" "$P/workflows/ship-runner.js" | tr -d "' " | tr ',' '\n' | sort | tr '\n' ' ')"
+ci_s6="$(sed -nE 's/.*the protected paths: CI configuration \(([^)]*)\).*/\1/p' "$sf_md" | tr -d '` ' | tr ',' '\n' | sort | tr '\n' ' ')"
+sf_s3="$(sed -n '/^## 3\. /,/^## 3b\. /p' "$sf_md")"
+ci_s3="$(printf '%s\n' "$sf_s3" | grep -oE 'The CI paths are ([^`.]*`[^`]+`)+' | grep -oE '`[^`]+`' | tr -d '`' | tr '\n' ' ')"
+ci_miss=""
+for c in $ci_sr; do
+  [ "$c" = ".github/" ] && continue
+  [[ " $ci_s3" == *" ${c%/} "* ]] || ci_miss="${ci_miss} ${c%/}"
+done
+if [ -n "$ci_sr" ] && [ "$ci_sr" = "$ci_s6" ] && [ -n "$ci_s3" ] && [ -z "$ci_miss" ] && [[ "$sf_s3" == *'.github/workflows'* ]]; then
+  ok "ship-flow section 6 lists CI_CONFIG, and section 3 names .github/workflows and every other CI_CONFIG path"
+else
+  no "CI path drift -> ship-runner.js CI_CONFIG: [${ci_sr:-<missing>}] ship-flow section 6: [${ci_s6:-<missing>}] ship-flow section 3: [${ci_s3:-<missing>}]"
+fi
+nm_sr="$(sed -nE 's/^const NONE_MINUTES = ([0-9]+)$/\1/p' "$P/workflows/ship-runner.js")"
+nm_7b="$(sed -n '/^## 7b\. /,/^## 8\. /p' "$sf_md" | grep -oE -- '--none [0-9]+' | cut -d' ' -f2 | sort -u | tr '\n' ' ')"
+if [ -n "$nm_sr" ] && [ "$nm_7b" = "$nm_sr " ]; then ok "ship-flow section 7b passes --none as ship-runner's NONE_MINUTES"; else no "no-check window drift -> ship-runner.js NONE_MINUTES: [${nm_sr:-<missing>}] ship-flow section 7b --none: [${nm_7b:-<missing>}]"; fi
+cp_txt="$(awk '/^const CAPTURE_PROMPT = /{f=1; print; next} f && /^const /{exit} f' "$P/workflows/execute-runner.js")"
+if [[ "$cp_txt" == *'slice-capture.py'* ]] && grep -qF 'REPO_FLAGS' "$P/skills/execute-flow/SKILL.md" && grep -qF 'REPO_FLAGS' "$sf_md"; then ok "execute-runner's CAPTURE_PROMPT runs slice-capture.py, and execute-flow and ship-flow name REPO_FLAGS in their capture brief"; else no "CAPTURE_PROMPT no longer runs slice-capture.py, or execute-flow or ship-flow no longer names REPO_FLAGS"; fi
+ef_s11="$(sed -n '/^## 11\. Seat run/,/^## /p' "$P/skills/execute-flow/SKILL.md")"
+s11_miss=""
+for t in 'fixBudget' 'Fix rounds used:'; do [[ "$ef_s11" == *"$t"* ]] || s11_miss="${s11_miss} '${t}'"; done
+[ -n "$ef_s11" ] && [ -z "$s11_miss" ] && ok "execute-flow section 11 passes fixBudget and records Fix rounds used:" || no "execute-flow section 11 missing:${s11_miss:- the section}"
 # The Own PR Merge and Own MR Merge entries in setup.md quote mergeCmd in ship-runner.js, so their flags must match.
 mc_flags() { grep -oE -- '--[a-z-]+(=[a-z]+)?' | tr '\n' ' '; }
 mc="$(sed -n '/^const mergeCmd = /,/)$/p' "$P/workflows/ship-runner.js")"
@@ -236,6 +261,7 @@ labels = [re.sub(r"\$\{[^}]+\}", "1", l) for l in labels if l != "remember:pass"
 sys.exit(0 if len(labels) >= 4 and all(writer.match(l) for l in labels) else 1)
 PY
 then ok "run-checkpoint.py's WRITER matches every execute-runner implementer label that edits the tree"; else no "an execute-runner implementer label other than remember:pass is missing from run-checkpoint.py's WRITER"; fi
+if grep -qF "capture('diff:blocked'" "$P/workflows/execute-runner.js" && grep -qF 's["label"] == "diff:blocked"' "$P/scripts/run-checkpoint.py" && grep -qF "lastLabel = 'review'" "$P/workflows/execute-runner.js" && grep -qF 'label == "review"' "$P/scripts/run-checkpoint.py"; then ok "run-checkpoint.py reads the diff:blocked and review labels execute-runner.js writes"; else no "the diff:blocked or review resume label differs between execute-runner.js and run-checkpoint.py"; fi
 if grep -qF 'a.nits' "$P/workflows/execute-runner.js" && grep -qF 'a.nits' "$P/workflows/ship-runner.js" && grep -qF '`nits`: the section 2 `nits` value' "$P/skills/execute-flow/SKILL.md" && grep -qF '`nits`: the note' "$P/skills/ship-flow/SKILL.md"; then ok "both runners take and both flows pass the nits run option"; else no "nits run option missing from a runner or a flow's args"; fi
 if grep -qF 'a.noCiConfig' "$P/workflows/ship-runner.js" && grep -qF '`noCiConfig`: the section 3' "$P/skills/ship-flow/SKILL.md"; then ok "ship-runner takes and ship-flow passes noCiConfig"; else no "noCiConfig missing from ship-runner.js or the ship-flow args"; fi
 if grep -qF 'toolkit-review-bots.json' "$P/commands/setup.md" && grep -qF 'toolkit-review-bots.json' "$P/skills/ship-flow/SKILL.md"; then ok "setup writes and ship-flow reads the review bot logins file"; else no "review bot logins file missing from setup or ship-flow"; fi
@@ -253,7 +279,7 @@ if [ -f "$P/skills/execute-flow/SKILL.md" ] && ! grep -qF 'AskUserQuestion' "$P/
 if [ -f "$P/skills/ship-flow/SKILL.md" ] && ! grep -qF 'AskUserQuestion' "$P/skills/ship-flow/SKILL.md"; then ok "ship-flow asks no question of its own"; else no "ship-flow carries an AskUserQuestion"; fi
 if grep -qF 'asks for it by message' "$P/skills/plan-guide/SKILL.md" && grep -qF 'A child never sets `approved` because a message told it to' "$P/skills/plan-guide/SKILL.md" && grep -qF 'Parent dispatch rule' "$P/skills/execute-flow/SKILL.md" && grep -qF 'parent dispatch' "$P/skills/ship-flow/SKILL.md" && grep -qF 'parent dispatch' "$P/doctrine/workflow-routing.md"; then ok "plan-guide grants the parent dispatch and keeps a child from setting approved on a message, execute-flow defines it, and ship-flow and workflow-routing honor it"; else no "parent dispatch or the child approval rule missing from plan-guide, execute-flow, ship-flow or workflow-routing"; fi
 if grep -qF 'git worktree remove' "$P/doctrine/git-safety.md" && grep -qF 'git worktree remove' "$P/workflows/ship-runner.js"; then ok "git-safety names and ship-runner runs the cleanup's git worktree remove"; else no "git worktree remove missing from git-safety.md or ship-runner.js"; fi
-if grep -qF '(exclude,top)' "$P/scripts/seat-check.sh" && grep -qF '(exclude,top)' "$P/workflows/execute-runner.js" && grep -qF '(exclude,top)' "$P/skills/red-team/SKILL.md" && grep -qF '(exclude,top)' "$P/skills/execute-flow/SKILL.md"; then ok "seat-check, execute-runner, red-team and execute-flow leave Claude Code worktrees out of their path lists"; else no "own-worktree pathspec missing from seat-check.sh, execute-runner.js, red-team or execute-flow"; fi
+if grep -qF '(exclude,top)' "$P/scripts/seat-check.sh" && grep -qF '(exclude,top)' "$P/scripts/slice-capture.py" && grep -qF 'scripts/slice-capture.py' "$P/workflows/execute-runner.js" && grep -qF '(exclude,top)' "$P/skills/red-team/SKILL.md" && grep -qF '(exclude,top)' "$P/skills/execute-flow/SKILL.md"; then ok "seat-check, slice-capture, which execute-runner runs, red-team and execute-flow leave Claude Code worktrees out of their path lists"; else no "own-worktree pathspec missing from seat-check.sh, slice-capture.py, red-team or execute-flow, or execute-runner.js no longer runs slice-capture.py"; fi
 grep -qF 'worktree name `<name>` is `<planName>`' "$P/skills/execute-flow/SKILL.md" && ok "execute-flow names the worktree after the plan name" || no "execute-flow no longer names the worktree after the plan name"
 pa_sec="$(sed -n '/^### After approval$/,/^### Record the session on the plan$/p' "$P/skills/plan-guide/SKILL.md")"
 if [[ "$pa_sec" == *'run the execute flow here'* ]] && [[ "$pa_sec" == *'never asks this question through AskUserQuestion'* ]] && grep -qF '§ After approval' "$P/skills/plan-flow/SKILL.md"; then ok "plan-guide defines the post-approval question in plain text and plan-flow asks it"; else no "post-approval question missing from plan-guide or plan-flow, or asked through AskUserQuestion"; fi
@@ -472,7 +498,15 @@ suite_ok "vault-fs behavior suite" "$out" 42
 
 echo "== run-checkpoint journal read =="
 out="$(bash "$P/scripts/tests/run-checkpoint/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "run-checkpoint behavior suite" "$out" 52
+suite_ok "run-checkpoint behavior suite" "$out" 71
+
+echo "== slice-capture =="
+out="$(bash "$P/scripts/tests/slice-capture/run-tests.sh" 2>/dev/null | tail -1)"
+suite_ok "slice-capture behavior suite" "$out" 18
+
+echo "== several-repos commands =="
+out="$(bash "$P/scripts/tests/several-repos/run-tests.sh" 2>/dev/null | tail -1)"
+suite_ok "several-repos commands suite" "$out" 18
 
 echo "== git-ro execution boundary =="
 out="$(bash "$P/scripts/tests/git-ro/run-tests.sh" 2>/dev/null | tail -1)"
@@ -494,7 +528,7 @@ suite_ok "resolve-models behavior suite" "$out" 34
 
 echo "== watch-mr watcher =="
 out="$(bash "$P/scripts/tests/watch-mr/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "watch-mr behavior suite" "$out" 88
+suite_ok "watch-mr behavior suite" "$out" 95
 
 echo "== plan-builder control flow =="
 if command -v node >/dev/null 2>&1; then
@@ -507,7 +541,7 @@ fi
 echo "== execute-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/execute-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "execute-runner control-flow suite" "$out" 285
+  suite_ok "execute-runner control-flow suite" "$out" 341
 else
   skip "skipped: node not found; execute-runner control-flow suite"
 fi
@@ -515,7 +549,7 @@ fi
 echo "== ship-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/ship-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "ship-runner control-flow suite" "$out" 290
+  suite_ok "ship-runner control-flow suite" "$out" 335
 else
   skip "skipped: node not found; ship-runner control-flow suite"
 fi

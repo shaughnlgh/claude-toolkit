@@ -1,15 +1,16 @@
 export const meta = {
   name: 'execute-runner',
-  description: 'Execute flow: indexes an approved plan note by path through one verifier, so each worker reads its own lines after a sha256 and heading check, then runs it through a baseline check, one implementer per Implementation Step, the Validation Steps with one fix round, the review-mr panel chosen by changed path with one fix round over the confirmed findings, which takes the nits only under nits fix and runs for them alone in round 1 outside a seat run, a cold read told what the panel already reported and, when nothing blocked, the Doc Update Pass and the remember pass, and returns the result for the execute-flow skill to record. The script writes no file itself: its verifiers write the diff captures under scratchDir and the remember worker writes vault notes. No worker runs mutating git in repoRoot. With seatRun, the script runs no Implementation Step, doc pass or remember pass, captures and reviews the diff from diffBase, and blocks on any captured path outside .claude/worktrees/ that no fix or earlier commit wrote.',
+  description: 'Execute flow: indexes an approved plan note by path through one verifier, so each worker reads its own lines after a sha256 and heading check, then runs it through a baseline check, one implementer per Implementation Step, the Validation Steps with one fix round, the review-mr panel chosen by changed path with one fix round over the confirmed findings, which takes the nits only under nits fix and runs for them alone in round 1 outside a seat run, a cold read told what the panel already reported and, when nothing blocked, the Doc Update Pass and the remember pass, and returns the result for the execute-flow skill to record. With fixBudget, the validation fix round and the panel rounds together start at most that many fix rounds live, and a replayed round costs nothing. The script writes no file itself: its verifiers write the diff captures under scratchDir and the remember worker writes vault notes. No worker runs mutating git in repoRoot. With seatRun, the script runs no Implementation Step, doc pass or remember pass, captures and reviews the diff from diffBase, and blocks on any captured path outside .claude/worktrees/ that no fix or earlier commit wrote.',
   phases: [
-    { title: 'Prep', detail: 'a verifier indexes the plan note by path, then a verifier records the branch, the tree status and the baseline verify result' },
+    { title: 'Prep', detail: 'a verifier indexes the plan note by path, with repos one implementer per top-level root writes and removes one file as the edit check, then a verifier records the branch, the tree status and the baseline verify result' },
     { title: 'Implement', detail: 'one implementer per Implementation Step, in order' },
     { title: 'Verify', detail: 'verifier runs the Validation Steps, one implementer fix round on a failure' },
     { title: 'Red team', detail: 'verifier captures the diff, the review-mr child runs the panel chosen by changed path and two cold dimensions' },
-    { title: 'Fix', detail: 'one round over the confirmed findings, verifier rechecks, bounded by maxFixRounds. Under nits fix the nits ride round 1 and start it alone outside a seat run, and a seat run starts no round for nits alone' },
+    { title: 'Fix', detail: 'one round over the confirmed findings, verifier rechecks, bounded by maxFixRounds and fixBudget. Under nits fix the nits ride round 1 and start it alone outside a seat run, and a seat run starts no round for nits alone' },
     { title: 'Cold read', detail: 'verifier recaptures the diff, one cold code-reviewer reads it' },
     { title: 'Doc pass', detail: 'implementer runs the Doc Update Pass, verifier revalidates and captures the post-doc diff' },
     { title: 'Remember', detail: 'implementer routes the durable facts, only when nothing blocked' },
+    { title: 'Finish', detail: 'on a blocked run outside a seat run, a verifier captures the tree once as the blocked tree' },
   ],
 }
 
@@ -19,14 +20,17 @@ let a = args
 if (typeof a === 'string') {
   try { a = JSON.parse(a) } catch (e) { a = null }
 }
-// A continuation runs on the recorded args with the launch's own scratchDir.
-if (REPLAY && a) a = { ...REPLAY.args, scratchDir: a.scratchDir }
+// A continuation runs on the recorded args with the launch's own scratchDir, and the launch's fixBudget when it gives one.
+if (REPLAY && a) a = { ...REPLAY.args, scratchDir: a.scratchDir, ...(a.fixBudget != null ? { fixBudget: a.fixBudget } : {}) }
 const REQUIRED = ['planName', 'repoRoot', 'repoName', 'planPath', 'recallHits', 'scratchDir', 'pluginRoot', 'vaultRoot']
 if (!a || REQUIRED.some((k) => typeof a[k] !== 'string' || !a[k])) {
-  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planPath, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, baselineFailing?, priorChangedPaths?, maxFixRounds?, reviewRules?, reviewMr?, inWorktree?, models?, e2e?, nits?, seatRun?, diffBase?}')
+  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planPath, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, baselineFailing?, priorChangedPaths?, maxFixRounds?, fixBudget?, reviewRules?, reviewMr?, inWorktree?, models?, e2e?, nits?, seatRun?, diffBase?, repos?}')
 }
 if (a.maxFixRounds != null && !(Number.isInteger(a.maxFixRounds) && a.maxFixRounds >= 0)) {
   throw new Error(`execute-runner maxFixRounds must be a non-negative integer, got ${JSON.stringify(a.maxFixRounds)}`)
+}
+if (a.fixBudget != null && !(Number.isInteger(a.fixBudget) && a.fixBudget >= 0)) {
+  throw new Error(`execute-runner fixBudget must be a non-negative integer, got ${JSON.stringify(a.fixBudget)}`)
 }
 if (a.reviewRules != null && typeof a.reviewRules !== 'string') throw new Error('execute-runner reviewRules must be a string when given')
 const isStrList = (v) => Array.isArray(v) && v.every((s) => typeof s === 'string')
@@ -43,6 +47,29 @@ if (a.seatRun && a.inWorktree) throw new Error('execute-runner seatRun and inWor
 if (a.seatRun && !a.baselineFailing) throw new Error('execute-runner seatRun requires baselineFailing, the failing names the worktree run recorded before the slice')
 if (a.seatRun && !(typeof a.diffBase === 'string' && SHA.test(a.diffBase))) throw new Error(`execute-runner seatRun requires diffBase, the commit sha the seat run reviews from, got ${JSON.stringify(a.diffBase)}`)
 if (a.diffBase != null && !a.seatRun) throw new Error('execute-runner diffBase is only valid with seatRun')
+const REPO_NAME = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/
+// A root is a normalized absolute path, so its prefix matches the one slice-capture.py derives.
+const ROOT = /^(\/(?!\.\.?(\/|$))[^/'\n\r]+)+$/
+const FILE = /^\/[^'\n\r]*$/
+if (a.repos != null) {
+  const rs = a.repos
+  const bad = (why) => { throw new Error(`execute-runner repos ${why}, got ${JSON.stringify(rs)}`) }
+  if (!Array.isArray(rs) || rs.length < 2) bad('must list at least two {name, root, rules?, hooks?} entries')
+  for (const r of rs) {
+    if (!r || typeof r !== 'object' || typeof r.name !== 'string' || !REPO_NAME.test(r.name)) bad('entry names must match ^[A-Za-z0-9][A-Za-z0-9._/-]*$')
+    if (typeof r.root !== 'string' || !ROOT.test(r.root) || !(r.root === a.repoRoot || r.root.startsWith(`${a.repoRoot}/`))) bad('entry roots must be normalized absolute paths with no single quote or line break, equal to repoRoot or under it')
+    if (r.rules != null && !(isStrList(r.rules) && r.rules.length <= 20 && r.rules.every((p) => FILE.test(p)))) bad('entry rules must list at most 20 absolute paths with no single quote or line break')
+    if (r.hooks != null && !(typeof r.hooks === 'string' && r.hooks.length <= 300 && !/[\n\r]/.test(r.hooks))) bad('entry hooks must be one line of at most 300 characters')
+  }
+  if (new Set(rs.map((r) => r.name)).size < rs.length || new Set(rs.map((r) => r.root)).size < rs.length) bad('entry names and roots must be unique')
+}
+if (a.repos != null && a.seatRun) throw new Error('execute-runner repos and seatRun cannot both be set, because a seat run switches one main checkout')
+const MULTI = Array.isArray(a.repos)
+const relRoot = (r) => (r.root === a.repoRoot ? '' : `${r.root.slice(a.repoRoot.length + 1)}/`)
+const PREFIXES = MULTI ? a.repos.map(relRoot).sort((x, y) => y.length - x.length) : ['']
+const rootOf = (p) => PREFIXES.find((x) => p.startsWith(x))
+const underNoRoot = (list) => (list || []).filter((p) => rootOf(p) === undefined)
+const EDIT_ROOTS = MULTI ? a.repos.filter((r) => !a.repos.some((o) => o !== r && r.root.startsWith(`${o.root}/`))) : []
 const SEAT_RUN = a.seatRun === true
 const DIFF_BASE = SEAT_RUN ? a.diffBase : 'HEAD'
 const VAULT_DIR = `${a.vaultRoot.replace(/\/+$/, '')}/`
@@ -66,9 +93,10 @@ const STANDING = ['toolkit:code-reviewer', 'toolkit:silent-failure-hunter', 'too
 const FULL = STANDING.concat(['toolkit:security-reviewer', 'toolkit:performance-reviewer', 'toolkit:coupling-reviewer'])
 const DOCS_ONLY = ['toolkit:code-reviewer']
 const HIGH_RISK = ['plugins/toolkit/hooks/', 'plugins/toolkit/scripts/', 'plugins/toolkit/workflows/', '.github/']
-const panelFor = (paths, extra) => {
-  const risky = HIGH_RISK.concat(extra)
-  if (paths.some((p) => risky.some((h) => p === h || p.startsWith(h)))) return { panel: FULL, rule: 'high-risk path' }
+const panelFor = (all, extra) => {
+  const paths = all.map((p) => p.slice((rootOf(p) || '').length))
+  const hit = (list) => (p) => list.some((h) => p === h || p.startsWith(h))
+  if (paths.some(hit(HIGH_RISK.concat(extra.any))) || all.some(hit(extra.scoped))) return { panel: FULL, rule: 'high-risk path' }
   if (paths.length && paths.every((p) => p.startsWith('docs/') || (p.endsWith('.md') && !p.includes('/')))) return { panel: DOCS_ONLY, rule: 'docs only' }
   return { panel: STANDING, rule: 'standing' }
 }
@@ -85,13 +113,12 @@ const outsideFence = (lines) => {
     return false
   })
 }
-const sectionIn = (lines, outside, name) => {
+const sectionsIn = (lines, outside, name) => {
   const out = []
   let inSection = false
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i]
     if (outside[i] && /^##\s/.test(line)) {
-      if (inSection) break
       inSection = line.slice(2).trim() === name
     } else if (inSection) out.push(line)
   }
@@ -100,7 +127,22 @@ const sectionIn = (lines, outside, name) => {
 const rulesLines = REVIEW_RULES.split('\n')
 const bullets = (text) => text.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('- '))
   .map((l) => l.slice(2).trim().split(/\s/)[0].replace(/^[`'"]+/, '').replace(/[`'".,:;]+$/, '')).filter(Boolean)
-const extraHighRisk = REVIEW_RULES ? bullets(sectionIn(rulesLines, outsideFence(rulesLines), 'High-risk paths')) : []
+// A several-repos run joins each repo's REVIEW.md under a line REVIEW.md of <name>:, so its High-risk paths apply under that repo's root only.
+const extraHighRisk = { any: [], scoped: [] }
+if (REVIEW_RULES) {
+  const parts = [{ prefix: null, lines: [] }]
+  for (const line of rulesLines) {
+    const m = MULTI ? /^REVIEW\.md of (.+):$/.exec(line.trim()) : null
+    const r = m && a.repos.find((x) => x.name === m[1])
+    if (r) parts.push({ prefix: relRoot(r), lines: [] })
+    else parts[parts.length - 1].lines.push(line)
+  }
+  for (const p of parts) {
+    const found = bullets(sectionsIn(p.lines, outsideFence(p.lines), 'High-risk paths'))
+    if (p.prefix === null) extraHighRisk.any.push(...found)
+    else extraHighRisk.scoped.push(...found.map((b) => p.prefix + b))
+  }
+}
 const firstLine = (s) => String(s || '').split('\n')[0].trim().replace(/\.$/, '')
 const str = { type: 'string' }
 const num = { type: 'number' }
@@ -118,15 +160,30 @@ const PLAN_INDEX = obj({ error: str, sha256: str,
   implementationSteps: list(obj({ heading: str, line: num })),
   validationSteps: list(obj({ heading: str, line: num, e2e: bool, shots: bool })) })
 let replaying = REPLAY !== null
+let lastLabel = null
 // Returns the next recorded result for a label until the first label with none left, then calls agent() for that call and every later one.
 const call = (prompt, opts) => {
+  lastLabel = opts.label
   const q = replaying ? REPLAY.runner[opts.label] || [] : []
   if (q.length) return Promise.resolve(q.shift())
   replaying = false
   return agent(prompt, opts)
 }
 const childRecorded = REPLAY ? Object.values(REPLAY.child).reduce((n, q) => n + q.length, 0) : 0
+let budget = a.fixBudget ?? Infinity
+let liveFixes = 0
+const willReplay = (label) => replaying && (REPLAY.runner[label] || []).length > 0
+// A replayed round spends no budget, so the recorded control flow replays whatever the budget. A journal resume's blocked run already recorded it in Fix rounds used.
+// TODO(toolkit): a dead-run continuation replays rounds its dead run never recorded, so they escape the per-plan fix cap; count them once the REPLAY record marks that kind.
+const spend = (label) => {
+  if (willReplay(label)) return true
+  if (budget <= 0) return false
+  budget -= 1
+  liveFixes += 1
+  return true
+}
 phase('Prep')
+lastLabel = 'plan:index'
 const planIndex = await agent(`Run exactly this command and nothing else, and change no file:
 bash ${a.pluginRoot}/scripts/vault-fs.sh index '${PLAN_REL}'
 It prints one JSON object. Return its sha256, sections, implementationSteps and validationSteps as printed, every string character for character and every number unchanged, and error as an empty string. Return shots as false for a Validation Step whose printed entry has no shots key. If the command exits non-zero or prints no JSON object, return error as its output, sha256 as an empty string and every list empty. Return raw structured data only.`,
@@ -226,7 +283,8 @@ const BASELINE = obj({ branch: str, status: strList, verify: obj({ command: str,
 const STEP = obj({ changedPaths: strList, deviations: strList, checksRun: strList, result: str, blockers: strList, topicMaterial: str })
 const FIX = obj({ ...STEP.properties, skipped: list(obj({ key: str, step: str })) })
 const VALIDATION = obj({ results: list(obj({ step: str, status: { type: 'string', enum: ['pass', 'fail', 'manual', 'pre-existing'].concat(a.inWorktree ? ['deferred'] : []) }, evidence: str, screenshots: strList })) })
-const DIFF = obj({ diffPath: str, hash12: str, empty: bool, paths: strList })
+const DIFF = obj({ diffPath: str, hash12: str, empty: bool, paths: strList, ...(MULTI ? { parts: list(obj({ root: str, hash12: str, empty: bool })) } : {}) })
+const EDIT_CHECK = obj({ written: bool, removed: bool, refusal: str })
 const RECHECK = obj({ results: list(obj({ file: str, title: str, resolved: bool, evidence: str })) })
 const COLD = { type: 'object', properties: { findings: list({ type: 'object',
   properties: { file: str, title: str, issue: str, fix: str, tag: TAG, impact: unit, likelihood: unit, confidence: unit, citation: str, verified: bool },
@@ -236,27 +294,33 @@ const REMEMBER = obj({ proposals: list(obj({ path: str, action: str, scratch: st
 const key = (f) => `${f.file}: ${f.title}`
 
 const S = a.scratchDir
-const GIT_RULE = `In ${a.repoRoot}, git is read-only: git status, git diff, git log, git ls-files, git branch --show-current, git remote get-url, git symbolic-ref with one ref argument, and git merge-base --is-ancestor only. A -c core.quotePath=false prefix on one of these commands keeps it read-only. Never run git stash, add, commit, checkout, switch, reset, clean, rebase, merge or push there. Mutating git is allowed only inside a fresh fixture you create under ${S}.`
+const GIT_RULE = `In ${a.repoRoot}, git is read-only: git status, git diff, git log, git ls-files, git branch --show-current, git remote get-url, git symbolic-ref with one ref argument, and git merge-base --is-ancestor only. A -c core.quotePath=false prefix on one of these commands keeps it read-only. Never run git stash, add, commit, checkout, switch, reset, clean, rebase, merge or push there. Mutating git is allowed only inside a fresh fixture you create under ${S}.${MULTI ? ' This holds in every repo under REPOS, each its own git repo.' : ''}`
 const SCRATCH_ONLY = `Run embedded commands only against scratch fixtures you create under ${S}, never against ${a.repoRoot}.`
+const repoLines = (r) => [`- ${r.name}: ${r.root}`]
+  .concat(r.rules && r.rules.length ? [`  Rules: ${r.rules.join(', ')}`] : [], r.hooks ? [`  Hooks this session does not run: ${r.hooks}`] : []).join('\n')
+const REPOS_BLOCK = MULTI ? `REPOS (every path in this run is relative to ${a.repoRoot}, so ${a.repoRoot}/<path> is the file):
+${a.repos.map(repoLines).join('\n')}
+Before a worker edits, validates or reviews a file under a root, it reads every Rules file of that root and follows it as it follows this prompt.` : ''
 const CONTEXT = `Repo: ${a.repoName} at ${a.repoRoot}. Plan name: ${a.planName}.
 TOPIC RECALL HITS:
 ${a.recallHits}
 KNOWN EVIDENCE:
-${a.knownEvidence || 'none'}`
+${a.knownEvidence || 'none'}${MULTI ? `\n${REPOS_BLOCK}` : ''}`
+const REL_PATHS = MULTI ? `paths relative to ${a.repoRoot}` : 'repo-relative paths'
+const REL_PATH = MULTI ? `path relative to ${a.repoRoot}` : 'repo-relative path'
 const DOCTRINE = `Build minimal. The brief says what to build, so build the least that satisfies it: shortest working diff, no unrequested abstractions, reuse before adding, and trace and grep the callers before changing a shared function. Prefer deleting code to adding it. Mark any deliberate shortcut with a greppable TODO(author): comment naming the ceiling and the upgrade path. See ${a.pluginRoot}/doctrine/minimalism.md.`
-const REPO_STATE = 'The tree at repoRoot is the POST-change state this diff produces. There is no pre-change checkout. Reconstruct the pre-change state from the diff\'s context and removed lines. A defect the diff introduces is in scope even though it is present in the tree.'
+const REPO_STATE = MULTI ? `${REPOS_BLOCK}
+The trees under REPOS are the POST-change state this diff produces. A diff path is relative to ${a.repoRoot}. There is no pre-change checkout. Reconstruct the pre-change state from the diff's context and removed lines. A defect the diff introduces is in scope even though it is present in the tree.`
+  : 'The tree at repoRoot is the POST-change state this diff produces. There is no pre-change checkout. Reconstruct the pre-change state from the diff\'s context and removed lines. A defect the diff introduces is in scope even though it is present in the tree.'
 const STDIN_RULE = 'Run any verify or test suite, such as bash verify.sh, with stdin from /dev/null (bash verify.sh </dev/null), because a suite that reads stdin hangs when stdin is a pipe.'
 const BLOCKER_RULE = 'If any step, command or tool call is denied or cannot be done, do not work around it. Record it in blockers as one sentence and stop. The runner stops on any blockers entry, so blockers holds only work you could not do and is empty when the work is done.'
 const HOOK_RULE = `The dangerous-commands hook refuses any command text, including inside a heredoc, that contains a recursive force-delete of a shell variable, a bare dot or double dot, a bare glob, a path with a /../ segment, the root, the home dir, or a system dir such as /usr, /etc or /var. Remove a scratch fixture with its literal absolute path under ${S}.`
 const HOOK_WRITE_RULE = "If a file you create must hold a command the hook refuses, such as a script's recursive delete of a variable, create it with the Write tool, never through a heredoc."
 const EXTERNAL_PROMPT = 'You are CodeRabbit, Copilot, or a senior engineer on another team seeing this diff with no context. List what you would flag that a panel briefed by the author would rationalize away: naming that hides intent, a test that proves nothing, a comment that contradicts the code, a config value that belongs elsewhere, a public surface with no doc.'
-const CAPTURE_PROMPT = `Run exactly these commands from ${a.repoRoot} and nothing else:
-1. git diff ${DIFF_BASE} > ${S}/slice.diff.tmp
-2. git ls-files --others --exclude-standard -z -- ':(exclude,top)${OWN_WORKTREES}' | while IFS= read -r -d '' f; do git diff --no-index -- /dev/null "$f" >> ${S}/slice.diff.tmp; done
-3. Hash the temp file (e.g. shasum -a 256) and take the first 12 characters as <hash12>; move it to ${S}/slice-<hash12>.diff.
-4. git -c core.quotePath=false diff ${DIFF_BASE} --name-only, then git -c core.quotePath=false ls-files --others --exclude-standard -- ':(exclude,top)${OWN_WORKTREES}'
-The diff command in 2 exits 1 on any difference. Tolerate that exit code, it is not a failure.
-Return diffPath, hash12, empty and paths. diffPath is the absolute path of the moved file. empty is true only when that file has zero bytes. paths holds every line the two commands in 4 printed, as repo-relative paths. Return raw structured data only. ${GIT_RULE}`
+const REPO_FLAGS = (a.repos || []).map((r) => ` --repo '${r.root}'`).join('')
+const CAPTURE_PROMPT = `Run exactly this command and nothing else, and change no file:
+python3 ${a.pluginRoot}/scripts/slice-capture.py --scratch '${S}' --base ${DIFF_BASE} --root '${a.repoRoot}'${REPO_FLAGS}
+It prints one JSON object. Return its diffPath, hash12, empty and paths${a.repos ? ' and parts' : ''} as printed, every string character for character. If the command exits non-zero or prints no JSON object, return diffPath and hash12 as empty strings, empty as true and paths empty. Return raw structured data only. ${GIT_RULE}`
 const SHARED = `${CONTEXT}
 
 ${planRead(STOP)}
@@ -266,7 +330,7 @@ ${GIT_RULE}
 ${BLOCKER_RULE}
 ${HOOK_RULE}
 ${HOOK_WRITE_RULE}`
-const RETURN_STEP = 'Return changedPaths as repo-relative paths, deviations as one sentence per departure from the instructions and one per caveat or follow-up you want recorded, checksRun as the checks you ran, result as one sentence, blockers as one sentence per step you could not do or empty, and topicMaterial as the durable non-obvious facts with file:line refs, or none. Return raw structured data only.'
+const RETURN_STEP = `Return changedPaths as ${REL_PATHS}, deviations as one sentence per departure from the instructions and one per caveat or follow-up you want recorded, checksRun as the checks you ran, result as one sentence, blockers as one sentence per step you could not do or empty, and topicMaterial as the durable non-obvious facts with file:line refs, or none. Return raw structured data only.`
 
 const DIMENSIONS = [
   { key: 'cold-read', cold: true, prompt: `Re-derive what the diff does from the diff alone. Read every instruction and embedded command literally and adversarially, and report each place where the literal reading differs from what the diff appears to intend. ${SCRATCH_ONLY} ${GIT_RULE}` },
@@ -296,13 +360,19 @@ let remember = null
 let diffRed = null
 let diffFinal = null
 let diffPost = null
+let blockedAt = null
+let blockedTree = null
 
+const halt = (sentence) => {
+  if (!blocked.length) blockedAt = lastLabel
+  blocked.push(sentence)
+}
 const dead = (who, label) => {
   incomplete.push(label)
-  blocked.push(`The ${who} ${label} returned nothing.`)
+  halt(`The ${who} ${label} returned nothing.`)
 }
 const blockersOf = (who, label, r) => {
-  if (r && r.blockers && r.blockers.length) blocked.push(`The ${who} ${label} reported blockers: ${r.blockers.join(' ')}`)
+  if (r && r.blockers && r.blockers.length) halt(`The ${who} ${label} reported blockers: ${r.blockers.join(' ')}`)
   return Boolean(r && r.blockers && r.blockers.length)
 }
 const collect = (paths, topicMaterial) => {
@@ -330,14 +400,25 @@ const setValidation = (v, runs) => {
 }
 const covers = (v) => {
   if (v.results.length === validationCount) return true
-  blocked.push(`Validation returned ${v.results.length} results for ${validationCount} steps.`)
+  halt(`Validation returned ${v.results.length} results for ${validationCount} steps.`)
   return false
 }
-const capture = (label, phaseName) => call(CAPTURE_PROMPT, { label, phase: phaseName, schema: DIFF, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
+const HEX12 = /^[0-9a-f]{12}$/
+const partsOk = (d) => !MULTI || (Array.isArray(d.parts) && d.parts.length === a.repos.length && d.parts.every((p, i) => p.root === a.repos[i].root && HEX12.test(p.hash12)))
+const named = (d) => (d && MULTI ? d.parts.map((p, i) => ({ name: a.repos[i].name, hash12: p.hash12, empty: p.empty })) : null)
+const capture = async (label, phaseName) => {
+  const d = await call(CAPTURE_PROMPT, { label, phase: phaseName, schema: DIFF, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
+  return d && HEX12.test(d.hash12) && partsOk(d) ? d : null
+}
 
-const finish = () => {
+const finish = async () => {
+  if (blocked.length && !SEAT_RUN) {
+    phase('Finish')
+    const t = await capture('diff:blocked', 'Finish')
+    blockedTree = t ? t.hash12 : null
+  }
   const left = REPLAY && replayHeads ? Object.values(REPLAY.runner).reduce((n, q) => n + q.length, 0) + childRecorded - (review && Number.isInteger(review.replayed) ? review.replayed : 0) : 0
-  if (left) blocked.push(`The continuation left ${left} of its recorded results unused, so its control flow differs from the recorded run. The likely cause is a review-mr child without replay support.`)
+  if (left) halt(`The continuation left ${left} of its recorded results unused, so its control flow differs from the recorded run. The likely cause is a review-mr child without replay support.`)
   log(`incomplete: ${incomplete.join(', ') || 'none'}`)
   return {
     baseline,
@@ -370,42 +451,61 @@ const finish = () => {
     diffHashes: { redTeam: diffRed ? diffRed.hash12 : null, final: diffFinal ? diffFinal.hash12 : null, postDoc: diffPost ? diffPost.hash12 : null },
     diffPaths: { redTeam: diffRed ? diffRed.diffPath : null, final: diffFinal ? diffFinal.diffPath : null, postDoc: diffPost ? diffPost.diffPath : null },
     diffFiles: { redTeam: diffRed ? diffRed.paths : null, final: diffFinal ? diffFinal.paths : null, postDoc: diffPost ? diffPost.paths : null },
+    diffParts: { redTeam: named(diffRed), final: named(diffFinal), postDoc: named(diffPost) },
     blocked,
     incomplete,
+    blockedAt,
+    blockedTree,
+    fixRounds: liveFixes,
   }
 }
 
 if (!planIndex) {
   dead('verifier', 'plan:index')
-  return finish()
+  return await finish()
 }
 if (indexProblem) {
-  blocked.push(`${indexProblem}.`)
-  return finish()
+  halt(`${indexProblem}.`)
+  return await finish()
 }
 if (!replayHeads) {
-  blocked.push(`The plan's step headings differ from the recorded run's plan:index, so the run cannot continue from its journal.`)
-  return finish()
+  halt(`The plan's step headings differ from the recorded run's plan:index, so the run cannot continue from its journal.`)
+  return await finish()
 }
 if (!implItems.length) {
-  blocked.push('The plan has no Implementation Steps.')
-  return finish()
+  halt('The plan has no Implementation Steps.')
+  return await finish()
 }
 if (a.e2e === 'required' && hasValidation && !e2eSteps.length) {
-  blocked.push(`The plan's e2e option is required and no Validation Step carries the [e2e] marker after its number.`)
-  return finish()
+  halt(`The plan's e2e option is required and no Validation Step carries the [e2e] marker after its number.`)
+  return await finish()
+}
+
+// The first several-repos stage proves the harness lets a runner worker write under each top-level root; a nested root sits inside one.
+for (const r of EDIT_ROOTS) {
+  const file = `${r.root}/toolkit-edit-check-${a.planName}.tmp`
+  const e = await call(`Use the Write tool to create ${file} holding the one line toolkit edit check. Then run exactly rm -f -- '${file}' as its own Bash call, then exactly test ! -e '${file}' as its own Bash call. Run nothing else and change no other file. Return written as true only when the Write tool created the file, removed as true only when that test exited 0, and refusal as the refusal or error text the Write tool returned, or an empty string when it wrote the file. Return raw structured data only.`,
+    { label: 'edit:check', phase: 'Prep', schema: EDIT_CHECK, agentType: 'toolkit:implementer', ...modelOpts('implementer') })
+  if (!e) dead('implementer', 'edit:check')
+  else if (!e.written) halt(`Claude Code refused a worker's edit in ${r.root} from a session started in the projects root: ${firstLine(e.refusal) || 'no refusal text'}. A permissions.allow rule does not pre-approve a protected-path write, so the plan is built by hand until the harness allows it.`)
+  else if (e.removed !== true) halt(`The edit check could not remove ${file}, so remove it by hand before a rerun.`)
+  if (!e || !e.written || e.removed !== true) return await finish()
 }
 
 const verifyLine = a.verifyCommand
-  ? 'run the verify command ' + a.verifyCommand
+  ? `run the verify command ${a.verifyCommand}${MULTI ? ` from ${a.repoRoot}` : ''}`
+  : MULTI ? 'find and run that repo\'s verify or test command from its AGENTS.md, CLAUDE.md, VERIFY.md or package manifest. If you find none in any root, run none, set command to none and exitCode to -1, and set failing to the one sentence No verify command was found'
   : 'find and run the repo\'s verify or test command from AGENTS.md, CLAUDE.md, VERIFY.md or the package manifest. If you find none, run none, set command to none and exitCode to -1, and set failing to the one sentence No verify command was found'
+const BASELINE_RUN = MULTI
+  ? `In each root under REPOS, run git branch --show-current and git status --porcelain, then ${verifyLine}. ${STDIN_RULE} Return branch as <name>=<branch> pairs in REPOS order joined by a comma and a space, status as every root's git status --porcelain lines with each path prefixed by its root's path relative to ${a.repoRoot}, and verify with command as the cd '<root>' && <command> parts you ran joined by " ; ", exitCode as the first non-zero exit code or 0, and failing as <name>: <check> for each check a command reported as failed.`
+  : `In ${a.repoRoot}, run git branch --show-current and git status --porcelain, then ${verifyLine}. ${STDIN_RULE} Return branch, status as the git status --porcelain lines, and verify with the command you ran, its exit code, and failing as the names of the checks it reported as failed.`
 baseline = await call(`${CONTEXT}
 
-In ${a.repoRoot}, run git branch --show-current and git status --porcelain, then ${verifyLine}. ${STDIN_RULE} Return branch, status as the git status --porcelain lines, and verify with the command you ran, its exit code, and failing as the names of the checks it reported as failed. Change no file. ${GIT_RULE} Return raw structured data only.`,
+${BASELINE_RUN} Change no file. ${GIT_RULE} Return raw structured data only.`,
   { label: 'prep:baseline', phase: 'Prep', schema: BASELINE, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
 if (!baseline) dead('verifier', 'prep:baseline')
 else if (a.baselineFailing) baseline.verify = { ...baseline.verify, failing: a.baselineFailing }
-if (!hasValidation) blocked.push('The plan has no Validation Steps, so nothing proves the slice.')
+if (!hasValidation) halt('The plan has no Validation Steps, so nothing proves the slice.')
 
 phase('Implement')
 for (let i = 0; i < (SEAT_RUN ? 0 : implItems.length); i += 1) {
@@ -418,16 +518,16 @@ Implement YOUR STEP in ${a.repoRoot} and nothing beyond it. STEPS lists every st
     { label, phase: 'Implement', schema: STEP, agentType: 'toolkit:implementer', ...modelOpts('implementer') })
   if (!r) {
     dead('implementer', label)
-    return finish()
+    return await finish()
   }
   steps.push(r)
   collect(r.changedPaths, r.topicMaterial)
   for (const d of r.deviations || []) planChanges.push(`Step ${i + 1}: ${d}`)
-  if (blockersOf('implementer', label, r)) return finish()
+  if (blockersOf('implementer', label, r)) return await finish()
 }
 
 phase('Verify')
-const SEAT_RULE = a.inWorktree ? `This run sits in a git worktree, and the running local stack serves the main checkout, not ${a.repoRoot}. Do not run a STEP that needs the running local stack: the site's URL, a browser check, a request to the local stack, or anything else that the main checkout's running services serve. Report such a STEP as deferred with needs the seat as evidence, and run every other STEP. Create nothing outside ${a.repoRoot}: no container, no database clone, no media mount, no hostname. ` : ''
+const SEAT_RULE = a.inWorktree ? `${MULTI ? "This run sits in git worktrees, and the running local stack serves each repo's main checkout, not the trees under REPOS." : `This run sits in a git worktree, and the running local stack serves the main checkout, not ${a.repoRoot}.`} Do not run a STEP that needs the running local stack: the site's URL, a browser check, a request to the local stack, or anything else that the main checkout's running services serve. Report such a STEP as deferred with needs the seat as evidence, and run every other STEP. Create nothing outside ${a.repoRoot}: no container, no database clone, no media mount, no hostname. ` : ''
 const runValidation = async (label, phaseName) => settleE2E(await call(`${CONTEXT}
 
 ${planRead(FAIL)}
@@ -446,15 +546,19 @@ else {
   let v = await runValidation('verify:validation', 'Verify')
   if (!v) {
     dead('verifier', 'verify:validation')
-    return finish()
+    return await finish()
   }
   setValidation(v, 1)
-  if (readStop(v)) { blocked.push(stopped('verify:validation', readStop(v))); return finish() }
+  if (readStop(v)) { halt(stopped('verify:validation', readStop(v))); return await finish() }
   if (!covers(v)) {
-    failingOf(v).forEach((r) => blocked.push(`Validation step failed: ${firstLine(r.step)}.`))
-    return finish()
+    failingOf(v).forEach((r) => halt(`Validation step failed: ${firstLine(r.step)}.`))
+    return await finish()
   }
   const failing = failingOf(v)
+  if (failing.length && !spend('fix:validation')) {
+    failing.forEach((r) => halt(`Validation step failed with the plan's fix budget spent: ${firstLine(r.step)}.`))
+    return await finish()
+  }
   if (failing.length) {
     const fix = await call(`${SHARED}
 
@@ -471,24 +575,24 @@ Fix only what makes these steps pass, in ${a.repoRoot}. ${RETURN_STEP}`,
       { label: 'fix:validation', phase: 'Verify', schema: STEP, agentType: 'toolkit:implementer', ...modelOpts('implementer') })
     if (!fix) {
       dead('implementer', 'fix:validation')
-      return finish()
+      return await finish()
     }
     collect(fix.changedPaths, fix.topicMaterial)
     planChanges.push(`Validation fix: ${fix.result}`)
     for (const d of fix.deviations || []) planChanges.push(`Validation fix deviation: ${d}`)
-    if (blockersOf('implementer', 'fix:validation', fix)) return finish()
+    if (blockersOf('implementer', 'fix:validation', fix)) return await finish()
     v = await runValidation('verify:revalidation', 'Verify')
     if (!v) {
       dead('verifier', 'verify:revalidation')
-      return finish()
+      return await finish()
     }
     setValidation(v, 2)
-    if (readStop(v)) { blocked.push(stopped('verify:revalidation', readStop(v))); return finish() }
+    if (readStop(v)) { halt(stopped('verify:revalidation', readStop(v))); return await finish() }
     covers(v)
     const still = failingOf(v)
     if (still.length) {
-      still.forEach((r) => blocked.push(`Validation step failed after one fix: ${firstLine(r.step)}.`))
-      return finish()
+      still.forEach((r) => halt(`Validation step failed after one fix: ${firstLine(r.step)}.`))
+      return await finish()
     }
   }
 }
@@ -498,13 +602,13 @@ diffRed = await capture('diff:red-team', 'Red team')
 if (SEAT_RUN && diffRed) {
   const stray = (diffRed.paths || []).filter((p) => !changed.includes(p) && !p.startsWith(OWN_WORKTREES))
   if (stray.length) {
-    blocked.push(`The seat run left paths that no fix wrote: ${stray.join(', ')}.`)
-    return finish()
+    halt(`The seat run left paths that no fix wrote: ${stray.join(', ')}.`)
+    return await finish()
   }
-  if (diffRed.empty) return finish()
+  if (diffRed.empty) return await finish()
 }
 if (!diffRed) dead('verifier', 'diff:red-team')
-else if (diffRed.empty) blocked.push('The diff after implementation is empty.')
+else if (diffRed.empty) halt('The diff after implementation is empty.')
 
 if (diffRed && !diffRed.empty) {
   const reviewPaths = [...new Set((diffRed.paths || []).concat(changed))]
@@ -521,21 +625,22 @@ ${planBlock('ASSUMPTIONS', 'Assumptions')}
 ${planBlock('RISKS', 'Risks')}
 ${planRead(NONE)}
 
-Apply the project rules in the CLAUDE.md, AGENTS.md and .claude/rules files under ${a.repoRoot} where they exist. When the diff ships executable commands embedded in prose, such as a skill, a workflow script's prompts or a doc, execute those exact commands against a scratch fixture covering the awkward cases (clean tree, dirty tree, untracked directories, unusual filenames) rather than judge them by reading. ${SCRATCH_ONLY} ${GIT_RULE}${REVIEW_RULES ? `\n\nREVIEW RULES (REVIEW.md on the default branch):\n${REVIEW_RULES}` : ''}`
+${MULTI ? 'Apply the project rules in the files each Rules line under REPOS names, each to the files under its own root.' : `Apply the project rules in the CLAUDE.md, AGENTS.md and .claude/rules files under ${a.repoRoot} where they exist.`} When the diff ships executable commands embedded in prose, such as a skill, a workflow script's prompts or a doc, execute those exact commands against a scratch fixture covering the awkward cases (clean tree, dirty tree, untracked directories, unusual filenames) rather than judge them by reading. ${SCRATCH_ONLY} ${GIT_RULE}${REVIEW_RULES ? `\n\nREVIEW RULES (REVIEW.md on the default branch):\n${REVIEW_RULES}` : ''}`
   try {
+    lastLabel = 'review'
     review = await workflow(REVIEW_MR, { diffPath: diffRed.diffPath, repoRoot: a.repoRoot, contextBlock, repoState: REPO_STATE, dimensions: DIMENSIONS, registryReviewers: panel, ...(a.models ? { models: a.models } : {}), ...(replaying ? { replay: REPLAY.child } : {}) })
     if (review == null) {
       review = null
-      blocked.push('The review-mr child workflow returned nothing.')
+      halt('The review-mr child workflow returned nothing.')
     } else if (!Array.isArray(review.dead)) {
-      blocked.push('The review panel did not report which reviewers ran.')
+      halt('The review panel did not report which reviewers ran.')
     } else if (review.dead.length) {
-      blocked.push(`The review panel lost ${review.dead.length} reviewers: ${review.dead.join(', ')}.`)
+      halt(`The review panel lost ${review.dead.length} reviewers: ${review.dead.join(', ')}.`)
     }
-    if (review && Array.isArray(review.verifierDead) && review.verifierDead.length) blocked.push(`The review panel lost the verifier for ${review.verifierDead.length} dimensions: ${review.verifierDead.join(', ')}.`)
+    if (review && Array.isArray(review.verifierDead) && review.verifierDead.length) halt(`The review panel lost the verifier for ${review.verifierDead.length} dimensions: ${review.verifierDead.join(', ')}.`)
   } catch (e) {
     review = null
-    blocked.push(`The review-mr child workflow failed: ${e && e.message ? e.message : 'no message'}.`)
+    halt(`The review-mr child workflow failed: ${e && e.message ? e.message : 'no message'}.`)
   }
 }
 
@@ -547,7 +652,12 @@ if (review) {
   // The worktree run already offered a seat run's nits, so nits alone start no round there.
   open = SEAT_RUN && !confirmedOpen.length ? [] : withNits
   let stageDead = false
+  let budgetOut = false
   for (let round = 1; round <= MAX_FIX_ROUNDS && open.some((f) => f.bucket === 'confirmed' || round === 1); round += 1) {
+    if (!spend(`fix:${round}`)) {
+      budgetOut = true
+      break
+    }
     const entry = (f) => `${key(f)} [${f.finalTag || f.tag}, final score ${f.finalScore}, ${f.reproduced ? (f.finalScore < THRESHOLD ? 'cited line read' : 'reproduced') : 'not reproduced'}]\nCITATION: ${f.citation || 'none'}\nDETAIL: ${f.detail}\nFAILURE SCENARIO: ${f.failure_scenario || 'none given'}`
     const confirmedBlock = open.filter((f) => f.bucket === 'confirmed').map(entry).join('\n\n') || 'none'
     const nitBlock = open.filter((f) => f.bucket === 'nit').map(entry).join('\n\n') || 'none'
@@ -612,15 +722,17 @@ Check in the tree at ${a.repoRoot} whether each finding above is resolved. Retur
     if (now.length) planChanges.push(`Fix round ${round} resolved: ${record.resolved.join('; ')}`)
   }
   const openConfirmed = open.filter((f) => f.bucket === 'confirmed' && f.finalScore >= THRESHOLD)
-  if (openConfirmed.length && !stageDead) blocked.push(`Fix rounds are exhausted at maxFixRounds ${MAX_FIX_ROUNDS} with ${openConfirmed.length} confirmed findings open, so step back and reconsider the approach rather than run another round.`)
+  const confirmedLeft = open.filter((f) => f.bucket === 'confirmed').length
+  if (budgetOut && confirmedLeft) planChanges.push(`Fix budget spent: ${confirmedLeft} confirmed findings go to adjudication.`)
+  else if (openConfirmed.length && !stageDead) halt(`Fix rounds are exhausted at maxFixRounds ${MAX_FIX_ROUNDS} with ${openConfirmed.length} confirmed findings open, so step back and reconsider the approach rather than run another round.`)
 }
 
 phase('Cold read')
 diffFinal = await capture('diff:final', 'Cold read')
 if (!diffFinal) dead('verifier', 'diff:final')
-else if (diffFinal.empty) blocked.push('The diff before the cold read is empty.')
+else if (diffFinal.empty) halt('The diff before the cold read is empty.')
 if (diffRed && diffFinal && !fixAttempts && diffRed.hash12 !== diffFinal.hash12) {
-  blocked.push(`The diff hash changed from ${diffRed.hash12} to ${diffFinal.hash12} with no fix round.`)
+  halt(`The diff hash changed from ${diffRed.hash12} to ${diffFinal.hash12} with no fix round.`)
 }
 if (diffFinal && !diffFinal.empty) {
   const posted = review ? ['confirmed', 'nits', 'preExisting'].flatMap((k) => review[k] || []).map(key) : []
@@ -657,29 +769,32 @@ ${planBlock('RELATED TOPICS', 'Related Topics')}
 
 ${changedBlock('CHANGED PATHS')}
 
-Read the section headed Doc Update Pass in ${a.pluginRoot}/skills/execution-guide/SKILL.md and apply it to this slice in ${a.repoRoot}. Return docsUpdated as the repo-relative docs you edited, deferred as one sentence per doc update you leave undone, distributed as one sentence per affected doc that lives in another repo, changedPaths as every repo-relative path you changed, blockers as one sentence per step you could not do or empty, and topicMaterial as the durable non-obvious facts with file:line refs, or none. Return raw structured data only.`,
+Read the section headed Doc Update Pass in ${a.pluginRoot}/skills/execution-guide/SKILL.md and apply it to this slice ${MULTI ? `across the roots under REPOS. A repo doc belongs to the repo it describes, so it lives under that repo's root, such as <root prefix>docs/context/, and every docsUpdated and changedPaths entry starts with one REPOS root's path relative to ${a.repoRoot}` : `in ${a.repoRoot}`}. Return docsUpdated as the ${MULTI ? `docs you edited, as ${REL_PATHS}` : 'repo-relative docs you edited'}, deferred as one sentence per doc update you leave undone, distributed as one sentence per affected doc that lives in another repo, changedPaths as every ${MULTI ? `path you changed, as ${REL_PATHS}` : 'repo-relative path you changed'}, blockers as one sentence per step you could not do or empty, and topicMaterial as the durable non-obvious facts with file:line refs, or none. Return raw structured data only.`,
       { label: 'doc:pass', phase: 'Doc pass', schema: DOCPASS, agentType: 'toolkit:implementer', ...modelOpts('implementer') })
     if (!docPass) dead('implementer', 'doc:pass')
     else {
       collect(docPass.changedPaths, docPass.topicMaterial)
       for (const d of docPass.deferred || []) planChanges.push(`Doc debt: ${d}`)
       blockersOf('implementer', 'doc:pass', docPass)
+      const stray = [...new Set(underNoRoot((docPass.docsUpdated || []).concat(docPass.changedPaths || [])))]
+      for (const p of stray) halt(`The doc pass returned ${p}, which sits under no repo root.`)
+      if (stray.length) return await finish()
     }
   }
   if (hasValidation && validation && (rounds.length || (docPass && docPass.changedPaths && docPass.changedPaths.length))) {
     const vf = await runValidation('verify:final', 'Doc pass')
     if (!vf) dead('verifier', 'verify:final')
-    else if (readStop(vf)) blocked.push(stopped('verify:final', readStop(vf)))
+    else if (readStop(vf)) halt(stopped('verify:final', readStop(vf)))
     else {
       setValidation(vf, validation.runs + 1)
       covers(vf)
-      failingOf(vf).forEach((r) => blocked.push(`Validation step failed after the doc pass: ${firstLine(r.step)}.`))
+      failingOf(vf).forEach((r) => halt(`Validation step failed after the doc pass: ${firstLine(r.step)}.`))
     }
   }
   diffPost = await capture('diff:post-doc', 'Doc pass')
   if (!diffPost) dead('verifier', 'diff:post-doc')
   else if (diffPost.empty) {
-    blocked.push('The diff after the doc pass is empty.')
+    halt('The diff after the doc pass is empty.')
     diffPost = null
   }
 }
@@ -691,26 +806,30 @@ if (!blocked.length && !SEAT_RUN) {
 Scope: write only under the vault root folder ${a.vaultRoot} and the scratchpad ${S}. You must not write any repo file.
 
 Known evidence: the cumulative diff at ${diffPost.diffPath}, the touched files ${changed.join(', ') || 'none'}, the Topic note material returns from this slice ${material.join(' ') || 'none'}, and the recall hits ${a.recallHits}.
-
+${MULTI ? `\n${REPOS_BLOCK}\n` : ''}
 ${planRead(STOP)}
 
 ${planBlock('RELATED TOPICS', 'Related Topics')}
 
 Task-specific constraints. The plugin root is ${a.pluginRoot}. Before your first write, read these files under that root: commands/obsidian-topic.md, doctrine/security.md, doctrine/repo-artifacts.md, and the usage header of scripts/vault-fs.sh.
 
-Routing: before any write, classify each durable fact. Class (a) is shareable engineering knowledge about this repo. Class (b) is cross-repo, not about any repo, or personal workflow. A class (a) fact routes only to a docs/context/ doc that carries the <!-- managed-by: toolkit --> marker: an existing one that covers the subject, else a new docs/context/context-<kebab>.md. Never route a fact into a hand-written repo doc. If a hand-written repo doc covers the subject, name it as the related doc on the proposal. A class (b) fact routes to the vault topic note. If a vault note carries the repo-mode banner, route its new facts to the doc the banner names, never into the note.
+Routing: before any write, classify each durable fact. Class (a) is shareable engineering knowledge about this repo. Class (b) is cross-repo, not about any repo, or personal workflow. A class (a) fact routes only to a docs/context/ doc that carries the <!-- managed-by: toolkit --> marker: an existing one that covers the subject, else a new docs/context/context-<kebab>.md. Never route a fact into a hand-written repo doc. If a hand-written repo doc covers the subject, name it as the related doc on the proposal. A class (b) fact routes to the vault topic note. If a vault note carries the repo-mode banner, route its new facts to the doc the banner names, never into the note.${MULTI ? ` In this run a class (a) fact is about one repo under REPOS and routes only to a docs/context/ doc under that repo's root, a fact about how two repos work together is class (b), and each proposal path starts with that root's path relative to ${a.repoRoot}.` : ''}
 
-Class (a) content: for each proposed repo doc, write the full proposed content to ${S}/remember-<kebab-path>.md, where <kebab-path> is the repo-relative path in kebab case. Scrub the content per doctrine/security.md first. For a new file, write the whole doc with the frontmatter doctrine/repo-artifacts.md requires and the <!-- managed-by: toolkit --> marker on the line after the frontmatter. For an existing managed file, write only the exact section to add and name the heading it goes under. Do not write class (a) facts into any vault note.
+Class (a) content: for each proposed repo doc, write the full proposed content to ${S}/remember-<kebab-path>.md, where <kebab-path> is the ${REL_PATH} in kebab case. Scrub the content per doctrine/security.md first. For a new file, write the whole doc with the frontmatter doctrine/repo-artifacts.md requires and the <!-- managed-by: toolkit --> marker on the line after the frontmatter. For an existing managed file, write only the exact section to add and name the heading it goes under. Do not write class (a) facts into any vault note.
 
 Class (b) writes: for each candidate topic, fold facts under the section they belong to (Flows, Gotchas, Tasks, Related Topics). Never rewrite Overview or any prose that carries no new fact. Bump updated. Spot-check one source_refs entry against the repo, and set verified to today only on a clean check. Create a stub only for a concept that RELATED TOPICS or the collected material names and no existing note covers. Search by basename before creating. Write every vault file atomically: Write to <name>.tmp.md beside the target, then run bash ${a.pluginRoot}/scripts/vault-fs.sh mv.
 
 Required checks: read back every vault file you wrote and confirm it holds the folded facts. Run no git command. ${BLOCKER_RULE}
 
-Expected return format: proposals holds one entry per proposed repo doc, with path as the repo-relative path, action as created or updated, scratch as the scratch file path, and factsFrom as the [[Note]] names whose facts move into that doc. If a hand-written doc covers the subject, add one factsFrom entry that reads related <repo-relative path>. proposals is empty when there is no proposal. topicsUpdated lists every vault note you touched. rememberLine is exactly one draft line in one of these forms: Remember: repo docs <paths>; topics updated [[A]], [[B]] or Remember: repo docs <paths> or Remember: topics updated [[A]] or Remember: no change (<reason>). blockers holds one sentence per step you could not do and is empty otherwise. Return raw structured data only.`,
+Expected return format: proposals holds one entry per proposed repo doc, with path as the ${REL_PATH}, action as created or updated, scratch as the scratch file path, and factsFrom as the [[Note]] names whose facts move into that doc. If a hand-written doc covers the subject, add one factsFrom entry that reads related <${REL_PATH}>. proposals is empty when there is no proposal. topicsUpdated lists every vault note you touched. rememberLine is exactly one draft line in one of these forms: Remember: repo docs <paths>; topics updated [[A]], [[B]] or Remember: repo docs <paths> or Remember: topics updated [[A]] or Remember: no change (<reason>). blockers holds one sentence per step you could not do and is empty otherwise. Return raw structured data only.`,
     { label: 'remember:pass', phase: 'Remember', schema: REMEMBER, agentType: 'toolkit:implementer', ...modelOpts('implementer') })
   if (!rem) dead('implementer', 'remember:pass')
   else if (blockersOf('implementer', 'remember:pass', rem)) remember = { ran: false, material, proposals: [], topicsUpdated: rem.topicsUpdated || [], rememberLine: '' }
-  else remember = { ran: true, material, proposals: rem.proposals, topicsUpdated: rem.topicsUpdated, rememberLine: rem.rememberLine }
+  else {
+    const stray = underNoRoot((rem.proposals || []).map((x) => x.path))
+    for (const p of stray) halt(`The remember pass proposed ${p}, which sits under no repo root.`)
+    remember = { ran: !stray.length, material, proposals: stray.length ? [] : rem.proposals, topicsUpdated: rem.topicsUpdated, rememberLine: stray.length ? '' : rem.rememberLine }
+  }
 }
 
-return finish()
+return await finish()

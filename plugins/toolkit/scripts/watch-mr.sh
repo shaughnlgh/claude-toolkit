@@ -60,8 +60,10 @@ TS='def ts: capture("^(?<d>.{19})(?<f>\\.[0-9]+)?(Z|(?<sg>[+-])(?<h>[0-9]{2}):?(
     - (if .sg then (if .sg == "-" then -1 else 1 end) * ((.h | tonumber) * 3600 + (.m | tonumber) * 60) else 0 end);
 def nb: sub("\\[bot\\]$"; "");
 def isbot: if ($bots | length) > 0 then ((.username // .login) | nb) as $l | any($bots[]; nb == $l) else (.bot == true) or (.type == "Bot") end;
-# A refusal opens the body, so only the first 1000 characters are read and the match is anchored there.
-def refusal: (.body // "") | .[0:1000] | gsub("\\s+"; " ") | capture("^ ?(?<t>Copilot [^.]{0,40}(was unable to review|wasn.t able to review any files in) this pull request[^.]*\\.?)"; "i").t;
+# A Copilot refusal opens the body, so only its first 1000 characters are read; a CodeRabbit rate-limit note is keyed on its marker.
+def refusal: (.body // "") as $b | first(
+  ($b | .[0:1000] | gsub("\\s+"; " ") | capture("^ ?(?<t>Copilot [^.]{0,40}(was unable to review|wasn.t able to review any files in) this pull request[^.]*\\.?)"; "i").t),
+  ($b | select(contains("rate limited by coderabbit.ai")) | capture("(?<t>[^.>]*has exceeded the limit for the number of commits or files that can be reviewed[^.]*[.])").t | ltrimstr(" ")));
 def refused: [refusal] | length > 0;'
 
 # Paginated output may arrive as several concatenated arrays, so slurp and merge.
@@ -143,7 +145,7 @@ github_pipeline() {
   stuck_check "$held"
 }
 
-# Lands the first note, from the anchor on, by a listed bot that is not an in-progress note; $1 is the notes JSON.
+# Lands the first listed-bot note from the anchor on that is neither an in-progress note nor a refusal, else keeps the first refusal in unrev; $1 is the notes JSON, and gl_notes keeps those listed-bot notes.
 gl_landed() {
   local anchor who
   anchor=$(q 'if .head_pipeline.sha == $s then .head_pipeline.created_at else "" end' "$mr") || return 1
@@ -151,8 +153,10 @@ gl_landed() {
     get glab api "projects/$enc/repository/commits/$full" || return 1
     anchor=$(q '.committed_date' "$out") || return 1
   fi
-  who=$(jq -r --arg a "$anchor" --arg s "$full" --arg mark "$MARK" --argjson bots "$bots" "$TS"' ($a | ts) as $t | first(.[] | select(.system == false and (.author | isbot) and ((.body // "") | contains($mark) | not) and (.created_at | ts) >= $t and (.position.head_sha // $s) == $s) | .author.username) // empty' <<<"$1" 2>"$errf") || return 1
+  gl_notes=$(jq -c --arg a "$anchor" --arg s "$full" --arg mark "$MARK" --argjson bots "$bots" "$TS"' ($a | ts) as $t | [.[] | select(.system == false and (.author | isbot) and ((.body // "") | contains($mark) | not) and (.created_at | ts) >= $t and (.position.head_sha // $s) == $s)]' <<<"$1" 2>"$errf") || return 1
+  who=$(q 'first(.[] | select(refused | not) | .author.username) // empty' "$gl_notes") || return 1
   [ -z "$who" ] || finish 0 "LANDED $sha $who"
+  unrev=$(q 'first(.[] | select(refused) | "\(.author.username) \(refusal)") // empty' "$gl_notes") || return 1
 }
 
 # Lands the first bot review on the head that is not a refusal, else keeps the first refusal there in unrev. $1 is the reviews JSON.
@@ -165,8 +169,11 @@ gh_landed() {
 
 gitlab_threads() {
   gitlab_mr || return 1
+  local all
   get glab api "projects/$enc/merge_requests/$num/notes?per_page=100" --paginate || return 1
-  gl_landed "$out"
+  gl_landed "$out" || return 1
+  all=$(q '[.[] | select(refused) | .author.username | nb] as $r | all($bots[]; nb | IN($r[]))' "$gl_notes") || return 1
+  [ "$all" = false ] || finish 16 "UNREVIEWED $sha $unrev"
 }
 
 github_threads() {
@@ -208,6 +215,7 @@ gitlab_review() {
   get glab api "projects/$enc/merge_requests/$num/notes?per_page=100" --paginate || return 1
   notes=$out
   busy=$(q 'any(.[]; .system == false and ((.body // "") | contains($mark)) and ($bots == [] or (.author | isbot)))' "$notes") || return 1
+  unrev=""
   if [ "$busy" = false ] && [ "$bots" != '[]' ]; then gl_landed "$notes" || return 1; fi
   quiet_check "$busy"
 }
