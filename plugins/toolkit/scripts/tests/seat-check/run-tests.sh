@@ -30,8 +30,10 @@ MAIN_P="$(cd "$MAIN" && pwd -P)"
 export TOOLKIT_AGENTS_FILE="$T/agents.json"
 agents() { printf '%s' "$1" > "$TOOLKIT_AGENTS_FILE"; }
 entry() { printf '[{"pid":%s,"sessionId":"%s","cwd":"%s","name":"build session","status":"busy","kind":"interactive"}]' "$1" "$2" "$3"; }
+row() { printf '{"pid":%s,"sessionId":"%s","cwd":"%s","name":"build session","status":"busy","kind":"interactive"}' "$1" "$2" "$3"; }
 run() { OUT="$(bash "$SEAT" "$@" 2>&1)"; RC=$?; }
 holder_count() { printf '%s\n' "$OUT" | grep -c '^holder: '; }
+live_ids() { printf '%s\n' "$OUT" | grep '^live: ' | cut -f4 | tr '\n' ' '; }
 
 agents '[]'; run "$MAIN" --self me
 { [ "$RC" -eq 0 ] && [ "$(printf '%s\n' "$OUT" | head -1)" = "seat: free" ]; } && ok "empty list: seat free, exit 0" || no "empty list (rc=$RC): $OUT"
@@ -81,6 +83,19 @@ printf '%s\n' "$OUT" | grep -qx 'dirty: 0' && ok "a linked worktree under .claud
 
 run "$T/plain"
 { [ "$RC" -eq 2 ] && printf '%s\n' "$OUT" | grep -q '^error: '; } && ok "non-repo path exits 2 with an error line" || no "non-repo (rc=$RC): $OUT"
+
+agents "[$(row "$LIVE" s1 "$O"),$(row "$DEAD" s2 "$O"),$(row null s3 "$O")]"; run "$MAIN" --self me --live
+[ "$(live_ids)" = "s1 " ] && ok "--live lists each live session, not a dead or null pid" || no "--live rows: $OUT"
+
+agents "[$(row "$LIVE" me "$MAIN")]"; run "$MAIN" --self me --live
+{ [ "$(live_ids)" = "me " ] && [ "$(holder_count)" -eq 0 ]; } && ok "--live lists the --self session, which still holds nothing" || no "--live self: $OUT"
+
+agents "[$(row "$LIVE" s1 "$MAIN")]"; run "$MAIN" --self me
+! printf '%s\n' "$OUT" | grep -q '^live: ' && ok "without --live no live line prints" || no "live line without --live: $OUT"
+
+printf '#!/bin/sh\ntouch "%s"\n' "$T/fsmonitor-ran" > "$T/fsmon.sh"; chmod +x "$T/fsmon.sh"
+git -C "$MAIN" config core.fsmonitor "$T/fsmon.sh"; agents '[]'; run "$MAIN"; git -C "$MAIN" config --unset core.fsmonitor
+{ [ ! -e "$T/fsmonitor-ran" ] && printf '%s\n' "$OUT" | grep -qx 'dirty: 1'; } && ok "the dirty count never runs the repo's fsmonitor command" || no "fsmonitor ran or dirty lost: $OUT"
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
