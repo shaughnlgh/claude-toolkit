@@ -486,7 +486,7 @@ suite_ok "seat-check behavior suite" "$out" 20
 
 echo "== seat-queue order and watcher =="
 out="$(bash "$P/scripts/tests/seat-queue/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "seat-queue behavior suite" "$out" 53
+suite_ok "seat-queue behavior suite" "$out" 54
 
 echo "== resolve-models layering =="
 out="$(bash "$P/scripts/tests/resolve-models/run-tests.sh" 2>/dev/null | tail -1)"

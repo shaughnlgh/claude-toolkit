@@ -161,7 +161,7 @@ Status lines and exit codes:
 
 `/toolkit:setup` check 6 offers a prompt-free allow rule for the script, because the seat run calls `join`, `list` and `leave` in the foreground and `wait` in the background.
 
-Tests: `bash plugins/toolkit/scripts/tests/seat-queue/run-tests.sh` (53 behavior cases against its own repo with two linked worktrees, with a stub `claude` on the `PATH` for the cases whose session list changes between rounds; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/seat-queue/run-tests.sh` (54 behavior cases against its own repo with two linked worktrees, with a stub `claude` on the `PATH` for the cases whose session list changes between rounds; also run by `verify.sh`).
 
 ## resolve-models.sh
 
