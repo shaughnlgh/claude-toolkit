@@ -18,6 +18,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved.
 | `vault-fs.sh` | Vault file ops `rm`, `mv` and `cp`, image attachments `attach`, and vault reads `sha256` and `index` | Refuses absolute paths, `..` traversal, symlink escape from the vault (canonical containment), non-regular-file targets, missing sources, unknown subcommands; attach: PNG or JPEG of at most 10 MiB from inside a git checkout, never over an existing file |
 | `git-ro.sh` | Read-only git in any directory — `status`, `diff`, `log`, `show` | Subcommand allowlist; refuses write options (`--output`/`-o`/`--ext-diff`); neutralizes pager, fsmonitor, ext-diff and textconv (the execute-on-read vectors) |
 | `seat-check.sh` | Reports which live Claude sessions hold a repo's main checkout, with its branch and dirty count | Read-only; never writes a file; reads sessions through `claude agents --json`; needs only `jq` and `git` |
+| `seat-queue.sh` | Keeps the queue of sessions that wait for a repo's main checkout, and waits for a session's turn | Writes only `toolkit-seat-queue/` in the git common dir: one file per joined session, empty while the session waits and holding `seated` once its turn came, one `.miss-<sessionId>` marker per session that one read missed, the `.grant` lock directory while a grant step or a leave runs, and `.grant.break` while a contender removes a stale lock; removes only its own entry and the entries of sessions that two reads missed; reads liveness and the seat through `seat-check.sh`; needs `git`, `stat`, and the `jq` that `seat-check.sh` needs |
 | `watch-mr.sh` | Waits on one GitLab MR or GitHub PR until its pipeline settles, a bot review lands, or a bot review in progress ends, then prints one status line | Reads only, through `gh` and `glab`, which hold their own auth; never reads or prints a token; validates every argument; exits on a wall-clock bound |
 | `override.sh` | Copy a plugin doctrine, rule, agent, or skill into `~/.claude/` to override it (drives `/override`) | Name only (no paths); refuses unknown/ambiguous names; won't clobber an existing override |
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
@@ -84,14 +85,16 @@ Reports which live Claude sessions hold a repo's seat, the main checkout. The se
 Invoke:
 
 ```bash
-bash "$PLUGIN_ROOT/scripts/seat-check.sh" <repo path> [--self <sessionId>] [--worktree <path>]
+bash "$PLUGIN_ROOT/scripts/seat-check.sh" <repo path> [--self <sessionId>] [--worktree <path>] [--live]
 ```
 
 The repo path can be the main checkout, a directory under it, or a linked worktree of it. The script resolves the main checkout through the git common dir and resolves every path with `pwd -P`, so a symlinked path matches its target.
 
 The holder rule: a session from `claude agents --json` holds the seat when it has a non-null `pid` that `kill -0` accepts, a `sessionId` other than the `--self` value, and a `cwd` that is the main checkout or a directory under it but not under `<main>/.claude/worktrees/`. A session in a linked worktree holds no seat. The script prints `status` and `kind` and never tests them.
 
-`--worktree <path>` lists the live sessions that work in that worktree. A session is an occupant when it passes the same `pid` and `--self` tests and its `cwd` is that path or a directory under it. A session whose `cwd` is the main checkout is a holder and not an occupant. A path that is not a directory is an error. The execute flow's seat run reads it before it detaches the plan's worktree.
+`--worktree <path>` lists the live sessions that work in that worktree. A session is an occupant when it passes the same `pid` and `--self` tests and its `cwd` is that path or a directory under it. A session whose `cwd` is the main checkout is a holder and not an occupant. A path that is not a directory is an error. The execute flow reads it before section 1 re-enters or adopts a worktree, before section 2a enters one that `test -d` found, before the seat run detaches the plan's worktree, and before the release returns to the worktree it left. The ship flow's cleanup reads it before it removes the worktree.
+
+`--live` lists every live session, the `--self` session included. A session is live when its `pid` is numeric and `kill -0` accepts it, whatever its `cwd`, so a session with `pid: null` gets no line. The flag changes no other line and not the exit code. `seat-queue.sh` reads liveness from it, and the execute flow's seat run reads it to find the session id of its parent.
 
 Output, one line each, in this order:
 
@@ -101,6 +104,7 @@ Output, one line each, in this order:
 - `dirty: <count of git status --porcelain -uall lines in the main checkout outside .claude/worktrees/>`, read with the pathspec `':(exclude,top).claude/worktrees/'`, so a linked worktree there never counts, with or without an ignore entry
 - one `holder: <name>\t<status>\t<kind>\t<sessionId>\t<cwd>` line per holder, tab separated because a session name can hold spaces
 - with `--worktree`, one `occupant: <name>\t<status>\t<kind>\t<sessionId>\t<cwd>` line for each live session other than `--self` whose `cwd` is that path or under it
+- with `--live`, one `live: <name>\t<status>\t<kind>\t<sessionId>\t<cwd>` line for each live session
 
 Exit codes: 0 free, 10 held, 2 error. An error prints one `error:` line to stderr. The script errors on a path that is not a git repo, a missing `jq`, and a session source that is not a JSON array, which covers a missing or failing `claude` binary. Where `perl` exists, the script kills a `claude agents --json` call that runs past 3 seconds, which then counts as a failing binary.
 
@@ -108,7 +112,56 @@ A caller inside a worktree session must invoke the script by a path and argument
 
 `TOOLKIT_AGENTS_FILE` names a JSON file the script reads instead of running `claude agents --json`. It is the test seam.
 
-Tests: `bash plugins/toolkit/scripts/tests/seat-check/run-tests.sh` (16 behavior cases in a temporary repo with one linked worktree and no ignore entry for it; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/seat-check/run-tests.sh` (20 behavior cases in a temporary repo with one linked worktree and no ignore entry for it; also run by `verify.sh`).
+
+## seat-queue.sh
+
+Keeps the order in which sessions wait for a repo's main checkout, and waits in the background for a session's turn. The execute flow's seat run calls it, so the queue rule lives in one place.
+
+Invoke:
+
+```bash
+bash "$PLUGIN_ROOT/scripts/seat-queue.sh" join <repo path> --self <sessionId> [--parent <sessionId>]
+bash "$PLUGIN_ROOT/scripts/seat-queue.sh" wait <repo path> --self <sessionId> [--parent <sessionId>] [--bound <n>] [--interval <seconds>]
+bash "$PLUGIN_ROOT/scripts/seat-queue.sh" leave <repo path> --self <sessionId>
+bash "$PLUGIN_ROOT/scripts/seat-queue.sh" list <repo path>
+```
+
+The queue is the directory `<git common dir>/toolkit-seat-queue/`, which every linked worktree resolves to the same path. Each joined session has one entry named `<join epoch seconds>-<sessionId>`, sorted by name, so an earlier join second comes first, and joins in the same second go in session id order. An entry is empty while its session waits. The queue writes `seated` into it when the session gets its turn, and the entry stays seated until the leave removes it. A join on a session that already has an entry keeps that entry and its place.
+
+Liveness and the seat come from one `seat-check.sh <repo> --live` read per verdict, taken without `--self`, so the session's own `holder:` line tells the queue that the session sits in the main checkout. A seat check that exits anything but 0 or 10 counts as failed, so the queue never reads the empty output of a killed or missing seat check as every session gone. A seated entry counts as a holder for every other session, beside the `holder:` lines, whatever `cwd` the agents list reports for its session.
+
+The grant step. `join` and every `wait` round take one verdict. A verdict lists the entries, reads the seat, then takes the lock, a `mkdir` of `.grant` in the queue directory, which either creates the directory or fails. Under the lock it applies the miss rule, reads each entry's state once, and writes at most one mark. A contender retries once a second for 15 tries, and removes a lock older than 10 seconds, because it belongs to a killed process. Only the contender that creates `.grant.break` removes it, after it reads the age again, so no contender removes a fresh lock. `leave` takes the same lock, and exits 0 at once when the queue directory does not exist. `wait` prints `LEFT` and exits 13 at once when the queue directory does not exist. A join creates its own empty entry without the lock, because a later verdict decides it. `list` only reads.
+
+The miss rule. A verdict considers only the entries in the listing it took before its seat read. The first read that misses an entry's session writes `.miss-<sessionId>`. A read that finds the session live removes the marker. A miss that finds a marker 5 seconds to 10 minutes old removes the entry and the marker, and a marker older than 10 minutes counts as a first miss again. A missed entry keeps its state and its place until the removal, so a missed seated entry keeps holding the seat. A `wait` round whose read misses its own session waits a round instead of taking the turn. A `join` that creates its entry and finds no live row for its own session waits 5 seconds, writes the entry again, and reads once more. When that second read also misses its own row, it exits 2 and keeps no entry, so a session with `pid: null`, such as a background session, cannot join. A `join` that already had an entry keeps it and waits a round, as a `wait` round does.
+
+The turn rule. A session outside the main checkout gets its turn when no waiting entry is ahead of it, no other session holds the main checkout or a seated entry, and its own session read live. A session already in the main checkout ignores order, because it holds the seat for every other session by its `cwd`, and waits only for the other holders. A `WAIT` verdict empties the session's own mark, so a run that lost a free seat to a session that never joined stops holding it.
+
+An unqueued holder is a session in the main checkout with no entry, other than the caller. `--parent <sessionId>` names the caller's parent session. When that session is an unqueued holder, the queue removes the caller's entry under the lock and prints `PARENT <sessionId>`, because a parent stays until its user ends it. The execute flow's seat run then starts no watcher and stops, so the parent runs the seat run itself or moves into a linked worktree and dispatches it again. A parent that holds a queue entry is waited for like any other holder.
+
+Status lines and exit codes:
+
+| Line | Exit | Meaning |
+|---|---|---|
+| `TURN` | 0 | the session's turn, with its entry seated and a clean main checkout |
+| `WAIT <ahead> <holders> <unqueued> <dirty>` | 10 | not yet: the waiting entries ahead, the other holders, the unqueued holders, and the dirty count (`join` only) |
+| `DEADLOCK <sessionId>` | 11 | the caller sits in the main checkout beside a session whose entry waits, so each waits for the other |
+| `BOUND <minutes> <ahead> <holders> <unqueued> <dirty>` | 12 | the bound ran out, with the counts of the last `WAIT`, or `unknown` for each count when no round read `WAIT` (`wait` only) |
+| `LEFT` | 13 | the caller's entry is gone (`wait` only) |
+| `DIRTY <dirty>` | 14 | the session's turn, with its entry seated, on a main checkout whose dirty count is above 0, which waiting does not clear |
+| `PARENT <sessionId>` | 15 | the `--parent` session is an unqueued holder, and the caller's entry is removed |
+| none | 3 | the seat check or the lock failed five `wait` rounds in a row: the queue's own `error:` line, last on stderr, names the last round's cause, after the seat check's `error:` line, when one exists, from each round whose seat check failed |
+| none | 2 | error: the queue's own `error:` line, last on stderr, after the seat check's `error:` line when one exists, for a bad argument, a path that is not a git repo, a failed seat check on `join` or `list`, a lock that stayed taken on `join` or `leave`, a write that failed, a `join` whose session has no live row on two reads, or a `join` whose existing entry a leave or a sweep removed before its verdict read it |
+
+`leave` exits 0 once the caller's entry and miss marker are gone. `list` exits 0 and prints one line per entry whose session is live, in queue order, as the `live:` fields of seat-check behind `seated: ` or `waiter: `, then one `unqueued: <name>\t<status>\t<kind>\t<sessionId>\t<cwd>` line for each holder with no entry.
+
+`--bound` takes minutes, or seconds with a trailing `s`, default 180. `--interval` takes seconds between rounds, default 30, floor 1. A `wait` exits on `TURN`, `DEADLOCK`, `LEFT`, `DIRTY` or `PARENT`, and on the bound.
+
+`TOOLKIT_AGENTS_FILE` reaches seat-check through the environment, so it fixes the session list for every round. It is the test seam.
+
+`/toolkit:setup` check 6 offers a prompt-free allow rule for the script, because the seat run calls `join`, `list` and `leave` in the foreground and `wait` in the background.
+
+Tests: `bash plugins/toolkit/scripts/tests/seat-queue/run-tests.sh` (54 behavior cases against its own repo with two linked worktrees, with a stub `claude` on the `PATH` for the cases whose session list changes between rounds; also run by `verify.sh`).
 
 ## resolve-models.sh
 
