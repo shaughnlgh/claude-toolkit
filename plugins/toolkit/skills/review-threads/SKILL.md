@@ -10,8 +10,9 @@ description: >-
   resolve it, on both hosts: via GraphQL on GitHub, because Copilot never resolves a
   thread itself, and via the discussions API on GitLab, because CodeRabbit resolves a
   thread only when it withdraws its own finding after a push-back reply, never after a
-  plain fix push. Reports thread state after and states the merge gate: all threads
-  resolved and pipeline green, otherwise no merge recommendation. Never posts without
+  plain fix push. Reports thread state after and states the merge gate: no merge
+  recommendation unless all threads are resolved and the pipeline is green or, in a
+  repo with no CI configuration, the host shows no check for the head. Never posts without
   the user's request in this session. The ship flow works bot threads itself through the
   ship-runner script. This skill still never mutates git. Do not fire for reviewing an MR from scratch (gitlab-mr-review) or for
   an uncommitted local diff (red-team).
@@ -59,7 +60,7 @@ After the round, re-fetch and report three lists: fixed (awaiting re-review), pu
 
 ## 5. Merge gate
 
-Recommend merge only when every thread is resolved and the pipeline is green. Otherwise name the failing condition and stop. Never run a merge.
+Recommend a merge when every thread is resolved and the pipeline is green, or when every thread is resolved, the repo carries no CI configuration by the `ship-flow` skill's section 3 `noCiConfig` read, and the host shows no check for the head. Otherwise name the failing condition and stop. Never run a merge.
 
 ## Boundary
 
