@@ -649,6 +649,26 @@ const cases = [
     const { result } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', 'src/app/tests/fixture.php']), ...fixPathsOf([F, ['src/a.js', 'src/app/tests/fixture.php']]) }, { ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ['src/'] } })
     return same({ blocked: result.blocked, merged: result.merged }, { blocked: [], merged: { sha: M, kind: 'merge' } })
   }],
+  ['a carried fix source file with test inside a word under a testDirs entry that holds source blocks', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', 'src/app/Contest.php']) }, { ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ['src/'] } })
+    return same(result.blocked, ["The implementer carried:fix changed src/app/Contest.php, outside the plan's paths and the test files under the carried test directories, or on a hands-off path."])
+  }],
+  ['a carried fix source file whose name ends in test before the extension under a testDirs entry that holds source blocks', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', 'src/latest.ts']) }, { ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ['src/'] } })
+    return same(result.blocked, ["The implementer carried:fix changed src/latest.ts, outside the plan's paths and the test files under the carried test directories, or on a hands-off path."])
+  }],
+  ['a carried fix test file with a dotted test token under a testDirs entry that holds source merges', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', 'src/a.test.js']), ...fixPathsOf([F, ['src/a.js', 'src/a.test.js']]) }, { ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ['src/'] } })
+    return same({ blocked: result.blocked, merged: result.merged }, { blocked: [], merged: { sha: M, kind: 'merge' } })
+  }],
+  ['a carried fix test file with an underscored test token under a testDirs entry that holds source merges', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', 'src/x_test.go']), ...fixPathsOf([F, ['src/a.js', 'src/x_test.go']]) }, { ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ['src/'] } })
+    return same({ blocked: result.blocked, merged: result.merged }, { blocked: [], merged: { sha: M, kind: 'merge' } })
+  }],
+  ['a carried fix test file with a capitalised Test suffix under a testDirs entry that holds source merges', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', 'src/app/PaymentTest.php']), ...fixPathsOf([F, ['src/a.js', 'src/app/PaymentTest.php']]) }, { ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ['src/'] } })
+    return same({ blocked: result.blocked, merged: result.merged }, { blocked: [], merged: { sha: M, kind: 'merge' } })
+  }],
   ['the same test path in a thread fix commit refuses the merge with the paths reason', async () => {
     const { result } = await run({ ...CARRIED_RUN, ...BOT_THREAD, ...fixPathsOf([F, ['src/a.js']], [E, ['tests/a.test.js']]) }, CARRY_V)
     return same(result.blocked, [`The merge was refused because the fix commit ${E} changed tests/a.test.js, outside the plan's paths or on a hands-off path, and the merge command is ${MERGE_CMD(E)}.`])
