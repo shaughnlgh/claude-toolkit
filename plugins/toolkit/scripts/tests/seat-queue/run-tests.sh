@@ -238,6 +238,9 @@ reset; enter 1000000000 me; agents "$(row "$LIVE" me "$WT")"
 OUT="$(PATH="$D:$PATH" DROP="$Q/1000000000-me" bash "$SQ" join "$MAIN" --self me 2>"$T/e")"; RC=$?
 { [ "$RC" -eq 2 ] && [ "$(tail -1 "$T/e")" = "error: the queue entry for session me was removed before the verdict read it, by a leave or by a sweep after two reads missed its live row" ]; } && ok "53 a rejoin whose entry goes before its verdict lists exits 2 and says the entry was removed" || no "53 rejoin removed (rc=$RC): $(tr '\n' '|' < "$T/e")"
 
+reset; enter 1000000000 me seated; chmod 444 "$Q/1000000000-me"; agents "$(row "$LIVE" me "$WT")" "$(row "$L2" s1 "$MAIN")"; qe join "$MAIN" --self me; chmod 644 "$Q/1000000000-me"
+{ [ "$RC" -eq 2 ] && [ "$(tail -1 "$T/e")" = "error: cannot clear the seated mark on $(cd "$Q" && pwd -P)/1000000000-me" ]; } && ok "54 a WAIT verdict that cannot clear its own seated mark exits 2 and names the entry file" || no "54 clear mark failed (rc=$RC): $(tr '\n' '|' < "$T/e")"
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1

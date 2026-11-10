@@ -113,7 +113,7 @@ verdict() {  # prints one status line, returns 0 TURN, 10 WAIT, 11 DEADLOCK, 13 
     [ "$dirty" = 0 ] && { echo TURN; return 0; }
     echo "DIRTY $dirty"; return 14
   fi
-  [ "$own_state" = waiting ] || : > "$Q/$own_entry"
+  [ "$own_state" = waiting ] || : > "$Q/$own_entry" || { unlock; die "cannot clear the seated mark on $Q/$own_entry"; }
   unlock
   echo "WAIT $ahead $others $unq $dirty"; return 10
 }
