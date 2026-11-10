@@ -133,7 +133,7 @@ for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js workflows/p
          skills/gitlab-mr-review/scripts/post_mr_comments.py \
          skills/grill/SKILL.md skills/plan-flow/SKILL.md skills/execute-flow/SKILL.md \
          skills/ship-flow/SKILL.md \
-         scripts/vault-fs.sh scripts/plan-index.py scripts/run-checkpoint.py scripts/git-ro.sh scripts/seat-check.sh scripts/watch-mr.sh; do
+         scripts/vault-fs.sh scripts/plan-index.py scripts/run-checkpoint.py scripts/git-ro.sh scripts/seat-check.sh scripts/seat-queue.sh scripts/watch-mr.sh; do
   [ -f "$P/$f" ] && ok "present: $f" || no "MISSING: $f"
 done
 # node --check says nothing about a workflow script either way, because the bodies use top-level await and return, so compile each body in an AsyncFunction, which accepts both.
@@ -269,13 +269,23 @@ if [[ "$c4" == *'run the plan flow'* ]] && [[ "$c4" == *'Never ask it through As
 if grep -qF 'send <own name> the message' "$P/skills/execute-flow/SKILL.md" && grep -qF '`<own name>` is this session' "$P/skills/execute-flow/SKILL.md" && grep -qF '`<own name>` is `child-<planName>`' "$P/skills/execute-flow/SKILL.md" && grep -qF 'without the bracketed short id after the name' "$P/skills/execute-flow/SKILL.md" && grep -qF 'send <own name> the message' "$P/skills/ship-flow/SKILL.md" && grep -qF '`<own name>` is the name execute-flow section 10 defines' "$P/skills/ship-flow/SKILL.md"; then ok "execute-flow and ship-flow reports name the child's own session as the dispatch recipient"; else no "dispatch recipient in the execute-flow or ship-flow Next line is not the reporting session's own name"; fi
 if [[ "$pa_sec" == *'Open a child session to build it?'* ]] && [[ "$pa_sec" == *'`open a child session` or `yes`: gives you one command to paste in a new terminal (recommended)'* ]] && [[ "$pa_sec" == *'starts with `parent-`, because a crawl parent hands the build to a child'* ]] && [[ "$pa_sec" == *'~200k token nudge'* ]] && grep -qF 'types yes to the run-here form' "$P/skills/execute-flow/SKILL.md" && grep -qF 'bare `yes` in the run-here form' "$P/doctrine/workflow-routing.md" && grep -qF 'in the child form `yes` picks the child session' "$P/skills/execute-flow/SKILL.md"; then ok "the child form puts yes on the recommended child line, and execute-flow and workflow-routing take a bare yes as the ask only in the run-here form"; else no "child form of the post-approval question, or the run-here qualifier on a bare yes, missing from plan-guide, execute-flow or workflow-routing"; fi
 if grep -qF 'SendMessage' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Deferred to the seat: ' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Left the worktree with keep' "$P/skills/execute-flow/SKILL.md" && grep -qF 'execute-flow section 10' "$P/doctrine/orchestration.md"; then ok "execute-flow reports to a named parent session in the shape orchestration names, then leaves its worktree with keep"; else no "parent report or its ExitWorktree keep step missing from execute-flow or orchestration"; fi
+p10="$(grep -F '`<next step>` is' "$P/skills/execute-flow/SKILL.md")"
+if [[ "$p10" == *'begins `end the child session` and `pwd -P` sits under'* ]] && [[ "$p10" == *'stay in the worktree'* ]]; then ok "a child leaves its worktree after a parent report only when the report tells the user to end it"; else no "execute-flow section 10 leaves the worktree after a dispatch or rerun report"; fi
 sr_step1="$(sed -n '/^## 11\. Seat run$/,$p' "$P/skills/execute-flow/SKILL.md" | grep -F '1. Seat check and location')"
-if [[ "$sr_step1" == *'On `seat: free`, call ExitWorktree with `action` set to `keep`'* ]] && [[ "$sr_step1" == *'before any ExitWorktree call'* ]] && [[ "$sr_step1" != *'return through EnterWorktree path'* ]]; then ok "the seat run leaves the worktree with ExitWorktree keep, only on a free seat"; else no "seat run step 1 does not leave the worktree with ExitWorktree keep on a free seat"; fi
+if [[ "$sr_step1" == *'seat-queue.sh join'* ]] && [[ "$sr_step1" == *'call ExitWorktree with `action` set to `keep`'* ]] && [[ "$sr_step1" == *'before any ExitWorktree call'* ]]; then ok "the seat run joins the seat queue and leaves the worktree with ExitWorktree keep only on its turn"; else no "seat run step 1 does not join the seat queue or leave the worktree with ExitWorktree keep on its turn"; fi
+sr_rel="$(sed -n '/^## 11\. Seat run$/,$p' "$P/skills/execute-flow/SKILL.md" | grep -F -- '- The release.')"
+if [[ "$sr_rel" == *'call EnterWorktree with `path` set to that path'* ]] && [[ "$sr_rel" == *'delete `<return file>` and run the queue leave'* ]]; then ok "the seat run release returns to the worktree it left through EnterWorktree path, then leaves the queue"; else no "the seat run release lacks the EnterWorktree path return or the queue leave"; fi
 if grep -qF 'Unrecorded worktree rule' "$P/skills/execute-flow/SKILL.md" && grep -qF 'unrecorded worktree rule' "$ROOT/docs/context/context-worktree-seat.md"; then ok "execute-flow adopts an unrecorded worktree by the ownership rule"; else no "unrecorded worktree rule missing from execute-flow or context-worktree-seat.md"; fi
 own_rule="$(grep -F 'Ownership rule:' "$P/skills/execute-flow/SKILL.md")"
 if [ -n "$own_rule" ] && [[ "$own_rule" != *'rev-list'* ]]; then ok "execute-flow owns a worktree by plan name and branch, with no commit count"; else no "execute-flow ownership rule missing or still counts commits"; fi
 occ_rule="$(grep -F 'Occupant check: before an EnterWorktree `path` call on an existing worktree' "$P/skills/execute-flow/SKILL.md")"
 if [[ "$occ_rule" == *"--worktree '<path>'"* ]] && [[ "$occ_rule" == *'stop with the plan note untouched'* ]] && grep -qF 'run the occupant check below on `<path>`, then call EnterWorktree' "$P/skills/execute-flow/SKILL.md" && grep -qF 'run the section 1 occupant check on that directory, then call EnterWorktree' "$P/skills/execute-flow/SKILL.md"; then ok "execute-flow stops before re-entering a worktree another live session occupies"; else no "execute-flow occupant stop missing before a section 1 or section 2a worktree entry"; fi
+if [[ "$occ_rule" == *'A held seat, exit 10, does not stop this check'* ]] && [[ "$occ_rule" == *'unrecorded worktree rule adopts'* ]]; then ok "the occupant check carves out a held seat and runs before an adoption"; else no "occupant check lost the held-seat carve-out or the adoption case"; fi
+if [[ "$pa_sec" == *'When this session runs in a linked worktree, it does not hold the seat'* ]] && [[ "$pa_sec" == *'seat queue'* ]]; then ok "plan-guide states where a linked-worktree parent's child runs and that the seat run waits in the seat queue"; else no "plan-guide After approval lost the linked-worktree parent bullet or the seat queue wait"; fi
+sr_sec="$(sed -n '/^## 11\. Seat run$/,$p' "$P/skills/execute-flow/SKILL.md")"
+if [[ "$sr_sec" == *'seat-queue.sh wait'* ]] && [[ "$sr_sec" == *'seat-queue.sh leave'* ]] && [[ "$sr_sec" == *'seat-run-<planName>.return'* ]] && [[ "$sr_sec" == *'seated entry'* ]] && [[ "$sr_sec" == *'unqueued:'* ]] && [[ "$sr_sec" != *'TODO(seat-run): wait'* ]]; then ok "the seat run waits in the seat queue, names unqueued holders, holds a seated entry, and returns to the worktree it left"; else no "seat run queue wait, unqueued naming, seated entry, leave, or worktree return missing from execute-flow section 11"; fi
+if [[ "$sr_sec" == *'<parent flag>'* ]] && [[ "$sr_sec" == *'PARENT'* ]] && [[ "$sr_sec" == *'starts no watcher'* ]] && [[ "$sr_sec" == *'runs the seat run itself, or moves into a linked worktree'* ]] && grep -qF 'starts no watcher' "$P/doctrine/orchestration.md" && grep -qF 'starts no watcher' "$P/skills/plan-guide/SKILL.md"; then ok "the seat run starts no watcher and stops when its parent holds the main checkout, and doctrine and plan-guide say so"; else no "the parent stop is missing from execute-flow section 11, orchestration.md or plan-guide"; fi
+if grep -qF 'scripts/seat-queue.sh *)' "$P/commands/setup.md" && grep -qF 'scripts/seat-queue.sh <join|leave|list|wait>' "$P/commands/setup.md"; then ok "setup offers the prompt-free seat-queue rule and its usage line"; else no "setup lacks the seat-queue allow rule or its usage line"; fi
 if grep -qF 'Default branch rule' "$P/skills/execute-flow/SKILL.md" && grep -qF '| free | 0 | from approved or start-work | a default branch | worktree |' "$P/skills/execute-flow/SKILL.md" && grep -qF 'default branch rule' "$ROOT/docs/context/context-worktree-seat.md"; then ok "execute-flow opens a worktree on a free, clean main checkout that sits on a default branch"; else no "default branch rule missing from execute-flow or context-worktree-seat.md"; fi
 # Claude Code truncates a skill's description plus when_to_use at 1,536 characters in the skill listing.
 dl="$(python3 - "$P/skills" <<'PY'
@@ -472,7 +482,11 @@ code "validate-plan accepts a canonical plan" "$?" 0
 
 echo "== seat-check holder rule =="
 out="$(bash "$P/scripts/tests/seat-check/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "seat-check behavior suite" "$out" 16
+suite_ok "seat-check behavior suite" "$out" 20
+
+echo "== seat-queue order and watcher =="
+out="$(bash "$P/scripts/tests/seat-queue/run-tests.sh" 2>/dev/null | tail -1)"
+suite_ok "seat-queue behavior suite" "$out" 54
 
 echo "== resolve-models layering =="
 out="$(bash "$P/scripts/tests/resolve-models/run-tests.sh" 2>/dev/null | tail -1)"
@@ -625,4 +639,4 @@ echo "RESULT: $pass passed, $skip skipped, $fail failed"
 # Floor, not just zero-failures: silently deleting real checks must not read green.
 # Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
 # no node, no local plugin install) must not read as a vanished check.
-[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 97 ]
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 105 ]

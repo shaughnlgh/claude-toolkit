@@ -20,16 +20,17 @@ inside() {  # $1 session cwd, $2 resolved dir. True when cwd is that dir or unde
   return 1
 }
 
-repo=""; self=""; wt=""; occupants=""
+repo=""; self=""; wt=""; occupants=""; want_live=""; live=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --self) [ $# -ge 2 ] || die "--self needs a session id"; self=$2; shift 2 ;;
     --worktree) [ $# -ge 2 ] || die "--worktree needs a path"; wt=$2; shift 2 ;;
+    --live) want_live=1; shift ;;
     -*) die "unknown option: $1" ;;
     *) [ -z "$repo" ] || die "one repo path only"; repo=$1; shift ;;
   esac
 done
-[ -n "$repo" ] || die "usage: seat-check.sh <repo path> [--self <sessionId>] [--worktree <path>]"
+[ -n "$repo" ] || die "usage: seat-check.sh <repo path> [--self <sessionId>] [--worktree <path>] [--live]"
 command -v jq >/dev/null 2>&1 || die "jq not found"
 main=$(main_of "$repo") || die "not a git repo: $repo"
 wt_dir=""; [ -z "$wt" ] || wt_dir=$(cd "$wt" 2>/dev/null && pwd -P) || die "not a directory: $wt"
@@ -51,16 +52,17 @@ rows=$(printf '%s' "$agents" | jq -rn 'input | if type == "array" then .[] | sel
 holders=""
 while IFS=$'\x1f' read -r pid sid cwd name status kind; do
   case "$pid" in ''|*[!0-9]*) continue ;; esac
-  [ -n "$self" ] && [ "$sid" = "$self" ] && continue
   kill -0 "$pid" 2>/dev/null || continue
+  [ -n "$want_live" ] && live+="live: $name"$'\t'"$status"$'\t'"$kind"$'\t'"$sid"$'\t'"$cwd"$'\n'
+  [ -n "$self" ] && [ "$sid" = "$self" ] && continue
   [ -n "$wt_dir" ] && inside "$cwd" "$wt_dir" && occupants+="occupant: $name"$'\t'"$status"$'\t'"$kind"$'\t'"$sid"$'\t'"$cwd"$'\n'
   holds "$cwd" "$main" || continue
   holders+="holder: $name"$'\t'"$status"$'\t'"$kind"$'\t'"$sid"$'\t'"$cwd"$'\n'
 done <<< "$rows"
 
 branch=$(git -C "$main" symbolic-ref --short -q HEAD) || branch=detached
-dirty=$(git --no-optional-locks -C "$main" status --porcelain -uall -- ":(exclude,top)$OWN_WT/" 2>/dev/null | wc -l | tr -d ' ')
+dirty=$(git --no-optional-locks -c core.fsmonitor=false -c core.hooksPath=/dev/null -C "$main" status --porcelain -uall -- ":(exclude,top)$OWN_WT/" 2>/dev/null | wc -l | tr -d ' ')
 [ -n "$holders" ] && echo "seat: held" || echo "seat: free"
-printf 'main: %s\nbranch: %s\ndirty: %s\n%s%s' "$main" "$branch" "$dirty" "$holders" "$occupants"
+printf 'main: %s\nbranch: %s\ndirty: %s\n%s%s%s' "$main" "$branch" "$dirty" "$holders" "$occupants" "$live"
 [ -n "$holders" ] && exit 10
 exit 0
