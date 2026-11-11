@@ -24,7 +24,7 @@ ARGS="{\"planName\":\"p\",\"repoRoot\":\"$T/repo\",\"scratchDir\":\"/old\",\"plu
 PLAN=(--plan p --repo-root "$T/repo")
 summary() { printf '{"status":"%s","timestamp":"2026-01-01T00:00:00.000Z","script":%s,"args":%s}' "$2" "${3:-$SCRIPT}" "${4:-$ARGS}" > "$S/workflows/$1.json"; }
 # A continuation launches with scratchDir alone, and its script's REPLAY record holds the plan args.
-cont_summary() { python3 -c 'import json, sys; rec = {"args": json.loads(sys.argv[2]), "index": {}, "runner": {}, "child": {}}; json.dump({"status": "killed", "timestamp": "2026-01-01T00:00:00.000Z", "script": "const x = 1\nconst REPLAY = " + json.dumps(rec) + "\nlet a = args\n", "args": {"scratchDir": "/new"}}, open(sys.argv[1], "w"))' "$S/workflows/$1.json" "$2"; }
+cont_summary() { python3 -c 'import json, sys; rec = {"args": json.loads(sys.argv[2]), "index": {}, "runner": {}, "child": {}, **({"from": sys.argv[3]} if len(sys.argv) > 3 else {})}; json.dump({"status": "killed", "timestamp": "2026-01-01T00:00:00.000Z", "script": "const x = 1\nconst REPLAY = " + json.dumps(rec) + "\nlet a = args\n", "args": {"scratchDir": "/new"}}, open(sys.argv[1], "w"))' "$S/workflows/$1.json" "${@:2}"; }
 dir() { printf '%s' "$S/subagents/workflows/$1"; }
 run() { OUT="$(python3 "$CP" "$@" 2>"$T/err")"; RC=$?; }
 q() { printf '%s' "$OUT" | PYTHONIOENCODING=utf-8 python3 -c "import json, sys; d = json.load(sys.stdin); print($1)"; }
@@ -112,6 +112,32 @@ cont_summary wf_chainr "{\"planName\":\"p\",\"repoRoot\":\"$T/plugin\"}"
 { started q1 plan:index Prep; result q1 '{"sha256":"q"}'; } | journal wf_otherplan; summary wf_otherplan killed "$SCRIPT" "{\"planName\":\"q\",\"repoRoot\":\"$T/repo\",\"pluginRoot\":\"$T/plugin\"}"
 printf '{"type":"started","key":"k","agentId":"i1","phase":"Prep"}\n' | journal wf_nolabel
 { started j1 plan:index Prep; printf '{"type":"result","key":"k","agentId":"j1"}\n'; } | journal wf_noresult
+# A run that blocked after its panel, with one failed reviewer, and recorded its tree in diff:blocked.
+{
+  started k1 plan:index Prep; result k1 '{"sha256":"k"}'
+  started k2 implement:1 Implement; result k2 '{"changedPaths":["src/a.js"]}'
+  started k3 diff:red-team 'Red team'; result k3 "{\"diffPath\":\"$T/slice-a.diff\",\"hash12\":\"aaaaaaaaaaaa\",\"empty\":false,\"paths\":[\"src/a.js\"]}"
+  started k4 review:code-reviewer '▸ review-mr'; result k4 '{"findings":[]}'
+  started k5 review:security '▸ review-mr'; printf '{"type":"failed","agentId":"k5"}\n'
+  started k6 verify:security '▸ review-mr'; result k6 '{"reproduced":true}'
+  started k7 fix:1 Fix; result k7 '{"changedPaths":["src/b.js"]}'
+  started k8 remember:pass Remember; result k8 '{"facts":[]}'
+  started k9 diff:blocked Finish; result k9 "{\"diffPath\":\"$T/slice-b.diff\",\"hash12\":\"dddddddddddd\",\"empty\":false,\"paths\":[\"src/a.js\",\"src/b.js\"]}"
+} | journal wf_blocked; summary wf_blocked completed
+{ started l1 plan:index Prep; result l1 '{"sha256":"l"}'; started l2 fix:1 Fix; result l2 '{"changedPaths":[]}'; } | journal wf_noblock; summary wf_noblock completed
+# A journal resume of wf_blocked from fix:1 that ran fix:1 live, then blocked at remember:pass with its own tree.
+{
+  started r1 plan:index Prep; result r1 '{"sha256":"r"}'
+  started r2 fix:1 Fix; result r2 '{"changedPaths":["src/c.js"]}'
+  started r3 remember:pass Remember; result r3 '{"facts":[]}'
+  started r4 diff:blocked Finish; result r4 "{\"diffPath\":\"$T/slice-b.diff\",\"hash12\":\"eeeeeeeeeeee\",\"empty\":false,\"paths\":[\"src/a.js\",\"src/c.js\"]}"
+} | journal wf_resumed; cont_summary wf_resumed "$ARGS" fix:1
+labels() { q '[s["label"] for s in d["stages"]]'; }
+copied() { python3 -c '
+import json, sys
+line = [l for l in open(sys.argv[1]).read().split("\n") if l.startswith("const REPLAY = ")][0]
+r = json.loads(line[len("const REPLAY = "):])
+print(sorted(r["runner"]), sorted(r["child"]))' "$T/out/copy.js" 2>&1; }
 
 run "$(dir wf_one)"
 [ "$(q 'd["done"]')" = "6" ] && ok "counts every stage with a result as done" || no "done count (rc=$RC): $(q 'd["done"]')"
@@ -243,6 +269,56 @@ run "$(dir wf_nolabel)"
 refused 2 && ok "a started entry with no label exits 2" || no "no label (rc=$RC): $(cat "$T/err")"
 run "$(dir wf_noresult)"
 refused 2 && ok "a result entry with no result exits 2" || no "no result (rc=$RC): $(cat "$T/err")"
+
+B="$(dir wf_blocked)"
+run "$B" --from remember:pass
+[ "$(labels)" = "['plan:index', 'implement:1', 'diff:red-team', 'review:code-reviewer', 'review:security', 'verify:security', 'fix:1']" ] \
+  && ok "--from a runner label keeps every earlier runner and child stage and drops the label's own" || no "cut at remember:pass (rc=$RC): $(labels) $(cat "$T/err")"
+[ "$(q '(d["from"], d["replay"])')" = "('remember:pass', None)" ] && ok "--from without --replay prints the cut checkpoint and writes no copy" || no "cut checkpoint: $(q '(d["from"], d["replay"])')"
+[ "$(q 'd["blockedTree"]')" = "dddddddddddd" ] && ok "the checkpoint reports the newest run's diff:blocked hash as blockedTree" || no "blockedTree: $(q 'd["blockedTree"]')"
+run "$B" --from review
+[ "$(labels)" = "['plan:index', 'implement:1', 'diff:red-team', 'review:code-reviewer', 'verify:security']" ] \
+  && ok "--from review drops a failed reviewer and every later runner stage and keeps the other child results" || no "cut at review (rc=$RC): $(labels) $(cat "$T/err")"
+run "$B" --from review:verify:security
+[ "$(labels)" = "['plan:index', 'implement:1', 'diff:red-team', 'review:code-reviewer']" ] \
+  && ok "--from review:<child label> also drops that child label's recorded result" || no "cut at review:verify:security (rc=$RC): $(labels) $(cat "$T/err")"
+run "$B" --from diff:red-team
+[ "$RC.$(q 'd["capture"]')" = "0.None" ] && ok "a cut at the first capture leaves the capture null" || no "cut before capture (rc=$RC): $(q 'd["capture"]')"
+run "$B" --from fix:1
+[ "$(q 'd["capture"]["label"]')" = "diff:red-team" ] && ok "a cut after a capture keeps that capture" || no "cut after capture (rc=$RC): $(q 'd["capture"]')"
+run "$B" --from plan:index
+[ "$RC" -eq 1 ] && grep -q '^refused: no recorded stage plan:index to resume from' "$T/err" && ok "--from plan:index exits 1" || no "cut at plan:index (rc=$RC): $(cat "$T/err")"
+run "$B" --from cold:read
+[ "$RC" -eq 1 ] && grep -q '^refused: no recorded stage cold:read to resume from' "$T/err" && ok "--from a label with no recorded stage exits 1" || no "unknown label (rc=$RC): $(cat "$T/err")"
+run "$B" --from 'Fix:1'
+[ "$RC" -eq 2 ] && ok "--from a malformed label exits 2" || no "bad label (rc=$RC): $(cat "$T/err")"
+run "$B" --from review --tree-hash dddddddddddd --replay "$T/out/copy.js" "${PLAN[@]}"
+[ "$RC" -eq 0 ] && [ -f "$T/out/copy.js" ] && ok "--replay with --from and the recorded --tree-hash writes the copy" || no "replay with tree hash (rc=$RC): $(cat "$T/err")"
+[ "$(copied)" = "['diff:red-team', 'implement:1'] ['review:code-reviewer', 'verify:security']" ] \
+  && ok "a copy written with --from holds no result for the cut stages and none for diff:blocked" || no "cut copy record: $(copied)"
+rm -f "$T/out/copy.js"
+run "$B" --from review --tree-hash eeeeeeeeeeee --replay "$T/out/copy.js" "${PLAN[@]}"
+refused 1 'the tree hash is eeeeeeeeeeee, not the dddddddddddd' && ok "--tree-hash that differs from the recorded blocked tree exits 1 with no copy" || no "tree hash mismatch (rc=$RC): $(cat "$T/err")"
+run "$B" "$(dir wf_noblock)" --from fix:1 --tree-hash dddddddddddd
+refused 1 'wf_noblock recorded no blocked tree' && ok "--tree-hash exits 1 when the newest run recorded no diff:blocked capture" || no "no blocked tree (rc=$RC): $(cat "$T/err")"
+run "$B" --from review --replay "$T/out/copy.js" "${PLAN[@]}"
+[ "$RC" -eq 2 ] && [ ! -e "$T/out/copy.js" ] && ok "--replay with --from and no --tree-hash exits 2" || no "missing tree hash (rc=$RC): $(cat "$T/err")"
+run "$B" --from review --tree-hash DDDDDDDDDDDD --replay "$T/out/copy.js" "${PLAN[@]}"
+[ "$RC" -eq 2 ] && [ ! -e "$T/out/copy.js" ] && ok "a malformed --tree-hash exits 2" || no "bad tree hash (rc=$RC): $(cat "$T/err")"
+
+run "$B" --from review:code-reviewer
+[ "$(labels)" = "['plan:index', 'implement:1', 'diff:red-team', 'verify:security']" ] \
+  && ok "--from review:<reviewer label> as the checkpoint prints it drops that reviewer's result" || no "cut at review:code-reviewer (rc=$RC): $(labels) $(cat "$T/err")"
+run "$B" --from fix:1 --tree-hash dddddddddddd --replay "$T/out/copy.js" "${PLAN[@]}"
+rec="$(python3 -c '
+import json, sys
+line = [l for l in open(sys.argv[1]).read().split("\n") if l.startswith("const REPLAY = ")][0]
+print(json.loads(line[len("const REPLAY = "):]).get("from"))' "$T/out/copy.js" 2>&1)"
+[ "$RC.$rec" = "0.fix:1" ] && ok "a copy written with --from records the cut label in its REPLAY record" || no "copy from label (rc=$RC): $rec $(cat "$T/err")"
+rm -f "$T/out/copy.js"
+run "$B" "$(dir wf_resumed)" --from remember:pass --tree-hash eeeeeeeeeeee
+[ "$(q '[s["run"] + " " + s["label"] for s in d["stages"] if s["phase"] != "▸ review-mr"]')" = "['wf_blocked plan:index', 'wf_blocked implement:1', 'wf_blocked diff:red-team', 'wf_resumed plan:index', 'wf_resumed fix:1']" ] \
+  && ok "a second resume drops the stages the first resume cut and ran live, so the older blocked result never replays" || no "second resume (rc=$RC): $(labels) $(cat "$T/err")"
 
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

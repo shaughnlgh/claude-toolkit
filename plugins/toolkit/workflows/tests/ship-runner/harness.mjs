@@ -69,6 +69,7 @@ const DEFAULTS = {
   'threads:fetch:3': threadsOf(),
   'pipeline:watch:threads:3': watchOf('green', G3),
   'threads:fetch:4': threadsOf(),
+  'pipeline:watch:merge': watchOf('none', C),
   'merge:paths': { fixPaths: [D, E, G2, G3].map((sha) => ({ sha, paths: ['src/a.js'] })), ...ok },
   'merge:mr': { state: 'MERGED', mergedSha: M, kind: 'merge', ...ok },
   'release:tag': { tagged: true, pushed: true, ...ok },
@@ -100,7 +101,7 @@ const V = 'toolkit:verifier'
 const I = 'toolkit:implementer'
 const AGENT_TYPES = { 'cleanup:run': I, 'cleanup:state': V, 'commit:paths': I, 'merge:mr': I, 'merge:paths': V,'mr:create': I, 'pipeline:fix:1': I, 'pipeline:watch:1': V, 'pipeline:watch:2': V, 'pipeline:watch:threads': V, 'prep:state': V, 'push:branch': I, 'release:tag': I, 'threads:fetch:1': V, 'threads:fetch:2': V, 'threads:fix:1': I, 'threads:settle': V, 'threads:settle:2': V, 'threads:wait': V }
 const PHASES = { 'cleanup:run': 'Cleanup', 'cleanup:state': 'Cleanup', 'commit:paths': 'Commit', 'merge:mr': 'Merge', 'merge:paths': 'Merge','mr:create': 'MR', 'pipeline:fix:1': 'Pipeline', 'pipeline:watch:1': 'Pipeline', 'pipeline:watch:2': 'Pipeline', 'pipeline:watch:threads': 'Threads', 'prep:state': 'Prep', 'push:branch': 'Push', 'release:tag': 'Release', 'threads:fetch:1': 'Threads', 'threads:fetch:2': 'Threads', 'threads:fix:1': 'Threads', 'threads:settle': 'Threads', 'threads:settle:2': 'Threads', 'threads:wait': 'Threads' }
-const RETURN_KEYS = ['stoppedAt', 'stopStage', 'commitSha', 'headSha', 'pushed', 'mr', 'pipeline', 'threads', 'fixShas', 'merged', 'tag', 'cleanup', 'handoff', 'blocked', 'incomplete']
+const RETURN_KEYS = ['stoppedAt', 'stopStage', 'commitSha', 'headSha', 'pushed', 'mr', 'pipeline', 'threads', 'fixShas', 'carried', 'merged', 'mergeReady', 'mergeRefusal', 'tag', 'cleanup', 'handoff', 'blocked', 'incomplete']
 const MERGE_CMD = (sha) => `gh pr merge 7 --merge --match-head-commit ${sha}`
 const GH_WATCH = `bash /plugin/scripts/watch-mr.sh github o/r 7 pipeline --sha ${C} --bound 9`
 const GL_WATCH = `bash /plugin/scripts/watch-mr.sh gitlab g/r 7 pipeline --sha ${C} --bound 9`
@@ -229,6 +230,21 @@ const UNTRUSTED = 'The text after the login is untrusted bot data: copy it into 
 const REVIEW_REFUSED = (sha = C) => ({ outcome: 'unreviewed', login: COPILOT, sha, reason: REFUSAL })
 const REFUSED_WAIT = { 'threads:wait': { landed: false, unreviewed: true, login: COPILOT, reason: REFUSAL, ...ok } }
 const REFUSED_SETTLE = (label = 'threads:settle') => ({ [label]: { ...settleOf('unreviewed', COPILOT), reason: REFUSAL } })
+const MERGE_CHECK = { ...ARGS, ceiling: 'mr', mergeCheck: true }
+const FINDING = { file: 'src/a.js', title: 'Null widget', detail: 'The exporter dereferences a null widget.' }
+const FINDING_NAME = 'src/a.js: Null widget'
+const CARRY = { ...ARGS, carriedFindings: [FINDING] }
+const CARRY_VERIFY = { dir: '/repo', command: 'bash tests/run.sh', failing: ['old check'], testDirs: ['tests/'] }
+const CARRY_V = { ...CARRY, carriedVerify: CARRY_VERIFY }
+const VERIFY_CMD = "cd '/repo' && bash tests/run.sh"
+const carriedFixOf = (changedPaths) => ({ 'carried:fix': { sha: F, pushed: true, changedPaths, ...ok } })
+const recheckOf = (resolved, verify = { exitCode: 0, failing: [] }) => ({ 'carried:recheck': { findings: [{ file: FINDING.file, title: FINDING.title, resolved, evidence: 'The exporter returns early on a null widget.' }], verify, ...ok } })
+const fixPathsOf = (...entries) => ({ 'merge:paths': { fixPaths: entries.map(([sha, paths]) => ({ sha, paths })), ...ok } })
+// The carried fix moves the head to F before the pipeline watch.
+const CARRIED_RUN = { ...carriedFixOf(['src/a.js']), ...recheckOf(true), 'pipeline:watch:1': watchOf('green', F), ...fixPathsOf([F, ['src/a.js']]) }
+const PRIOR_CARRY_START = { ...ARGS, startAt: 'merge', mr: PR, priorFixShas: [F] }
+const PRIOR_CARRY_RUN = { ...prepWith({ headSha: C, remoteSha: C, porcelain: [] }), ...fixPathsOf([F, ['src/a.js', 'tests/a.test.js']]) }
+const CARRIED_NONE = { ...CARRIED_RUN, 'pipeline:watch:1': watchOf('none', F), 'pipeline:watch:merge': watchOf('none', F) }
 
 const cases = [
   ['a missing required arg throws', () => throwsWith({ ...ARGS, branch: undefined }, 'ship-runner requires args')],
@@ -513,7 +529,7 @@ const cases = [
     return same({ blocked: result.blocked, state: result.pipeline.state, merged: result.merged }, { blocked: [], state: 'none', merged: { sha: M, kind: 'merge' } })
   }],
   ['noCiConfig with no pipeline after a thread fix merges the fix head', async () => {
-    const { result, prompts } = await run({ ...NONE, ...BOT_THREAD, 'pipeline:watch:threads': watchOf('none', E) }, NO_CI)
+    const { result, prompts } = await run({ ...NONE, ...BOT_THREAD, 'pipeline:watch:threads': watchOf('none', E), 'pipeline:watch:merge': watchOf('none', E) }, NO_CI)
     return same({ blocked: result.blocked, merge: prompts['merge:mr'].includes(MERGE_CMD(E)) }, { blocked: [], merge: true })
   }],
   ['noCiConfig with no pipeline and an open human thread refuses the merge on the thread alone', async () => {
@@ -531,6 +547,186 @@ const cases = [
   ['noCiConfig on GitLab with no pipeline merges', async () => {
     const { result } = await run({ ...GL, ...NONE }, { ...GL_ARGS, noCiConfig: true })
     return same({ blocked: result.blocked, sha: result.merged && result.merged.sha }, { blocked: [], sha: M })
+  }],
+  ['under noCiConfig with no check on the head the merge-time read runs with --none 0', async () => {
+    const { prompts } = await run(NONE, NO_CI)
+    return same({ merge: prompts['pipeline:watch:merge'].includes(`${GH_WATCH} --none 0`), first: prompts['pipeline:watch:1'].includes(`${GH_WATCH} --none 2`) }, { merge: true, first: true })
+  }],
+  ['a merge-time read of none merges', async () => {
+    const { result } = await run(NONE, NO_CI)
+    return same({ blocked: result.blocked, merged: result.merged }, { blocked: [], merged: { sha: M, kind: 'merge' } })
+  }],
+  ['a merge-time read of green merges', async () => {
+    const { result } = await run({ ...NONE, 'pipeline:watch:merge': watchOf('green', C) }, NO_CI)
+    return same({ blocked: result.blocked, merged: result.merged }, { blocked: [], merged: { sha: M, kind: 'merge' } })
+  }],
+  ['a merge-time read of red refuses the merge with the pipeline reason', async () => {
+    const { result, prompts } = await run({ ...NONE, 'pipeline:watch:merge': watchOf('red', C) }, NO_CI)
+    return same({ blocked: result.blocked, merge: 'merge:mr' in prompts }, { blocked: [`The merge was refused because the pipeline is red, and the merge command is ${MERGE_CMD(C)}.`], merge: false })
+  }],
+  ['a dead merge-time read blocks and runs no merge', async () => {
+    const { result, prompts } = await run({ ...NONE, 'pipeline:watch:merge': null }, NO_CI)
+    return same({ blocked: result.blocked, merge: 'merge:mr' in prompts }, { blocked: ['The verifier pipeline:watch:merge returned nothing.'], merge: false })
+  }],
+  ['without noCiConfig no merge-time read runs', async () => {
+    const { prompts } = await run()
+    return !('pipeline:watch:merge' in prompts)
+  }],
+  ['under noCiConfig a green pipeline runs no merge-time read', async () => {
+    const { prompts } = await run({}, NO_CI)
+    return !('pipeline:watch:merge' in prompts)
+  }],
+  ['mergeCheck with ceiling merge throws', () => throwsWith({ ...ARGS, mergeCheck: true }, 'ship-runner mergeCheck needs ceiling mr, got "merge"')],
+  ['mergeCheck that is not a boolean throws', () => throwsWith({ ...MERGE_CHECK, mergeCheck: 'yes' }, 'ship-runner mergeCheck must be a boolean, got "yes"')],
+  ['mergeCheck on a green head with no open thread returns mergeReady true and runs no merge', async () => {
+    const { result, prompts } = await run({}, MERGE_CHECK)
+    return same({ ready: result.mergeReady, refusal: result.mergeRefusal, merge: 'merge:mr' in prompts, blocked: result.blocked }, { ready: true, refusal: null, merge: false, blocked: [] })
+  }],
+  ['mergeCheck on a head the merge-time read finds red returns mergeReady false with the pipeline reason', async () => {
+    const { result } = await run({ ...NONE, 'pipeline:watch:merge': watchOf('red', C) }, { ...MERGE_CHECK, noCiConfig: true })
+    return same({ ready: result.mergeReady, refusal: result.mergeRefusal }, { ready: false, refusal: 'The merge would be refused because the pipeline is red.' })
+  }],
+  ['mergeCheck with an open thread returns mergeReady false', async () => {
+    const { result } = await run({ 'threads:fetch:1': threadsOf(HUMAN) }, MERGE_CHECK)
+    return same({ ready: result.mergeReady, refusal: result.mergeRefusal }, { ready: false, refusal: 'The merge would be refused because 1 review threads are open.' })
+  }],
+  ['mergeCheck under noCiConfig with no check runs the merge-time read and returns mergeReady true', async () => {
+    const { result, prompts } = await run(NONE, { ...MERGE_CHECK, noCiConfig: true })
+    return same({ read: 'pipeline:watch:merge' in prompts, ready: result.mergeReady }, { read: true, ready: true })
+  }],
+  ['without mergeCheck mergeReady and mergeRefusal are null', async () => {
+    const { result } = await run({}, { ...ARGS, ceiling: 'mr' })
+    return same({ ready: result.mergeReady, refusal: result.mergeRefusal }, { ready: null, refusal: null })
+  }],
+  ['carriedVerify without carriedFindings throws', () => throwsWith({ ...ARGS, carriedVerify: CARRY_VERIFY }, 'ship-runner carriedVerify needs a non-empty carriedFindings')],
+  ['a carried finding on a file outside paths throws', () => throwsWith({ ...ARGS, carriedFindings: [{ ...FINDING, file: 'src/c.js' }] }, 'ship-runner carriedFindings must be a list of {file, title, detail} strings')],
+  ['a testDirs entry with no trailing slash throws', () => throwsWith({ ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ['tests'] } }, 'ship-runner carriedVerify must be')],
+  ['a testDirs entry that fails pathOk throws', () => throwsWith({ ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ["te'sts/"] } }, 'ship-runner carriedVerify must be')],
+  ['a carriedVerify command over two lines throws', () => throwsWith({ ...CARRY, carriedVerify: { ...CARRY_VERIFY, command: 'a\nb' } }, 'ship-runner carriedVerify must be')],
+  ['the carried stage runs after mr:create and before pipeline:watch:1', async () => {
+    const { prompts, phases } = await run(CARRIED_RUN, CARRY_V)
+    const order = labels(prompts)
+    return same({ fix: before(order, 'mr:create', 'carried:fix'), recheck: before(order, 'carried:recheck', 'pipeline:watch:1'), phase: before(phases, 'MR', 'Carried') }, { fix: true, recheck: true, phase: true })
+  }],
+  ['the carried fix sha joins fixShas and the merge:paths read', async () => {
+    const { result, prompts } = await run(CARRIED_RUN, CARRY_V)
+    return same({ fixShas: result.fixShas, read: prompts['merge:paths'].includes(`git -c core.quotePath=false diff --name-only ${C} ${F}`) }, { fixShas: [F], read: true })
+  }],
+  ['the carried fix commit message counts the findings and carries no trailer', async () => {
+    const { prompts } = await run(CARRIED_RUN, CARRY_V)
+    const p = prompts['carried:fix']
+    return same({ msg: p.includes('fix(review): 1 findings the execute flow carried (ship-flow)'), trailer: p.includes(NO_TRAILER), finding: p.includes('- src/a.js: Null widget: The exporter dereferences a null widget.') }, { msg: true, trailer: true, finding: true })
+  }],
+  ['a passing carried run returns carried with the resolved finding and the verify result, and merges', async () => {
+    const { result } = await run(CARRIED_RUN, CARRY_V)
+    return same({ carried: result.carried, blocked: result.blocked, merged: result.merged }, { carried: { sha: F, resolved: [FINDING_NAME], unresolved: [], verify: { exitCode: 0, failing: [] } }, blocked: [], merged: { sha: M, kind: 'merge' } })
+  }],
+  ['an unresolved carried finding blocks before the pipeline watch', async () => {
+    const { result, prompts } = await run({ ...CARRIED_RUN, ...recheckOf(false) }, CARRY_V)
+    return same({ blocked: result.blocked, watch: 'pipeline:watch:1' in prompts, unresolved: result.carried.unresolved }, { blocked: [`The carried finding ${FINDING_NAME} is not resolved at ${F}.`], watch: false, unresolved: [FINDING_NAME] })
+  }],
+  ['a carried fix path outside paths and every testDirs entry blocks', async () => {
+    const { result, prompts } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', 'src/c.js']) }, CARRY_V)
+    return same({ blocked: result.blocked, recheck: 'carried:recheck' in prompts }, { blocked: ["The implementer carried:fix changed src/c.js, outside the plan's paths and the test files under the carried test directories, or on a hands-off path."], recheck: false })
+  }],
+  ['a carried fix on a hands-off path under a testDirs entry blocks', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', '.github/workflows/ci.yml']) }, { ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ['.github/'] } })
+    return same(result.blocked, ["The implementer carried:fix changed .github/workflows/ci.yml, outside the plan's paths and the test files under the carried test directories, or on a hands-off path."])
+  }],
+  ['a carried fix that adds a test file under a testDirs entry merges', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', 'tests/a.test.js']), ...fixPathsOf([F, ['src/a.js', 'tests/a.test.js']]) }, CARRY_V)
+    return same({ blocked: result.blocked, merged: result.merged }, { blocked: [], merged: { sha: M, kind: 'merge' } })
+  }],
+  ['a carried fix source file under a testDirs entry that holds source blocks', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', 'src/app/Payment.php']) }, { ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ['src/'] } })
+    return same(result.blocked, ["The implementer carried:fix changed src/app/Payment.php, outside the plan's paths and the test files under the carried test directories, or on a hands-off path."])
+  }],
+  ['a carried fix test file named for its test under a testDirs entry that holds source merges', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', 'src/app/PaymentTest.php']), ...fixPathsOf([F, ['src/a.js', 'src/app/PaymentTest.php']]) }, { ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ['src/'] } })
+    return same({ blocked: result.blocked, merged: result.merged }, { blocked: [], merged: { sha: M, kind: 'merge' } })
+  }],
+  ['a carried fix file in a tests directory under a testDirs entry that holds source merges', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', 'src/app/tests/fixture.php']), ...fixPathsOf([F, ['src/a.js', 'src/app/tests/fixture.php']]) }, { ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ['src/'] } })
+    return same({ blocked: result.blocked, merged: result.merged }, { blocked: [], merged: { sha: M, kind: 'merge' } })
+  }],
+  ['a carried fix source file with test inside a word under a testDirs entry that holds source blocks', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', 'src/app/Contest.php']) }, { ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ['src/'] } })
+    return same(result.blocked, ["The implementer carried:fix changed src/app/Contest.php, outside the plan's paths and the test files under the carried test directories, or on a hands-off path."])
+  }],
+  ['a carried fix source file whose name ends in test before the extension under a testDirs entry that holds source blocks', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', 'src/latest.ts']) }, { ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ['src/'] } })
+    return same(result.blocked, ["The implementer carried:fix changed src/latest.ts, outside the plan's paths and the test files under the carried test directories, or on a hands-off path."])
+  }],
+  ['a carried fix test file with a dotted test token under a testDirs entry that holds source merges', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', 'src/a.test.js']), ...fixPathsOf([F, ['src/a.js', 'src/a.test.js']]) }, { ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ['src/'] } })
+    return same({ blocked: result.blocked, merged: result.merged }, { blocked: [], merged: { sha: M, kind: 'merge' } })
+  }],
+  ['a carried fix test file with an underscored test token under a testDirs entry that holds source merges', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', 'src/x_test.go']), ...fixPathsOf([F, ['src/a.js', 'src/x_test.go']]) }, { ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ['src/'] } })
+    return same({ blocked: result.blocked, merged: result.merged }, { blocked: [], merged: { sha: M, kind: 'merge' } })
+  }],
+  ['a carried fix test file with a capitalised Test suffix under a testDirs entry that holds source merges', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...carriedFixOf(['src/a.js', 'src/app/PaymentTest.php']), ...fixPathsOf([F, ['src/a.js', 'src/app/PaymentTest.php']]) }, { ...CARRY, carriedVerify: { ...CARRY_VERIFY, testDirs: ['src/'] } })
+    return same({ blocked: result.blocked, merged: result.merged }, { blocked: [], merged: { sha: M, kind: 'merge' } })
+  }],
+  ['the same test path in a thread fix commit refuses the merge with the paths reason', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...BOT_THREAD, ...fixPathsOf([F, ['src/a.js']], [E, ['tests/a.test.js']]) }, CARRY_V)
+    return same(result.blocked, [`The merge was refused because the fix commit ${E} changed tests/a.test.js, outside the plan's paths or on a hands-off path, and the merge command is ${MERGE_CMD(E)}.`])
+  }],
+  ['the recheck prompt runs the carriedVerify command with stdin from /dev/null', async () => {
+    const { prompts } = await run(CARRIED_RUN, CARRY_V)
+    const p = prompts['carried:recheck']
+    return same({ rule: p.includes(rule(`git show ${F}, and ${VERIFY_CMD}`)), stdin: p.includes(`Then run ${VERIFY_CMD} once, as one Bash call with stdin from /dev/null`) }, { rule: true, stdin: true })
+  }],
+  ['a carriedVerify run that fails only on a baseline check merges', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...recheckOf(true, { exitCode: 1, failing: ['old check'] }) }, CARRY_V)
+    return same({ blocked: result.blocked, merged: result.merged }, { blocked: [], merged: { sha: M, kind: 'merge' } })
+  }],
+  ['a carriedVerify run with a new failing check blocks', async () => {
+    const { result, prompts } = await run({ ...CARRIED_RUN, ...recheckOf(true, { exitCode: 1, failing: ['old check', 'new check'] }) }, CARRY_V)
+    return same({ blocked: result.blocked, watch: 'pipeline:watch:1' in prompts }, { blocked: [`The carried fix commit ${F} fails the verify command: new check.`], watch: false })
+  }],
+  ['a carriedVerify run that fails with no failing names blocks', async () => {
+    const { result } = await run({ ...CARRIED_RUN, ...recheckOf(true, { exitCode: 2, failing: [] }) }, CARRY_V)
+    return same(result.blocked, [`The carried fix commit ${F} fails the verify command: no failing check named.`])
+  }],
+  ['with no carriedVerify the recheck prompt names no verify command and carried.verify is null', async () => {
+    const { result, prompts } = await run(CARRIED_RUN, CARRY)
+    const p = prompts['carried:recheck']
+    return same({ cd: p.includes("cd '"), stdin: p.includes('/dev/null'), verify: result.carried.verify }, { cd: false, stdin: false, verify: null })
+  }],
+  ['under noCiConfig a carried fix with no carriedVerify refuses the merge with the no-test reason', async () => {
+    const { result } = await run(CARRIED_NONE, { ...CARRY, noCiConfig: true })
+    return same(result.blocked, [`The merge was refused because the carried fix commit ran no test in a repo with no CI configuration, and the merge command is ${MERGE_CMD(F)}.`])
+  }],
+  ['under noCiConfig mergeCheck with a carried fix and no carriedVerify returns mergeReady false with the no-test reason', async () => {
+    const { result } = await run(CARRIED_NONE, { ...CARRY, ceiling: 'mr', mergeCheck: true, noCiConfig: true })
+    return same({ ready: result.mergeReady, refusal: result.mergeRefusal }, { ready: false, refusal: 'The merge would be refused because the carried fix commit ran no test in a repo with no CI configuration.' })
+  }],
+  ['under noCiConfig a carried fix with carriedVerify merges', async () => {
+    const { result } = await run(CARRIED_NONE, { ...CARRY_V, noCiConfig: true })
+    return same({ blocked: result.blocked, merged: result.merged }, { blocked: [], merged: { sha: M, kind: 'merge' } })
+  }],
+  ['a merge-start run whose priorCarried names the carried sha merges over the test file it added', async () => {
+    const { result } = await run(PRIOR_CARRY_RUN, { ...PRIOR_CARRY_START, priorCarried: [{ sha: F, testDirs: ['tests/'] }] })
+    return same({ blocked: result.blocked, merged: result.merged }, { blocked: [], merged: { sha: M, kind: 'merge' } })
+  }],
+  ['a merge-start run with the carried sha only in priorFixShas refuses the test file it added', async () => {
+    const { result } = await run(PRIOR_CARRY_RUN, PRIOR_CARRY_START)
+    return same(result.blocked, [`The merge was refused because the fix commit ${F} changed tests/a.test.js, outside the plan's paths or on a hands-off path, and the merge command is ${MERGE_CMD(C)}.`])
+  }],
+  ['a priorCarried entry with a testDirs entry missing its trailing slash throws', () => throwsWith({ ...ARGS, priorCarried: [{ sha: F, testDirs: ['tests'] }] }, 'ship-runner priorCarried must be a list of {sha, testDirs}')],
+  ['mergeCheck with a dead merge-time read returns mergeReady false', async () => {
+    const { result } = await run({ ...NONE, 'pipeline:watch:merge': null }, { ...MERGE_CHECK, noCiConfig: true })
+    return same({ ready: result.mergeReady, blocked: result.blocked }, { ready: false, blocked: ['The verifier pipeline:watch:merge returned nothing.'] })
+  }],
+  ['an empty carriedFindings list runs no carried stage and returns carried null', async () => {
+    const { result, prompts } = await run({}, { ...ARGS, carriedFindings: [] })
+    return same({ fix: 'carried:fix' in prompts, carried: result.carried }, { fix: false, carried: null })
+  }],
+  ['carried findings under ceiling none run no carried stage', async () => {
+    const { prompts } = await run({}, { ...CARRY, ceiling: 'none', mr: PR })
+    return same(labels(prompts), ['prep:state'])
   }],
   ['a pending pipeline blocks', async () => {
     const { result } = await run({ 'pipeline:watch:1': watchOf('pending', C) })
