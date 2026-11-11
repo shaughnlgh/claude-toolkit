@@ -3,27 +3,34 @@ name: grill
 description: >-
   Use when the user explicitly asks to grill, elicit, or interview requirements for a
   feature or fuzzy task before any plan exists, to run a scoped grill on a wayfinder
-  child stub before that child's own planning, or when an expedition's grill gate fires
-  it on the user's confirmed yes. Interviews one question at a time with
+  child stub before that child's own planning, when an expedition's grill gate fires
+  it on the user's confirmed yes, or when a crawl's grill check loads it on a confirmed
+  route whose evidence holds a correction to the brief, a module or caller the brief
+  did not consider, or a question only the user can answer. Interviews one question at
+  a time with
   a recommended answer for each, settles from the codebase whatever the codebase can
   answer instead of asking, and once the user confirms shared understanding, writes a
   canonical glossary and Nygard-style ADRs into the project repo (location per
   doctrine/repo-artifacts.md) behind a single consent gate, then hands off to
-  plan-guide. Do not invoke on task fuzziness the model detects on its own. Only an
-  explicit grill, elicit, or interview request should trigger this.
+  plan-guide. A grill a crawl loads writes nothing and hands the agreed text back to
+  the crawl. Do not invoke on task fuzziness the
+  model detects on its own. Only an explicit grill, elicit, or interview request, or
+  one of those two gates, triggers this.
 ---
 
 # Grill
 
-This skill runs before planning, only when the user explicitly asks to grill, elicit, or interview requirements. It is the requirements-elicitation front end that feeds the existing plan-first workflow: it extracts fuzzy requirements from the user interactively, pins vague language into canonical terms, and records durable, repo-owned artifacts before a plan exists. `plan-guide` is conductor-driven (Claude reads the code and lists Open Questions at the end of a drafted plan). Grill inverts that by interviewing the user up front. See Boundary below for what grill does not do.
+This skill runs before planning, only when the user explicitly asks to grill, elicit, or interview requirements, or when an expedition's grill gate or a crawl's grill check stands in for that request. It is the requirements-elicitation front end that feeds the existing plan-first workflow: it extracts fuzzy requirements from the user interactively, pins vague language into canonical terms, and records durable, repo-owned artifacts before a plan exists. `plan-guide` is conductor-driven (Claude reads the code and lists Open Questions at the end of a drafted plan). Grill inverts that by interviewing the user up front. See Boundary below for what grill does not do.
 
 A skill is markdown instructions the model follows, not deterministic code. The behaviors below that can be made mechanical (the git precondition, the sentinel marker, the single end-of-interview consent gate for grill's own new artifacts with its one named exception for deferred out-of-phase items, the separate `docs/adr/` migration gate when an older layout is found, the explicit-request trigger) are stated as hard rules. The rest (one question at a time, recommending before deciding, keeping ADRs rare) are discipline: follow them carefully, but they are not enforced by tooling.
 
 ## Trigger and scope
 
-Fire only when the user explicitly asks to grill, elicit, or interview requirements (e.g. "grill me on this", "let's elicit the requirements for X", "interview me about Y before we plan it") — or when an expedition's grill gate fires it: the user's confirmed yes at that gate is the explicit request. A wayfinder handoff only recommends per-child grills; the user still invokes each one. Do not self-fire because a task looks fuzzy or underspecified. Fuzziness alone is not a trigger. Only an explicit grill, elicit, or interview request should trigger this skill. If unsure whether the user is asking for this, ask rather than assume.
+Fire only when the user explicitly asks to grill, elicit, or interview requirements (e.g. "grill me on this", "let's elicit the requirements for X", "interview me about Y before we plan it") — or when an expedition's grill gate fires it: the user's confirmed yes at that gate is the explicit request. A crawl's grill check is the second such case: the route the user confirmed at the crawl, on evidence that holds a correction to the brief, a module or caller the brief did not consider, or an open question only the user can answer, is the explicit request, and the crawl loads grill inline. A wayfinder handoff only recommends per-child grills; the user still invokes each one. Do not self-fire because a task looks fuzzy or underspecified. Fuzziness alone is not a trigger. Only an explicit grill, elicit, or interview request, or one of those two gates, triggers this skill. If unsure whether the user is asking for this, ask rather than assume.
 
 Phase-scoped grills: when the user invokes grill on a wayfinder child stub, scope the interview to that child's issue codes and objective — do not re-litigate the umbrella's agreed outcome (wayfinder's alignment step settled it; treat it as a given unless the interview surfaces evidence it is wrong, and then say so rather than silently diverging). Repeat grills across children of one family append to the same glossary location (per doctrine/repo-artifacts.md) through the existing update mechanics; the ADR three-part gate applies unchanged, per decision, not per child.
+
+Crawl-scoped grills: a grill that a crawl's grill check loads is scoped to the crawl's items. The crawl's corrections and unconsidered modules and callers come first, each as a fold-in-or-leave-out question with a recommended answer, before any other question. The crawl's open questions follow in dependency order. A crawl-loaded grill writes nothing to the repo, because no plan branch exists yet and a file written now would leave the main checkout dirty. It checks no precondition, since each one guards a repo write, and shows no consent gate. When the interview ends, it hands back to the crawl, as text, the agreed glossary terms and the decisions that pass the three-part ADR gate with their rationale and the alternatives considered. A grill the user asks for by name keeps the consent gate and writes as the sections below define.
 
 ## Preconditions, checked immediately, before the interview starts
 
@@ -53,7 +60,9 @@ An existing `docs/adr/` directory is never folded into that gate. Ask about it s
 
 ## Shared-understanding confirmation (the single consent gate)
 
-Before writing anything:
+An interview that settles no term and no decision that passes the three-part ADR gate writes nothing. Say so in one line, show no gate, and go to the hand off. A crawl-loaded grill shows no gate even when it settles something, and goes to the hand off.
+
+Otherwise, before writing anything:
 
 1. Summarize, in the conversation, the resolved terms and resolved decisions.
 2. Ask the user to confirm this is a shared understanding.
@@ -170,7 +179,9 @@ Handoff to plan-guide:
 
 Tell the user that `plan-guide` (`<plugin-root>/skills/plan-guide/SKILL.md`) should feed these paths into its Current Context and Related Topics, and skip re-deriving the terms and decisions already pinned here. `<plugin-root>` is `../..` from this skill's base directory resolved to an absolute path. This root takes precedence over a CLAUDE.md line that resolves the installed root. When `../../.claude-plugin/plugin.json` does not exist relative to this skill's base directory, as in a `/override` copy under `~/.claude/skills/`, the plugin root is the installed root instead, the path that `jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json` prints, as the setup CLAUDE.md block resolves it.
 
-Then stop. Grill does not continue into planning, does not loop back into another round of questions, and does not start drafting a plan in the same turn.
+When a crawl's grill check loaded the grill, the crawl takes the hand off and `plan-guide` does not. The grill wrote nothing, so it names no path. Print the agreed glossary terms and decisions under the line `Agreed in the grill:`, or say in one line that nothing was agreed, then return to the crawl's section 3 run options in the same turn.
+
+For a grill the user asked for, stop here. Grill does not continue into planning, does not loop back into another round of questions, and does not start drafting a plan in the same turn.
 
 ## Boundary
 
