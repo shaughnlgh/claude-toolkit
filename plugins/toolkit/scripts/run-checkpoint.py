@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Prints an execute-runner Workflow run's checkpoint from its journal. Usage: run-checkpoint.py [--replay <out.js> --plan <planName> --repo-root <path>] -- <folder>..., absolute run folders oldest first.
-# Exit 1: --replay refused, or a folder that is not <slug>/<session id>/subagents/workflows/<runId> under ~/.claude/projects. Exit 2: --replay without --plan and --repo-root, an unreadable journal or summary, a non-JSON line before the last, or an entry missing a field read here. Exit 3: the newest run may still be live.
+# Prints an execute-runner Workflow run's checkpoint from its journal. Usage: run-checkpoint.py [--from <label>] [--tree-hash <hash12>] [--replay <out.js> --plan <planName> --repo-root <path>] -- <folder>..., absolute run folders oldest first.
+# Exit 1: --replay refused, a --from label with no recorded stage, a --tree-hash the newest run's diff:blocked capture does not hold, or a folder that is not <slug>/<session id>/subagents/workflows/<runId> under ~/.claude/projects. Exit 2: --replay without --plan and --repo-root, --replay with --from but no --tree-hash, a malformed --from or --tree-hash, an unreadable journal or summary, a non-JSON line before the last, or an entry missing a field read here. Exit 3: the newest run may still be live.
 import argparse
 import datetime
 import hashlib
@@ -17,7 +17,9 @@ CHILD = "▸ "
 TORN_RESULT = '{"type":"result"'
 # A stage that edits the tree. A run that died inside one left partial edits with no record, so it is not continued.
 # These labels never change once a runner with a REPLAY line has shipped: a renamed writer stage keeps its old label here.
-WRITER = re.compile(r"(implement:[0-9]+|fix:.+|doc:pass)\Z")
+WRITER = re.compile(r"(edit:check|implement:[0-9]+|fix:.+|doc:pass)\Z")
+LABEL = re.compile(r"[a-z][a-z0-9-]*(:[a-z0-9-]+)*\Z")
+HASH12 = re.compile(r"[0-9a-f]{12}\Z")
 
 
 def fail(reason, code):
@@ -84,27 +86,57 @@ def summary_of(folder):
 
 
 def stages_of(folders):
-    stages, count, torn = [], {}, []
+    stages, torn = [], []
     for k, folder in enumerate(folders):
-        rows, cut = entries(folder)
-        if cut is not None and not cut.startswith(TORN_RESULT):
+        rows, cut_line = entries(folder)
+        if cut_line is not None and not cut_line.startswith(TORN_RESULT):
             torn.append(run_id(folder))
+        # A journal resume replayed only the cut stages of the runs before it, so its live stages superseded the rest.
+        cut_from = (replay_record(summary_of(folder) or {}) or {}).get("from") if k else None
+        if isinstance(cut_from, str):
+            stages = cut(stages, cut_from)
         # A failed agent returned nothing and the run carried on, so the stage is done and replays as null.
         done = {e["agentId"]: e["result"] if e["type"] == "result" else None for e in rows if e["type"] in ("result", "failed")}
         for e in (e for e in rows if e["type"] == "started"):
             # An older run's open stage ran again in the run that continued it.
             if e["agentId"] not in done and k < len(folders) - 1:
                 continue
-            child = e["phase"].startswith(CHILD)
-            count[child, e["label"]] = count.get((child, e["label"]), 0) + 1
-            stages.append({"run": run_id(folder), "label": e["label"], "occurrence": count[child, e["label"]], "phase": e["phase"],
-                           "state": "done" if e["agentId"] in done else "open", "child": child, "result": done.get(e["agentId"])})
+            stages.append({"run": run_id(folder), "label": e["label"], "phase": e["phase"],
+                           "state": "done" if e["agentId"] in done else "open", "child": e["phase"].startswith(CHILD), "result": done.get(e["agentId"])})
+    count = {}
+    for s in stages:
+        count[s["child"], s["label"]] = s["occurrence"] = count.get((s["child"], s["label"]), 0) + 1
     return stages, torn
 
 
 def is_capture(s):
     r = s["result"]
     return not s["child"] and isinstance(r, dict) and isinstance(r.get("diffPath"), str) and isinstance(r.get("paths"), list)
+
+
+def cut(stages, label):
+    if label == "plan:index":
+        fail("no recorded stage plan:index to resume from", 1)
+    kid = label[len("review:"):] if label.startswith("review:") else None
+    # A review-mr reviewer's own label begins review:, so the label as printed also names that child.
+    if kid and not any(s["child"] and s["label"] == kid for s in stages):
+        kid = label
+    # A cut at review keeps the runner stages before review-mr and every child result, so only the child agents that died, or kid, run again.
+    if label == "review" or kid:
+        at = next((i for i, s in enumerate(stages) if s["child"]), None)
+        if at is None or (kid and not any(s["child"] and s["label"] == kid for s in stages)):
+            fail("no recorded stage %s to resume from" % label, 1)
+        kept = [s for s in stages[at:] if s["child"] and s["result"] is not None and s["label"] != kid]
+        return stages[:at] + kept
+    at = next((i for i, s in enumerate(stages) if not s["child"] and s["label"] == label), None)
+    if at is None:
+        fail("no recorded stage %s to resume from" % label, 1)
+    return stages[:at]
+
+
+def blocked_tree(stages, newest):
+    rec = [s for s in stages if s["run"] == newest and s["label"] == "diff:blocked" and s["state"] == "done" and is_capture(s)]
+    return rec[-1]["result"].get("hash12") if rec else None
 
 
 def ended_at(summary):
@@ -129,20 +161,28 @@ def live_reason(folder):
     return None
 
 
+def replay_line(summary):
+    script = summary.get("script")
+    return next((x for x in (script.split("\n") if isinstance(script, str) else ()) if x.startswith("const REPLAY = ") and x != REPLAY_LINE), None)
+
+
+def replay_record(summary):
+    line = replay_line(summary)
+    try:
+        rec = json.loads(line[len("const REPLAY = "):]) if line else None
+    except ValueError:
+        return None
+    return rec if isinstance(rec, dict) else None
+
+
 def recorded_args(summary):
     # A continuation launches with scratchDir alone, so its plan args sit in its script's REPLAY record.
-    script = summary.get("script")
-    for line in script.split("\n") if isinstance(script, str) else ():
-        if line.startswith("const REPLAY = ") and line != REPLAY_LINE:
-            try:
-                rec = json.loads(line[len("const REPLAY = "):])
-            except ValueError:
-                return None
-            return rec.get("args") if isinstance(rec, dict) else None
-    return summary.get("args")
+    if replay_line(summary) is None:
+        return summary.get("args")
+    return (replay_record(summary) or {}).get("args")
 
 
-def replay_copy(folders, stages, torn, dest, plan, repo_root):
+def replay_copy(folders, stages, torn, dest, plan, repo_root, cut_from):
     live = live_reason(folders[-1])
     if live:
         fail("run %s has %s, so it may still be live" % (run_id(folders[-1]), live), 3)
@@ -173,7 +213,7 @@ def replay_copy(folders, stages, torn, dest, plan, repo_root):
     gone = [s["result"]["diffPath"] for s in done if is_capture(s) and not os.path.isfile(s["result"]["diffPath"])]
     if gone:
         fail("the recorded capture diff %s is gone" % gone[0], 1)
-    rec = {"args": args, "index": index[-1], "runner": {}, "child": {}}
+    rec = {"args": args, "index": index[-1], "runner": {}, "child": {}, **({"from": cut_from} if cut_from else {})}
     for s in done:
         if s["child"] or s["label"] != "plan:index":
             rec["child" if s["child"] else "runner"].setdefault(s["label"], []).append(s["result"])
@@ -193,11 +233,28 @@ def main():
     p.add_argument("--replay")
     p.add_argument("--plan")
     p.add_argument("--repo-root")
+    p.add_argument("--from", dest="cut_from")
+    p.add_argument("--tree-hash")
     opts = p.parse_args()
     if opts.replay and (opts.plan is None or opts.repo_root is None):
         p.error("--replay needs --plan and --repo-root")
+    if opts.cut_from is not None and not LABEL.match(opts.cut_from):
+        p.error("--from %r is not a stage label" % opts.cut_from)
+    if opts.tree_hash is not None and not HASH12.match(opts.tree_hash):
+        p.error("--tree-hash %r is not 12 lowercase hex characters" % opts.tree_hash)
+    if opts.replay and opts.cut_from is not None and opts.tree_hash is None:
+        p.error("--replay with --from needs --tree-hash")
     opts.folders = [checked(f) for f in opts.folders]
     stages, torn = stages_of(opts.folders)
+    newest = run_id(opts.folders[-1])
+    blocked = blocked_tree(stages, newest)
+    if opts.tree_hash is not None:
+        if blocked is None:
+            fail("run %s recorded no blocked tree, so a resume cannot prove the tree unchanged" % newest, 1)
+        if blocked != opts.tree_hash:
+            fail("the tree hash is %s, not the %s that run %s recorded when it blocked, so a settle that changed a file needs a fresh run" % (opts.tree_hash, blocked, newest), 1)
+    if opts.cut_from is not None:
+        stages = cut(stages, opts.cut_from)
     runs = [{"run": run_id(f), "status": (summary_of(f) or {}).get("status")} for f in opts.folders]
     changed = []
     for s in stages:
@@ -206,10 +263,10 @@ def main():
             changed += [x for x in r["changedPaths"] if x not in changed]
     captures = [s for s in stages if s["state"] == "done" and is_capture(s)]
     capture = {"label": captures[-1]["label"], "hash12": captures[-1]["result"].get("hash12"), "paths": captures[-1]["result"]["paths"]} if captures else None
-    replay = replay_copy(opts.folders, stages, torn, opts.replay, opts.plan, opts.repo_root) if opts.replay else None
+    replay = replay_copy(opts.folders, stages, torn, opts.replay, opts.plan, opts.repo_root, opts.cut_from) if opts.replay else None
     out = {"runs": runs, "done": sum(s["state"] == "done" for s in stages), "open": [s["label"] for s in stages if s["state"] == "open"],
            "stages": [{k: s[k] for k in ("run", "label", "occurrence", "phase", "state")} for s in stages],
-           "changedPaths": changed, "capture": capture, "replay": replay}
+           "changedPaths": changed, "capture": capture, "replay": replay, "from": opts.cut_from, "blockedTree": blocked}
     sys.stdout.reconfigure(encoding="utf-8")
     print(json.dumps(out, ensure_ascii=False, indent=2))
 

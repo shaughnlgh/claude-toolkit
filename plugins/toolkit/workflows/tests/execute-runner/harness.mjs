@@ -98,7 +98,6 @@ const INTRO_PLAN = plan(THREE_STEPS, ['Run these against the local site.', '', '
 const ARGS = { planName: 'widget-export', repoRoot: '/repo', repoName: 'demo', planPath: PLAN_PATH, recallHits: 'none', scratchDir: '/scratch', pluginRoot: '/plugin', vaultRoot: '/vault/AI' }
 const SEAT_ARGS = { ...ARGS, plan: E2E_PLAN, seatRun: true, baselineFailing: [], diffBase: '0123abcd4567' }
 const SEAT_PANEL = { ...SEAT_ARGS, priorChangedPaths: ['src/a.js'] }
-const OWN_WT_PATHSPEC = "':(exclude,top).claude/worktrees/'"
 const GIT_RULE = 'In /repo, git is read-only: git status, git diff, git log, git ls-files, git branch --show-current, git remote get-url, git symbolic-ref with one ref argument, and git merge-base --is-ancestor only. A -c core.quotePath=false prefix on one of these commands keeps it read-only. Never run git stash, add, commit, checkout, switch, reset, clean, rebase, merge or push there. Mutating git is allowed only inside a fresh fixture you create under /scratch.'
 const SCRATCH_ONLY = 'Run embedded commands only against scratch fixtures you create under /scratch, never against /repo.'
 const HOOK_SENTENCE = 'Remove a scratch fixture with its literal absolute path under /scratch.'
@@ -162,7 +161,7 @@ const V = 'toolkit:verifier'
 const I = 'toolkit:implementer'
 const AGENT_TYPES = { 'cold:read': 'toolkit:code-reviewer', 'diff:final': V, 'diff:post-doc': V, 'diff:red-team': V, 'doc:pass': I, 'fix:1': I, 'fix:validation': I, 'implement:1': I, 'implement:2': I, 'implement:3': I, 'plan:index': V, 'prep:baseline': V, 'recheck:1': V, 'remember:pass': I, 'verify:final': V, 'verify:revalidation': V, 'verify:validation': V }
 const PHASES = { 'cold:read': 'Cold read', 'diff:final': 'Cold read', 'diff:post-doc': 'Doc pass', 'diff:red-team': 'Red team', 'doc:pass': 'Doc pass', 'fix:1': 'Fix', 'fix:validation': 'Verify', 'implement:1': 'Implement', 'implement:2': 'Implement', 'implement:3': 'Implement', 'plan:index': 'Prep', 'prep:baseline': 'Prep', 'recheck:1': 'Fix', 'remember:pass': 'Remember', 'verify:final': 'Doc pass', 'verify:revalidation': 'Verify', 'verify:validation': 'Verify' }
-const RETURN_KEYS = ['baseline', 'steps', 'validation', 'review', 'coldResidual', 'coldUnverified', 'docPass', 'remember', 'changedPaths', 'planChanges', 'diffHashes', 'diffPaths', 'diffFiles', 'blocked', 'incomplete']
+const RETURN_KEYS = ['baseline', 'steps', 'validation', 'review', 'coldResidual', 'coldUnverified', 'docPass', 'remember', 'changedPaths', 'planChanges', 'diffHashes', 'diffPaths', 'diffFiles', 'diffParts', 'blocked', 'incomplete', 'blockedAt', 'blockedTree', 'fixRounds']
 const REVIEW_KEYS = ['panel', 'panelRule', 'dimensions', 'confirmed', 'nits', 'preExisting', 'fixed', 'open', 'keptForSteps', 'refuted', 'unverified', 'dropped', 'openQuestions', 'dead', 'verifierDead', 'rounds']
 const STEP_BACK = (n, rounds = 1) => `Fix rounds are exhausted at maxFixRounds ${rounds} with ${n} confirmed findings open, so step back and reconsider the approach rather than run another round.`
 const INCONSISTENT = `The plan index for ${PLAN_PATH} is inconsistent:`
@@ -181,8 +180,10 @@ async function run(overrides = {}, args = ARGS, fn = flow) {
   const prompts = {}
   const agents = {}
   const calls = []
+  const seq = []
   const agent = async (prompt, opts) => {
     prompts[opts.label] = prompt
+    seq.push([opts.label, prompt])
     agents[opts.label] = { agentType: opts.agentType, phase: opts.phase, schema: opts.schema, model: opts.model, effort: opts.effort }
     return script[opts.label] ?? null
   }
@@ -194,7 +195,7 @@ async function run(overrides = {}, args = ARGS, fn = flow) {
   }
   try {
     const result = await fn(flowArgs, agent, workflow, () => {}, () => {})
-    return { result, prompts, reads: Object.fromEntries(Object.entries(prompts).map(([k, p]) => [k, readOf(p, text)])), agents, calls }
+    return { result, prompts, reads: Object.fromEntries(Object.entries(prompts).map(([k, p]) => [k, readOf(p, text)])), agents, calls, seq }
   } catch (error) {
     return { error, prompts, agents, calls }
   }
@@ -214,6 +215,29 @@ const labelsWhere = (prompts, test) => Object.keys(prompts).filter((k) => test(p
 const key = (f) => `${f.file}: ${f.title}`
 // Runs with the given capture paths and no implementer paths, so the panel rule sees only these.
 const onPaths = (paths, args = ARGS) => run({ 'diff:red-team': diffOf('aaaaaaaaaaaa', false, paths), 'implement:1': stepOf([]), 'implement:2': stepOf([]), 'implement:3': stepOf([]) }, args)
+
+// A several-repos run: two sibling worktrees under the projects root and one module nested in the first.
+const BACKEND = '/projects/shop-backend/.claude/worktrees/widget-export'
+const PWA = '/projects/shop-pwa/.claude/worktrees/widget-export'
+const MODULE = `${BACKEND}/vendor/acme/module-x`
+const BACKEND_RULES = ['/projects/shop-backend/CLAUDE.md', '/projects/shop-backend/.claude/rules/10-php.md']
+const BACKEND_HOOKS = 'the verify command runs phpcs on every changed PHP file'
+const REPOS = [{ name: 'shop-backend', root: BACKEND, rules: BACKEND_RULES, hooks: BACKEND_HOOKS }, { name: 'shop-pwa', root: PWA }, { name: 'module-x', root: MODULE }]
+const MULTI_ARGS = { ...ARGS, repoRoot: '/projects', repos: REPOS }
+const PART_HASHES = ['111111111111', '222222222222', '333333333333']
+const partsOf = (repos) => repos.map((r, i) => ({ root: r.root, hash12: PART_HASHES[i], empty: false }))
+const multiDiffOf = (hash12, paths = ['shop-pwa/.claude/worktrees/widget-export/src/a.js'], repos = REPOS) => ({ ...diffOf(hash12, false, paths), parts: partsOf(repos) })
+const MULTI_RUN = { 'edit:check': { written: true, removed: true, refusal: '' }, 'diff:red-team': multiDiffOf('aaaaaaaaaaaa'), 'diff:final': multiDiffOf('aaaaaaaaaaaa'), 'diff:post-doc': multiDiffOf('cccccccccccc') }
+const MULTI_FULL = { ...FULL_RUN, ...MULTI_RUN, 'diff:final': multiDiffOf('bbbbbbbbbbbb') }
+const REPOS_HEAD = 'REPOS (every path in this run is relative to /projects, so /projects/<path> is the file):'
+const BACKEND_LINES = `- shop-backend: ${BACKEND}\n  Rules: ${BACKEND_RULES.join(', ')}\n  Hooks this session does not run: ${BACKEND_HOOKS}\n- shop-pwa: ${PWA}\n- module-x: ${MODULE}\n`
+const onMultiPaths = (paths) => run({ ...MULTI_RUN, 'diff:red-team': multiDiffOf('aaaaaaaaaaaa', paths), 'implement:1': stepOf([]), 'implement:2': stepOf([]), 'implement:3': stepOf([]) }, MULTI_ARGS)
+const BUDGET_SPENT = (step) => `Validation step failed with the plan's fix budget spent: ${step}.`
+const BLOCKED_BY_STEP_2 = { 'implement:2': stepOf(['src/b.js'], { blockers: ['The edit was denied.'] }) }
+const throwsOn = async (args, text) => {
+  const { error } = await run({}, args)
+  return String(error && error.message).includes(text)
+}
 
 const cases = [
   ['missing arg key throws', async () => {
@@ -467,13 +491,13 @@ const cases = [
     const { prompts } = await run(FULL_RUN)
     return same(labelsWhere(prompts, (p) => !p.includes(GIT_RULE)), ['plan:index', 'remember:pass'])
   }],
-  ['capture prompt guards the untracked filename with --', async () => {
+  ['capture prompt runs slice-capture.py on the scratch dir, HEAD and repoRoot', async () => {
     const { prompts } = await run()
-    return prompts['diff:red-team'].includes('git diff --no-index -- /dev/null "$f"')
+    return prompts['diff:red-team'].includes("python3 /plugin/scripts/slice-capture.py --scratch '/scratch' --base HEAD --root '/repo'\n")
   }],
-  ['capture prompt lists paths with core.quotePath=false so non-ASCII names stay unquoted', async () => {
+  ['a single-root capture prompt asks for no parts', async () => {
     const { prompts } = await run()
-    return prompts['diff:red-team'].includes('git -c core.quotePath=false diff HEAD --name-only, then git -c core.quotePath=false ls-files --others --exclude-standard')
+    return !prompts['diff:red-team'].includes('parts')
   }],
   ['remember prompt carries the plan Related Topics under RELATED TOPICS', async () => {
     const { reads } = await run()
@@ -1030,7 +1054,7 @@ const cases = [
   ['a seat run captures the diff from diffBase, not HEAD', async () => {
     const { prompts } = await run({}, SEAT_ARGS)
     const p = prompts['diff:red-team']
-    return same({ base: p.includes('git diff 0123abcd4567 >'), head: p.includes('git diff HEAD') }, { base: true, head: false })
+    return same({ base: p.includes('--base 0123abcd4567 '), head: p.includes('--base HEAD') }, { base: true, head: false })
   }],
   ['a seat run with an empty capture returns no review, no doc pass and no remember pass', async () => {
     const { result } = await run({ 'diff:red-team': diffOf('e3b0c44298fc', true, []) }, SEAT_ARGS)
@@ -1085,9 +1109,9 @@ const cases = [
     const { prompts } = await run({}, { ...SEAT_ARGS, e2e: 'skip' })
     return same({ included: prompts['verify:validation'].includes('the end-to-end STEPs included'), apart: prompts['verify:validation'].includes('apart from the end-to-end STEPs named above') }, { included: false, apart: true })
   }],
-  ['the default capture carries the own-worktree pathspec on both untracked listings', async () => {
-    const { prompts } = await run()
-    return prompts['diff:red-team'].split(OWN_WT_PATHSPEC).length - 1 === 2
+  ['a capture whose hash12 is not 12 hex characters reads as a dead capture', async () => {
+    const { result } = await run({ 'diff:final': diffOf('not-a-hash') })
+    return same({ blocked: result.blocked, final: result.diffHashes.final }, { blocked: ['The verifier diff:final returned nothing.'], final: null })
   }],
   ['a run without planPath throws', async () => {
     const { error } = await run({}, { ...ARGS, planPath: undefined })
@@ -1451,7 +1475,206 @@ const cases = [
   }],
   ['a replay runs on the recorded args with the launch scratchDir', async () => {
     const { prompts } = await run({}, ARGS, replayFlow(recordedOf(UP_TO_PANEL, {}, PLAN, { ...ARGS, planName: 'recorded-plan', scratchDir: '/old-scratch' })))
-    return same({ plan: prompts['doc:pass'].includes('Plan name: recorded-plan.'), scratch: prompts['diff:final'].includes('/scratch/slice.diff.tmp'), old: prompts['diff:final'].includes('/old-scratch') }, { plan: true, scratch: true, old: false })
+    return same({ plan: prompts['doc:pass'].includes('Plan name: recorded-plan.'), scratch: prompts['diff:final'].includes("--scratch '/scratch' "), old: prompts['diff:final'].includes('/old-scratch') }, { plan: true, scratch: true, old: false })
+  }],
+  ['several repos: edit:check runs before the baseline once per top-level root and never for a nested root', async () => {
+    const { seq } = await run(MULTI_RUN, MULTI_ARGS)
+    const labels = seq.map(([l]) => l)
+    const files = seq.filter(([l]) => l === 'edit:check').map(([, p]) => p.split('create ')[1].split(' holding')[0])
+    return same({ files, before: labels.lastIndexOf('edit:check') < labels.indexOf('prep:baseline') }, { files: [`${BACKEND}/toolkit-edit-check-widget-export.tmp`, `${PWA}/toolkit-edit-check-widget-export.tmp`], before: true })
+  }],
+  ['several repos: an edit check that wrote nothing blocks at edit:check and runs no baseline', async () => {
+    const { result, prompts } = await run({ ...MULTI_RUN, 'edit:check': { written: false, refusal: 'Write denied.' } }, MULTI_ARGS)
+    return same({ blocked: result.blocked, blockedAt: result.blockedAt, baseline: 'prep:baseline' in prompts },
+      { blocked: [`Claude Code refused a worker's edit in ${BACKEND} from a session started in the projects root: Write denied. A permissions.allow rule does not pre-approve a protected-path write, so the plan is built by hand until the harness allows it.`], blockedAt: 'edit:check', baseline: false })
+  }],
+  ['several repos: an edit check whose file stayed blocks at edit:check and runs no baseline', async () => {
+    const { result, prompts } = await run({ ...MULTI_RUN, 'edit:check': { written: true, removed: false, refusal: '' } }, MULTI_ARGS)
+    return same({ blocked: result.blocked, blockedAt: result.blockedAt, baseline: 'prep:baseline' in prompts },
+      { blocked: [`The edit check could not remove ${BACKEND}/toolkit-edit-check-widget-export.tmp, so remove it by hand before a rerun.`], blockedAt: 'edit:check', baseline: false })
+  }],
+  ['several repos: a dead edit check blocks at edit:check', async () => {
+    const { result } = await run({ ...MULTI_RUN, 'edit:check': null }, MULTI_ARGS)
+    return same({ blocked: result.blocked, blockedAt: result.blockedAt }, { blocked: ['The implementer edit:check returned nothing.'], blockedAt: 'edit:check' })
+  }],
+  ['a single-repo run runs no edit check and returns blockedAt null', async () => {
+    const { result, prompts } = await run()
+    return same({ check: 'edit:check' in prompts, blockedAt: result.blockedAt }, { check: false, blockedAt: null })
+  }],
+  ['several repos: every worker prompt carries the REPOS block, apart from the index, the edit checks and the captures', async () => {
+    const { prompts } = await run(MULTI_FULL, MULTI_ARGS)
+    return same(labelsWhere(prompts, (p) => !p.includes(REPOS_HEAD)), ['diff:final', 'diff:post-doc', 'diff:red-team', 'edit:check', 'plan:index'])
+  }],
+  ['a single-repo run carries no REPOS block', async () => {
+    const { prompts } = await run(FULL_RUN)
+    return labelsWhere(prompts, (p) => p.includes('REPOS (')).length === 0
+  }],
+  ['several repos: each Rules path and Hooks text sits under its repo, and an entry with neither gets no line', async () => {
+    const { prompts } = await run(MULTI_RUN, MULTI_ARGS)
+    return prompts['implement:1'].includes(`${REPOS_HEAD}\n${BACKEND_LINES}Before a worker edits`)
+  }],
+  ['several repos: the review-mr repoState carries the REPOS block and review-mr gets the common root', async () => {
+    const { calls } = await run(MULTI_RUN, MULTI_ARGS)
+    const st = calls[0].args.repoState
+    return same({ repos: st.includes(`${REPOS_HEAD}\n${BACKEND_LINES}`), rel: st.includes('A diff path is relative to /projects.'), root: calls[0].args.repoRoot }, { repos: true, rel: true, root: '/projects' })
+  }],
+  ['several repos: the cold read takes the REPOS repoState', async () => {
+    const { prompts } = await run(MULTI_RUN, MULTI_ARGS)
+    return prompts['cold:read'].includes('The trees under REPOS are the POST-change state this diff produces.')
+  }],
+  ['several repos: the review context names the Rules lines in place of the files under repoRoot', async () => {
+    const { calls } = await run(MULTI_RUN, MULTI_ARGS)
+    const c = calls[0].args.contextBlock
+    return same({ rules: c.includes('Apply the project rules in the files each Rules line under REPOS names'), single: c.includes('.claude/rules files under /projects') }, { rules: true, single: false })
+  }],
+  ['several repos: the git rule covers every repo under REPOS', async () => {
+    const { prompts } = await run(MULTI_RUN, MULTI_ARGS)
+    return prompts['implement:1'].includes('Mutating git is allowed only inside a fresh fixture you create under /scratch. This holds in every repo under REPOS, each its own git repo.')
+  }],
+  ['several repos: workers return paths relative to the common root', async () => {
+    const { prompts } = await run(MULTI_RUN, MULTI_ARGS)
+    return same({ step: prompts['implement:1'].includes('Return changedPaths as paths relative to /projects,'), doc: prompts['doc:pass'].includes('changedPaths as every path you changed, as paths relative to /projects,') }, { step: true, doc: true })
+  }],
+  ['several repos: the baseline runs in each root and folds the results', async () => {
+    const { prompts } = await run(MULTI_RUN, MULTI_ARGS)
+    const p = prompts['prep:baseline']
+    return same({ each: p.includes('In each root under REPOS, run git branch --show-current'), cmd: p.includes(`verify with command as the cd '<root>' && <command> parts you ran joined by " ; "`), branch: p.includes('branch as <name>=<branch> pairs') }, { each: true, cmd: true, branch: true })
+  }],
+  ['several repos in worktrees: the seat rule names each main checkout and the trees under REPOS', async () => {
+    const { prompts } = await run(MULTI_RUN, { ...MULTI_ARGS, inWorktree: true })
+    return prompts['verify:validation'].includes("This run sits in git worktrees, and the running local stack serves each repo's main checkout, not the trees under REPOS.")
+  }],
+  ['several repos: the capture prompt carries one --repo per root and asks for parts', async () => {
+    const { prompts } = await run(MULTI_RUN, MULTI_ARGS)
+    const p = prompts['diff:red-team']
+    return same({ repos: p.includes(`--root '/projects' --repo '${BACKEND}' --repo '${PWA}' --repo '${MODULE}'\n`), parts: p.includes('and parts as printed') }, { repos: true, parts: true })
+  }],
+  ['several repos: a capture with no parts reads as a dead capture', async () => {
+    const { result } = await run({ ...MULTI_RUN, 'diff:final': diffOf('aaaaaaaaaaaa', false, ['shop-pwa/.claude/worktrees/widget-export/src/a.js']) }, MULTI_ARGS)
+    return result.blocked.includes('The verifier diff:final returned nothing.')
+  }],
+  ['several repos: a capture with fewer parts than repos reads as a dead capture', async () => {
+    const { result } = await run({ ...MULTI_RUN, 'diff:final': multiDiffOf('aaaaaaaaaaaa', undefined, REPOS.slice(0, 2)) }, MULTI_ARGS)
+    return result.blocked.includes('The verifier diff:final returned nothing.')
+  }],
+  ['several repos: diffParts.postDoc names each repo with its part hash', async () => {
+    const { result } = await run(MULTI_RUN, MULTI_ARGS)
+    return same(result.diffParts.postDoc, [{ name: 'shop-backend', hash12: PART_HASHES[0], empty: false }, { name: 'shop-pwa', hash12: PART_HASHES[1], empty: false }, { name: 'module-x', hash12: PART_HASHES[2], empty: false }])
+  }],
+  ['a single-repo run returns diffParts entries of null', async () => {
+    const { result } = await run()
+    return same(result.diffParts, { redTeam: null, final: null, postDoc: null })
+  }],
+  ['several repos: docs under each root pick the docs-only panel after the root prefix strip', async () => {
+    const { calls } = await onMultiPaths(['shop-backend/.claude/worktrees/widget-export/docs/x.md', 'shop-pwa/.claude/worktrees/widget-export/README.md'])
+    return same(calls[0].args.registryReviewers, DOCS_ONLY)
+  }],
+  ["several repos: a path under one root's plugins/toolkit/workflows/ picks the full panel", async () => {
+    const { calls } = await onMultiPaths(['shop-pwa/.claude/worktrees/widget-export/plugins/toolkit/workflows/x.js'])
+    return same(calls[0].args.registryReviewers, FULL)
+  }],
+  ["several repos: one repo's High-risk paths bullet picks the full panel only for a path under that repo's root", async () => {
+    const rules = `REVIEW.md of shop-backend:\n${rulesOf('app/')}`
+    const run2 = (path) => run({ ...MULTI_RUN, 'diff:red-team': multiDiffOf('aaaaaaaaaaaa', [path]), 'implement:1': stepOf([]), 'implement:2': stepOf([]), 'implement:3': stepOf([]) }, { ...MULTI_ARGS, reviewRules: rules })
+    const own = (await run2('shop-backend/.claude/worktrees/widget-export/app/x.js')).calls[0].args.registryReviewers
+    const other = (await run2('shop-pwa/.claude/worktrees/widget-export/app/x.js')).calls[0].args.registryReviewers
+    return same({ own, other }, { own: FULL, other: STANDING })
+  }],
+  ['a second High-risk paths section in the review rules also counts', async () => {
+    const { calls } = await onPaths(['lib/y.js'], { ...ARGS, reviewRules: `${rulesOf('plugins/toolkit/skills/')}\n## High-risk paths\n- lib/` })
+    return same(calls[0].args.registryReviewers, FULL)
+  }],
+  ['several repos: the doc pass prompt keeps each repo doc under its own root', async () => {
+    const { prompts } = await run(MULTI_RUN, MULTI_ARGS)
+    return prompts['doc:pass'].includes("apply it to this slice across the roots under REPOS. A repo doc belongs to the repo it describes, so it lives under that repo's root")
+  }],
+  ['several repos: a doc pass path under no root blocks', async () => {
+    const { result, prompts } = await run({ ...MULTI_RUN, 'doc:pass': docPassOf({ docsUpdated: ['docs/x.md'], changedPaths: ['docs/x.md'] }) }, MULTI_ARGS)
+    return same({ blocked: result.blocked, remember: 'remember:pass' in prompts }, { blocked: ['The doc pass returned docs/x.md, which sits under no repo root.'], remember: false })
+  }],
+  ['several repos: the remember prompt routes a class (a) fact to its own repo root', async () => {
+    const { prompts } = await run(MULTI_RUN, MULTI_ARGS)
+    return prompts['remember:pass'].includes("In this run a class (a) fact is about one repo under REPOS and routes only to a docs/context/ doc under that repo's root, a fact about how two repos work together is class (b)")
+  }],
+  ['several repos: a remember proposal under no root blocks with remember.ran false', async () => {
+    const rem = { proposals: [{ path: 'docs/context/context-x.md', action: 'created', scratch: '/scratch/remember-x.md', factsFrom: [] }], topicsUpdated: [], rememberLine: 'Remember: repo docs docs/context/context-x.md', blockers: [] }
+    const { result } = await run({ ...MULTI_RUN, 'remember:pass': rem }, MULTI_ARGS)
+    return same({ blocked: result.blocked, ran: result.remember.ran }, { blocked: ['The remember pass proposed docs/context/context-x.md, which sits under no repo root.'], ran: false })
+  }],
+  ['a nested-only run accepts a doc path with no prefix under the root equal to repoRoot', async () => {
+    const nested = [{ name: 'shop', root: BACKEND }, { name: 'module-x', root: MODULE }]
+    const d = (h) => multiDiffOf(h, ['src/a.js'], nested)
+    const { result } = await run({ 'edit:check': { written: true, removed: true, refusal: '' }, 'diff:red-team': d('aaaaaaaaaaaa'), 'diff:final': d('aaaaaaaaaaaa'), 'diff:post-doc': d('cccccccccccc'), 'doc:pass': docPassOf({ docsUpdated: ['docs/x.md'], changedPaths: ['docs/x.md'] }) }, { ...ARGS, repoRoot: BACKEND, repos: nested })
+    return same({ blocked: result.blocked, ran: result.remember.ran }, { blocked: [], ran: true })
+  }],
+  ['repos with one entry throws', async () => throwsOn({ ...MULTI_ARGS, repos: REPOS.slice(0, 1) }, 'repos must list at least two')],
+  ['a repos root outside repoRoot throws', async () => throwsOn({ ...MULTI_ARGS, repos: [REPOS[0], { name: 'other', root: '/elsewhere/other' }] }, 'equal to repoRoot or under it')],
+  ['a duplicate repos name throws', async () => throwsOn({ ...MULTI_ARGS, repos: [REPOS[0], { name: 'shop-backend', root: PWA }] }, 'names and roots must be unique')],
+  ['a repos rules path with a line break throws', async () => throwsOn({ ...MULTI_ARGS, repos: [{ ...REPOS[0], rules: ['/projects/shop-backend/CLAUDE.md\nx'] }, REPOS[1]] }, 'entry rules must list')],
+  ['a repos hooks string over 300 characters throws', async () => throwsOn({ ...MULTI_ARGS, repos: [{ ...REPOS[0], hooks: 'x'.repeat(301) }, REPOS[1]] }, 'entry hooks must be one line')],
+  ['repos with seatRun throws', async () => throwsOn({ ...MULTI_ARGS, seatRun: true, baselineFailing: [], diffBase: '0123abcd4567' }, 'repos and seatRun cannot both be set')],
+  ['fixBudget as the string "1" throws', async () => throwsOn({ ...ARGS, fixBudget: '1' }, 'fixBudget must be a non-negative integer')],
+  ['fixBudget 0 with a failing step starts no fix:validation and blocks with the budget sentence', async () => {
+    const { result, prompts } = await run({ 'verify:validation': FAIL }, { ...ARGS, fixBudget: 0 })
+    return same({ fix: 'fix:validation' in prompts, blocked: result.blocked, fixRounds: result.fixRounds }, { fix: false, blocked: [BUDGET_SPENT('1. Run the unit tests')], fixRounds: 0 })
+  }],
+  ['fixBudget 0 with a confirmed finding starts no fix:1, pushes no step-back sentence and leaves the finding open', async () => {
+    const { result, prompts } = await run({ 'workflow:review-mr': reviewOf([F1]) }, { ...ARGS, fixBudget: 0 })
+    return same({ fix: 'fix:1' in prompts, blocked: result.blocked, line: result.planChanges.includes('Fix budget spent: 1 confirmed findings go to adjudication.'), open: result.review.open.map(key) },
+      { fix: false, blocked: [], line: true, open: [key(F1)] })
+  }],
+  ['fixBudget 1 with a failing step and a confirmed finding runs fix:validation and no fix:1', async () => {
+    const { result, prompts } = await run({ 'verify:validation': FAIL, 'workflow:review-mr': reviewOf([F1]) }, { ...ARGS, fixBudget: 1 })
+    return same({ validation: 'fix:validation' in prompts, panel: 'fix:1' in prompts, fixRounds: result.fixRounds }, { validation: true, panel: false, fixRounds: 1 })
+  }],
+  ['fixBudget 1 with a finding still open after recheck:1 starts no fix:2 and sends it to adjudication', async () => {
+    const { result, prompts } = await run({ 'workflow:review-mr': reviewOf([F1]), 'diff:final': diffOf('bbbbbbbbbbbb') }, { ...ARGS, fixBudget: 1, maxFixRounds: 3 })
+    return same({ second: 'fix:2' in prompts, fixRounds: result.fixRounds, line: result.planChanges.includes('Fix budget spent: 1 confirmed findings go to adjudication.') }, { second: false, fixRounds: 1, line: true })
+  }],
+  ['no fixBudget keeps the validation round and the panel round', async () => {
+    const { result, prompts } = await run(FULL_RUN)
+    return same({ validation: 'fix:validation' in prompts, panel: 'fix:1' in prompts, fixRounds: result.fixRounds }, { validation: true, panel: true, fixRounds: 2 })
+  }],
+  ['fixRounds counts a live round and not a replayed one, which costs no budget', async () => {
+    const recorded = { ...UP_TO_PANEL, 'verify:validation': [FAIL], 'fix:validation': [DEFAULTS['fix:validation']], 'verify:revalidation': [PASS] }
+    const { result, prompts } = await run({ 'workflow:review-mr': reviewOf([F1]), 'recheck:1': resolvedOf(F1) }, { ...ARGS, fixBudget: 1 }, replayFlow(recordedOf(recorded)))
+    return same({ validation: 'fix:validation' in prompts, panel: 'fix:1' in prompts, fixRounds: result.fixRounds }, { validation: false, panel: true, fixRounds: 1 })
+  }],
+  ['a launch fixBudget replaces the recorded one on a continuation', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([F1]), 'recheck:1': resolvedOf(F1) }, { ...ARGS, fixBudget: 1 }, replayFlow(recordedOf(UP_TO_PANEL, {}, PLAN, { ...ARGS, fixBudget: 0 })))
+    return 'fix:1' in prompts
+  }],
+  ['a continuation launched with no fixBudget keeps the recorded one', async () => {
+    const { prompts } = await run({ 'workflow:review-mr': reviewOf([F1]) }, ARGS, replayFlow(recordedOf(UP_TO_PANEL, {}, PLAN, { ...ARGS, fixBudget: 0 })))
+    return !('fix:1' in prompts)
+  }],
+  ['a seat run with fixBudget 0 and a failing deferred step starts no fix:validation', async () => {
+    const { result, prompts } = await run({ 'verify:validation': e2eValidationOf('fail') }, { ...SEAT_ARGS, fixBudget: 0 })
+    return same({ fix: 'fix:validation' in prompts, blocked: result.blocked }, { fix: false, blocked: [BUDGET_SPENT('2. [e2e] Load the widget page')] })
+  }],
+  ['blockedAt reads implement:2 for an implementer blocker', async () => (await run(BLOCKED_BY_STEP_2)).result.blockedAt === 'implement:2'],
+  ['blockedAt reads verify:revalidation for a step that fails after one fix', async () => (await run({ 'verify:validation': FAIL, 'verify:revalidation': FAIL })).result.blockedAt === 'verify:revalidation'],
+  ['blockedAt reads review for a lost reviewer', async () => (await run({ 'workflow:review-mr': reviewOf([], { dead: ['cold-read'] }) })).result.blockedAt === 'review'],
+  ['blockedAt reads remember:pass for a remember blocker', async () => (await run({ 'remember:pass': { ...DEFAULTS['remember:pass'], blockers: ['The vault-fs.sh mv was denied.'] } })).result.blockedAt === 'remember:pass'],
+  ['blockedAt reads the dead stage label for a dead stage', async () => (await run({ 'diff:final': null })).result.blockedAt === 'diff:final'],
+  ['blockedAt keeps the first halt, review, when a later stage halts too', async () => (await run({ 'workflow:review-mr': reviewOf([], { dead: ['cold-read'] }), 'diff:final': diffOf('bbbbbbbbbbbb') })).result.blockedAt === 'review'],
+  ['blockedAt is null on a clean run', async () => (await run()).result.blockedAt === null],
+  ['a blocked worktree run runs diff:blocked once and returns its hash as blockedTree', async () => {
+    const { result, seq } = await run({ ...BLOCKED_BY_STEP_2, 'diff:blocked': diffOf('dddddddddddd') }, { ...ARGS, inWorktree: true })
+    return same({ captures: seq.filter(([l]) => l === 'diff:blocked').length, tree: result.blockedTree, blockedAt: result.blockedAt }, { captures: 1, tree: 'dddddddddddd', blockedAt: 'implement:2' })
+  }],
+  ['a clean run runs no diff:blocked and returns blockedTree null', async () => {
+    const { result, prompts } = await run({ 'diff:blocked': diffOf('dddddddddddd') })
+    return same({ capture: 'diff:blocked' in prompts, tree: result.blockedTree }, { capture: false, tree: null })
+  }],
+  ['a blocked seat run runs no diff:blocked', async () => {
+    const { result, prompts } = await run({ 'verify:validation': FAIL, 'diff:red-team': diffOf('aaaaaaaaaaaa', false, ['src/a.js', 'test-results/x.png']), 'diff:blocked': diffOf('dddddddddddd') }, SEAT_ARGS)
+    return same({ capture: 'diff:blocked' in prompts, tree: result.blockedTree, blocked: result.blocked }, { capture: false, tree: null, blocked: [SEAT_STRAY] })
+  }],
+  ['a dead diff:blocked leaves blocked and incomplete as they were and blockedTree null', async () => {
+    const { result, prompts } = await run({ ...BLOCKED_BY_STEP_2, 'diff:blocked': null })
+    return same({ capture: 'diff:blocked' in prompts, tree: result.blockedTree, blocked: result.blocked, incomplete: result.incomplete },
+      { capture: true, tree: null, blocked: ['The implementer implement:2 reported blockers: The edit was denied.'], incomplete: [] })
   }],
 ]
 
