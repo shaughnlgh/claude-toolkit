@@ -312,6 +312,43 @@ sr_sec="$(sed -n '/^## 11\. Seat run$/,$p' "$P/skills/execute-flow/SKILL.md")"
 if [[ "$sr_sec" == *'seat-queue.sh wait'* ]] && [[ "$sr_sec" == *'seat-queue.sh leave'* ]] && [[ "$sr_sec" == *'seat-run-<planName>.return'* ]] && [[ "$sr_sec" == *'seated entry'* ]] && [[ "$sr_sec" == *'unqueued:'* ]] && [[ "$sr_sec" != *'TODO(seat-run): wait'* ]]; then ok "the seat run waits in the seat queue, names unqueued holders, holds a seated entry, and returns to the worktree it left"; else no "seat run queue wait, unqueued naming, seated entry, leave, or worktree return missing from execute-flow section 11"; fi
 if [[ "$sr_sec" == *'<parent flag>'* ]] && [[ "$sr_sec" == *'PARENT'* ]] && [[ "$sr_sec" == *'starts no watcher'* ]] && [[ "$sr_sec" == *'runs the seat run itself, or moves into a linked worktree'* ]] && grep -qF 'starts no watcher' "$P/doctrine/orchestration.md" && grep -qF 'starts no watcher' "$P/skills/plan-guide/SKILL.md"; then ok "the seat run starts no watcher and stops when its parent holds the main checkout, and doctrine and plan-guide say so"; else no "the parent stop is missing from execute-flow section 11, orchestration.md or plan-guide"; fi
 if grep -qF 'scripts/seat-queue.sh *)' "$P/commands/setup.md" && grep -qF 'scripts/seat-queue.sh <join|leave|list|wait>' "$P/commands/setup.md"; then ok "setup offers the prompt-free seat-queue rule and its usage line"; else no "setup lacks the seat-queue allow rule or its usage line"; fi
+su_rules="$(sed -n '/^## Rules$/,$p' "$P/commands/setup.md")"
+su_doc="$(sed -n '/^### `\/setup`$/,/^### `\/obsidian-topic`$/p' "$ROOT/docs/commands.md")"
+su_miss=""
+for t in 'AskUserQuestion' '(Recommended)' 'yes <name>' 'pending (human)' 'protect-files.sh'; do [[ "$su_rules" == *"$t"* ]] || su_miss="${su_miss} rules:'${t}'"; done
+for t in 'AskUserQuestion' 'yes <name>' 'pending (human)'; do [[ "$su_doc" == *"$t"* ]] || su_miss="${su_miss} docs:'${t}'"; done
+grep -qF 'yes <name>' "$P/doctrine/git-safety.md" || su_miss="${su_miss} git-safety:'yes <name>'"
+for t in 'Toolkit Scripts watch-mr line' 'replace Own PR Merge' 'replace Own MR Merge' 'rewrite repository environment entries'; do grep -qF "$t" "$P/commands/setup.md" && [[ "$su_doc" == *"$t"* ]] || su_miss="${su_miss} offer:'${t}'"; done
+[ -z "$su_miss" ] && ok "setup's Rules, its doc and git-safety state the yes <name> line, the Rules and doc the question form and the other-session rule, the Rules the file guard confirm, and setup and its doc name the new offers" || no "setup question wording missing:${su_miss}"
+su_old=""
+[[ "$su_rules" == *'Never ask through AskUserQuestion'* ]] && su_old="${su_old} rules:'Never ask through AskUserQuestion'"
+[[ "$su_doc" == *'answer never counts'* ]] && su_old="${su_old} docs:'answer never counts'"
+grep -qF 'Reply "yes ' "$P/commands/setup.md" && su_old="${su_old} setup:'Reply \"yes '"
+grep -qF 'a setup write that meets it goes through' "$P/doctrine/git-safety.md" && su_old="${su_old} git-safety:'a setup write that meets it goes through'"
+[ -z "$su_old" ] && ok "setup, its doc and git-safety carry none of the old typed-reply consent wording" || no "old setup consent wording still present:${su_old}"
+su_pr="$(grep -cE '^ +Own PR Merge: ' "$P/commands/setup.md")"
+su_mr="$(grep -cE '^ +Own MR Merge: ' "$P/commands/setup.md")"
+[ "$su_pr" = 1 ] && [ "$su_mr" = 1 ] && ok "setup.md holds each shipped merge entry once" || no "setup.md shipped merge entry count -> Own PR Merge: ${su_pr} Own MR Merge: ${su_mr}, wanted 1 each"
+cg_sec="$(sed -n '/^## 3\. Route/,/^## 4\. Hand off with the evidence$/p' "$P/skills/crawl/SKILL.md")"
+gr_fm="$(sed -n '2,/^---$/p' "$P/skills/grill/SKILL.md")"
+gr_done="$(sed -n '/^## Done signal/,/^## Boundary$/p' "$P/skills/grill/SKILL.md")"
+cg_miss=""
+for t in 'Grill check' 'skills/grill/SKILL.md' 'nothing in the evidence needs your answer'; do [[ "$cg_sec" == *"$t"* ]] || cg_miss="${cg_miss} '${t}'"; done
+[ -z "$cg_miss" ] && ok "crawl section 3 runs the grill check, loads the grill skill, and states the one line for nothing found" || no "crawl section 3 grill check missing:${cg_miss}"
+cg_bnd=""
+grep -qF 'recommend a grill and stop' "$P/skills/crawl/SKILL.md" && cg_bnd="${cg_bnd} still holds 'recommend a grill and stop'"
+sed -n '/^## Boundary/,$p' "$P/skills/crawl/SKILL.md" | grep -qF 'grill check' || cg_bnd="${cg_bnd} Boundary lacks 'grill check'"
+[ -z "$cg_bnd" ] && ok "crawl's Boundary names the grill check and no longer recommends a grill and stops" || no "crawl Boundary:${cg_bnd}"
+gr_miss=""
+[[ "$gr_fm" == *'grill check'* ]] || gr_miss="${gr_miss} frontmatter:'grill check'"
+[[ "$gr_done" == *'run options'* ]] || gr_miss="${gr_miss} Done signal:'run options'"
+[ -z "$gr_miss" ] && ok "grill's description takes the crawl's grill check as a trigger and its hand off returns to the crawl's run options" || no "grill crawl trigger or hand back missing:${gr_miss}"
+rt_miss=""
+grep -qF 'grill check' "$P/doctrine/workflow-routing.md" || rt_miss="${rt_miss} workflow-routing:'grill check'"
+grep -qF 'grill check' "$ROOT/docs/skills.md" || rt_miss="${rt_miss} docs/skills.md:'grill check'"
+grep -qF 'Five carve-outs' "$P/doctrine/workflow-routing.md" && rt_miss="${rt_miss} workflow-routing still says 'Five carve-outs'"
+grep -qF 'five narrow carve-outs' "$ROOT/docs/skills.md" && rt_miss="${rt_miss} docs/skills.md still says 'five narrow carve-outs'"
+[ -z "$rt_miss" ] && ok "workflow-routing and docs/skills.md name the grill check carve-out and count six carve-outs" || no "grill check carve-out:${rt_miss}"
 if grep -qF 'Default branch rule' "$P/skills/execute-flow/SKILL.md" && grep -qF '| free | 0 | from approved or start-work | a default branch | worktree |' "$P/skills/execute-flow/SKILL.md" && grep -qF 'default branch rule' "$ROOT/docs/context/context-worktree-seat.md"; then ok "execute-flow opens a worktree on a free, clean main checkout that sits on a default branch"; else no "default branch rule missing from execute-flow or context-worktree-seat.md"; fi
 # Claude Code truncates a skill's description plus when_to_use at 1,536 characters in the skill listing.
 dl="$(python3 - "$P/skills" <<'PY'
