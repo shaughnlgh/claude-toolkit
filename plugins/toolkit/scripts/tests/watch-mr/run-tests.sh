@@ -80,6 +80,9 @@ NOFILES="Copilot wasn't able to review any files in this pull request."
 # The live CodeRabbit summary comment carries this marker line while a review runs.
 BUSY='<!-- This is an auto-generated comment: review in progress by coderabbit.ai -->\n\nCurrently processing new changes in this PR.'
 DONE='<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n\nWalkthrough.'
+# CodeRabbit's rate-limit note opens with this marker and holds the refusal sentence in a warning block.
+LIMITED='@alice has exceeded the limit for the number of commits or files that can be reviewed per hour.'
+RATE="<!-- This is an auto-generated comment: rate limited by coderabbit.ai -->\\n\\n> [!WARNING]\\n> ## Rate limit exceeded\\n>\\n> $LIMITED Please wait 5 minutes before requesting another review."
 
 echo "== usage errors =="
 new; expect_err "missing --sha exits 2" 2 "missing --sha" "${GL[@]}" pipeline --interval 1
@@ -176,6 +179,16 @@ new; fx mr "$(glmr running)"; fx notes "[{\"system\":false,\"created_at\":\"2026
 expect "a listed login's DiffNote on an earlier commit is not landed" 12 "BOUND $SHA 0" "${GL[@]}" threads --sha "$SHA" --interval 1 --bound 2s --bot coderabbitai
 new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T10:30:00.000Z coderabbitai false "$BUSY")]"
 expect "gitlab threads skips a listed note that carries the in-progress marker" 12 "BOUND $SHA 0" "${GL[@]}" threads --sha "$SHA" --interval 1 --bound 2s --bot coderabbitai
+new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T10:30:00.000Z coderabbitai false "$RATE")]"
+expect "a rate-limit note from one of two listed bots does not land and is UNREVIEWED at the bound" 16 "UNREVIEWED $SHA coderabbitai $LIMITED" "${GL[@]}" threads --sha "$SHA" --interval 1 --bound 2s --bot coderabbitai --bot review-svc
+new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T10:30:00.000Z coderabbitai false "$RATE"),$(note false 2026-10-01T10:31:00.000Z review-svc false Overview.)]"
+expect "with two listed bots a rate-limit note and a review lands the review" 0 "LANDED $SHA review-svc" "${GL[@]}" threads --sha "$SHA" --interval 1 --bound 30s --bot coderabbitai --bot review-svc
+new; fx mr "$(glmr running)"; fx notes.1 "[$(note false 2026-10-01T10:30:00.000Z coderabbitai false "$RATE")]"; fx notes "[$(note false 2026-10-01T10:30:00.000Z coderabbitai false "$RATE"),$(note false 2026-10-01T10:31:00.000Z review-svc false Overview.)]"
+expect "a rate-limit note from one of two listed bots keeps waiting until the other bot's review lands" 0 "LANDED $SHA review-svc" "${GL[@]}" threads --sha "$SHA" --interval 1 --bound 30s --bot coderabbitai --bot review-svc
+new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T10:30:00.000Z coderabbitai false "$RATE")]"
+expect "a rate-limit note from every listed bot is UNREVIEWED in round one" 16 "UNREVIEWED $SHA coderabbitai $LIMITED" "${GL[@]}" threads --sha "$SHA" --interval 1 --bound 30s --bot coderabbitai
+new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T10:30:00.000Z coderabbitai false "Walkthrough. This MR treats a note that says $LIMITED as no review.")]"
+expect "a listed note that quotes the rate-limit sentence without the marker is LANDED" 0 "LANDED $SHA coderabbitai" "${GL[@]}" threads --sha "$SHA" --interval 1 --bound 30s --bot coderabbitai
 
 echo "== github threads =="
 new; fx head "{\"headRefOid\":\"$SHA\"}"; fx reviews "[{\"commit_id\":\"$SHA\",\"user\":$(ghuser 'coderabbitai[bot]' Bot)}]"
@@ -261,6 +274,10 @@ new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T10:30:00.000Z c
 expect "a listed note on the head while the marker is present stays busy until BOUND" 12 "BOUND $SHA 0" "${GL[@]}" review --sha "$SHA" --interval 1 --settle 1s --bound 3s --bot coderabbitai
 new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T10:30:00.000Z alice false "$BUSY")]"
 expect "under --bot the marker in an unlisted author's note is ignored" 15 "QUIET $SHA 0" "${GL[@]}" review --sha "$SHA" --interval 1 --settle 2s --bound 30s --bot coderabbitai
+new; fx mr "$(glmr running)"; fx notes "[$(note false 2026-10-01T10:30:00.000Z coderabbitai false "$RATE")]"
+expect "a gitlab rate-limit note alone is UNREVIEWED after the settle window" 16 "UNREVIEWED $SHA coderabbitai $LIMITED" "${GL[@]}" review --sha "$SHA" --interval 1 --settle 2s --bound 30s --bot coderabbitai
+new; fx mr "$(glmr running)"; fx notes.1 "[$(note false 2026-10-01T10:30:00.000Z coderabbitai false "$RATE")]"; fx notes "[$(note false 2026-10-01T10:30:00.000Z coderabbitai false "$RATE"),$(note false 2026-10-01T10:31:00.000Z coderabbitai false "$BUSY")]"
+expect "a gitlab rate-limit note read in a quiet round does not survive a later busy round to the bound" 12 "BOUND $SHA 0" "${GL[@]}" review --sha "$SHA" --interval 1 --settle 3s --bound 4s --bot coderabbitai
 
 echo "== secrets =="
 grep -qE 'fake-gl-token-123|fake-gh-token-456' "$W/all" "$W"/case.*/calls && no "a token value reached output or a CLI argument" || ok "no token value in any output or CLI argument"
