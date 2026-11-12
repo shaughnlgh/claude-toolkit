@@ -42,7 +42,7 @@ This step produces the raw material for the alignment session and the issue regi
 
 ## 2. Align before decomposing
 
-When a grill session already ran (an expedition's stage 3, or a standalone grill that stopped at alignment depth), its agreed outcome, success definition, and rough sequencing ARE this step — consume them, restate them in one block for a final confirm, and move on. Run the full checkpoint below only when no grill preceded this.
+When a grill session already ran (an expedition's stage 3, a standalone grill that stopped at alignment depth, a crawl's grill check, or a planning grill whose flow moved the work to wayfinder), its agreed outcome, success definition, and rough sequencing ARE this step. Consume them, restate them in one block for a final confirm, and move on. Run the full checkpoint below only when no grill preceded this.
 
 A lightweight agreement checkpoint with the user — a shared-understanding session, not grill's one-question-at-a-time depth. Present, in one block, confirm-or-correct style:
 
@@ -76,6 +76,8 @@ Add two sections to the body, placed after Current Context and before Implementa
 
 The Brief itself (what happened, what is being investigated, why it matters) goes into Objective and Current Context, `plan-guide`'s existing sections. Do not invent a new section for it.
 
+When a crawl, a planning flow or an expedition's work note, through its block under the line `Agreed in the grill check:`, handed over a grill's answers, glossary terms and decisions, write them once into the parent note's Current Context under the line `Agreed in the grill check:`. Write one line per answer, each term with its definition, and each decision with its kebab title, its rationale and the alternatives weighed. The block goes into no child stub.
+
 Implementation Steps on the parent describes the decomposition work itself (investigate, register, stub children, hand off), not the fix work. The fix work belongs to the children.
 
 ## 5. Emit child plan stubs
@@ -86,20 +88,22 @@ Children never inherit the parent's ticket. If a child has its own ticket, link 
 
 Emit all 13 required plan-guide headings (so each stub passes the validator gate), filling the body only as far as scope is known: Objective (what this task closes), Current Context (the issue codes it addresses, and a pointer back to the parent), and Assumptions if any are obvious from the investigation. Leave the remaining required sections (Plain Language Summary, Affected Files, Implementation Steps, Validation Steps, Risks, Rollback Notes, Open Questions, Plan Changes During Execution, Related Topics, Linked Artifacts) present but empty. That detail belongs to the child's own planning session, not to wayfinder.
 
+When the parent note holds the grill check block from step 4, the stub of the first child in the Task Roadmap carries this one line in its Current Context: `The parent note's Current Context holds the grill check block. This plan's Implementation Steps write that block's glossary terms and decisions as glossary and ADR files on this plan's branch, each decision record named by its kebab title and numbered when the file is written.` No stub carries a copy of the block.
+
 Update the parent's Task Roadmap row for each child once its stub exists (status becomes `stubbed`, slug filled in).
 
 ## 6. Hand off
 
-Once the parent and every child stub exist, stop and hand off. Tell the user each child now flows through `plan-guide` on its own: its own topic recall, its own `planner` delegation if needed, its own `plan-critic` pass, its own approval, its own execution. Wayfinder does not pick which child gets planned first, that is the user's or conductor's call.
+Once the parent and every child stub exist, stop and hand off. Tell the user each child now flows through `plan-guide` on its own: its own topic recall, its own planning grill, its own `planner` delegation if needed, its own `plan-critic` pass, its own approval, its own execution. Wayfinder does not pick which child gets planned first, that is the user's or conductor's call.
 
-Recommend, per child, starting its session with a scoped deep grill (`/grill`, scoped to that child's issue codes) when the child's requirements are not already pinned — that is the down-in-the-dirt counterpart to step 2's lightweight alignment. Grill stays explicitly user-invoked; wayfinder recommends it in the handoff, it never fires it.
+Each child's own planning flow runs the planning grill at its start, scoped to that child's issue codes, and treats the umbrella's agreed outcome, the grill check block it reads from the parent note and every earlier grill's answers as settled. Wayfinder fires no grill for a child. A child's planning grill takes only the user's own answer, given in that child's session or relayed by the parent. A parent session that receives a child's planning grill question shows it to the user, passes the user's answer back word for word in a message that opens with the line `User's own answer:`, and never answers it itself, as grill's Loaded grills paragraph defines.
 
 Name the parent and every child stub exactly, for example:
 
 ```
-Handoff, one session per child (grill first where requirements are fuzzy, then plan-guide):
+Handoff, one session per child (each child's planning grills it, then drafts):
 - Parent: plan - checkout-outage.md
-- plan - checkout-outage-t1-payment-gateway.md (closes ISS-01, ISS-02) — grill recommended
+- plan - checkout-outage-t1-payment-gateway.md (closes ISS-01, ISS-02)
 - plan - checkout-outage-t2-inventory-lock.md (closes ISS-03)
 ```
 
