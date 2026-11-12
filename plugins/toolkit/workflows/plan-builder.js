@@ -1,8 +1,8 @@
 export const meta = {
   name: 'plan-builder',
-  description: 'Plan flow: discovery, planner draft, plan-critic pre-mortem with a revise loop, cold red team, optional goal judge. Returns plan sections for the plan-flow skill to write. Writes no files, runs no git.',
+  description: 'Plan flow: discovery, planner draft, plan-critic pre-mortem with a revise loop, cold red team, optional goal judge. Returns plan sections for the plan-flow skill to write. Writes no files, runs no git. With discoveryOnly it returns after discovery, and with skipDiscovery it runs no discovery.',
   phases: [
-    { title: 'Discover', detail: 'explorer scopes 2 to 5 areas, one explorer per area' },
+    { title: 'Discover', detail: 'explorer scopes 2 to 5 areas, one explorer per area, skipped under skipDiscovery' },
     { title: 'Draft', detail: 'planner returns every plan section' },
     { title: 'Invert', detail: 'plan-critic pre-mortem, planner revises on a revise verdict' },
     { title: 'Red team', detail: 'cold plan-critic sees the plan alone' },
@@ -16,7 +16,7 @@ if (typeof a === 'string') {
 }
 const REQUIRED = ['brief', 'repoRoot', 'repoName', 'planName', 'recallHits']
 if (!a || REQUIRED.some((k) => typeof a[k] !== 'string' || !a[k])) {
-  throw new Error('plan-builder requires args: {brief, repoRoot, repoName, planName, recallHits, knownEvidence?, approveIf?, maxRounds?, models?}')
+  throw new Error('plan-builder requires args: {brief, repoRoot, repoName, planName, recallHits, knownEvidence?, approveIf?, maxRounds?, models?, discoveryOnly?, skipDiscovery?, grill?}')
 }
 if (a.maxRounds != null && !(Number.isInteger(a.maxRounds) && a.maxRounds >= 0)) {
   throw new Error(`plan-builder maxRounds must be a non-negative integer, got ${JSON.stringify(a.maxRounds)}`)
@@ -31,6 +31,16 @@ const modelOpts = (who) => {
   return { ...(m.model ? { model: m.model } : {}), ...(m.effort ? { effort: m.effort } : {}) }
 }
 const MAX_ROUNDS = a.maxRounds ?? 2
+for (const k of ['discoveryOnly', 'skipDiscovery']) {
+  if (a[k] != null && typeof a[k] !== 'boolean') throw new Error(`plan-builder ${k} must be a boolean when given, got ${JSON.stringify(a[k])}`)
+}
+if (a.discoveryOnly && a.skipDiscovery) throw new Error('plan-builder takes discoveryOnly or skipDiscovery, never both')
+if (a.skipDiscovery && !(typeof a.knownEvidence === 'string' && a.knownEvidence.trim())) {
+  throw new Error('plan-builder skipDiscovery requires knownEvidence, because the planner then has no other evidence')
+}
+if (a.grill != null && !(typeof a.grill === 'string' && a.grill.trim())) {
+  throw new Error(`plan-builder grill must be a non-blank string when given, got ${JSON.stringify(a.grill)}`)
+}
 const incomplete = []
 
 const SECTIONS = [
@@ -76,32 +86,46 @@ TOPIC RECALL HITS:
 ${a.recallHits}
 KNOWN EVIDENCE:
 ${a.knownEvidence || 'none'}`
+// The Discover prompts never carry the grill answers, so a draft launch that resumes a discoveryOnly launch gets its explorers back from the resume cache.
+const PLAN_CONTEXT = a.grill ? `${CONTEXT}
+GRILL ANSWERS:
+${a.grill}` : CONTEXT
 
 const RULES = `Return every plan section as its body text without the heading line. Plain Language Summary starts with the exact sentence "This section is for non-technical readers. The technical detail below it can be skipped." Implementation Steps show the code: key functions, a directory tree for new files, schemas, and the exact commands or config keys. Every Implementation Step in a plan the execute flow runs is work an implementer finishes inside the plan's worktree, such as code, config, tests, docs or a migration file. A wayfinder parent plan is never executed, so its decomposition steps fall outside this rule. A deploy, a production change, or any other action a person takes after the merge goes in Rollback Notes under a line that reads "After merge, for you:". That line holds only what no flow does under the note's ceiling, so it never repeats the merge tag the ship flow pushes under tag_merge: true. Record the reuse ladder result in Current Context. Feasibility gate: every signal, integration, or data source names a real-data check and its result in Current Context, with "external dependency: none" or the named dependency. Open Questions and Assumptions read "None" or name an external unknown with its owner. Each Validation Step asserts the behavior it proves, never a literal that a fix round or the doc pass can change while the behavior holds: a suite step asserts 0 failed and a pass count at or above a floor, never an exact count, and a step that checks prose greps for an identifier, or for the absence of the stale text, across every file where the fact may live, never for one sentence's wording in one file. A Validation Step that needs a fixture plan note builds it in a scratch vault under a temporary HOME. Only a manual check that needs a live Claude Code session writes to the vault that ~/.claude/obsidian-sync.json names: its notes sit under Projects/<repo>-scratch/, each fixture note it writes carries status: completed, and the plan's last Validation Step removes every file and emptied folder there. An [e2e] step whose screenshots serve user acceptance carries [shots] directly after [e2e]. A [shots] step names its own output directory under an ignored path and a command that captures on pass, and it runs against anonymised or fixture data unless the plan's Risks name the customer data its screenshots can show. Spec, not journal. No em dashes, no semicolons splitting prose, no hard-wrapped lines. branch is <type>/<slug>, unless the brief names the branch shape, which wins. The plan section relatedTopics is one [[wiki link]] per line, one line per topic. The top-level relatedTopics list holds the same topics as plain names without brackets.`
 
-phase('Discover')
-const scope = await agent(`${CONTEXT}
+let areaNames = []
+let uncovered = []
+let evidence = []
+if (!a.skipDiscovery) {
+  phase('Discover')
+  const scope = await agent(`${CONTEXT}
 
 Split this brief into 2 to 5 investigation areas a planner needs answered. Each area has a name, one question the repo can answer, and the paths to start from. Skip what the recall hits and known evidence settle. Return raw structured data only.`,
-  { label: 'discover:scope', phase: 'Discover', schema: AREAS_SCHEMA, agentType: 'toolkit:explorer', ...modelOpts('explorer') })
-if (!scope) incomplete.push('discover:scope')
-const areas = scope ? scope.areas : [{ name: 'whole-brief', question: 'What in the repo does this brief touch?', paths: [a.repoRoot] }]
+    { label: 'discover:scope', phase: 'Discover', schema: AREAS_SCHEMA, agentType: 'toolkit:explorer', ...modelOpts('explorer') })
+  if (!scope) incomplete.push('discover:scope')
+  const areas = scope ? scope.areas : [{ name: 'whole-brief', question: 'What in the repo does this brief touch?', paths: [a.repoRoot] }]
 
-// Labels key the resume cache, so a repeated area name gets its index.
-const areaLabel = (area, i) => (areas.filter((x) => x.name === area.name).length > 1 ? `discover:${area.name}:${i}` : `discover:${area.name}`)
-const findings = await pipeline(areas.map((area, i) => ({ ...area, label: areaLabel(area, i) })), (area) => agent(`${CONTEXT}
+  // Labels key the resume cache, so a repeated area name gets its index.
+  const areaLabel = (area, i) => (areas.filter((x) => x.name === area.name).length > 1 ? `discover:${area.name}:${i}` : `discover:${area.name}`)
+  const findings = await pipeline(areas.map((area, i) => ({ ...area, label: areaLabel(area, i) })), (area) => agent(`${CONTEXT}
 
 AREA: ${area.name}
 QUESTION: ${area.question}
 START AT: ${area.paths.join(', ')}
 
 Answer the question from the repo. Every fact carries the file:line you read. Walk the reuse ladder: does it need to exist, does the codebase, the standard library, the framework, or an installed dependency already do it, can it be a few lines in the right place. List the gaps you could not close and the risks the brief omits. Return raw structured data only.`,
-  { label: area.label, phase: 'Discover', schema: FINDINGS_SCHEMA, agentType: 'toolkit:explorer', ...modelOpts('explorer') }))
-const uncovered = areas.filter((area, i) => !findings[i]).map((area) => area.name)
-const evidence = areas.map((area, i) => ({ area: area.name, ...findings[i] })).filter((f) => f.facts)
+    { label: area.label, phase: 'Discover', schema: FINDINGS_SCHEMA, agentType: 'toolkit:explorer', ...modelOpts('explorer') }))
+  areaNames = areas.map((x) => x.name)
+  uncovered = areas.filter((area, i) => !findings[i]).map((area) => area.name)
+  evidence = areas.map((area, i) => ({ area: area.name, ...findings[i] })).filter((f) => f.facts)
+}
+if (a.discoveryOnly) {
+  log(`incomplete: ${incomplete.join(', ') || 'none'}`)
+  return { discovery: { areas: areaNames, uncovered, evidence }, incomplete }
+}
 
 phase('Draft')
-let draft = await agent(`${CONTEXT}
+let draft = await agent(`${PLAN_CONTEXT}
 
 EXPLORER FINDINGS:
 ${JSON.stringify(evidence)}
@@ -111,7 +135,7 @@ Draft the plan from the evidence above. Read the repo at ${a.repoRoot} only to c
   { label: 'draft', phase: 'Draft', schema: PLAN_SCHEMA, agentType: 'toolkit:planner', ...modelOpts('planner') })
 if (!draft) throw new Error('plan-builder: planner returned no draft')
 
-const critique = (plan, label, cold) => agent(`${cold ? 'You are a senior engineer on another team seeing only this plan.' : CONTEXT}
+const critique = (plan, label, cold) => agent(`${cold ? 'You are a senior engineer on another team seeing only this plan.' : PLAN_CONTEXT}
 
 PLAN:
 ${plan}
@@ -119,7 +143,7 @@ ${plan}
 Run the pre-mortem your agent instructions define over this plan, with the repo at ${a.repoRoot} as ground truth. An objection is material only when ignoring it causes rework, a wrong outcome, or a missed risk. verdict is proceed when no objection is material, revise when every material objection has a fix inside this plan, stop when a fatal flaw has none. tripwires: one measurable signal per failure mode with its threshold and when to check. walkAway: one pre-launch check per line with the result that means walk away. Return raw structured data only.`,
   { label, phase: cold ? 'Red team' : 'Invert', schema: CRITIQUE_SCHEMA, agentType: 'toolkit:plan-critic', ...modelOpts('plan-critic') })
 
-const revise = (prev, objections, label, phaseName) => agent(`${CONTEXT}
+const revise = (prev, objections, label, phaseName) => agent(`${PLAN_CONTEXT}
 
 CURRENT PLAN (JSON):
 ${JSON.stringify(prev)}
@@ -201,7 +225,7 @@ if (critiqueStale) blocked.push('The returned plan differs from the draft the la
 phase('Judge')
 let judged = null
 if (a.approveIf) {
-  judged = await agent(`${CONTEXT}
+  judged = await agent(`${PLAN_CONTEXT}
 
 GOAL: ${a.approveIf}
 FINAL CRITIQUE VERDICT: ${finalVerdict}
@@ -224,7 +248,7 @@ return {
   plan: draft.plan,
   branch: draft.branch,
   relatedTopics: draft.relatedTopics,
-  discovery: { areas: areas.map((x) => x.name), uncovered },
+  discovery: { areas: areaNames, uncovered },
   rounds,
   tripwires: last ? last.tripwires : [],
   walkAway: last ? last.walkAway : [],

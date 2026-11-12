@@ -8,9 +8,10 @@ description: >-
   and Validation Steps. Its Brief section or brief file is the brief, or else its Objective, Current
   Context, and ticket. Never fires from crawl on its own: a typed yes or `run the plan flow` to crawl's offer is the ask by name. Reads the run options from the plan note or the session cache and asks only for the keys neither has,
   runs topic recall, runs a route check that
-  recommends wayfinder on a multi-part brief, launches the plan-builder
-  workflow (discovery, planner draft, plan-critic pre-mortem with a revise loop, cold
-  red team, optional goal judge), writes and validates the plan note in the vault, and
+  recommends wayfinder on a multi-part brief, launches the plan-builder workflow for
+  discovery, runs the planning grill on that evidence, one question at a time, resumes the
+  workflow for the planner draft, plan-critic pre-mortem with a revise loop, cold red team
+  and optional goal judge, writes and validates the plan note in the vault, and
   gates its status on the result. Once the plan is approved, it asks in plain text whether
   to run the execute flow here, open a child session, or stop. Never writes repo files and never runs git. Do NOT
   fire on a plan note whose Implementation Steps are filled (plan-guide owns that) or on
@@ -19,7 +20,7 @@ description: >-
 
 # Plan Flow
 
-Plan-flow is the conductor side of the `plan-builder` workflow, shipped with this plugin at `<plugin-root>/workflows/plan-builder.js`. The script runs discovery, the planner draft, the plan-critic pre-mortem with its revise loop, the cold red team, and the optional goal judge, then returns the plan sections. The conductor reads the run options, runs recall, launches the script, writes and validates the plan note, and gates its status. The script writes no files and runs no git. The conductor writes only the vault note.
+Plan-flow is the conductor side of the `plan-builder` workflow, shipped with this plugin at `<plugin-root>/workflows/plan-builder.js`. The script runs discovery, the planner draft, the plan-critic pre-mortem with its revise loop, the cold red team, and the optional goal judge, then returns the plan sections. The conductor reads the run options, runs recall, launches the script twice, writes and validates the plan note, and gates its status. The first launch runs discovery only. The planning grill then runs in this conversation on the discovery evidence. The second launch resumes the first and runs the draft and the critique with the grill's answers. The script writes no files and runs no git. The conductor writes only the vault note.
 
 ## 1. Trigger
 
@@ -45,7 +46,7 @@ On `2` or `3`, stop and report the exit code and stderr to the user. Never pass 
 
 When this run started from the plan flow offer that ends `crawl` section 4, keep the plan-guide route the user confirmed in crawl, state it in one sentence, and continue to section 4 with no question, because crawl chose that route on explorer evidence that the recall hits do not match.
 
-Apply the route rubric from section 3 of the `crawl` skill (`<plugin-root>/skills/crawl/SKILL.md`) to the evidence available at this point, which is the recall hits. Run no explorer fan-out, because the plan-builder's discovery phase does the deep reading later. A brief that reads as several independent workstreams yields a wayfinder recommendation that the user confirms, never a settled route, because wayfinder investigates before it decomposes. Several workstreams means several subsystems or repos, an issue list rather than one issue, or work that cannot be one branch and one plan. Otherwise the route is this flow.
+Apply the route rubric from section 3 of the `crawl` skill (`<plugin-root>/skills/crawl/SKILL.md`) to the evidence available at this point, which is the recall hits. Run no explorer fan-out, because the plan-builder's discovery launch does the deep reading later. A brief that reads as several independent workstreams yields a wayfinder recommendation that the user confirms, never a settled route, because wayfinder investigates before it decomposes. Several workstreams means several subsystems or repos, an issue list rather than one issue, or work that cannot be one branch and one plan. Otherwise the route is this flow.
 
 When the recommendation is wayfinder, ask once through AskUserQuestion: "This brief reads as <N> independent workstreams: <one clause each>. Map it with wayfinder, or plan it as one flow?" with the options in this order:
 
@@ -58,6 +59,8 @@ When there is no wayfinder recommendation, state the route to the user in one se
 
 ## 4. Launch
 
+### Args
+
 Settle the ticket first, per the Ticket subsection of `plan-guide` § Run options. When the brief names no ticket key, issue number, or ticket URL, no expedition work note of the same work records a `ticket`, and either no note exists yet or the note's `ticket` is blank, ask the ticket question in its own AskUserQuestion call. Section 3a has kept the work in this flow by now, so the answer always serves a branch. When the answer is Create a ticket, run the create procedure in that subsection before deriving `planName`. On a pre-scaffolded note, write the answer to its `ticket` key at once with the atomic write, so a rerun neither asks again nor creates a second ticket. On a fresh brief, keep it with section 2's answers for section 5. Derive `planName` per `plan-guide` naming and build the args: `brief`, `repoRoot` as an absolute path, `repoName`, `planName`, `recallHits`, and the optional `knownEvidence` (facts this session already verified, each with its file:line, and the crawl sections the next paragraph names), `approveIf` (one goal sentence the plan must meet, only when the user gave one), and `maxRounds` (revise rounds, default 2), and `models` (the `agents` object the resolver run in the next paragraph prints, left out when the resolver is missing or fails).
 
 Whenever the brief comes from the `brief - <plan>.md` file, on a run started from the plan flow offer that ends `crawl` section 4 or on any by-name run, `knownEvidence` also carries the note's Current Context, Assumptions and Open Questions, which crawl wrote into the note, each under its own heading, after this line: `Crawl checked the brief against the repo. Where these sections correct the brief, the correction holds.` The brief stays the brief file's verbatim text, so the crawl's corrections and open questions reach plan-builder only through `knownEvidence`.
@@ -68,7 +71,41 @@ When the section 2 options carry `e2e: required`, append this line to `brief`: `
 
 Run `scripts/resolve-models.sh` as `plan-guide` § Run options defines, from the `worker_model`, `verifier_model` and `verifier_effort` values this flow read or asked there, and pass the printed `agents` object as `models`. On a fresh brief the values are the answers section 2 keeps in conversation, because section 5 writes the note keys and the cache only after the launch.
 
-When `repoRoot` contains `plugins/toolkit/workflows/plan-builder.js`, launch `{scriptPath: "<repoRoot>/plugins/toolkit/workflows/plan-builder.js"}`, otherwise `{name: "toolkit:plan-builder"}` with the `scriptPath` fallback `red-team` uses. That fallback is `{scriptPath: "<plugin-root>/workflows/plan-builder.js"}`, used if name resolution fails. The script is named `plan-builder` because a workflow and a skill cannot share a name in the plugin registry. Persist the `runId` and script path to `<scratchpad>/plan-flow-<planName>.runid` at once, before reading the result. A dead run resumes with `resumeFromRunId`. Completed agents return cached, so never relaunch a fresh run when a resume is possible.
+When the note carries a `parent` value, read the parent note, which is `plan - <parent>.md` beside this note. When its Current Context holds a block under the line `Agreed in the grill check:`, add that block, from that line to its last line, to `knownEvidence` after this line: `The parent plan's grill check settled these points before the work was split. They are settled.` When an expedition's work note, `work - <name>.md`, sits beside this note and holds a block under that line, add that block to `knownEvidence` the same way, after this line: `The expedition's stage 3 grill settled these points. They are settled.`
+
+Write the args as one JSON object to `<scratchpad>/plan-flow-<planName>.args.json` before any launch, and read each launch's args from that file, so `brief`, `recallHits`, `knownEvidence` and `models` are the same text in both launches. The parent note is read before the args file is written, so its block is part of that one text.
+
+### Discovery launch
+
+When this run started from the plan flow offer that ends `crawl` section 4 and the crawl's evidence with its file:line refs is still in this conversation, the crawl's evidence is the discovery: say so in one line and launch nothing here. When the note already counts as grilled per `plan-guide` § Planning grill, launch nothing here either, because the draft launch runs discovery itself. In every other case, launch the script with the args file's args plus `discoveryOnly: true`.
+
+When `repoRoot` contains `plugins/toolkit/workflows/plan-builder.js`, launch `{scriptPath: "<repoRoot>/plugins/toolkit/workflows/plan-builder.js"}`, otherwise `{name: "toolkit:plan-builder"}` with the `scriptPath` fallback `red-team` uses. That fallback is `{scriptPath: "<plugin-root>/workflows/plan-builder.js"}`, used if name resolution fails. The script is named `plan-builder` because a workflow and a skill cannot share a name in the plugin registry. Persist the `runId` and script path to `<scratchpad>/plan-flow-<planName>.runid` at once, before reading the result.
+
+The result is `{discovery, incomplete}`, and `discovery` holds `areas`, `uncovered` and `evidence`. A dead discovery launch resumes with `resumeFromRunId`. When `uncovered` or `incomplete` is not empty, tell the user in one line before the grill, and add that the draft launch runs each dead explorer again. When the result carries a `plan` key, the script at that path predates the args: stop and report it.
+
+### Planning grill
+
+Run the planning grill per `plan-guide` § Planning grill (`<plugin-root>/skills/plan-guide/SKILL.md`). When the note counts as grilled there, say so in one line, use its block, and go to the draft launch. Otherwise load `grill` (`<plugin-root>/skills/grill/SKILL.md`) and run its loaded grill inline in this session on the brief, the note's sections, the recall hits, and the discovery evidence, which is `discovery.evidence` from the discovery launch or the crawl's evidence. On a wayfinder child stub, a note with a `parent` value, grill's Phase-scoped rule scopes it to the child's issue codes, and the parent note's block that `### Args` read is settled, so the grill asks none of its points again.
+
+A question takes only the user's own answer, which is a pick from the question form or a typed reply in this session, or that answer relayed by the parent session that the user's own ask in this session named, in a message that opens with the line `User's own answer:`, as grill's Loaded grills paragraph defines.
+
+When the grill hands back, and before any write to the note, re-apply the route rubric as the route re-check in `plan-guide` § Planning grill defines, on every run including one started from the crawl's plan flow offer. When the re-check asks section 3a's question and the answer is Wayfinder, follow section 3a's Wayfinder hand off, add the discovery evidence and the grill's hand back to what wayfinder receives, pass a ticket this section already settled as the parent's `ticket`, write no block into the note, and stop this flow.
+
+Otherwise build the block under the line `Agreed in the grill:` as `plan-guide` § Planning grill defines. On a pre-scaffolded note, write the block into Current Context at once by `plan-guide`'s changed-lines path and run `validate-plan.py`. On a fresh brief, keep the block for section 5.
+
+### Draft launch
+
+Read `<scratchpad>/plan-flow-<planName>.args.json`, add `grill`, write the file back, and launch by the discovery launch's path rule with the file's args. `grill` is the block from the line `Agreed in the grill:` to its last line, followed by these three lines:
+
+- `Where a grill answer changes the brief or the known evidence above, the answer holds.`
+- `The plan's Current Context repeats this block under the same line, and its Implementation Steps write the block's glossary terms and decisions as glossary and ADR files on the plan branch, at the locations doctrine/repo-artifacts.md defines.`
+- `Name each new decision record by its kebab title with NNNN in place of its number. The step that writes the file takes the number as max-plus-one over docs/decisions/ on the plan branch, and one Validation Step finds the file by its title and fails on a number two files share or on a number not above the highest number on the default branch.`
+
+When the `.runid` file names this plan's discovery launch, pass `resumeFromRunId` with that runId. The Discover agents then return from the resume cache, because their prompts and options are what they were in the discovery launch, and only the draft and critique stages run. Never rebuild `knownEvidence` from the note between the two launches, because the note's Current Context now holds the block and a changed `knownEvidence` runs every explorer again.
+
+When the Discovery launch step above took the crawl's evidence as the discovery and launched nothing, pass `skipDiscovery: true` and no `resumeFromRunId`, and `knownEvidence` carries the crawl's facts, which the script requires to be non-blank. When no `.runid` file exists for another reason, which is a new session or a note that already counted as grilled, build the args fresh, launch with no `resumeFromRunId` and no `skipDiscovery`, and say in one line that discovery runs in this launch.
+
+Persist the `runId` and script path to `<scratchpad>/plan-flow-<planName>.runid` at once, before reading the result. A dead draft launch resumes with `resumeFromRunId` and the args file unchanged, because a resumed run returns cached agents by prompt. When the discovery launch's `incomplete` was empty and this result's `discovery.areas` differs from the discovery launch's, tell the user in one line that discovery ran again.
 
 The result is `{plan, branch, relatedTopics, discovery, rounds, tripwires, walkAway, coldObjections, coldVerdict, finalVerdict, openObjections, critiqueStale, blocked, approveIf, incomplete}`:
 
@@ -101,6 +138,8 @@ Map each section to its heading:
 | `openQuestions` | Open Questions |
 | `relatedTopics` | Related Topics |
 
+Check that the written Current Context holds the grill block under the line `Agreed in the grill:`. When the planner's text lacks it, append the block and tell the user.
+
 Add Plan Changes During Execution and Linked Artifacts, both empty at creation as `plan-guide` requires. Write the full frontmatter per `plan-guide`, with `status: planning` until the gate. Write the run option keys from section 2 into the frontmatter, each with its value, and a toolkit-default model or effort answer as a bare key. Write the ticket the brief names, else the expedition work note's `ticket` inside an expedition, else section 4's ticket answer, to `ticket`. On a fresh brief, once the note is in place, write `<scratchpad>/flow-run-options` for `planName` with the same keys, per `plan-guide` § Run options. Before writing the frontmatter, check `branch` against the git-safety branch shape: `<type>/<TICKET>-<slug>` or `<type>/<slug>`, lowercase kebab-case apart from the ticket key. If `branch` does not match, write `feat/<planName>` and tell the user. Then, when `ticket` holds a key or `issue-<n>` and the part of `branch` after the type prefix does not start with `<ticket>-` in any letter case, insert `<ticket>-` after the type prefix and tell the user, so `feat/example-change` with `issue-48` becomes `feat/issue-48-example-change`. When it starts with the ticket in another letter case, write the ticket as `ticket` records it. When `ticket` is `none` and the project's rules name a no-ticket token, the same insertion applies with that token. When the scaffold set `branch` and that branch already exists, locally per `git branch --list '<branch>'` or on origin per `git ls-remote --heads origin 'refs/heads/<branch>'`, skip the insertion and leave `branch` as it is. Check that each `relatedTopics` entry is a plain name with no brackets and no slashes. If an entry carries brackets or a slash, write it without the brackets and with only its last path segment, and tell the user. Write `branch` to `branch` and `relatedTopics` to `related_topics` as plain strings.
 
 Append the tripwires to Validation Steps and the walk-away checks to Risks, one line each. If `critiqueStale` is true, end each of those tripwire and walk-away lines with the sentence "Written against an earlier draft, re-check against the final plan." List every `openObjections` entry under Risks as an open objection, one line each with its section, claim, and fix. List every `coldObjections` entry that the final plan does not resolve under Risks, one line each with its section and claim.
@@ -113,7 +152,7 @@ Then run `python3 <plugin-root>/scripts/validate-plan.py "<plan note path>"` and
 
 Set `status: approved` and `approved: <today>` only when `approveIf.meets` is true and `blocked`, `incomplete`, and `discovery.uncovered` are all empty. In every other case, set `status: review` and stop. A run without `approveIf` returns `approveIf: null`, which lands in `review`. If the status is approved, write the session summary that section 5 requires in the same change, and add the line `Approved by the approveIf judge against "<goal>"` under Plan Changes During Execution, because a later flow in this session rewrites the same session entry. Write the status change by `plan-guide`'s changed-lines path, `vault-fs.sh cp` to the `.tmp.md` copy, an Edit on the copy, then `vault-fs.sh mv`, with the session summary and the approval line in the same copy when the gate approves, and run `validate-plan.py` again, requiring exit 0.
 
-Whatever the gate result, state to the user the `finalVerdict`, the `coldVerdict`, every `blocked` reason, every `incomplete` marker, and every `discovery.uncovered` area. State a null `coldVerdict` and each empty list as "none". When `approveIf.meets` is false, also state its `reasons` and `unmetGoals`. If the status is approved, say so.
+Whatever the gate result, state to the user the `finalVerdict`, the `coldVerdict`, every `blocked` reason, every `incomplete` marker, and every `discovery.uncovered` area. On the crawl route `discovery.areas` is empty, so state that the crawl's evidence was the discovery. State a null `coldVerdict` and each empty list as "none". When `approveIf.meets` is false, also state its `reasons` and `unmetGoals`. If the status is approved, say so.
 
 Then print the note's Plain Language Summary verbatim under the heading `Plain language summary`. If the gate left the status at `review` or `planning`, follow the summary with the approval ask: "Approve this plan as written, or tell me what to change?" The user approves from that summary. The approval follows the `plan-guide` lifecycle, so an approval here sets `status: approved` and `approved: <today>` with the same changed-lines write and validation as the gate. Once the status is `approved`, by the gate or by the user, end the reply with the post-approval question that `plan-guide` § After approval defines (`<plugin-root>/skills/plan-guide/SKILL.md`), and act on the user's typed answer as that subsection says.
 

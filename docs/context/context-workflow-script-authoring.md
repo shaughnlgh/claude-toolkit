@@ -4,7 +4,7 @@ summary: Constraints on writing and testing the toolkit's Workflow scripts, and 
 type: context
 status: active
 owner: Shaughn Le Grange - Hatlen
-last_reviewed: 2026-11-06
+last_reviewed: 2026-11-12
 source_refs:
   - plugins/toolkit/workflows/
   - plugins/toolkit/workflows/tests/plan-builder/
@@ -46,6 +46,7 @@ The scripts under `plugins/toolkit/workflows/` run through the Workflow tool. Wh
 ## Runtime behavior a script relies on
 
 - `pipeline()` returns one entry per input item, in input order. A stage that throws turns that item's entry into `null` and keeps its position. `plan-builder.js` relies on `findings[i]` matching `areas[i]`.
+- A launch with `resumeFromRunId` runs the script from the top and returns a completed agent call from the cache when its prompt and options are unchanged, on a completed run as on a dead one. A changed arg that reaches no cached prompt keeps the cache. `plan-builder.js` relies on this for its two launches: the Discover prompts read `CONTEXT` and never `PLAN_CONTEXT`. A change that puts `grill`, or any other arg that differs between the two launches, into a Discover prompt or its options makes every plan flow run discovery twice.
 - `plan-builder.js` sets `critiqueStale` by comparing the rendered plan text with the text the last returned Invert critique saw, not by object identity. A cold revise that returns identical text therefore leaves `critiqueStale` false.
 - `plan-builder.js` checks that case separately. If the cold revise returns text identical to the draft, the script counts it as unapplied, keeps the cold material objections open, and adds a `blocked` reason.
 - The exhausted-rounds check in `plan-builder.js` must ignore `revise:cold` when it reads the dead-revise list, because the cold revise is not an Invert round.
@@ -87,6 +88,7 @@ The scripts under `plugins/toolkit/workflows/` run through the Workflow tool. Wh
 
 - `workflows/tests/plan-builder/harness.mjs` compiles the script with the same AsyncFunction method and passes in stub `args`, `agent`, `pipeline`, `phase`, and `log`. `workflows/tests/execute-runner/harness.mjs` passes no `pipeline` stub. Its parameters are `args`, `agent`, `workflow`, `phase`, and `log`, in that order, and the `workflow` stub records each child call's ref and args, and returns or throws the value scripted under the `workflow:review-mr` label. Its `run()` takes the plan text from a `plan` key that it removes from the args, scripts `plan:index` with the output of `scripts/plan-index.py` on that text, and returns `reads`, each prompt with its range pointers replaced by the fixture lines they name. A case on what a prompt carries asserts the raw pointer through `pointerTo`, and a step-splitting case asserts `reads`. `workflows/tests/review-mr/harness.mjs` passes `args`, `agent`, `pipeline`, `phase`, and `log`, and its `pipeline` stub calls the second stage with the first stage's result and the item, as the runtime does, because `review-mr.js` reads the dimension from that second argument. The plan-builder stub calls each stage with one argument, so it cannot drive `review-mr.js`.
 - The stub `agent` returns the scripted result for the call's `label`, or `null`, so a case kills a stage by leaving its label out. The plan-builder stub `pipeline` follows the runtime rule above: a stage that throws leaves `null` in that item's position.
+- The plan-builder harness has no resume cache. Two cases guard the cache condition instead: they compare the Discover prompts and every option of each Discover agent call in a `grill` launch with those of a `discoveryOnly` launch.
 - A fence tracker that only toggles on each fence line passes a nested-fence case whenever the fence lines come in even pairs. The nested case must put the `## ` heading inside the inner block, as the execute-runner suite's four-backtick case does.
 - The execute-runner harness's `run()` returns the child workflow calls in `calls`, so a case reads the panel context block at `calls[0].args.contextBlock`. The default `run()` reaches only `implement:1`, `implement:2`, `implement:3`, `doc:pass`, and `remember:pass` among the implementer labels. The `FULL_RUN` fixture in `harness.mjs` also reaches `fix:validation` and `fix:1`, so a case that claims to cover every implementer prompt must run `FULL_RUN`. The default `implement:3` returns `src/c.js`, so a default run's `changedPaths` is `src/a.js`, `src/b.js`, and `src/c.js`.
 - `execute-runner.js` picks the panel from the `diff:red-team` paths joined with every implementer's `changedPaths`. The execute-runner harness's `onPaths(paths)` helper therefore scripts every implementer with no changed paths, so a panel-rule case sees only the capture paths it names. `rulesOf(bullet)` builds a minimal `REVIEW.md` with one High-risk paths bullet for the `reviewRules` cases, and `STEP_BACK(n, rounds)` builds the exact step-back sentence.
