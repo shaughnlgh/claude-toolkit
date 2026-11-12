@@ -333,7 +333,7 @@ cg_sec="$(sed -n '/^## 3\. Route/,/^## 4\. Hand off with the evidence$/p' "$P/sk
 gr_fm="$(sed -n '2,/^---$/p' "$P/skills/grill/SKILL.md")"
 gr_done="$(sed -n '/^## Done signal/,/^## Boundary$/p' "$P/skills/grill/SKILL.md")"
 cg_miss=""
-for t in 'Grill check' 'skills/grill/SKILL.md' 'nothing in the evidence needs your answer'; do [[ "$cg_sec" == *"$t"* ]] || cg_miss="${cg_miss} '${t}'"; done
+for t in 'Grill check' 'skills/grill/SKILL.md' 'nothing in the evidence needs your answer' 'Outcome:'; do [[ "$cg_sec" == *"$t"* ]] || cg_miss="${cg_miss} '${t}'"; done
 [ -z "$cg_miss" ] && ok "crawl section 3 runs the grill check, loads the grill skill, and states the one line for nothing found" || no "crawl section 3 grill check missing:${cg_miss}"
 cg_bnd=""
 grep -qF 'recommend a grill and stop' "$P/skills/crawl/SKILL.md" && cg_bnd="${cg_bnd} still holds 'recommend a grill and stop'"
@@ -357,8 +357,8 @@ pg_plan="$(sed -n '/^## Planning Workflow$/,/^### Plan status lifecycle$/p' "$P/
 wf_s4="$(sed -n '/^## 4\. Emit the parent umbrella plan$/,/^## 5\. Emit child plan stubs$/p' "$P/skills/wayfinder/SKILL.md")"
 wf_s5="$(sed -n '/^## 5\. Emit child plan stubs$/,/^## 6\. Hand off$/p' "$P/skills/wayfinder/SKILL.md")"
 pg_miss=""
-for t in '### Planning grill' 'skills/grill/SKILL.md' 'Agreed in the grill:' 'Agreed in the grill check:' 'plan - <parent>.md' 'route rubric'; do [[ "$pf4" == *"$t"* ]] || pg_miss="${pg_miss} plan-flow:'${t}'"; done
-for t in '### Planning grill' 'Agreed in the grill:' 'Agreed in the grill check:' 'plan - <parent>.md' 'new scope' 'route rubric' 'kebab title' "User's own answer:" 'never counts as an answer'; do [[ "$pg_plan" == *"$t"* ]] || pg_miss="${pg_miss} plan-guide:'${t}'"; done
+for t in '### Planning grill' 'skills/grill/SKILL.md' 'Agreed in the grill:' 'Agreed in the grill check:' 'plan - <parent>.md' 'route rubric' 'Outcome:'; do [[ "$pf4" == *"$t"* ]] || pg_miss="${pg_miss} plan-flow:'${t}'"; done
+for t in '### Planning grill' 'Agreed in the grill:' 'Agreed in the grill check:' 'plan - <parent>.md' 'new scope' 'route rubric' 'kebab title' "User's own answer:" 'never counts as an answer' 'Outcome:'; do [[ "$pg_plan" == *"$t"* ]] || pg_miss="${pg_miss} plan-guide:'${t}'"; done
 [[ "$gr_fm" == *'planning grill'* ]] || pg_miss="${pg_miss} grill frontmatter:'planning grill'"
 for t in 'Loaded grills' 'outcome line' 'more than one reasonable reading' 'A finding is not an answer' 'kebab title' 'plan - <parent>.md' "User's own answer:" 'never counts as an answer' "the message's \`from\` equals that name"; do grep -qF "$t" "$P/skills/grill/SKILL.md" || pg_miss="${pg_miss} grill:'${t}'"; done
 for t in 'planning grill question' "User's own answer:"; do grep -qF "$t" "$P/skills/wayfinder/SKILL.md" || pg_miss="${pg_miss} wayfinder:'${t}'"; done

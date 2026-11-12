@@ -423,7 +423,7 @@ On non-trivial plans, after drafting the plan note and before stopping for appro
 
 ### Planning grill
 
-Every first-draft planning flow runs the planning grill once, after discovery and before the plan is drafted: step 5 above in hand-run planning, and section 4 of the `plan-flow` skill in the plan flow. The planning grill is the loaded grill that `<plugin-root>/skills/grill/SKILL.md` defines under Loaded grills, with its outcome line, its five triggers and its rule for what is settled. Reaching this step counts as the explicit request that grill's trigger requires.
+Every first-draft planning flow runs the planning grill once, after discovery and before the plan is drafted: step 5 above in hand-run planning, and section 4 of the `plan-flow` skill in the plan flow. The planning grill is the loaded grill that `<plugin-root>/skills/grill/SKILL.md` defines under Loaded grills, with its outcome line, its five triggers and its rule for what is settled. The flow prints the outcome line first, as plain text in that turn, one line that starts `Outcome:` and states the outcome of the work as the grill understands it. It comes before the first question, or before the line that nothing needs an answer, and never goes inside a question form. Reaching this step counts as the explicit request that grill's trigger requires.
 
 In hand-run planning in the session that ran the crawl, while the crawl's evidence with its file:line refs is still in the conversation, that evidence is the discovery and no explorer runs again. In the plan flow, `plan-flow` section 4 decides when the crawl's evidence stands in for discovery. In any other case, discovery runs first, narrowed by what the note's sections settle.
 
