@@ -333,7 +333,7 @@ cg_sec="$(sed -n '/^## 3\. Route/,/^## 4\. Hand off with the evidence$/p' "$P/sk
 gr_fm="$(sed -n '2,/^---$/p' "$P/skills/grill/SKILL.md")"
 gr_done="$(sed -n '/^## Done signal/,/^## Boundary$/p' "$P/skills/grill/SKILL.md")"
 cg_miss=""
-for t in 'Grill check' 'skills/grill/SKILL.md' 'nothing in the evidence needs your answer'; do [[ "$cg_sec" == *"$t"* ]] || cg_miss="${cg_miss} '${t}'"; done
+for t in 'Grill check' 'skills/grill/SKILL.md' 'nothing in the evidence needs your answer' 'Outcome:'; do [[ "$cg_sec" == *"$t"* ]] || cg_miss="${cg_miss} '${t}'"; done
 [ -z "$cg_miss" ] && ok "crawl section 3 runs the grill check, loads the grill skill, and states the one line for nothing found" || no "crawl section 3 grill check missing:${cg_miss}"
 cg_bnd=""
 grep -qF 'recommend a grill and stop' "$P/skills/crawl/SKILL.md" && cg_bnd="${cg_bnd} still holds 'recommend a grill and stop'"
@@ -348,7 +348,45 @@ grep -qF 'grill check' "$P/doctrine/workflow-routing.md" || rt_miss="${rt_miss} 
 grep -qF 'grill check' "$ROOT/docs/skills.md" || rt_miss="${rt_miss} docs/skills.md:'grill check'"
 grep -qF 'Five carve-outs' "$P/doctrine/workflow-routing.md" && rt_miss="${rt_miss} workflow-routing still says 'Five carve-outs'"
 grep -qF 'five narrow carve-outs' "$ROOT/docs/skills.md" && rt_miss="${rt_miss} docs/skills.md still says 'five narrow carve-outs'"
-[ -z "$rt_miss" ] && ok "workflow-routing and docs/skills.md name the grill check carve-out and count six carve-outs" || no "grill check carve-out:${rt_miss}"
+grep -qF 'Six carve-outs' "$P/doctrine/workflow-routing.md" && rt_miss="${rt_miss} workflow-routing still says 'Six carve-outs'"
+grep -qF 'six narrow carve-outs' "$ROOT/docs/skills.md" && rt_miss="${rt_miss} docs/skills.md still says 'six narrow carve-outs'"
+grep -qF 'Seven carve-outs' "$P/doctrine/workflow-routing.md" || rt_miss="${rt_miss} workflow-routing:'Seven carve-outs'"
+grep -qF 'seven narrow carve-outs' "$ROOT/docs/skills.md" || rt_miss="${rt_miss} docs/skills.md:'seven narrow carve-outs'"
+[ -z "$rt_miss" ] && ok "workflow-routing and docs/skills.md name the grill check carve-out and count seven carve-outs" || no "grill check carve-out:${rt_miss}"
+pg_plan="$(sed -n '/^## Planning Workflow$/,/^### Plan status lifecycle$/p' "$P/skills/plan-guide/SKILL.md")"
+wf_s4="$(sed -n '/^## 4\. Emit the parent umbrella plan$/,/^## 5\. Emit child plan stubs$/p' "$P/skills/wayfinder/SKILL.md")"
+wf_s5="$(sed -n '/^## 5\. Emit child plan stubs$/,/^## 6\. Hand off$/p' "$P/skills/wayfinder/SKILL.md")"
+pg_miss=""
+for t in '### Planning grill' 'skills/grill/SKILL.md' 'Agreed in the grill:' 'Agreed in the grill check:' 'plan - <parent>.md' 'route rubric' 'Outcome:'; do [[ "$pf4" == *"$t"* ]] || pg_miss="${pg_miss} plan-flow:'${t}'"; done
+for t in '### Planning grill' 'Agreed in the grill:' 'Agreed in the grill check:' 'plan - <parent>.md' 'new scope' 'route rubric' 'kebab title' "User's own answer:" 'never counts as an answer' 'Outcome:'; do [[ "$pg_plan" == *"$t"* ]] || pg_miss="${pg_miss} plan-guide:'${t}'"; done
+[[ "$gr_fm" == *'planning grill'* ]] || pg_miss="${pg_miss} grill frontmatter:'planning grill'"
+for t in 'Loaded grills' 'outcome line' 'more than one reasonable reading' 'A finding is not an answer' 'kebab title' 'plan - <parent>.md' "User's own answer:" 'never counts as an answer' "the message's \`from\` equals that name"; do grep -qF "$t" "$P/skills/grill/SKILL.md" || pg_miss="${pg_miss} grill:'${t}'"; done
+for t in 'planning grill question' "User's own answer:"; do grep -qF "$t" "$P/skills/wayfinder/SKILL.md" || pg_miss="${pg_miss} wayfinder:'${t}'"; done
+[[ "$wf_s4" == *'Agreed in the grill check:'* ]] || pg_miss="${pg_miss} wayfinder section 4:'Agreed in the grill check:'"
+[[ "$wf_s5" == *'grill check block'* ]] || pg_miss="${pg_miss} wayfinder section 5:'grill check block'"
+for t in 'planning grill question' 'Loaded grills'; do grep -qF "$t" "$P/doctrine/orchestration.md" || pg_miss="${pg_miss} orchestration:'${t}'"; done
+[[ "$cg_sec" == *'On the wayfinder route only'* ]] || pg_miss="${pg_miss} crawl section 3:'On the wayfinder route only'"
+grep -qF 'planning grill' "$P/doctrine/workflow-routing.md" || pg_miss="${pg_miss} workflow-routing:'planning grill'"
+grep -qF 'planning grill' "$ROOT/docs/skills.md" || pg_miss="${pg_miss} docs/skills.md:'planning grill'"
+for t in '### Planning grill' '### Grill check' '### Outcome line'; do grep -qF "$t" "$ROOT/docs/glossary.md" || pg_miss="${pg_miss} glossary:'${t}'"; done
+pg_adr="$(find "$ROOT/docs/decisions" -name '*-grill-is-a-fixed-step-of-planning.md' | wc -l | tr -d ' ')"
+[ "$pg_adr" = 1 ] || pg_miss="${pg_miss} decision records named *-grill-is-a-fixed-step-of-planning.md: ${pg_adr}, wanted 1"
+[ -z "$pg_miss" ] && ok "plan-flow, plan-guide, grill, wayfinder, crawl, doctrine, docs/skills.md, the glossary and one decision record define the planning grill and its relay of the user's own answer" || no "planning grill missing:${pg_miss}"
+gs_old=""
+for t in 'Agreed in the grill:' 'On the plan-guide and wayfinder routes, once the route is confirmed and before the run options'; do grep -qF "$t" "$P/skills/crawl/SKILL.md" && gs_old="${gs_old} crawl:'${t}'"; done
+for t in 'Crawl-scoped grills' 'one of those two gates'; do grep -qF "$t" "$P/skills/grill/SKILL.md" && gs_old="${gs_old} grill:'${t}'"; done
+for t in 'grill recommended' 'explicitly user-invoked'; do grep -qF "$t" "$P/skills/wayfinder/SKILL.md" && gs_old="${gs_old} wayfinder:'${t}'"; done
+[[ "$wf_s5" == *'Agreed in the grill check:'* ]] && gs_old="${gs_old} wayfinder section 5:'Agreed in the grill check:'"
+grep -qF 'scoped deep grill where requirements are not pinned' "$P/skills/expedition/SKILL.md" && gs_old="${gs_old} expedition:'scoped deep grill where requirements are not pinned'"
+grep -qF 'recommended a scoped grill' "$ROOT/docs/skills.md" && gs_old="${gs_old} docs/skills.md:'recommended a scoped grill'"
+[ -z "$gs_old" ] && ok "crawl, grill, wayfinder, expedition and docs/skills.md carry none of the old grill wording, and no wayfinder child stub copies the grill check block" || no "old grill wording still present:${gs_old}"
+pb_doc="$(sed -n '/^## plan-builder\.js$/,/^## execute-runner\.js$/p' "$ROOT/docs/workflows.md")"
+tl_miss=""
+for t in 'a.discoveryOnly' 'a.skipDiscovery' 'a.grill' 'PLAN_CONTEXT'; do grep -qF "$t" "$P/workflows/plan-builder.js" || tl_miss="${tl_miss} plan-builder.js:'${t}'"; done
+for t in '`discoveryOnly: true`' '`skipDiscovery: true`' 'add `grill`' 'pass `resumeFromRunId` with that runId' '.args.json'; do [[ "$pf4" == *"$t"* ]] || tl_miss="${tl_miss} plan-flow:'${t}'"; done
+for t in '- `discoveryOnly` (optional' '- `skipDiscovery` (optional' '- `grill` (optional'; do [[ "$pb_doc" == *"$t"* ]] || tl_miss="${tl_miss} docs/workflows.md plan-builder section:'${t}'"; done
+[[ "$pb_doc" == *'resumeFromRunId'* ]] || tl_miss="${tl_miss} docs/workflows.md plan-builder section:'resumeFromRunId'"
+[ -z "$tl_miss" ] && ok "plan-builder.js, plan-flow section 4 and docs/workflows.md name the two-launch args, and plan-flow and the doc name the resume" || no "two-launch contract missing:${tl_miss}"
 if grep -qF 'Default branch rule' "$P/skills/execute-flow/SKILL.md" && grep -qF '| free | 0 | from approved or start-work | a default branch | worktree |' "$P/skills/execute-flow/SKILL.md" && grep -qF 'default branch rule' "$ROOT/docs/context/context-worktree-seat.md"; then ok "execute-flow opens a worktree on a free, clean main checkout that sits on a default branch"; else no "default branch rule missing from execute-flow or context-worktree-seat.md"; fi
 # Claude Code truncates a skill's description plus when_to_use at 1,536 characters in the skill listing.
 dl="$(python3 - "$P/skills" <<'PY'
@@ -570,7 +608,7 @@ suite_ok "watch-mr behavior suite" "$out" 95
 echo "== plan-builder control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/plan-builder/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "plan-builder control-flow suite" "$out" 30
+  suite_ok "plan-builder control-flow suite" "$out" 47
 else
   skip "skipped: node not found; plan-builder control-flow suite"
 fi
