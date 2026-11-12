@@ -7,6 +7,50 @@
 
 The verbatim planning input: the user's words plus any ticket content, captured exactly and never paraphrased. Every piece of new work enters the planning workflow as a brief, whatever its source.
 
+### Ceiling
+
+The `ceiling` run option on a plan note: `none`, `mr`, or `merge`. It is the stage the ship flow stops at and the limit on what any flow may do in git. `merge` with `tag_merge: true` adds the tag stage, which the ship runner calls `release` internally. `merge` also runs the ship runner's cleanup after the merge, which removes the plan's worktree, returns the main checkout to the default branch, and deletes the merged branch. Defined in `skills/plan-guide/SKILL.md` § Run options.
+
+### Flow
+
+A skill whose name ends in `-flow`, driven by a Workflow script under `plugins/toolkit/workflows/`. A flow reads its run options, the ceiling first, from the plan note, else from the session cache when the cache names the same plan, and asks only for the keys neither has. The `## Flows` section of `doctrine/git-safety.md` defines what each ceiling permits. The toolkit ships three flows. `plan-flow` runs no git under any ceiling. `execute-flow` asks nothing after it reads the run options. It mutates git only to open a worktree on a held or dirty seat, or on a free, clean seat whose main checkout sits on its default branch on a run from approved or start-work, through EnterWorktree under any ceiling, or through `git fetch` and `git worktree add` for an existing branch only under `mr` or `merge` and as paste-ready commands under `none`, or through `git worktree add -b` for the note's branch when it exists nowhere only under `mr` or `merge`, and for the seat run's switches, fix commit, and restore under `mr` or `merge`. Otherwise its agents run in the target repo only the read-only git commands that section lists. Apart from those commands, `ship-flow` is the only flow that mutates git, only under `mr` or `merge`, and its agents run each stage's commands under a rule that names only that stage's commands.
+
+### flow-run-options
+
+The file at `<scratchpad>/flow-run-options` that caches a plan note's run option keys for the session. Its first line is `plan: <slug>`, naming the plan it serves, and a flow reads it only for that plan. One `key: value` line follows per key. A missing file means unasked. A missing, empty, or unrecognised `ceiling` line reads as `none`. On work with no plan note, the file holds a blank `plan:` line followed by the testing gate's `tests:` line, the ticket question's `ticket:` and `ticket_work:` lines, or both, and no plan flow reads it. A resumed session keeps its scratchpad and so keeps the cache. A new session reads the plan note.
+
+### Grill check
+
+The grill the crawl runs on the wayfinder route, before the work is split into children. It is the same grill the planning grill runs.
+
+### Guide
+
+A skill whose name ends in `-guide`, the manual a session follows by hand. `plan-guide` holds the plan note contract: artifact locations, naming, frontmatter and sections, the planning steps, the status lifecycle, session recording, and session closure. `execution-guide` holds the execution steps, the progress report format, the Doc Update Pass, and the runtime-evidence debugging method. The flows run the same work for you, and `plan-flow` and `execute-flow` read these guides where they need the contract.
+
+### Outcome line
+
+The one-line statement of the outcome as the grill understands it, always shown for the user to correct, even when nothing else needs asking.
+
+### Planning grill
+
+The grill that runs in every planning flow, after discovery and before the plan is drafted, one question at a time with a recommended answer each.
+
+### Remember guard
+
+The `remember-guard.sh` Stop hook. It warns the user when a reply has a line that begins `Suggested commit` while the session's in-progress plan note has no `Remember:` line under Plan Changes During Execution. It only warns and never blocks. `validate-plan.py` enforces the line at completion: it rejects a plan at status completed, created on or after 2026-10-18, that has no `Remember:` line there.
+
+### Remember pass
+
+The once-per-slice step that routes the durable facts a slice surfaced. One `implementer` stages shareable facts about the repo as proposed `docs/context/` content behind the conductor's consent gate, and folds every other fact into vault topic notes. `red-team` step 7b runs it after the doc pass, or `plan-guide` Session Closure runs it if red-team has not. A `Remember:` line records that it ran. The Doc Update Pass keeps existing docs accurate about what changed. The remember pass records what the slice learned.
+
+### Seat queue
+
+The order in which sessions wait for a repo's main checkout, kept by `scripts/seat-queue.sh` as one file per joined session in the git common dir. Each entry is named `<join epoch seconds>-<sessionId>`, and sessions outside the main checkout take turns sorted by entry name, so an earlier join second comes first, and joins in the same second go in session id order. A lock lets one session at a time take its turn. An entry is seated from its session's turn until the release, and a seated entry holds the seat. An entry drops out once two reads of the live session list, 5 seconds to 10 minutes apart, miss its session. A session in the main checkout with no entry holds every waiter until it ends or moves into a linked worktree. When that session is the waiting run's own parent and the only live session with the parent's name, the run starts no watcher and stops at once, and tells the parent to run the seat run itself or to move into a linked worktree. Otherwise the run waits for it as for any other holder, up to the wait bound that [scripts.md](scripts.md#seat-queuesh) states. Only an interactive session can join, and only from a shell that can signal other sessions' pids, which a sandboxed shell cannot. The seat run waits in the queue through a background watcher.
+
+### Seat run
+
+Section 11 of the `execute-flow` skill. It runs the Validation Steps that a worktree run deferred, against the running local stack, from a session in the main checkout, which a session inside the plan's worktree reaches by waiting in the seat queue for its turn and then leaving it with ExitWorktree keep. It checks the committed plan branch out in a free and clean main checkout, runs the steps through the execute runner's fix round, panel, and cold read with the worktree run's baseline, commits its own fixes under `mr` or `merge`, and restores the branch the main checkout was on. A pass records `Seat run passed:` with the plan branch tip, which lifts the ship flow's cap at `mr`. An `[e2e]` step is a Validation Step that carries `[e2e]` directly after its number, which marks it as needing the running local stack. A worktree run defers it, and the `e2e` run option and the seat run read the same marker.
+
 ### Ticket Adapter
 
 A skill that turns an external ticket reference into a brief. Fetching and recording is the adapter's job. It creates a ticket only on the user's yes to a draft it showed, and never judges or changes an existing ticket.
@@ -18,35 +62,3 @@ The one question, asked before any branch or plan name is derived for work with 
 ### Topic recall
 
 The lookup `scripts/topic-recall.py` runs over the vault's topic notes and, when given `--repo-root`, the repo's `docs/` folder. It ranks hits by the query words found in each title and summary. The session-start hook injects the top hits for the current repo. `plan-guide`, `execution-guide`, and `crawl` run it with the task words before they read code.
-
-### Remember pass
-
-The once-per-slice step that routes the durable facts a slice surfaced. One `implementer` stages shareable facts about the repo as proposed `docs/context/` content behind the conductor's consent gate, and folds every other fact into vault topic notes. `red-team` step 7b runs it after the doc pass, or `plan-guide` Session Closure runs it if red-team has not. A `Remember:` line records that it ran. The Doc Update Pass keeps existing docs accurate about what changed. The remember pass records what the slice learned.
-
-### Remember guard
-
-The `remember-guard.sh` Stop hook. It warns the user when a reply has a line that begins `Suggested commit` while the session's in-progress plan note has no `Remember:` line under Plan Changes During Execution. It only warns and never blocks. `validate-plan.py` enforces the line at completion: it rejects a plan at status completed, created on or after 2026-10-18, that has no `Remember:` line there.
-
-### Flow
-
-A skill whose name ends in `-flow`, driven by a Workflow script under `plugins/toolkit/workflows/`. A flow reads its run options, the ceiling first, from the plan note, else from the session cache when the cache names the same plan, and asks only for the keys neither has. The `## Flows` section of `doctrine/git-safety.md` defines what each ceiling permits. The toolkit ships three flows. `plan-flow` runs no git under any ceiling. `execute-flow` asks nothing after it reads the run options. It mutates git only to open a worktree on a held or dirty seat, or on a free, clean seat whose main checkout sits on its default branch on a run from approved or start-work, through EnterWorktree under any ceiling, or through `git fetch` and `git worktree add` for an existing branch only under `mr` or `merge` and as paste-ready commands under `none`, or through `git worktree add -b` for the note's branch when it exists nowhere only under `mr` or `merge`, and for the seat run's switches, fix commit, and restore under `mr` or `merge`. Otherwise its agents run in the target repo only the read-only git commands that section lists. Apart from those commands, `ship-flow` is the only flow that mutates git, only under `mr` or `merge`, and its agents run each stage's commands under a rule that names only that stage's commands.
-
-### Guide
-
-A skill whose name ends in `-guide`, the manual a session follows by hand. `plan-guide` holds the plan note contract: artifact locations, naming, frontmatter and sections, the planning steps, the status lifecycle, session recording, and session closure. `execution-guide` holds the execution steps, the progress report format, the Doc Update Pass, and the runtime-evidence debugging method. The flows run the same work for you, and `plan-flow` and `execute-flow` read these guides where they need the contract.
-
-### Ceiling
-
-The `ceiling` run option on a plan note: `none`, `mr`, or `merge`. It is the stage the ship flow stops at and the limit on what any flow may do in git. `merge` with `tag_merge: true` adds the tag stage, which the ship runner calls `release` internally. `merge` also runs the ship runner's cleanup after the merge, which removes the plan's worktree, returns the main checkout to the default branch, and deletes the merged branch. Defined in `skills/plan-guide/SKILL.md` § Run options.
-
-### flow-run-options
-
-The file at `<scratchpad>/flow-run-options` that caches a plan note's run option keys for the session. Its first line is `plan: <slug>`, naming the plan it serves, and a flow reads it only for that plan. One `key: value` line follows per key. A missing file means unasked. A missing, empty, or unrecognised `ceiling` line reads as `none`. On work with no plan note, the file holds a blank `plan:` line followed by the testing gate's `tests:` line, the ticket question's `ticket:` and `ticket_work:` lines, or both, and no plan flow reads it. A resumed session keeps its scratchpad and so keeps the cache. A new session reads the plan note.
-
-### Seat run
-
-Section 11 of the `execute-flow` skill. It runs the Validation Steps that a worktree run deferred, against the running local stack, from a session in the main checkout, which a session inside the plan's worktree reaches by waiting in the seat queue for its turn and then leaving it with ExitWorktree keep. It checks the committed plan branch out in a free and clean main checkout, runs the steps through the execute runner's fix round, panel, and cold read with the worktree run's baseline, commits its own fixes under `mr` or `merge`, and restores the branch the main checkout was on. A pass records `Seat run passed:` with the plan branch tip, which lifts the ship flow's cap at `mr`. An `[e2e]` step is a Validation Step that carries `[e2e]` directly after its number, which marks it as needing the running local stack. A worktree run defers it, and the `e2e` run option and the seat run read the same marker.
-
-### Seat queue
-
-The order in which sessions wait for a repo's main checkout, kept by `scripts/seat-queue.sh` as one file per joined session in the git common dir. Each entry is named `<join epoch seconds>-<sessionId>`, and sessions outside the main checkout take turns sorted by entry name, so an earlier join second comes first, and joins in the same second go in session id order. A lock lets one session at a time take its turn. An entry is seated from its session's turn until the release, and a seated entry holds the seat. An entry drops out once two reads of the live session list, 5 seconds to 10 minutes apart, miss its session. A session in the main checkout with no entry holds every waiter until it ends or moves into a linked worktree. When that session is the waiting run's own parent and the only live session with the parent's name, the run starts no watcher and stops at once, and tells the parent to run the seat run itself or to move into a linked worktree. Otherwise the run waits for it as for any other holder, up to the wait bound that [scripts.md](scripts.md#seat-queuesh) states. Only an interactive session can join, and only from a shell that can signal other sessions' pids, which a sandboxed shell cannot. The seat run waits in the queue through a background watcher.

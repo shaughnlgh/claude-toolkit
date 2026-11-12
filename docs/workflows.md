@@ -38,7 +38,7 @@ Tests: `bash plugins/toolkit/workflows/tests/review-mr/run-tests.sh` runs 70 con
 
 Plan flow. It turns a brief into every section of a plan note and runs five phases:
 
-- **Discover**: a `toolkit:explorer` agent splits the brief into 2 to 5 investigation areas, each with one question and the paths to start from. One `toolkit:explorer` per area then answers its question with file:line facts, gaps, risks, and a reuse ladder result. If the scoping agent dies, the flow uses one whole-brief area.
+- **Discover**: a `toolkit:explorer` agent splits the brief into 2 to 5 investigation areas, each with one question and the paths to start from. One `toolkit:explorer` per area then answers its question with file:line facts, gaps, risks, and a reuse ladder result. If the scoping agent dies, the flow uses one whole-brief area. The phase does not run under `skipDiscovery`, and with `discoveryOnly` the script returns after it.
 - **Draft**: a `toolkit:planner` agent writes every plan section from the findings, plus a branch name and related topics.
 - **Invert**: a `toolkit:plan-critic` agent runs a pre-mortem and returns a verdict of `proceed`, `revise`, or `stop`, with objections, tripwires, and walk-away checks. On `revise`, the planner resolves the material objections and the critic runs again, for at most `maxRounds` revisions.
 - **Red team**: a second `toolkit:plan-critic` reads the plan cold, without the brief, the recall hits, or the evidence. If it raises material objections, the planner revises the plan once more.
@@ -49,7 +49,7 @@ The script writes no files and runs no git. The `plan-flow` skill writes the ret
 Invoked by the `plan-flow` skill (or directly) with:
 
 ```
-args: {brief, repoRoot, repoName, planName, recallHits, knownEvidence?, approveIf?, maxRounds?, models?}
+args: {brief, repoRoot, repoName, planName, recallHits, knownEvidence?, approveIf?, maxRounds?, models?, discoveryOnly?, skipDiscovery?, grill?}
 ```
 
 - `brief` (required): the task description the plan answers.
@@ -61,14 +61,19 @@ args: {brief, repoRoot, repoName, planName, recallHits, knownEvidence?, approveI
 - `approveIf` (optional): a goal sentence. The Judge phase runs only when it is set.
 - `maxRounds` (optional): a non-negative integer that caps the revise rounds in the Invert phase. Default 2 when absent or null. Any other value that is not a non-negative integer, such as the string "0", -1, or 1.5, makes the script throw an Error that names the value.
 - `models` (optional): the `agents` object `resolve-models.sh` prints, keyed by short agent name, each `{model, effort}`. Each explorer call takes the `explorer` entry, each planner call the `planner` entry, each critic call the `plan-critic` entry, and the judge the `verifier` entry. A blank value, a missing entry, and a run without `models` inherit the session model and effort. A value that is not an object of `{model, effort}` entries with string fields, such as the resolver's whole `{"agents": ...}` output or a bare string entry, makes the script throw.
+- `discoveryOnly` (optional boolean): returns `{discovery, incomplete}` after the Discover phase, with `areas`, `uncovered` and `evidence` in `discovery`. No Draft, Invert, Red team or Judge phase runs.
+- `skipDiscovery` (optional boolean): runs no Discover phase, returns empty `discovery.areas` and `discovery.uncovered`, and requires a non-blank `knownEvidence`, which is then the planner's only evidence.
+- `grill` (optional non-blank string): the planning grill's answers. The script adds them under the line `GRILL ANSWERS:` to the Draft, Invert, revise and Judge prompts, to no Discover prompt, and not to the cold red team.
 
-The script throws if any required arg is missing or is not a non-empty string.
+The script throws if any required arg is missing or is not a non-empty string. It also throws when `discoveryOnly` or `skipDiscovery` is given and is not a boolean, when both are true, when `skipDiscovery` is true and `knownEvidence` is missing or blank, and when `grill` is given and is not a non-blank string.
+
+The `plan-flow` skill launches the script twice, with the planning grill between the launches in the conversation. The first launch passes `discoveryOnly`. The second passes the same args plus `grill`, and passes `resumeFromRunId` with the first launch's runId. The script runs from the top again, and the explorers return from the resume cache, because `grill` reaches no Discover prompt and every Discover call keeps its prompt and options. On a run started from crawl's plan flow offer, `plan-flow` launches once with `skipDiscovery` and the crawl's facts in `knownEvidence`.
 
 It returns `{plan, branch, relatedTopics, discovery, rounds, tripwires, walkAway, coldObjections, coldVerdict, finalVerdict, openObjections, critiqueStale, blocked, approveIf, incomplete}`:
 
 - `plan`: the 11 section bodies without heading lines, keyed `objective`, `plainLanguageSummary`, `currentContext`, `assumptions`, `affectedFiles`, `implementationSteps`, `validationSteps`, `risks`, `rollbackNotes`, `openQuestions`, `relatedTopics`.
 - `branch` and `relatedTopics`: the planner's branch name and topic names for the note frontmatter.
-- `discovery`: `{areas, uncovered}`, the area names and the areas whose explorer died.
+- `discovery`: `{areas, uncovered}`, the area names and the areas whose explorer died. Both are empty under `skipDiscovery`.
 - `rounds`: one `{verdict, materialCount}` per Invert critique, with `verdict: incomplete` for a critique that died.
 - `tripwires` and `walkAway`: from the last Invert critique that returned, or empty arrays when none returned.
 - `coldObjections`: the cold critic's objections, or `null` if it died.
@@ -84,7 +89,7 @@ It returns `{plan, branch, relatedTopics, discovery, rounds, tripwires, walkAway
 
 A dead stage never fails the run. Its label (`discover:scope`, `invert:N`, `revise:N`, `red-team:cold`, `revise:cold`, `judge`) lands in `incomplete`, and a dead judge also yields `meets: false`. A dead area explorer lands in `discovery.uncovered`. The one exception is the draft: if the planner returns nothing, the script throws, because no plan exists to return.
 
-Tests: `bash plugins/toolkit/workflows/tests/plan-builder/run-tests.sh` runs 30 control-flow cases that drive the script with a scripted agent stub: dead stages, each verdict path, the cold revise paths, the stale-critique cases, and the judge prompt. The suite needs `node`, and `verify.sh` also runs it.
+Tests: `bash plugins/toolkit/workflows/tests/plan-builder/run-tests.sh` runs 52 control-flow cases that drive the script with a scripted agent stub: dead stages, each verdict path, the cold revise paths, the stale-critique cases, the judge prompt, and the two-launch cases: a `discoveryOnly` launch that returns the evidence and runs no draft, a `grill` launch whose Discover prompts and agent options match a `discoveryOnly` launch, `grill` in the right prompts and out of the cold red team, `skipDiscovery` with no explorer, and each bad arg shape that throws. The suite needs `node`, and `verify.sh` also runs it.
 
 ## execute-runner.js
 
