@@ -36,7 +36,7 @@ async function run(overrides = {}, args = ARGS) {
   const agents = {}
   const agent = async (prompt, opts) => {
     prompts[opts.label] = prompt
-    agents[opts.label] = { agentType: opts.agentType, phase: opts.phase, model: opts.model, effort: opts.effort }
+    agents[opts.label] = { ...opts }
     return script[opts.label] ?? null
   }
   const pipeline = async (items, ...stages) => {
@@ -63,6 +63,10 @@ async function run(overrides = {}, args = ARGS) {
 const same = (actual, expected) => JSON.stringify(actual) === JSON.stringify(expected)
 const STOP = critiqueOf('stop', [objection('fatal claim', true), objection('minor claim', false)])
 const COLD = critiqueOf('revise', [objection('cold claim', true)])
+const GRILL = 'Agreed in the grill:\n- The widget list lives in src/widget.js.'
+const KNOWN = 'src/a.js:1 holds the widget list.'
+const DISCOVER = ['discover:scope', 'discover:alpha', 'discover:beta']
+const pick = (map) => DISCOVER.map((k) => map[k])
 
 const cases = [
   ['scope explorer dead falls back to one whole-brief area and marks incomplete', async () => {
@@ -188,6 +192,97 @@ const cases = [
   ['a missing models map passes neither key to any call', async () => {
     const { agents } = await run({}, { ...ARGS, approveIf: 'Exports widgets as CSV.' })
     return Object.values(agents).every((x) => x.model === undefined && x.effort === undefined)
+  }],
+  ['discoveryOnly returns the evidence of every area', async () => {
+    const { result } = await run({}, { ...ARGS, discoveryOnly: true })
+    return same(result.discovery.evidence.map((e) => e.area), ['alpha', 'beta'])
+  }],
+  ['discoveryOnly returns the name of every area in discovery.areas', async () => {
+    const { result } = await run({}, { ...ARGS, discoveryOnly: true })
+    return same(result.discovery.areas, ['alpha', 'beta'])
+  }],
+  ['discoveryOnly runs no draft and returns no plan', async () => {
+    const { result, prompts } = await run({}, { ...ARGS, discoveryOnly: true })
+    return same({ drafted: 'draft' in prompts, plan: result.plan }, { drafted: false, plan: undefined })
+  }],
+  ['discoveryOnly with a dead area explorer returns it in discovery.uncovered', async () => {
+    const { result } = await run({ 'discover:beta': null }, { ...ARGS, discoveryOnly: true })
+    return same(result.discovery.uncovered, ['beta'])
+  }],
+  ['discoveryOnly with a dead scope explorer returns discover:scope in incomplete', async () => {
+    const { result } = await run({ 'discover:scope': null }, { ...ARGS, discoveryOnly: true })
+    return same(result.incomplete, ['discover:scope'])
+  }],
+  ['a launch with grill sends the Discover prompts of a discoveryOnly launch', async () => {
+    const first = await run({}, { ...ARGS, knownEvidence: KNOWN, discoveryOnly: true })
+    const second = await run({}, { ...ARGS, knownEvidence: KNOWN, grill: GRILL })
+    return same(pick(second.prompts), pick(first.prompts))
+  }],
+  ['a launch with grill sends the Discover agent options of a discoveryOnly launch', async () => {
+    const models = { explorer: { model: 'sonnet', effort: 'medium' } }
+    const first = await run({}, { ...ARGS, models, discoveryOnly: true })
+    const second = await run({}, { ...ARGS, models, grill: GRILL })
+    return same(pick(second.agents), pick(first.agents))
+  }],
+  ['grill reaches the draft prompt under GRILL ANSWERS', async () => {
+    const { prompts } = await run({}, { ...ARGS, grill: GRILL })
+    return prompts.draft.includes(`\nGRILL ANSWERS:\n${GRILL}\n`)
+  }],
+  ['grill reaches the invert, revise and judge prompts', async () => {
+    const { prompts } = await run({ 'invert:0': REVISE }, { ...ARGS, approveIf: 'Exports widgets as CSV.', grill: GRILL })
+    return same(['invert:0', 'revise:1', 'invert:1', 'judge'].map((k) => prompts[k].includes(GRILL)), [true, true, true, true])
+  }],
+  ['grill stays out of the cold red team prompt', async () => {
+    const { prompts } = await run({}, { ...ARGS, grill: GRILL })
+    return prompts['red-team:cold'].includes(GRILL) === false
+  }],
+  ['a launch without grill puts no GRILL ANSWERS heading in any prompt', async () => {
+    const { prompts } = await run({ 'invert:0': REVISE }, { ...ARGS, approveIf: 'Exports widgets as CSV.' })
+    return Object.values(prompts).some((p) => p.includes('GRILL ANSWERS')) === false
+  }],
+  ['skipDiscovery with knownEvidence drafts with no discover call', async () => {
+    const { prompts } = await run({}, { ...ARGS, knownEvidence: KNOWN, skipDiscovery: true })
+    return same(Object.keys(prompts).filter((k) => k.startsWith('discover') || k === 'draft'), ['draft'])
+  }],
+  ['skipDiscovery returns empty discovery areas and uncovered', async () => {
+    const { result } = await run({}, { ...ARGS, knownEvidence: KNOWN, skipDiscovery: true })
+    return same(result.discovery, { areas: [], uncovered: [] })
+  }],
+  ['skipDiscovery puts knownEvidence in the draft prompt', async () => {
+    const { prompts } = await run({}, { ...ARGS, knownEvidence: KNOWN, skipDiscovery: true })
+    return prompts.draft.includes(`\nKNOWN EVIDENCE:\n${KNOWN}\n`)
+  }],
+  ['skipDiscovery with grill, the crawl-route launch, puts grill in the draft prompt', async () => {
+    const { prompts } = await run({}, { ...ARGS, knownEvidence: KNOWN, skipDiscovery: true, grill: GRILL })
+    return Boolean(prompts.draft && prompts.draft.includes(`\nGRILL ANSWERS:\n${GRILL}\n`))
+  }],
+  ['skipDiscovery without knownEvidence throws', async () => {
+    const { error } = await run({}, { ...ARGS, skipDiscovery: true })
+    return String(error && error.message).includes('skipDiscovery requires knownEvidence')
+  }],
+  ['skipDiscovery with a blank knownEvidence throws', async () => {
+    const { error } = await run({}, { ...ARGS, knownEvidence: '  ', skipDiscovery: true })
+    return String(error && error.message).includes('skipDiscovery requires knownEvidence')
+  }],
+  ['discoveryOnly with skipDiscovery throws', async () => {
+    const { error } = await run({}, { ...ARGS, knownEvidence: KNOWN, discoveryOnly: true, skipDiscovery: true })
+    return String(error && error.message).includes('never both')
+  }],
+  ['discoveryOnly as a string throws', async () => {
+    const { error } = await run({}, { ...ARGS, discoveryOnly: 'true' })
+    return String(error && error.message).includes('discoveryOnly must be a boolean')
+  }],
+  ['skipDiscovery as a string throws', async () => {
+    const { error } = await run({}, { ...ARGS, knownEvidence: KNOWN, skipDiscovery: 'true' })
+    return String(error && error.message).includes('skipDiscovery must be a boolean')
+  }],
+  ['grill as a list throws', async () => {
+    const { error } = await run({}, { ...ARGS, grill: ['The widget list lives in src/widget.js.'] })
+    return String(error && error.message).includes('grill must be a non-blank string')
+  }],
+  ['a blank grill throws', async () => {
+    const { error } = await run({}, { ...ARGS, grill: '  ' })
+    return String(error && error.message).includes('grill must be a non-blank string')
   }],
 ]
 
