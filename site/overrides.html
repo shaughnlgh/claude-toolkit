@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overrides - claude-toolkit</title>
+<meta name="description" content="Replace any claude-toolkit doctrine file, rule, agent or skill with your own copy, without forking the plugin.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap site-header__inner">
+<a class="wordmark" href="index.html"><span class="wordmark__mark" aria-hidden="true">&gt;_</span> claude-toolkit</a>
+<nav class="site-nav" aria-label="Site">
+<ul>
+<li><a href="index.html#flows">Flows</a></li>
+<li><a href="agents.html">Agents</a></li>
+<li><a href="skills.html">Skills</a></li>
+<li><a href="commands.html">Commands</a></li>
+<li><a href="hooks.html">Hooks</a></li>
+<li><a href="overrides.html" aria-current="page">Overrides</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
+<li><a class="nav-repo" href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+</ul>
+</nav>
+</div>
+</header>
+
+<main id="main">
+<section class="page-head">
+<div class="wrap">
+<p class="crumbs"><a href="index.html">Home</a> / Reference / Overrides</p>
+<h1>Your config wins</h1>
+<p class="lead">The toolkit ships opinionated doctrine, rules, agents and skills. They are defaults, not law. When your own config disagrees, yours wins, so you bend the toolkit to how you and your team work instead of forking it. You meet this the first time a default does not fit.</p>
+<nav aria-label="On this page">
+<ul class="jump">
+<li><a href="#rule">The rule</a></li>
+<li><a href="#what">What you can override</a></li>
+<li><a href="#ways">Two ways</a></li>
+<li><a href="#command">The /override command</a></li>
+<li><a href="#example">Worked example</a></li>
+<li><a href="#announce">What you see</a></li>
+<li><a href="#safety">Safety sections</a></li>
+<li><a href="#models">Settings without a copy</a></li>
+</ul>
+</nav>
+</div>
+</section>
+
+<section class="section" id="rule">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">Precedence</p>
+<h2>The rule</h2>
+<p class="section-note">Most specific wins.</p>
+</div>
+<div class="prose">
+<ol class="ladder">
+<li><p><strong>Project config</strong> <span>Wins over your global config. Project rules override the doctrine for project-specific matters, and a project agent at <code>&lt;repo&gt;/.claude/agents/</code> wins when it exists.</span></p></li>
+<li><p><strong>Your global config, under <code>~/.claude/</code></strong> <span>Your personal scope overrides any doctrine section and the plugin's defaults.</span></p></li>
+<li><p><strong>The plugin's defaults</strong> <span>What the toolkit ships. It applies wherever you have not said otherwise.</span></p></li>
+</ol>
+<p>One limit holds at every level: the safety sections, git-safety and security, may be tightened, never loosened. <a href="#safety">Safety sections</a> explains.</p>
+</div>
+</div>
+</section>
+
+<section class="section section--alt" id="what">
+<div class="wrap">
+<div class="section-head">
+<p class="eyebrow">Four types</p>
+<h2>What you can override</h2>
+</div>
+<p class="prose">You override a component by placing a copy with the same name under your global <code>~/.claude/</code>. Each type takes effect in its own way.</p>
+<ul class="panels panels--quad">
+<li>
+<h3>Doctrine <span class="jump__n">13 files</span></h3>
+<p class="panel__path"><code>~/.claude/doctrine/&lt;name&gt;.md</code></p>
+<p>The session-start hook detects your copy and announces it, and the model reads your copy for that concern instead of the plugin's.</p>
+</li>
+<li>
+<h3>Rules <span class="jump__n">8 files</span></h3>
+<p class="panel__path"><code>~/.claude/rules/&lt;name&gt;.md</code></p>
+<p>The session-start hook injects your body in place of the plugin's rule, and <code>subagent-rules.sh</code> does the same for every worker. Keep the file's frontmatter.</p>
+</li>
+<li>
+<h3>Agents <span class="jump__n">14 agents</span></h3>
+<p class="panel__path"><code>~/.claude/agents/&lt;name&gt;.md</code></p>
+<p>Claude Code resolves your agent over the plugin's for the bare name, matched by its frontmatter <code>name</code>. Call it as <code>&lt;name&gt;</code>, because <code>toolkit:&lt;name&gt;</code> pins the plugin copy.</p>
+</li>
+<li>
+<h3>Skills <span class="jump__n">20 skills</span></h3>
+<p class="panel__path"><code>~/.claude/skills/&lt;name&gt;/</code></p>
+<p>Copied as a whole directory and resolved for the bare name, matched by the directory name or the frontmatter <code>name</code>.</p>
+</li>
+</ul>
+<div class="split split--rows">
+<div class="section-head">
+<h3>Doctrine files</h3>
+</div>
+<ul class="names" aria-label="Doctrine files">
+<li><code>build-memory</code></li>
+<li><code>claim-provenance</code></li>
+<li><code>communication</code></li>
+<li><code>conventions</code></li>
+<li><code>design</code></li>
+<li><code>execution-guardrails</code></li>
+<li><code>git-safety</code></li>
+<li><code>minimalism</code></li>
+<li><code>orchestration</code></li>
+<li><code>repo-artifacts</code></li>
+<li><code>security</code></li>
+<li><code>validation-honesty</code></li>
+<li><code>workflow-routing</code></li>
+</ul>
+<div class="section-head">
+<h3>Rules</h3>
+</div>
+<div class="prose">
+<ul class="names" aria-label="Rules">
+<li><code>config-coupling</code></li>
+<li><code>database</code></li>
+<li><code>error-handling</code></li>
+<li><code>performance</code></li>
+<li><code>prose</code></li>
+<li><code>security</code></li>
+<li><code>testing</code></li>
+<li><code>writing</code></li>
+</ul>
+<p class="section-note">The <code>frontend</code> and <code>design</code> rules are reference-only and never injected, so a rule override has nothing to replace. The content of <code>frontend</code> lives in the <code>frontend-designer</code> agent, so override that instead. <code>design</code> is an index over the <code>rules/design/</code> catalog. <code>/override</code> tells you this if you try.</p>
+</div>
+<div class="section-head">
+<h3>Agents and skills</h3>
+</div>
+<p>Every one of the <a href="agents.html">14 worker agents</a> and the <a href="skills.html">20 skills</a>.</p>
+</div>
+</div>
+</section>
+
+<section class="section" id="ways">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">Two ways</p>
+<h2>Say it, or replace the file</h2>
+</div>
+<div class="prose">
+<ul class="panels">
+<li>
+<h3>State it inline</h3>
+<p>Write the override as a line in your global <code>~/.claude/CLAUDE.md</code>. Your personal scope overrides any doctrine section.</p>
+</li>
+<li>
+<h3>Replace a whole file</h3>
+<p>Put a same-named copy under <code>~/.claude/</code> and edit it. <code>/override</code> makes the copy for you, or you can drop the file in by hand. There is no pointer to write or maintain.</p>
+</li>
+</ul>
+<p>Doctrine and rules take effect because the session-start hook loads them fresh each session. Agents and skills are resolved by Claude Code itself, with no hook involved, but only when called by their bare name. A copied agent or skill sits outside the plugin, so it still runs the scripts of the installed plugin, and a copied skill reads the doctrine, commands, workflows and other skills it names from there too.</p>
+</div>
+</div>
+</section>
+
+<section class="section section--alt" id="command">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">Step by step</p>
+<h2>The <code>/override</code> command</h2>
+<p class="section-note">Usage: <code>/override [type] [name]</code></p>
+</div>
+<div class="prose">
+<ol class="steps">
+<li>
+<p><strong>Pick the component.</strong> With no argument, <code>/override</code> lists everything you can override, grouped by type, and asks which one. With a name, such as <code>/override conventions</code>, it detects the type. A name that exists under two types needs the type first: <code>security</code> is both a doctrine file and a rule, so you run <code>/override rules security</code>.</p>
+</li>
+<li>
+<p><strong>It checks the name.</strong> It refuses an unknown or ambiguous name, never overwrites an override you already created, and refuses when one of your agents or skills under another file or directory name already carries that frontmatter <code>name</code>.</p>
+</li>
+<li>
+<p><strong>It copies the plugin's version.</strong> It runs <code>scripts/override.sh</code>, which copies the file into <code>~/.claude/&lt;type&gt;/</code>, or a skill's whole directory. The script finds the plugin root itself and needs no config.</p>
+</li>
+<li>
+<p><strong>It reports.</strong> It names the created path and how that type takes effect, and offers to open the new file for editing.</p>
+</li>
+<li>
+<p><strong>You edit your copy.</strong> Doctrine and rules apply from the next session. Agents and skills apply when you call them by the bare name.</p>
+</li>
+</ol>
+<p class="section-note">It writes into <code>~/.claude/</code> only. Nothing in the plugin changes, and nothing in git.</p>
+</div>
+</div>
+</section>
+
+<section class="section" id="example">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">Worked example</p>
+<h2>Your own conventions</h2>
+</div>
+<div class="prose">
+<p>The <code>conventions</code> doctrine file says to match the codebase's patterns, write docs first, keep comments sparse and single-line, and flag and ask before deviating. To make it yours:</p>
+<div class="terminal" role="group" aria-label="Override the conventions doctrine">
+<div class="terminal__bar"><span>Claude Code</span></div>
+<pre><code>/override conventions</code></pre>
+</div>
+<ol class="plain-list">
+<li>The command finds one component with that name, a doctrine file, and copies it to <code>~/.claude/doctrine/conventions.md</code>.</li>
+<li>You edit that file to say how you work.</li>
+<li>From the next session on, the session-start hook announces the doctrine override for <code>conventions</code>, and the model reads your copy for that concern instead of the plugin's.</li>
+</ol>
+<p>The same steps work for a rule, an agent or a skill. For <code>/override code-reviewer</code>, the copy lands at <code>~/.claude/agents/code-reviewer.md</code>, and you call it as <code>code-reviewer</code>, not <code>toolkit:code-reviewer</code>.</p>
+</div>
+</div>
+</section>
+
+<section class="section section--alt" id="announce">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">Never silent</p>
+<h2>What you see each session</h2>
+<p class="section-note">When an override is active, the session-start hook announces it.</p>
+</div>
+<dl class="ref">
+<div>
+<dt>Doctrine overrides active</dt>
+<dd><p>Followed by the names, such as <code>conventions</code>. Your global copy is read for that concern.</p></dd>
+</div>
+<div>
+<dt>Rule overrides active</dt>
+<dd><p>Your rule body was injected instead of the plugin's.</p></dd>
+</div>
+<div>
+<dt>Rule override(s) empty or unreadable, plugin default used instead</dt>
+<dd><p>Your override file exists but has no usable body, so the hook used the plugin's copy. Fix or remove the override.</p></dd>
+</div>
+<div>
+<dt>Rule file(s) unreadable, no override and no usable plugin default</dt>
+<dd><p>Neither your override nor the plugin's copy could supply a body for that rule, and the rule is named.</p></dd>
+</div>
+<div>
+<dt>Agent/skill overrides active</dt>
+<dd><p>Your version resolves for the bare name.</p></dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section class="section" id="safety">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">The limit</p>
+<h2>Safety sections tighten, never loosen</h2>
+</div>
+<div class="prose">
+<p>The safety sections are the <code>git-safety</code> and <code>security</code> doctrine files and the <code>security</code> rule. Your override may make them stricter, never looser.</p>
+<p>This is stated discipline, not something a hook enforces, because a hook cannot tell a tighter rule from a looser one. It rests on you keeping to it, the same as the rest of the doctrine.</p>
+</div>
+</div>
+</section>
+
+<section class="section section--alt" id="models">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">No copy needed</p>
+<h2>Settings you change without an override</h2>
+<p class="section-note">For these, a copied file is the wrong tool.</p>
+</div>
+<dl class="ref">
+<div>
+<dt><code>~/.claude/toolkit-models.json</code></dt>
+<dd>
+<p>Changes an agent's model or effort as a <code>{"model": ..., "effort": ...}</code> object per agent, without copying the agent file. <code>/setup</code> offers it, and both the <code>agent-model.sh</code> hook and the workflow runners apply it. A plan note's run options override the implementer and verifier entries for that plan.</p>
+<p class="ref__line">A copied agent freezes that agent's future updates, and it runs on the default subagent model or the session model until you add <code>model:</code> and <code>effort:</code> lines to its frontmatter.</p>
+</dd>
+</div>
+<div>
+<dt><code>TOOLKIT_CONDUCTOR_EDITS=1</code></dt>
+<dd><p>Lets the main conversation edit project files itself. Set it in the shell for one session, or for one project through <code>/setup</code> check 10, which writes it to that project's <code>.claude/settings.local.json</code>.</p></dd>
+</div>
+<div>
+<dt><code>CLAUDE_PROTECTED_BRANCHES</code></dt>
+<dd><p>A comma-separated branch list that replaces the default protected branches for <code>block-dangerous-commands.sh</code>.</p></dd>
+</div>
+<div>
+<dt><code>TOOLKIT_CTX_SENTINEL=0</code></dt>
+<dd><p>Turns off <code>context-sentinel.sh</code>.</p></dd>
+</div>
+<div>
+<dt><code>TOOLKIT_REMEMBER_GUARD=0</code></dt>
+<dd><p>Turns off <code>remember-guard.sh</code>.</p></dd>
+</div>
+<div>
+<dt><code>TOOLKIT_SESSION_VERBOSE=1</code></dt>
+<dd><p>Extends the git briefing that <code>session-start.sh</code> injects.</p></dd>
+</div>
+</dl>
+</div>
+</section>
+</main>
+
+<footer class="site-footer">
+<div class="wrap site-footer__inner">
+<div class="site-footer__credit">
+<p><span class="wordmark"><span class="wordmark__mark" aria-hidden="true">&gt;_</span> claude-toolkit</span></p>
+<p>MIT licensed. Source at <a href="https://github.com/shaughnlgh/claude-toolkit">github.com/shaughnlgh/claude-toolkit</a>. This site is plain HTML and one stylesheet.</p>
+</div>
+<nav class="site-footer__nav" aria-label="Footer">
+<div>
+<p class="site-footer__h">Workflow</p>
+<ul>
+<li><a href="walkthrough-plan.html">Plan flow</a></li>
+<li><a href="walkthrough-execute.html">Execute flow</a></li>
+<li><a href="walkthrough-ship.html">Ship flow</a></li>
+<li><a href="sessions.html">Sessions</a></li>
+</ul>
+</div>
+<div>
+<p class="site-footer__h">Reference</p>
+<ul>
+<li><a href="agents.html">Agents</a></li>
+<li><a href="skills.html">Skills</a></li>
+<li><a href="commands.html">Commands</a></li>
+<li><a href="hooks.html">Hooks</a></li>
+<li><a href="overrides.html">Overrides</a></li>
+</ul>
+</div>
+<div>
+<p class="site-footer__h">Project</p>
+<ul>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/LICENSE">Licence</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
+</ul>
+</div>
+</nav>
+</div>
+</footer>
+</body>
+</html>
