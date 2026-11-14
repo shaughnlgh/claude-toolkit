@@ -3,7 +3,7 @@ title: Workflow script authoring
 summary: Constraints on writing and testing the toolkit's Workflow scripts, and the verify.sh conventions a new script or check must follow.
 type: context
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-12
 source_refs:
   - plugins/toolkit/workflows/

@@ -17,7 +17,7 @@ no() { printf '  FAIL  %s (%s)\n' "$1" "$2"; FAIL=$((FAIL+1)); }
 BASE="$(mktemp -d)"
 trap 'rm -rf "$BASE"' EXIT
 mkdir -p "$BASE/home/.claude" "$BASE/vault/AI/Projects/demo dir" "$BASE/vault/AI-other" "$BASE/outside"
-printf '{"vault_path": "%s", "root_folder": "AI"}\n' "$BASE/vault" > "$BASE/home/.claude/obsidian-sync.json"
+printf '{"vault_path": "%s", "root_folder": "AI"}\n' "$BASE/vault" > "$BASE/home/.claude/toolkit-vault.json"
 V="$BASE/vault/AI"
 
 run() { HOME="$BASE/home" bash "$VFS" "$@" 2>&1; }
@@ -231,6 +231,41 @@ out="$(run attach "$R" 'out/s1.png' 'escape/leak.png')"; rc=$?
 mkdir -p "$BASE/home/.git" "$BASE/home/Desktop" && cp "$R/out/s1.png" "$BASE/home/Desktop/s1.png"
 out="$(run attach "$BASE/home" 'Desktop/s1.png' 'Projects/home.png')"; rc=$?
 [ $rc -eq 1 ] && [ ! -e "$V/Projects/home.png" ] && case "$out" in "refused: the checkout holds the home directory"*) ok "42 attach checkout holding the home directory refused";; *) no "42 attach checkout holding the home directory refused" "$out";; esac || no "42 attach checkout holding the home directory refused" "rc=$rc"
+
+# Config name cases: a second vault at BASE/vault-b and one HOME per case.
+mkdir -p "$BASE/vault-b/AI/Projects" "$BASE/h-legacy/.claude" "$BASE/h-new/.claude" "$BASE/h-both/.claude" "$BASE/h-bad/.claude"
+VB="$BASE/vault-b/AI"
+printf '{"vault_path": "%s", "root_folder": "AI"}\n' "$BASE/vault" > "$BASE/h-legacy/.claude/obsidian-sync.json"
+printf '{"vault_path": "%s", "root_folder": "AI"}\n' "$BASE/vault" > "$BASE/h-new/.claude/toolkit-vault.json"
+printf '{"vault_path": "%s", "root_folder": "AI"}\n' "$BASE/vault-b" > "$BASE/h-both/.claude/toolkit-vault.json"
+printf '{"vault_path": "%s", "root_folder": "AI"}\n' "$BASE/vault" > "$BASE/h-both/.claude/obsidian-sync.json"
+printf '{"vault_path": ' > "$BASE/h-bad/.claude/toolkit-vault.json"
+printf '{"vault_path": "%s", "root_folder": "AI"}\n' "$BASE/vault" > "$BASE/h-bad/.claude/obsidian-sync.json"
+
+# 43. only the legacy obsidian-sync.json resolves the vault
+echo x > "$V/Projects/legacy43.md"
+out="$(HOME="$BASE/h-legacy" bash "$VFS" rm 'Projects/legacy43.md' 2>&1)"; rc=$?
+[ $rc -eq 0 ] && [ ! -e "$V/Projects/legacy43.md" ] && ok "43 legacy config alone resolves" || no "43 legacy config alone resolves" "rc=$rc $out"
+
+# 44. only toolkit-vault.json resolves the vault
+echo x > "$V/Projects/new44.md"
+out="$(HOME="$BASE/h-new" bash "$VFS" rm 'Projects/new44.md' 2>&1)"; rc=$?
+[ $rc -eq 0 ] && [ ! -e "$V/Projects/new44.md" ] && ok "44 new config alone resolves" || no "44 new config alone resolves" "rc=$rc $out"
+
+# 45. with both files, the rm lands in the toolkit-vault.json vault
+echo x > "$V/Projects/both45.md"; echo x > "$VB/Projects/both45.md"
+out="$(HOME="$BASE/h-both" bash "$VFS" rm 'Projects/both45.md' 2>&1)"; rc=$?
+[ $rc -eq 0 ] && [ ! -e "$VB/Projects/both45.md" ] && [ -f "$V/Projects/both45.md" ] && ok "45 new config wins over legacy" || no "45 new config wins over legacy" "rc=$rc $out"
+
+# 46. an invalid toolkit-vault.json is an error, with no fallback to a valid legacy file
+echo x > "$V/Projects/bad46.md"
+out="$(HOME="$BASE/h-bad" bash "$VFS" rm 'Projects/bad46.md' 2>&1)"; rc=$?
+[ $rc -eq 1 ] && [ -f "$V/Projects/bad46.md" ] && ok "46 invalid new config does not fall back" || no "46 invalid new config does not fall back" "rc=$rc $out"
+
+# 47. topic-index writes INDEX.md inside the resolved vault root
+printf -- '---\ntype: topic\nsummary: Topic index case.\n---\n' > "$VB/Projects/Index Case.md"
+out="$(HOME="$BASE/h-both" bash "$VFS" topic-index 2>&1)"; rc=$?
+[ $rc -eq 0 ] && grep -q 'Index Case' "$VB/INDEX.md" && ok "47 topic-index writes the vault root INDEX.md" || no "47 topic-index writes the vault root INDEX.md" "rc=$rc $out"
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"

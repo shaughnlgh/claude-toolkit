@@ -3,14 +3,14 @@ title: Git tree state capture
 summary: How the toolkit's skills and workflow scripts list changed paths, capture a slice diff, and read branch state with read-only git, and the git output quirks those commands must handle.
 type: context
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-10
 source_refs:
   - plugins/toolkit/scripts/slice-capture.py
   - plugins/toolkit/workflows/execute-runner.js
   - plugins/toolkit/skills/execute-flow/SKILL.md
   - plugins/toolkit/skills/red-team/SKILL.md
-  - plugins/toolkit/commands/obsidian-topic.md
+  - plugins/toolkit/commands/topic.md
   - plugins/toolkit/doctrine/git-safety.md
   - plugins/toolkit/workflows/ship-runner.js
   - plugins/toolkit/scripts/seat-check.sh
@@ -20,7 +20,7 @@ source_refs:
 
 # Git tree state capture
 
-The `red-team` skill, the remember pass in `obsidian-topic.md`, and the execute flow capture a slice as `git diff HEAD` plus one `git diff --no-index` per untracked file. The execute flow runs that capture through `scripts/slice-capture.py`, which the runner's capture prompt, execute-flow section 8 and ship-flow section 4 all brief. The execute flow also compares path lists that come from different git commands. Those commands print the same path in different forms. This page lists the differences a capture or a path comparison must handle. The runner's capture prompt is described in [workflows.md](../workflows.md), and the read-only git command list is in `plugins/toolkit/doctrine/git-safety.md`, section Flows.
+The `red-team` skill, the remember pass in `topic.md`, and the execute flow capture a slice as `git diff HEAD` plus one `git diff --no-index` per untracked file. The execute flow runs that capture through `scripts/slice-capture.py`, which the runner's capture prompt, execute-flow section 8 and ship-flow section 4 all brief. The execute flow also compares path lists that come from different git commands. Those commands print the same path in different forms. This page lists the differences a capture or a path comparison must handle. The runner's capture prompt is described in [workflows.md](../workflows.md), and the read-only git command list is in `plugins/toolkit/doctrine/git-safety.md`, section Flows.
 
 ## Diffing untracked files
 

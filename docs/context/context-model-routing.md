@@ -3,7 +3,7 @@ title: Model routing
 summary: How the toolkit resolves each agent's model and effort for Agent-tool spawns and Workflow agent() calls, and the couplings a change to the resolver, the hook, the session scratchpad library, or the launchers must keep.
 type: context
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-08
 source_refs:
   - plugins/toolkit/scripts/resolve-models.sh

@@ -24,7 +24,7 @@ Review a GitLab MR with the `review-mr` workflow (shipped with this plugin at `<
 Reviewers verify claims against real code, so find where the MR's target branch lives locally:
 
 - If the MR project is a top-level repo, it is usually `~/projects/<repo>`.
-- If it is a nested vendor module (e.g. `petheaven/magento-modules/subscription`), find its checkout inside the host project (`find <repo> -name .git -path "*<module>*"`) and use `git -C <module-dir> log --oneline -1 <base_sha>` (read-only) to confirm the MR base commit exists in the local history. Local checkout slightly ahead of the base is fine — say so in the context block. If the base is NOT present locally, note that verification is degraded (agents can still read pre-change code via the diff context lines and `glab api` raw file fetches).
+- If it is a nested vendor module (e.g. `acme/magento-modules/subscription`), find its checkout inside the host project (`find <repo> -name .git -path "*<module>*"`) and use `git -C <module-dir> log --oneline -1 <base_sha>` (read-only) to confirm the MR base commit exists in the local history. Local checkout slightly ahead of the base is fine — say so in the context block. If the base is NOT present locally, note that verification is degraded (agents can still read pre-change code via the diff context lines and `glab api` raw file fetches).
 - The MR branch itself is never checked out. All MR content comes from the saved diff.
 
 ## 3. Read the diff and build the context block
@@ -41,7 +41,7 @@ Read the full diff yourself before delegating. Then write a `contextBlock` strin
 
 The six registry reviewers are always included by the workflow. Add 1–3 MR-specific `dimensions: [{key, prompt}]` that the generic reviewers will not cover, for example:
 
-- Contract impact (GraphQL schema, API response shapes, downstream consumers such as Nexus/PWA).
+- Contract impact (GraphQL schema, API response shapes, downstream consumers such as a mobile app or a PWA).
 - Framework wiring correctness (plugin/preference/observer targets, DI, rewrites, renderer dispatch — verify target classes and signatures in local code).
 - Conventions vs this repo's written rules AND actual practice (flag only when both are violated).
 - Data/upgrade safety (setup scripts, schema changes, config defaults vs values already in the DB).

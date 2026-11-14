@@ -3,7 +3,7 @@ title: Execute flow adjudication
 summary: How the execute-flow skill stops, resumes, caps its runs per plan, and settles unreproduced and open panel findings and verified cold-read findings with no question, and the constraints a change to those paths must keep.
 type: context
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-10
 source_refs:
   - plugins/toolkit/skills/execute-flow/SKILL.md
@@ -60,7 +60,7 @@ The `execute-flow` skill launches the `execute-runner` workflow and settles, wit
 
 - Section 7 of the skill writes the shipping record (the staging list, the commit message, and a hash) after the accepted docs are written, a section 8 fix replaces it, and the ship flow compares a fresh capture against its hash before a commit. The slice marker still keys on `diffHashes.postDoc`, which is taken before any doc lands, so the shipping record hash and the marker hash differ whenever the consent gate accepted a doc. On a several-repos note the hash is one `<name>=<hash12>` pair per root, in ship order, from `diffParts.postDoc`, and section 8's resume check compares each pair with the same repo's part hash.
 - `execute-runner.js` marks a failed `diff:post-doc` capture dead and turns an empty one into a `blocked` sentence, so a result with an empty `blocked` and an empty `incomplete` always carries `diffHashes.postDoc`. Section 7 therefore takes no capture of its own.
-- Section 7 declines every repo doc proposal with no question and copies each proposal's scratch file, `remember-<kebab-path>.md`, into the plan note's vault folder as `remember-<kebab-path> - <planName>.md`, linked under Linked Artifacts. Step 4 of the obsidian-topic gate folds the declined proposals' facts into the vault topics. The report lists each copy's repo path and vault path under "Repo doc proposals", never the scratch path.
+- Section 7 declines every repo doc proposal with no question and copies each proposal's scratch file, `remember-<kebab-path>.md`, into the plan note's vault folder as `remember-<kebab-path> - <planName>.md`, linked under Linked Artifacts. Step 4 of the topic command's gate folds the declined proposals' facts into the vault topics. The report lists each copy's repo path and vault path under "Repo doc proposals", never the scratch path.
 
 ## Related docs
 

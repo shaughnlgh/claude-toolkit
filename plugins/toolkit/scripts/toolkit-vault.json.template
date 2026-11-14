@@ -1,0 +1,6 @@
+{
+  "_readme": "Copy to ~/.claude/toolkit-vault.json and set vault_path to any folder of markdown notes. The planning workflow writes plan notes and topic notes under <vault_path>/<root_folder>/.",
+  "vault_path": "/Users/YOU/notes",
+  "root_folder": "AI/Claude-Code",
+  "plan_folder_template": "AI/Claude-Code/Projects/{repo_name}/{date}-{plan_name}"
+}

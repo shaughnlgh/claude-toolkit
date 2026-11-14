@@ -3,7 +3,7 @@ title: Plan note section checks
 summary: How the toolkit's validator and hooks find a line inside a plan note section, gate new content rules on the plan's created date, and test those rules.
 type: context
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-05
 source_refs:
   - plugins/toolkit/scripts/validate-plan.py

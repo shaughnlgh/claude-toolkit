@@ -3,7 +3,7 @@ title: Grill is a fixed step of planning
 summary: Every first-draft planning flow runs the planning grill once, after discovery and before the draft, takes only the user's own answer, and on the wayfinder route reads the crawl grill check's answers from the parent note.
 type: decision
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-12
 ---
 

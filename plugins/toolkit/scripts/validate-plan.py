@@ -11,8 +11,8 @@ Exit codes:
 Never writes. No network, no vault config, no third-party packages.
 
 Parser scope (deliberate, documented): this is NOT a YAML parser. It parses
-exactly the frontmatter subset the plan-guide skill and Mission Control
-scaffolds produce — top-level "key: value" scalars, bare "key:" (blank), lists
+exactly the frontmatter subset the plan-guide skill and another tool that writes
+plan notes produce — top-level "key: value" scalars, bare "key:" (blank), lists
 of scalars ("- item"), and lists of flat dicts ("- k: v" with indented "k: v"
 continuations, one level deep). Anything else (block scalars, flow style on
 structured keys, deeper nesting, tab indentation) is rejected with exit 2
@@ -55,7 +55,7 @@ REMEMBER_LINE_SINCE = "2026-10-18"
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 REMEMBER_LINE_RE = re.compile(r"^[ \t]*(?:- )?Remember:", re.M)
 # Run options (plan-guide SKILL.md § Run options). Optional and not in REQUIRED_KEYS,
-# so a skeleton, an older note, and a Mission Control scaffold still validate.
+# so a skeleton, an older note, and a note from another tool that writes plan notes still validate.
 # A blank value reads as absent. A non-blank value is value-checked.
 RUN_OPTION_VALUES = {
     "ceiling": {"none", "mr", "merge"},
@@ -70,7 +70,7 @@ MODEL_RE = re.compile(r"^[A-Za-z][A-Za-z0-9.:_-]*(\[1m\])?$")
 EFFORTS = {"low", "medium", "high", "xhigh", "max", "inherit"}
 RUN_OPTION_KEYS = list(RUN_OPTION_VALUES) + list(MODEL_KEYS) + ["verifier_effort"]
 # Keys whose structure the validator actually checks. Anything else is unknown
-# metadata (Mission Control adds e.g. worklogs, tracking, mockups): its indented
+# metadata (another tool that writes plan notes may add e.g. worklogs, tracking, mockups): its indented
 # block is consumed opaquely and tolerated, however it is shaped.
 VALIDATED_KEYS = set(REQUIRED_KEYS) | {"parent"} | set(RUN_OPTION_KEYS)
 
