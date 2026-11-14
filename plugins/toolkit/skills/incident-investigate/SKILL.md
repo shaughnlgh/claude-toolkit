@@ -41,7 +41,7 @@ Derive the incident name per plan-guide's name derivation (ticket key first), fr
 - `incident - <name>.md`: the technical writeup. Scope fence, evidence sources checked, findings per source with citations, verdict and provenance, chain of events, outside-scope list. Redact customer PII before writing. Keep item ids, timestamps, and error codes. Where a finding cannot be written without PII, cite its location (table and key, log source and timestamp) instead of quoting it.
 - The stakeholder summary, as a section at the top of the same note under "Summary for stakeholders": plain language, short, Slack-ready, domain nouns kept, uncertainty stated directly with the verdict's provenance label (verified, derived, or judgment), never softened or padded with filler.
 
-Durable facts about the subsystem go to the topic note per obsidian-topic.
+Durable facts about the subsystem go to the topic note per the topic command.
 
 ## 5. Handoff
 

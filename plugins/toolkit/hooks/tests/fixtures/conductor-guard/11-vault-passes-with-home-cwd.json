@@ -1,5 +1,5 @@
 {
-  "name": "a write under the obsidian-sync.json vault_path passes when the session cwd is the home directory",
+  "name": "a write under the vault_path of the legacy obsidian-sync.json passes when the session cwd is the home directory",
   "stdin": {
     "session_id": "cg-11",
     "transcript_path": "/tmp/proj/session.jsonl",

@@ -62,3 +62,7 @@ The one question, asked before any branch or plan name is derived for work with 
 ### Topic recall
 
 The lookup `scripts/topic-recall.py` runs over the vault's topic notes and, when given `--repo-root`, the repo's `docs/` folder. It ranks hits by the query words found in each title and summary. The session-start hook injects the top hits for the current repo. `plan-guide`, `execution-guide`, and `crawl` run it with the task words before they read code.
+
+### Vault
+
+The folder of markdown notes that the toolkit writes plan notes and topic notes into. Any folder works, and no note-taking app is required.

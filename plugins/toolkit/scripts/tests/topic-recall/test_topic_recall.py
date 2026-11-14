@@ -12,6 +12,7 @@ import unittest
 from typing import Any, List, Optional
 
 SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "topic-recall.py")
+INDEXER = os.path.join(os.path.dirname(SCRIPT), "vault-index.py")
 ROOT_FOLDER = os.path.join("AI", "Claude-Code")
 
 _spec = importlib.util.spec_from_file_location("topic_recall", SCRIPT)
@@ -38,6 +39,17 @@ repos:
 
 ## Overview
 """
+GADGET_NOTE = """---
+type: topic
+summary: Gadget board lists every gadget.
+repos: [shop]
+---
+"""
+ODD_NOTE = """---
+type: topic
+summary: Odd title note.
+---
+"""
 PLAN_NOTE = """---
 type: plan
 summary: Not a topic.
@@ -51,16 +63,20 @@ def temp_dir(test: unittest.TestCase) -> str:
     return path
 
 
+def write_config(home: str, name: str, vault: str) -> None:
+    with open(os.path.join(home, ".claude", name), "w", encoding="utf-8") as fh:
+        json.dump({"vault_path": vault, "root_folder": ROOT_FOLDER}, fh)
+
+
 def make_vault(test: unittest.TestCase, files: dict[str, str]) -> tuple[str, str]:
-    """Return (home, root) for a temp HOME whose obsidian-sync.json points at a temp vault."""
+    """Return (home, root) for a temp HOME whose toolkit-vault.json points at a temp vault."""
     base = temp_dir(test)
     home = os.path.join(base, "home")
     vault = os.path.join(base, "vault")
     root = os.path.join(vault, ROOT_FOLDER)
     os.makedirs(os.path.join(home, ".claude"))
     os.makedirs(root)
-    with open(os.path.join(home, ".claude", "obsidian-sync.json"), "w", encoding="utf-8") as fh:
-        json.dump({"vault_path": vault, "root_folder": ROOT_FOLDER}, fh)
+    write_config(home, "toolkit-vault.json", vault)
     for rel, body in files.items():
         path = os.path.join(root, rel)
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -77,6 +93,26 @@ def run_cli(home: str, *args: str, cwd: Optional[str] = None, script: str = SCRI
     env = {"HOME": home, "PATH": os.environ.get("PATH", "")}
     return subprocess.run([sys.executable, "-I", script, *args], env=env, cwd=cwd,
                           capture_output=True, text=True, timeout=10)
+
+
+def run_indexer(root: str) -> subprocess.CompletedProcess:
+    return subprocess.run([sys.executable, "-I", INDEXER, root], capture_output=True, text=True, timeout=10)
+
+
+def read_bytes(path: str) -> bytes:
+    with open(path, "rb") as fh:
+        return fh.read()
+
+
+def touch_after(index_path: str, *paths: str) -> None:
+    """Set each path's modification time one second after the index's."""
+    later = os.stat(index_path).st_mtime_ns + 1_000_000_000
+    for path in paths:
+        os.utime(path, ns=(later, later))
+
+
+def titles(result: subprocess.CompletedProcess) -> List[str]:
+    return [row["title"] for row in json.loads(result.stdout)]
 
 
 def candidate(title: str, summary: str = "", repos: Optional[List[str]] = None) -> Any:
@@ -208,6 +244,41 @@ class TopicRecallTest(unittest.TestCase):
         home = temp_dir(self)
 
         result = run_cli(home, "anything")
+
+        self.assertEqual(result.returncode, 2, result.stderr)
+
+    def test_legacy_config_alone_resolves_the_vault(self):
+        home, _root = make_vault(self, {"INDEX.md": index(SHOP_ROW)})
+        claude = os.path.join(home, ".claude")
+        os.rename(os.path.join(claude, "toolkit-vault.json"), os.path.join(claude, "obsidian-sync.json"))
+
+        result = run_cli(home, "--repo", "shop", "--format", "json")
+
+        self.assertEqual([row["title"] for row in json.loads(result.stdout)], ["Widget Cache"], result.stderr)
+
+    def test_new_config_alone_resolves_the_vault(self):
+        home, _root = make_vault(self, {"INDEX.md": index(SHOP_ROW)})
+
+        result = run_cli(home, "--repo", "shop", "--format", "json")
+
+        self.assertEqual([row["title"] for row in json.loads(result.stdout)], ["Widget Cache"], result.stderr)
+
+    def test_new_config_wins_over_legacy_config(self):
+        home, _root = make_vault(self, {"INDEX.md": index(SHOP_ROW)})
+        other = os.path.join(temp_dir(self), "vault")
+        write_file(os.path.join(other, ROOT_FOLDER, "INDEX.md"), index(PLAIN_ROW))
+        write_config(home, "obsidian-sync.json", other)
+
+        result = run_cli(home, "--repo", "shop", "--format", "json")
+
+        self.assertEqual([row["title"] for row in json.loads(result.stdout)], ["Widget Cache"], result.stderr)
+
+    def test_invalid_new_config_exits_2_beside_valid_legacy_config(self):
+        home, root = make_vault(self, {"INDEX.md": index(SHOP_ROW)})
+        write_config(home, "obsidian-sync.json", os.path.dirname(os.path.dirname(root)))
+        write_file(os.path.join(home, ".claude", "toolkit-vault.json"), '{"vault_path": ')
+
+        result = run_cli(home, "--repo", "shop")
 
         self.assertEqual(result.returncode, 2, result.stderr)
 
@@ -453,6 +524,120 @@ class TopicRecallTest(unittest.TestCase):
         result = run_cli(home, "--repo-root", ".", "--format", "json", cwd=repo)
 
         self.assertEqual([row["title"] for row in json.loads(result.stdout)], ["Widget Cache"], result.stderr)
+
+
+    def test_generated_index_leaves_recall_output_unchanged(self):
+        home, root = make_vault(self, {"Projects/shop/Widget Cache.md": TOPIC_NOTE, "Projects/shop/Gadget Board.md": GADGET_NOTE})
+        before = run_cli(home, "--repo", "shop", "--format", "json").stdout
+        run_indexer(root)
+
+        after = run_cli(home, "--repo", "shop", "--format", "json").stdout
+
+        self.assertEqual(after, before)
+
+    def test_generated_index_on_unchanged_vault_is_used(self):
+        home, root = make_vault(self, {"Projects/shop/Widget Cache.md": TOPIC_NOTE})
+        run_indexer(root)
+
+        result = run_cli(home, "--repo", "shop")
+
+        self.assertNotEqual(result.stdout.splitlines()[0], tr.FALLBACK_HEADER, result.stderr)
+
+    def test_generator_keeps_an_index_without_the_marker(self):
+        _home, root = make_vault(self, {"INDEX.md": index(SHOP_ROW), "Projects/shop/Gadget Board.md": GADGET_NOTE})
+        before = read_bytes(os.path.join(root, "INDEX.md"))
+
+        run_indexer(root)
+
+        self.assertEqual(read_bytes(os.path.join(root, "INDEX.md")), before)
+
+    def test_second_generator_run_keeps_the_bytes(self):
+        _home, root = make_vault(self, {"Projects/shop/Widget Cache.md": TOPIC_NOTE})
+        run_indexer(root)
+        before = read_bytes(os.path.join(root, "INDEX.md"))
+
+        run_indexer(root)
+
+        self.assertEqual(read_bytes(os.path.join(root, "INDEX.md")), before)
+
+    def test_note_written_after_the_index_is_recalled(self):
+        home, root = make_vault(self, {"Projects/shop/Widget Cache.md": TOPIC_NOTE})
+        run_indexer(root)
+        note = write_file(os.path.join(root, "Projects", "shop", "Gadget Board.md"), GADGET_NOTE)
+        touch_after(os.path.join(root, "INDEX.md"), note, os.path.dirname(note))
+
+        result = run_cli(home, "--format", "json", "gadget")
+
+        self.assertEqual(titles(result), ["Gadget Board"], result.stderr)
+
+    def test_note_deleted_after_the_index_is_not_recalled(self):
+        home, root = make_vault(self, {"Projects/shop/Widget Cache.md": TOPIC_NOTE, "Projects/shop/Gadget Board.md": GADGET_NOTE})
+        run_indexer(root)
+        os.remove(os.path.join(root, "Projects", "shop", "Gadget Board.md"))
+        touch_after(os.path.join(root, "INDEX.md"), os.path.join(root, "Projects", "shop"))
+
+        result = run_cli(home, "--format", "json", "gadget")
+
+        self.assertEqual(titles(result), [], result.stderr)
+
+    def test_note_edited_in_place_after_the_index_is_recalled_with_its_new_summary(self):
+        home, root = make_vault(self, {"Projects/shop/Widget Cache.md": TOPIC_NOTE})
+        run_indexer(root)
+        note = write_file(os.path.join(root, "Projects", "shop", "Widget Cache.md"),
+                          TOPIC_NOTE.replace("for one hour", "for one day"))
+        touch_after(os.path.join(root, "INDEX.md"), note)
+
+        result = run_cli(home, "--format", "json", "widget")
+
+        self.assertEqual([row["summary"] for row in json.loads(result.stdout)],
+                         ["Widget cache keeps rendered widgets for one day."], result.stderr)
+
+    def test_older_index_without_the_marker_still_supplies_rows(self):
+        home, root = make_vault(self, {"INDEX.md": index(PLAIN_ROW), "Projects/shop/Widget Cache.md": TOPIC_NOTE})
+        touch_after(os.path.join(root, "INDEX.md"), os.path.join(root, "Projects", "shop", "Widget Cache.md"))
+
+        result = run_cli(home, "--format", "json", "secure")
+
+        self.assertEqual(titles(result), ["3D Secure"], result.stderr)
+
+    def test_unwritable_title_leaves_no_index(self):
+        _home, root = make_vault(self, {"Projects/shop/Odd ] Title.md": ODD_NOTE})
+
+        run_indexer(root)
+
+        self.assertFalse(os.path.lexists(os.path.join(root, "INDEX.md")))
+
+    def test_unwritable_title_is_named_on_stderr(self):
+        _home, root = make_vault(self, {"Projects/shop/Odd ] Title.md": ODD_NOTE})
+
+        result = run_indexer(root)
+
+        self.assertIn(os.path.join(root, "Projects", "shop", "Odd ] Title.md"), result.stderr)
+
+    def test_unwritable_title_is_still_recalled(self):
+        home, root = make_vault(self, {"Projects/shop/Odd ] Title.md": ODD_NOTE})
+        run_indexer(root)
+
+        result = run_cli(home, "--format", "json", "odd")
+
+        self.assertEqual(titles(result), ["Odd ] Title"], result.stderr)
+
+    def test_shared_title_leaves_no_index(self):
+        _home, root = make_vault(self, {"Projects/shop/Widget Cache.md": TOPIC_NOTE, "Docs/Widget Cache.md": TOPIC_NOTE})
+
+        run_indexer(root)
+
+        self.assertFalse(os.path.lexists(os.path.join(root, "INDEX.md")))
+
+    def test_shared_title_recall_holds_both_paths(self):
+        home, root = make_vault(self, {"Projects/shop/Widget Cache.md": TOPIC_NOTE, "Docs/Widget Cache.md": TOPIC_NOTE})
+        run_indexer(root)
+
+        result = run_cli(home, "--format", "json", "widget")
+
+        self.assertEqual({row["path"] for row in json.loads(result.stdout)},
+                         {os.path.join(root, "Projects", "shop", "Widget Cache.md"), os.path.join(root, "Docs", "Widget Cache.md")},
+                         result.stderr)
 
 
 if __name__ == "__main__":

@@ -49,7 +49,7 @@ echo "== Structure =="
 n() { ls $1 2>/dev/null | wc -l | tr -d ' '; }
 [ "$(ls $P/agents/*.md 2>/dev/null | wc -l)" -eq 14 ] && ok "14 agents" || no "14 agents"
 [ "$(ls -d $P/skills/*/ 2>/dev/null | wc -l)" -eq 20 ] && ok "20 skills" || no "20 skills"
-[ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 7 ] && ok "7 commands" || no "7 commands"
+[ "$(ls $P/commands/*.md 2>/dev/null | wc -l)" -eq 8 ] && ok "8 commands" || no "8 commands"
 [ "$(ls $P/rules/*.md 2>/dev/null | wc -l)" -eq 10 ] && ok "10 rules" || no "10 rules"
 # design/ catalog coverage, both directions: every rules/design/*.md concern file must be
 # listed in the rules/design.md index, and every design/<name>.md reference the index makes
@@ -313,7 +313,7 @@ if [[ "$sr_sec" == *'seat-queue.sh wait'* ]] && [[ "$sr_sec" == *'seat-queue.sh 
 if [[ "$sr_sec" == *'<parent flag>'* ]] && [[ "$sr_sec" == *'PARENT'* ]] && [[ "$sr_sec" == *'starts no watcher'* ]] && [[ "$sr_sec" == *'runs the seat run itself, or moves into a linked worktree'* ]] && grep -qF 'starts no watcher' "$P/doctrine/orchestration.md" && grep -qF 'starts no watcher' "$P/skills/plan-guide/SKILL.md"; then ok "the seat run starts no watcher and stops when its parent holds the main checkout, and doctrine and plan-guide say so"; else no "the parent stop is missing from execute-flow section 11, orchestration.md or plan-guide"; fi
 if grep -qF 'scripts/seat-queue.sh *)' "$P/commands/setup.md" && grep -qF 'scripts/seat-queue.sh <join|leave|list|wait>' "$P/commands/setup.md"; then ok "setup offers the prompt-free seat-queue rule and its usage line"; else no "setup lacks the seat-queue allow rule or its usage line"; fi
 su_rules="$(sed -n '/^## Rules$/,$p' "$P/commands/setup.md")"
-su_doc="$(sed -n '/^### `\/setup`$/,/^### `\/obsidian-topic`$/p' "$ROOT/docs/commands.md")"
+su_doc="$(sed -n '/^### `\/setup`$/,/^### `\/topic`$/p' "$ROOT/docs/commands.md")"
 su_miss=""
 for t in 'AskUserQuestion' '(Recommended)' 'yes <name>' 'pending (human)' 'protect-files.sh'; do [[ "$su_rules" == *"$t"* ]] || su_miss="${su_miss} rules:'${t}'"; done
 for t in 'AskUserQuestion' 'yes <name>' 'pending (human)'; do [[ "$su_doc" == *"$t"* ]] || su_miss="${su_miss} docs:'${t}'"; done
@@ -527,7 +527,7 @@ want "git-safety carries the classifier command-shape section" "$(cat "$P/doctri
 
 echo "== Scripts (guardrails) =="
 vfh="$(mktemp -d)"; mkdir -p "$vfh/.claude" "$vfh/vault/notes"
-printf '{"vault_path":"%s","root_folder":"notes"}\n' "$vfh/vault" > "$vfh/.claude/obsidian-sync.json"
+printf '{"vault_path":"%s","root_folder":"notes"}\n' "$vfh/vault" > "$vfh/.claude/toolkit-vault.json"
 want "vault-fs refuses traversal"  "$(HOME="$vfh" bash "$P/scripts/vault-fs.sh" rm '../x.md' 2>&1)" "refused"
 rm -rf "$vfh"
 want "git-ro refuses mutation"     "$(bash "$P/scripts/git-ro.sh" "$ROOT" commit 2>&1)" "refused"
@@ -565,11 +565,11 @@ suite_ok "plan-validator fixture suite" "$out" 48
 
 echo "== Topic recall =="
 out="$(bash "$P/scripts/tests/topic-recall/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "topic-recall behavior suite" "$out" 45
+suite_ok "topic-recall behavior suite" "$out" 61
 
 echo "== vault-fs containment =="
 out="$(bash "$P/scripts/tests/vault-fs/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "vault-fs behavior suite" "$out" 42
+suite_ok "vault-fs behavior suite" "$out" 47
 
 echo "== run-checkpoint journal read =="
 out="$(bash "$P/scripts/tests/run-checkpoint/run-tests.sh" 2>/dev/null | tail -1)"
@@ -700,6 +700,51 @@ else
   no "plan-critic / plan-guide Tripwires-Walk-away contract broken"
 fi
 
+echo "== Vault config =="
+vc_bad="$(grep -rlF --exclude-dir=tests --exclude-dir=__pycache__ 'obsidian-sync.json' "$P/hooks" "$P/scripts" | sed "s#^$P/##" | grep -v -x -e 'hooks/lib/vault-config.sh' -e 'scripts/topic-recall.py')"
+[ -z "$vc_bad" ] && ok "only hooks/lib/vault-config.sh and scripts/topic-recall.py name the legacy vault config file" || no "legacy vault config file named outside its two readers -> $(printf '%s' "$vc_bad" | tr '\n' ' ')"
+
+echo "== Doc owner =="
+[ "$(grep -rh '^owner:' "$ROOT/docs" | sort -u | wc -l)" -eq 1 ] && ok "no two owner lines under docs/ hold different values" || no "docs/ owner lines hold more than one value -> $(grep -rh '^owner:' "$ROOT/docs" | sort -u | tr '\n' ' ')"
+
+echo "== Site =="
+site="$(python3 - "$ROOT" <<'PY'
+import glob,json,os,sys
+from html.parser import HTMLParser
+from urllib.parse import urlsplit
+ROOT=sys.argv[1]
+S=os.path.join(ROOT,"site")
+repo=json.load(open(os.path.join(ROOT,"plugins/toolkit/.claude-plugin/plugin.json")))["repository"].rstrip("/")
+bad=[]
+class Page(HTMLParser):
+    def __init__(self,name):
+        super().__init__(); self.name=name
+    def handle_starttag(self,tag,attrs):
+        if tag=="script": bad.append(f"{self.name}: <script> tag")
+        for k,v in attrs:
+            if k not in ("href","src") or not v: continue
+            u=urlsplit(v)
+            asset=k=="src" or tag=="link"
+            if u.scheme or u.netloc:
+                if asset: bad.append(f"{self.name}: asset from another host {v}")
+                if u.netloc.lower() in ("github.com","www.github.com") and not (v==repo or v.startswith(repo+"/")):
+                    bad.append(f"{self.name}: github link outside the repository {v}")
+            elif u.path:
+                t=os.path.normpath(os.path.join(S,u.path))
+                if not t.startswith(S+os.sep) or not os.path.isfile(t):
+                    bad.append(f"{self.name}: {k} {v} does not resolve to a file under site/")
+pages=sorted(glob.glob(os.path.join(S,"*.html")))
+if not pages: bad.append("no site/*.html pages")
+for f in pages:
+    Page(os.path.basename(f)).feed(open(f).read())
+idx=open(os.path.join(S,"index.html")).read() if os.path.isfile(os.path.join(S,"index.html")) else ""
+for h in sorted(glob.glob(os.path.join(ROOT,"plugins/toolkit/hooks/*.sh"))):
+    if os.path.basename(h) not in idx: bad.append(f"index.html does not name hook {os.path.basename(h)}")
+print("BAD:"+("; ".join(bad) if bad else "NONE"))
+PY
+)"
+case "$site" in *"BAD:NONE"*) ok "site pages resolve their relative links, load nothing from another host, hold no script, link only into the repository on github.com, and index.html names every hook";; *) no "site -> ${site#*BAD:}";; esac
+
 echo "== Docs coverage (every shipped component is documented) =="
 cov="$(python3 - "$P" "$ROOT" <<'PY'
 import os,sys,glob,re
@@ -748,4 +793,4 @@ echo "RESULT: $pass passed, $skip skipped, $fail failed"
 # Floor, not just zero-failures: silently deleting real checks must not read green.
 # Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
 # no node, no local plugin install) must not read as a vanished check.
-[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 105 ]
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 187 ]

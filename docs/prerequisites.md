@@ -8,7 +8,7 @@ The `agent-model.sh` hook adds an `effort` field to Agent tool calls. The toolki
 
 ### gh (GitHub CLI)
 
-The official GitHub CLI. The install below pulls this plugin from a private GitHub repo over SSH, and `gh auth login` is the easiest way to generate and upload an SSH key the first time. Sessions also use it for read-only PR and CI checks on GitHub-hosted repos. The ship flow uses it to open a PR, watch its checks, reply to and resolve bot review threads, and merge. On a repo whose tracker is `github` (github.com, or a host that `~/.claude/toolkit-trackers.json` maps to `github`), the ticket question's create answer runs `gh issue create` after the user's yes to a draft it showed.
+The official GitHub CLI. Sessions use it for read-only PR and CI checks on GitHub-hosted repos. The ship flow uses it to open a PR, watch its checks, reply to and resolve bot review threads, and merge. On a repo whose tracker is `github` (github.com, or a host that `~/.claude/toolkit-trackers.json` maps to `github`), the ticket question's create answer runs `gh issue create` after the user's yes to a draft it showed.
 
 Install:
 
@@ -16,7 +16,7 @@ Install:
 brew install gh
 ```
 
-Authenticate (one-time, interactive; choose SSH and let it set up a key):
+Authenticate (one-time, interactive):
 
 ```sh
 gh auth login
