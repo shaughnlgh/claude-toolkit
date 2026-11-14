@@ -6,7 +6,7 @@ Tools are set in each agent's own frontmatter. Model and effort live in the ship
 
 Invoke by scoped name (`toolkit:<name>`) so the plugin copy resolves rather than a same-named project-local agent. Projects may override with local agents at `<repo>/.claude/agents/`; project-local agents win when they exist.
 
-Every worker's first step is to confirm the write-time rules `subagent-rules.sh` injected at spawn (see `docs/hooks.md`), so it writes against them without waiting for the conductor to paste them into the delegation prompt.
+The `subagent-rules.sh` hook injects the write-time rules into every worker at spawn (see `docs/hooks.md`), so it writes against them without waiting for the conductor to paste them into the delegation prompt.
 
 ## Workflow agents
 

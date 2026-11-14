@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skills - claude-toolkit</title>
+<meta name="description" content="The 20 skills claude-toolkit ships, what each does and what triggers it.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap site-header__inner">
+<a class="wordmark" href="index.html"><span class="wordmark__mark" aria-hidden="true">&gt;_</span> claude-toolkit</a>
+<nav class="site-nav" aria-label="Site">
+<ul>
+<li><a href="index.html#flows">Flows</a></li>
+<li><a href="agents.html">Agents</a></li>
+<li><a href="skills.html" aria-current="page">Skills</a></li>
+<li><a href="commands.html">Commands</a></li>
+<li><a href="hooks.html">Hooks</a></li>
+<li><a href="overrides.html">Overrides</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
+<li><a class="nav-repo" href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+</ul>
+</nav>
+</div>
+</header>
+
+<main id="main">
+<section class="page-head">
+<div class="wrap">
+<p class="crumbs"><a href="index.html">Home</a> / Reference / Skills</p>
+<h1>Skills</h1>
+<p class="lead">The toolkit ships 20 skills: instructions Claude loads at the moment they apply. A skill whose name ends in <code>-flow</code> runs the work for you. A skill whose name ends in <code>-guide</code> is the manual a session follows by hand. You ask for some by name, and others fire on their own inside the plan-then-build pipeline.</p>
+<nav aria-label="On this page">
+<ul class="jump">
+<li><a href="#flows">Flows <span class="jump__n">3</span></a></li>
+<li><a href="#planning">Planning <span class="jump__n">6</span></a></li>
+<li><a href="#building">Building and testing <span class="jump__n">4</span></a></li>
+<li><a href="#review">Review and investigation <span class="jump__n">5</span></a></li>
+<li><a href="#memory">Handoff and compaction <span class="jump__n">2</span></a></li>
+</ul>
+</nav>
+</div>
+</section>
+
+<section class="section" id="flows">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">3 skills</p>
+<h2>Flows</h2>
+<p class="section-note">Each flow runs one stage end to end and fires only when you ask for it by name. The <a href="index.html#flows">walkthroughs</a> follow all three on an invented project.</p>
+</div>
+<dl class="ref">
+<div id="plan-flow">
+<dt><code>plan-flow</code></dt>
+<dd>
+<p>One run from brief to plan note. It reads the run options, runs topic recall and a route check, launches the <code>plan-builder</code> workflow for discovery, runs the planning grill on that evidence, then has the planner draft the plan, the plan-critic run a pre-mortem with a revise loop, and a cold red team read it. It writes and validates the plan note, prints its plain language summary and asks for your approval. It never writes repo files and never runs git.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>You ask for the plan flow by name, with a brief or on a scaffolded plan note. From crawl, only when you reply <code>yes</code> or <code>run the plan flow</code> to its offer.</p>
+<p class="ref__example">Run the plan flow on this: add CSV export to the reports page.</p>
+</dd>
+</div>
+<div id="execute-flow">
+<dt><code>execute-flow</code></dt>
+<dd>
+<p>One run that builds an approved plan note end to end. It reads the run options and then asks nothing, opens a worktree when another session holds the main checkout, the checkout holds changes or it sits on its default branch, and runs the <code>execute-runner</code> workflow. When nothing blocked, it closes with a commit suggestion that you run yourself. Steps that need the running local stack wait for a seat run from the main checkout.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>You ask for the execute flow by name on an approved plan note, or reply <code>run the execute flow here</code>, or <code>yes</code> to the run-here question.</p>
+<p class="ref__example">Run the execute flow on the add-csv-export plan.</p>
+</dd>
+</div>
+<div id="ship-flow">
+<dt><code>ship-flow</code></dt>
+<dd>
+<p>One run that commits, pushes, opens the MR or PR, watches the pipeline, waits in the background on a slow pipeline or a pending bot review, works the bot review threads, merges, tags and cleans up a slice the execute flow reviewed. It stops at the ceiling the plan note records and asks no question.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>You ask for the ship flow by name after an execute-flow report, or the parent session sends <code>&lt;planName&gt;: run the ship flow</code>. Never from crawl.</p>
+<p class="ref__example">Run the ship flow on the add-csv-export plan.</p>
+</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section class="section section--alt" id="planning">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">6 skills</p>
+<h2>Planning</h2>
+<p class="section-note">From a new brief or ticket to an approved plan, or a tree of plans for a large effort.</p>
+</div>
+<dl class="ref">
+<div id="crawl">
+<dt><code>crawl</code></dt>
+<dd>
+<p>The front door for new work. It takes a brief or a ticket, checks it against the codebase, and recommends a route: <code>wayfinder</code>, <code>plan-guide</code>, or no plan. On a route that writes a plan or plan stubs, you confirm the route first. A trivial no-plan route states the route in one sentence and goes ahead. On the plan-guide route it scaffolds the plan note and ends with an offer to run the plan flow on it.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>A session opens with a new piece of work and no plan note exists for it yet.</p>
+<p class="ref__example">Here's the ticket: &lt;link&gt;. We need bulk order editing in the admin.</p>
+</dd>
+</div>
+<div id="plan-guide">
+<dt><code>plan-guide</code></dt>
+<dd>
+<p>Writes a plan note to your vault and stops for approval before any implementation. It is the single source of truth for the plan note's layout, naming, frontmatter and status lifecycle, and its planning runs the planning grill once, after discovery. After approval it asks whether to run the execute flow here, open a child session for it, or stop.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>Creating, filling in or closing out a plan note, or starting a planning session.</p>
+<p class="ref__example">Let's plan adding rate limiting to the login endpoint.</p>
+</dd>
+</div>
+<div id="grill">
+<dt><code>grill</code></dt>
+<dd>
+<p>A requirements interview before a plan exists: one question at a time with a recommended answer, answering what it can from the code, then a glossary written to <code>docs/glossary.md</code> and decision records to <code>docs/decisions/</code>. When a crawl or a planning flow loads it, it writes nothing, takes only your own answer, and hands the answers back.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>You ask to grill, elicit or interview requirements, crawl's grill check loads it on a wayfinder route you confirmed, or a planning flow loads it as its planning grill.</p>
+<p class="ref__example">Grill me on the new notifications feature before we plan it.</p>
+</dd>
+</div>
+<div id="wayfinder">
+<dt><code>wayfinder</code></dt>
+<dd>
+<p>Turns a large, fuzzy investigation or migration into a mapped set of tickets. It agrees the outcome and what success means with you first, then writes an issue register, a parent umbrella plan, and one child plan stub per task, each grilled by its own planning.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>You ask to map, scope or break down a big multi-part effort before planning it, or crawl or the plan flow's route check sends the work here with your confirmation.</p>
+<p class="ref__example">Map out migrating the legacy monolith to a modular service before we plan each piece.</p>
+</dd>
+</div>
+<div id="expedition">
+<dt><code>expedition</code></dt>
+<dd>
+<p>The ticket-to-complete pipeline for big, deliberately committed work. It sequences crawl, grill, the split decision, planning, execution and review through recommend-and-confirm gates, and keeps its stage in a vault work note so the effort survives across days. Completion is always your word, never inferred.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>Only when you invoke it, or ask to resume one. Never automatic.</p>
+<p class="ref__example">Run the expedition on this: &lt;ticket link or brief&gt;.</p>
+</dd>
+</div>
+<div id="jira">
+<dt><code>jira</code></dt>
+<dd>
+<p>A ticket-to-brief adapter. It fetches an issue through jira-cli and returns a verbatim brief, with metadata, the full description, comments and issue links, for crawl or expedition to plan from. It creates a ticket only on your yes to a draft it showed, and never edits, transitions or comments on one.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>Crawl's ingest step meets a ticket key or ticket URL, you ask to fetch one directly, or the ticket question's create answer reaches your yes on a draft.</p>
+</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section class="section" id="building">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">4 skills</p>
+<h2>Building and testing</h2>
+<p class="section-note">What a session follows while it writes the code.</p>
+</div>
+<dl class="ref">
+<div id="execution-guide">
+<dt><code>execution-guide</code></dt>
+<dd>
+<p>Execution mechanics after a plan is approved: topic recall at the start, delegation to worker agents, progress reports in a fixed format, the doc update pass, and debugging with runtime evidence.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>Starting execution of an approved plan, or debugging a runtime or integration issue.</p>
+<p class="ref__example">The plan is approved, go ahead and implement it.</p>
+</dd>
+</div>
+<div id="testing-gate">
+<dt><code>testing-gate</code></dt>
+<dd>
+<p>Reads the <code>tests</code> option from the plan note or the session cache, and asks once, up front, only when neither has it.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>Starting a feature, bugfix or refactor, after crawl has routed when both match.</p>
+<p class="ref__example">Add a CSV export to the reports page.</p>
+</dd>
+</div>
+<div id="test-first">
+<dt><code>test-first</code></dt>
+<dd>
+<p>The red-green-refactor loop that runs once <code>testing-gate</code> has said tests are required. It chains from the gate and never decides the gate itself.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>Writing code on a task where tests were required. It needs no separate prompt.</p>
+</dd>
+</div>
+<div id="resolving-merge-conflicts">
+<dt><code>resolving-merge-conflicts</code></dt>
+<dd>
+<p>Shows an overview and a side-by-side view of every conflict, resolves each hunk by intent, and waits for your confirmation before writing.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>You ask for help with a git merge or rebase conflict.</p>
+<p class="ref__example">Help me resolve these merge conflicts.</p>
+</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section class="section section--alt" id="review">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">5 skills</p>
+<h2>Review and investigation</h2>
+<p class="section-note">Adversarial checks on a diff, a plan or a merge request, and root-cause work on an incident.</p>
+</div>
+<dl class="ref">
+<div id="red-team">
+<dt><code>red-team</code></dt>
+<dd>
+<p>Gates the end of an implementation slice. It recommends an adversarial review and, on your confirmation, runs the <code>review-mr</code> reviewer and verifier panel over the uncommitted diff. It delegates one fix round for the confirmed findings, records each finding's outcome, runs the doc pass and the remember pass once each, and closes with a commit suggestion.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>A closure signal arrives while uncommitted implementation changes exist, or you ask to red team code or a diff.</p>
+<p class="ref__example">I'm happy with this, let's continue.</p>
+</dd>
+</div>
+<div id="inversion">
+<dt><code>inversion</code></dt>
+<dd>
+<p>A pre-mortem for a plan, decision or code fix: up to seven ranked failure causes, a verdict that names the fatal flaw when one exists, a rebuilt plan with walk-away checks, the adversary's view, and one measurable tripwire per failure mode. It never reassures.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>You invoke it by name, or ask whether a plan or fix is good, looks right or is ready to ship.</p>
+<p class="ref__example">Is this a good plan? Invert it before we go ahead.</p>
+</dd>
+</div>
+<div id="gitlab-mr-review">
+<dt><code>gitlab-mr-review</code></dt>
+<dd>
+<p>A multi-dimension merge request review. It fans out the reviewer agents plus MR-specific dimensions, each finding carrying a tag, a self-score and a file:line citation, checks each dimension's findings with one batched verifier against the local checkout, and reports the confirmed findings with a final score.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>You ask to review a merge request on a host that <code>glab</code> serves.</p>
+</dd>
+</div>
+<div id="review-threads">
+<dt><code>review-threads</code></dt>
+<dd>
+<p>Works the reviewer threads on a pushed MR or PR, from bots and from people. It lists the open threads, fixes or pushes back on each, reports the state, and recommends a merge only when every thread is resolved and the pipeline is green. It uses <code>glab</code> or <code>gh</code>.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>You ask to go through or address the review comments on an MR or PR.</p>
+</dd>
+</div>
+<div id="incident-investigate">
+<dt><code>incident-investigate</code></dt>
+<dd>
+<p>Root-cause investigation for a production incident. It fences scope to the question and items you named, checks that the project's evidence sources are reachable, gathers evidence in parallel with a citation per finding, reaches one verdict, and writes a technical incident note and a stakeholder summary. It never implements a fix and never changes production.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>You ask to investigate an incident, or paste a production alert with "find the cause".</p>
+<p class="ref__example">Investigate this incident: orders 1001, 1002, and 1003 were captured twice. Find the cause.</p>
+</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section class="section" id="memory">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">2 skills</p>
+<h2>Handoff and compaction</h2>
+<p class="section-note">Keeping the state of a session when it ends or compacts.</p>
+</div>
+<dl class="ref">
+<div id="handoff">
+<dt><code>handoff</code></dt>
+<dd>
+<p>Compresses the session into a continuation note in the vault, so another person or a later session can pick the work up cold.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>You ask to hand off or to write a continuation note.</p>
+<p class="ref__example">Write a handoff note for this session.</p>
+</dd>
+</div>
+<div id="pre-compact">
+<dt><code>pre-compact</code></dt>
+<dd>
+<p>Readies a session for compaction. It checks that the plan or work note, every promised note, uncommitted changes and running background tasks are recorded, finishes what is not, and writes a state-only handoff under 3,000 bytes that the session-start hook injects once after the compaction. It never commits and never compacts the session itself.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>You ask whether it is safe to compact, ask to prepare for a compaction, or say pre-compact. A request to hand off goes to <code>handoff</code> instead.</p>
+<p class="ref__example">Is it safe to compact?</p>
+</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section class="section section--alt">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">Make it yours</p>
+<h2>Replacing a skill</h2>
+</div>
+<div class="prose">
+<p>Run <code>/override &lt;name&gt;</code> with a skill name to copy a skill's whole directory to <code>~/.claude/skills/&lt;name&gt;/</code>, then edit your copy. Claude Code resolves your copy for the bare name. <a href="overrides.html">Overrides</a> covers the details.</p>
+</div>
+</div>
+</section>
+</main>
+
+<footer class="site-footer">
+<div class="wrap site-footer__inner">
+<div class="site-footer__credit">
+<p><span class="wordmark"><span class="wordmark__mark" aria-hidden="true">&gt;_</span> claude-toolkit</span></p>
+<p>MIT licensed. Source at <a href="https://github.com/shaughnlgh/claude-toolkit">github.com/shaughnlgh/claude-toolkit</a>. This site is plain HTML and one stylesheet.</p>
+</div>
+<nav class="site-footer__nav" aria-label="Footer">
+<div>
+<p class="site-footer__h">Workflow</p>
+<ul>
+<li><a href="walkthrough-plan.html">Plan flow</a></li>
+<li><a href="walkthrough-execute.html">Execute flow</a></li>
+<li><a href="walkthrough-ship.html">Ship flow</a></li>
+<li><a href="sessions.html">Sessions</a></li>
+</ul>
+</div>
+<div>
+<p class="site-footer__h">Reference</p>
+<ul>
+<li><a href="agents.html">Agents</a></li>
+<li><a href="skills.html">Skills</a></li>
+<li><a href="commands.html">Commands</a></li>
+<li><a href="hooks.html">Hooks</a></li>
+<li><a href="overrides.html">Overrides</a></li>
+</ul>
+</div>
+<div>
+<p class="site-footer__h">Project</p>
+<ul>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/LICENSE">Licence</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
+</ul>
+</div>
+</nav>
+</div>
+</footer>
+</body>
+</html>

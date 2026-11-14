@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Worker agents - claude-toolkit</title>
+<meta name="description" content="The 14 worker agents claude-toolkit ships, what each does and when it runs.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap site-header__inner">
+<a class="wordmark" href="index.html"><span class="wordmark__mark" aria-hidden="true">&gt;_</span> claude-toolkit</a>
+<nav class="site-nav" aria-label="Site">
+<ul>
+<li><a href="index.html#flows">Flows</a></li>
+<li><a href="agents.html" aria-current="page">Agents</a></li>
+<li><a href="skills.html">Skills</a></li>
+<li><a href="commands.html">Commands</a></li>
+<li><a href="hooks.html">Hooks</a></li>
+<li><a href="overrides.html">Overrides</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
+<li><a class="nav-repo" href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+</ul>
+</nav>
+</div>
+</header>
+
+<main id="main">
+<section class="page-head">
+<div class="wrap">
+<p class="crumbs"><a href="index.html">Home</a> / Reference / Agents</p>
+<h1>Worker agents</h1>
+<p class="lead">The toolkit ships 14 worker agents. The main conversation is the conductor: it plans, delegates and accepts, and it hands every change to an agent, however small. You meet the agents when a flow or a guide spawns them at the right step, or when you call one by name.</p>
+<nav aria-label="On this page">
+<ul class="jump">
+<li><a href="#workflow">Workflow <span class="jump__n">5</span></a></li>
+<li><a href="#review">Review <span class="jump__n">7</span></a></li>
+<li><a href="#browser">Browser <span class="jump__n">1</span></a></li>
+<li><a href="#design">Design <span class="jump__n">1</span></a></li>
+<li><a href="#calling">Calling an agent</a></li>
+</ul>
+</nav>
+</div>
+</section>
+
+<section class="section">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">How they work</p>
+<h2>Leaf workers</h2>
+</div>
+<div class="prose">
+<p>Each agent carries an explicit tool allowlist, and none of them gets the Agent tool, so no agent can spawn another. A worker that hits a blocker, a question or an ambiguity reports it back to the conductor, which decides how to go on and is the only role that decides when work is done. Returns are file paths and one-line findings, never pasted file contents.</p>
+<p>The <code>subagent-rules.sh</code> hook injects the write-time rules into every worker at spawn, so it writes against them without the conductor pasting them in.</p>
+<p>Tools are set in each agent's own frontmatter. Model and effort come from the shipped <code>scripts/toolkit-models.json.template</code>, which a per-machine <code>~/.claude/toolkit-models.json</code> overrides per agent. <a href="overrides.html#models">Overrides</a> shows how.</p>
+</div>
+</div>
+</section>
+
+<section class="section section--alt" id="workflow">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">5 agents</p>
+<h2>Workflow agents</h2>
+<p class="section-note">The plan-then-build pipeline: explore, plan, red-team the plan, implement, verify.</p>
+</div>
+<dl class="ref">
+<div id="explorer">
+<dt><code>toolkit:explorer</code></dt>
+<dd>
+<p>Read-only exploration: code search, file discovery, pattern analysis, investigation questions and evidence gathering, including discovery during planning. It never edits.</p>
+<p class="ref__line"><span class="step-label">When</span>For any search, investigation or evidence gathering that must not touch files.</p>
+</dd>
+</div>
+<div id="planner">
+<dt><code>toolkit:planner</code></dt>
+<dd>
+<p>Drafts a reviewable implementation plan from the evidence it is given, such as recall facts and explorer findings, and reads further only to close gaps. It never edits or implements.</p>
+<p class="ref__line"><span class="step-label">When</span>On a non-trivial task once discovery evidence is in hand, before any code changes. Discovery alone is the explorer's job.</p>
+</dd>
+</div>
+<div id="implementer">
+<dt><code>toolkit:implementer</code></dt>
+<dd>
+<p>Makes bounded file changes and runs focused commands from an approved plan.</p>
+<p class="ref__line"><span class="step-label">When</span>After plan approval, for minimal-scope execution.</p>
+</dd>
+</div>
+<div id="verifier">
+<dt><code>toolkit:verifier</code></dt>
+<dd>
+<p>Checks claimed work against real checks and real data, not fixtures alone, and reports gaps. It never edits.</p>
+<p class="ref__line"><span class="step-label">When</span>After implementation, before a task is marked complete.</p>
+</dd>
+</div>
+<div id="plan-critic">
+<dt><code>toolkit:plan-critic</code></dt>
+<dd>
+<p>Red-teams the plan itself: flawed assumptions, missing risks, scope creep, alternatives nobody weighed, and validation that cannot be tested. It runs the inversion pre-mortem and returns a verdict, objections, a tripwires block and a walk-away checks block in under 60 lines. It reviews the plan, not code.</p>
+<p class="ref__line"><span class="step-label">When</span>After the planner drafts a non-trivial plan and before you approve it.</p>
+</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section class="section" id="review">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">7 agents</p>
+<h2>Review agents</h2>
+<p class="section-note">Each reviews a diff it finds with <code>git diff --name-only</code>, has a terse and a verbose output mode, and keeps only findings it rates at 80 confidence or above.</p>
+</div>
+<dl class="ref">
+<div id="code-reviewer">
+<dt><code>toolkit:code-reviewer</code></dt>
+<dd>
+<p>Catches real bugs: off-by-one errors, null dereferences, inverted logic, race conditions, swallowed errors and needless complexity. It skips style nitpicks.</p>
+<p class="ref__line"><span class="step-label">When</span>After any code change, before a commit, or when a pull request or diff needs review.</p>
+</dd>
+</div>
+<div id="security-reviewer">
+<dt><code>toolkit:security-reviewer</code></dt>
+<dd>
+<p>Static security analysis: injection, authorization flaws, data exposure and weak crypto, ranked by severity with the attack vector and the fix.</p>
+<p class="ref__line"><span class="step-label">When</span>After changes to auth, input handling, queries, file paths, tokens or crypto, before any of them deploy.</p>
+</dd>
+</div>
+<div id="performance-reviewer">
+<dt><code>toolkit:performance-reviewer</code></dt>
+<dd>
+<p>Finds measurable bottlenecks, such as N+1 queries, memory leaks, blocking I/O and re-renders, not theoretical micro-optimizations.</p>
+<p class="ref__line"><span class="step-label">When</span>After changes to hot paths, API endpoints, database queries, loops over collections or rendering code.</p>
+</dd>
+</div>
+<div id="doc-reviewer">
+<dt><code>toolkit:doc-reviewer</code></dt>
+<dd>
+<p>Checks docs against the source: stale references, wrong signatures, missing parameters and broken examples.</p>
+<p class="ref__line"><span class="step-label">When</span>After changes to <code>.md</code> files, docstrings, JSDoc or API docs, or when a code change may have made existing docs wrong.</p>
+</dd>
+</div>
+<div id="silent-failure-hunter">
+<dt><code>toolkit:silent-failure-hunter</code></dt>
+<dd>
+<p>Finds code that fails silently: swallowed errors, failures reported as success, and fallbacks that hide breakage.</p>
+<p class="ref__line"><span class="step-label">When</span>After any change to error handling, catch blocks, fallbacks, retries or async flows, and on every pull request review.</p>
+</dd>
+</div>
+<div id="pr-test-analyzer">
+<dt><code>toolkit:pr-test-analyzer</code></dt>
+<dd>
+<p>Judges whether tests verify the change: tests with no assertions, tests that only exercise mocks, tests that cannot fail, and weakened or deleted tests.</p>
+<p class="ref__line"><span class="step-label">When</span>When a diff adds or changes tests, or changes behavior without touching tests.</p>
+</dd>
+</div>
+<div id="coupling-reviewer">
+<dt><code>toolkit:coupling-reviewer</code></dt>
+<dd>
+<p>Finds hardcoded account, tenant or platform identifiers and missing extension seams, but only where a second value is already committed in the roadmap, the plan or an existing config surface, never for a speculative one.</p>
+<p class="ref__line"><span class="step-label">When</span>After changes to config files, tenant or platform wiring, routes or environment plumbing, and whenever a diff hardcodes such an identifier.</p>
+</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section class="section section--alt" id="browser">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">1 agent</p>
+<h2>Browser</h2>
+</div>
+<dl class="ref">
+<div id="browser-driver">
+<dt><code>toolkit:browser-driver</code></dt>
+<dd>
+<p>Drives the browser through claude-in-chrome for multi-step journeys: reproduction runs, checkout and login-gated flows, UI checks, and dashboard or log-viewer trawls. It prefers text extraction over screenshots, reports a login wall as a blocker and never enters credentials, and returns a short run report.</p>
+<p class="ref__line"><span class="step-label">When</span>Any browser loop longer than a handful of steps, so the steps and screenshots stay out of the conductor's context.</p>
+</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section class="section" id="design">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">1 agent</p>
+<h2>Design</h2>
+</div>
+<dl class="ref">
+<div id="frontend-designer">
+<dt><code>toolkit:frontend-designer</code></dt>
+<dd>
+<p>Designs tokens-first UI with one deliberate design principle, avoids generic AI aesthetics, enforces accessibility, states its plan before writing files, and checks its own output with the design detector before delivering.</p>
+<p class="ref__line"><span class="step-label">When</span>Building or restyling any web UI: pages, dashboards, components.</p>
+</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section class="section section--alt" id="calling">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">Usage</p>
+<h2>Calling an agent</h2>
+</div>
+<div class="prose">
+<p>Most agents you never call by hand. The workflow agents run through <code>plan-guide</code> and <code>execution-guide</code> when a session follows the steps itself, or through <code>plan-flow</code> and <code>execute-flow</code> when a flow runs them. The review agents run when there is a diff to check. You can also call any agent directly:</p>
+<div class="terminal" role="group" aria-label="Example prompts">
+<div class="terminal__bar"><span>Example prompts</span></div>
+<pre><code><span class="say">Use the frontend-designer agent to build a pricing card component.</span>
+<span class="say">Use the toolkit:code-reviewer on my staged diff.</span>
+<span class="say">Use the toolkit:security-reviewer on the auth changes.</span>
+<span class="say">Use the toolkit:explorer to find every place we resolve the vault path.</span></code></pre>
+</div>
+<p>Call an agent by its scoped name, <code>toolkit:&lt;name&gt;</code>, so the plugin copy resolves rather than a project agent of the same name. A project can supply its own agents at <code>&lt;repo&gt;/.claude/agents/</code>, and a project agent wins when it exists. To replace an agent for yourself, see <a href="overrides.html">Overrides</a>.</p>
+</div>
+</div>
+</section>
+</main>
+
+<footer class="site-footer">
+<div class="wrap site-footer__inner">
+<div class="site-footer__credit">
+<p><span class="wordmark"><span class="wordmark__mark" aria-hidden="true">&gt;_</span> claude-toolkit</span></p>
+<p>MIT licensed. Source at <a href="https://github.com/shaughnlgh/claude-toolkit">github.com/shaughnlgh/claude-toolkit</a>. This site is plain HTML and one stylesheet.</p>
+</div>
+<nav class="site-footer__nav" aria-label="Footer">
+<div>
+<p class="site-footer__h">Workflow</p>
+<ul>
+<li><a href="walkthrough-plan.html">Plan flow</a></li>
+<li><a href="walkthrough-execute.html">Execute flow</a></li>
+<li><a href="walkthrough-ship.html">Ship flow</a></li>
+<li><a href="sessions.html">Sessions</a></li>
+</ul>
+</div>
+<div>
+<p class="site-footer__h">Reference</p>
+<ul>
+<li><a href="agents.html">Agents</a></li>
+<li><a href="skills.html">Skills</a></li>
+<li><a href="commands.html">Commands</a></li>
+<li><a href="hooks.html">Hooks</a></li>
+<li><a href="overrides.html">Overrides</a></li>
+</ul>
+</div>
+<div>
+<p class="site-footer__h">Project</p>
+<ul>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/LICENSE">Licence</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
+</ul>
+</div>
+</nav>
+</div>
+</footer>
+</body>
+</html>

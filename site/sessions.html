@@ -7,24 +7,37 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-<nav aria-label="Site">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap site-header__inner">
+<a class="wordmark" href="index.html"><span class="wordmark__mark" aria-hidden="true">&gt;_</span> claude-toolkit</a>
+<nav class="site-nav" aria-label="Site">
 <ul>
-<li><a href="index.html">Home</a></li>
-<li><a href="walkthrough-plan.html">Plan flow</a></li>
-<li><a href="walkthrough-execute.html">Execute flow</a></li>
-<li><a href="walkthrough-ship.html">Ship flow</a></li>
-<li><a href="sessions.html" aria-current="page">Sessions</a></li>
+<li><a href="index.html#flows" aria-current="true">Flows</a></li>
+<li><a href="agents.html">Agents</a></li>
+<li><a href="skills.html">Skills</a></li>
+<li><a href="commands.html">Commands</a></li>
+<li><a href="hooks.html">Hooks</a></li>
+<li><a href="overrides.html">Overrides</a></li>
 <li><a href="release-notes.html">Release notes</a></li>
-<li><a href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+<li><a class="nav-repo" href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
 </ul>
 </nav>
+</div>
 </header>
-<main>
+
+<main id="main">
+<section class="page-head">
+<div class="wrap">
+<p class="crumbs"><a href="index.html#flows">Walkthroughs</a> / Sessions</p>
 <h1>Parent and child sessions</h1>
 <p class="lead">One session plans the work and another builds it. The parent holds the plan and the main checkout. The child runs one plan's flows in that plan's worktree and reports back by message.</p>
+</div>
+</section>
 
-<figure>
+<section class="section">
+<div class="wrap">
+<figure class="figure">
 <svg viewBox="0 0 720 400" role="img" aria-labelledby="sessions-title sessions-desc" xmlns="http://www.w3.org/2000/svg">
 <title id="sessions-title">Parent and child sessions</title>
 <desc id="sessions-desc">The user talks to the parent session in the main checkout and opens the child session with the launch command. The child runs in the plan's worktree, reports to the parent by message, and takes the parent's next dispatch by message. The parent runs the seat run after the child ends.</desc>
@@ -70,9 +83,17 @@
 </svg>
 <figcaption>The parent session and the child session of one plan.</figcaption>
 </figure>
+</div>
+</section>
 
+<section class="section section--alt" id="how">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">Sequence</p>
 <h2>How it runs</h2>
-<ul>
+</div>
+<div class="prose">
+<ul class="rules-list">
 <li>The user describes the work in the parent session. The <code>crawl</code> skill routes it, and on the plan route the parent runs the plan flow. The crawl session is the parent of the work it routes. Its name starts <code>parent-</code> only when a launcher starts it with such a name, such as <code>claude -n 'parent-&lt;slug&gt;'</code>, or when the user runs crawl's <code>/rename parent-&lt;planName&gt;</code> line.</li>
 <li>After approval the parent hands the user one launch command for a new terminal. It starts the child in the main checkout under the name <code>child-&lt;planName&gt;</code>, and its prompt asks for the execute flow and names the parent to report to.</li>
 <li>The child's execute flow opens the plan's worktree with no question, because the parent holds the main checkout, and runs the repo's install step there.</li>
@@ -82,10 +103,48 @@
 <li>The seat run, which runs the Validation Steps that need the running local stack, needs the main checkout to itself. It runs after the child has ended.</li>
 <li>Children stay short. A child that would compact is a signal to finish and hand back.</li>
 </ul>
-<p>Source: <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/plugins/toolkit/doctrine/orchestration.md">doctrine/orchestration.md</a>, section Parent and child sessions.</p>
+<p class="source">Source: <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/plugins/toolkit/doctrine/orchestration.md">doctrine/orchestration.md</a>, section Parent and child sessions.</p>
+</div>
+</div>
+</section>
 </main>
-<footer>
-<p>MIT licensed. Source at <a href="https://github.com/shaughnlgh/claude-toolkit">github.com/shaughnlgh/claude-toolkit</a>.</p>
+
+<footer class="site-footer">
+<div class="wrap site-footer__inner">
+<div class="site-footer__credit">
+<p><span class="wordmark"><span class="wordmark__mark" aria-hidden="true">&gt;_</span> claude-toolkit</span></p>
+<p>MIT licensed. Source at <a href="https://github.com/shaughnlgh/claude-toolkit">github.com/shaughnlgh/claude-toolkit</a>. This site is plain HTML and one stylesheet.</p>
+</div>
+<nav class="site-footer__nav" aria-label="Footer">
+<div>
+<p class="site-footer__h">Workflow</p>
+<ul>
+<li><a href="walkthrough-plan.html">Plan flow</a></li>
+<li><a href="walkthrough-execute.html">Execute flow</a></li>
+<li><a href="walkthrough-ship.html">Ship flow</a></li>
+<li><a href="sessions.html">Sessions</a></li>
+</ul>
+</div>
+<div>
+<p class="site-footer__h">Reference</p>
+<ul>
+<li><a href="agents.html">Agents</a></li>
+<li><a href="skills.html">Skills</a></li>
+<li><a href="commands.html">Commands</a></li>
+<li><a href="hooks.html">Hooks</a></li>
+<li><a href="overrides.html">Overrides</a></li>
+</ul>
+</div>
+<div>
+<p class="site-footer__h">Project</p>
+<ul>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/LICENSE">Licence</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
+</ul>
+</div>
+</nav>
+</div>
 </footer>
 </body>
 </html>
