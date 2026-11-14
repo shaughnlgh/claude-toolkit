@@ -3,7 +3,7 @@ name: handoff
 description: >-
   Use only when the user explicitly asks to hand off the session, or to write a
   handoff or continuation note, so a second person or a later session can pick the
-  work up cold. Writes a single continuation note into the Obsidian vault: into the
+  work up cold. Writes a single continuation note into the vault: into the
   active plan's directory if one exists, otherwise into a vault-root _handoffs/
   bucket. Never fires automatically at session end or because a task looks unfinished.
   Only an explicit handoff/continuation-note request should trigger this.
@@ -11,7 +11,7 @@ description: >-
 
 # Handoff
 
-This skill writes a session continuation note into the Obsidian vault: a compressed, plain-language snapshot of the current work so someone else, or a later session, can pick it up cold without re-reading the whole transcript. It is not automatic. It fires only when the user explicitly asks to hand off, or to write a handoff or continuation note.
+This skill writes a session continuation note into the vault: a compressed, plain-language snapshot of the current work so someone else, or a later session, can pick it up cold without re-reading the whole transcript. It is not automatic. It fires only when the user explicitly asks to hand off, or to write a handoff or continuation note.
 
 It does not duplicate `plan-guide`'s frontmatter session history (the `sessions:` list on the plan note). That stays, and this complements it: the `sessions:` entry is a one-line record that a session happened, this note is the fuller narrative of what to do next. Handoff does not mark a plan complete or change its `status`. Handoff never writes to the project repo. See Boundary below.
 
@@ -24,7 +24,7 @@ Fire only on an explicit request (e.g. "write a handoff note", "hand this off", 
 Decide placement before writing. Check whether an active plan note exists for the current work in the vault (per `plan-guide`'s canonical layout).
 
 1. **Active plan exists.** Write the note as `handoff - <plan-name>.md` into that plan's directory (the same directory as `plan - <plan-name>.md`). Then edit the plan note's Linked Artifacts section to add a link to the new note (`[[handoff - <plan-name>]]`). Read the plan note first (recall-before-write) before editing it.
-2. **No active plan.** Write into a `_handoffs/` bucket at the vault root, resolved from `~/.claude/obsidian-sync.json` as `vault_path` + `root_folder` (`<vault_path>/<root_folder>/_handoffs/`). Filename: `handoff - <short-kebab-topic>-<YYYY-MM-DD>.md`. The topic is a short kebab-case description of the work, derived the same way `plan-guide` derives plan names.
+2. **No active plan.** Write into a `_handoffs/` bucket at the vault root, resolved from the vault config, `~/.claude/toolkit-vault.json`, or `~/.claude/obsidian-sync.json` when that file is absent, as `vault_path` + `root_folder` (`<vault_path>/<root_folder>/_handoffs/`). Filename: `handoff - <short-kebab-topic>-<YYYY-MM-DD>.md`. The topic is a short kebab-case description of the work, derived the same way `plan-guide` derives plan names.
 
 If it is ambiguous whether an active plan exists (more than one candidate, or the plan directory cannot be found), ask the user rather than guessing.
 

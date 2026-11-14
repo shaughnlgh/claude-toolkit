@@ -18,11 +18,11 @@ No arguments. Run the checks below in order, then print the readiness report.
 
 Report the toolkit's install location, `${CLAUDE_PLUGIN_ROOT}`, and its content version: `git -C <root> describe --always --dirty` when the root sits in a git checkout, as under `claude --plugin-dir`, else the last path segment of the root when it sits under `~/.claude/plugins/cache/`, otherwise "unknown".
 
-### 2. Vault config (needed by plan-guide and obsidian-topic only)
+### 2. Vault config (needed by plan-guide and topic only)
 
-Check `~/.claude/obsidian-sync.json`:
+Read `~/.claude/toolkit-vault.json`, or the legacy `~/.claude/obsidian-sync.json` when that file is absent, and report which file you read. If both exist, the new file wins. Never rename, rewrite or delete the legacy file, and offer no migration.
 
-- Missing entirely: tell the user the planning workflow is unconfigured. Offer to create the config from the shipped template `${CLAUDE_PLUGIN_ROOT}/scripts/obsidian-sync.json.template`. If they accept: ask for their vault path, verify that directory exists on disk, write the config with their values, then re-run this check.
+- Neither file exists: tell the user the planning workflow is unconfigured. Offer to create `~/.claude/toolkit-vault.json` from the shipped template `${CLAUDE_PLUGIN_ROOT}/scripts/toolkit-vault.json.template`. If they accept: ask for their vault path, verify that directory exists on disk, write the config with their values, then re-run this check.
 - Present: validate it —
   - parses as JSON,
   - `vault_path` points at a directory that exists,
@@ -57,9 +57,9 @@ Optional additions, each shown verbatim, explained in one line, and asked as the
       Bash(bash <home>/.claude/plugins/cache/shaughn-toolkit/toolkit/*/scripts/seat-queue.sh *)
       Read(//<vault_path without its leading slash>/<root_folder>/**)
 
-  Build the vault Read rule from `~/.claude/obsidian-sync.json` with this command:
+  Build the vault Read rule from `~/.claude/toolkit-vault.json`, or `~/.claude/obsidian-sync.json` when that file is absent, with this command:
 
-      python3 -c 'import json, os; d = json.load(open(os.path.expanduser("~/.claude/obsidian-sync.json"))); print("Read(/" + d["vault_path"].rstrip("/") + "/" + d["root_folder"].strip("/") + "/**)")'
+      python3 -c 'import json, os; p = next(f for f in map(os.path.expanduser, ("~/.claude/toolkit-vault.json", "~/.claude/obsidian-sync.json")) if os.path.isfile(f)); d = json.load(open(p)); print("Read(/" + d["vault_path"].rstrip("/") + "/" + d["root_folder"].strip("/") + "/**)")'
 
   If `vault_path` does not start with `/`, report that and offer no Read rule. Treat the vault Read rule as missing whenever `permissions.allow` lacks that exact rule, whatever `Edit(...)` rules it holds. If the vault, git and MR-watch rules are present and the vault Read rule is missing, offer the Read rule alone, as the offer named `vault read rule`. If the vault, git and MR-watch rules are present and the seat-queue rule is missing, offer the seat-queue rule alone, as the offer named `seat-queue rule`.
 
@@ -70,10 +70,10 @@ Optional additions, each shown verbatim, explained in one line, and asked as the
       Elsewhere, resolve the installed root first, e.g.
       `jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json`,
       then invoke with that literal absolute path (matches the allowlist rule).
-      - `bash <plugin-root>/scripts/vault-fs.sh rm|mv|cp|sha256|index ...` and `vault-fs.sh attach <checkout> <src> <dst>` - vault file ops with
+      - `bash <plugin-root>/scripts/vault-fs.sh rm|mv|cp|sha256|index|topic-index ...` and `vault-fs.sh attach <checkout> <src> <dst>` - vault file ops with
         guardrails; atomic writes: a new file is Written to a `.tmp.md` file beside the destination, then vault-fs.sh mv;
         a change to an existing plan note is vault-fs.sh cp to that `.tmp.md` file, an Edit on it, then vault-fs.sh mv.
-        Vault root resolves from `~/.claude/obsidian-sync.json`.
+        Vault root resolves from `~/.claude/toolkit-vault.json`, or `~/.claude/obsidian-sync.json` when that file is absent.
       - `bash <plugin-root>/scripts/git-ro.sh <dir> <status|diff|log|show>` -
         read-only git anywhere; mutation subcommands refused.
       - `bash <plugin-root>/scripts/watch-mr.sh <host> <remotePath> <number> pipeline|threads|review --sha <sha> [--bound <n>]` -
@@ -189,12 +189,14 @@ Optional additions, each shown verbatim, explained in one line, and asked as the
 
       "extraKnownMarketplaces": {
         "shaughn-toolkit": {
-          "source": { "source": "git", "url": "git@github.com:shaughnlgh/claude-toolkit.git" },
+          "source": <source>,
           "autoUpdate": true
         }
       }
 
-  Explain the trade: with it on, each session start background-pulls and prompts `/reload-plugins` when a new version arrives — this needs the SSH marketplace remote (see the root README's Install), as the background pull cannot authenticate over HTTPS. If `shaughn-toolkit` is already present with `"autoUpdate": true`, report it as current. If present but `autoUpdate` is false or absent, offer to set only that field, leaving the existing `source` untouched.
+  Take `<source>` verbatim from the `source` object of the `shaughn-toolkit` entry in `~/.claude/plugins/known_marketplaces.json`, so an SSH install keeps SSH and an HTTPS install keeps HTTPS. If that file has no such entry, use `{ "source": "git", "url": "https://github.com/shaughnlgh/claude-toolkit.git" }`.
+
+  Explain the trade: with it on, each session start background-pulls and prompts `/reload-plugins` when a new version arrives. If `shaughn-toolkit` is already present with `"autoUpdate": true`, report it as current. If present but `autoUpdate` is false or absent, offer to set only that field, leaving the existing `source` untouched.
 
 Do not offer to pre-create override directories — `/override` creates whatever it needs when a doctrine, rule, agent, or skill override is actually made, and an empty directory has no effect. In the readiness report, mention once that overrides for all four types are available via `/override` (see `docs/overrides.md`; safety sections may be tightened, not loosened).
 
@@ -273,7 +275,7 @@ End with a table:
 | Review capability (reviewer agents, testing-gate skill) | always ready | — |
 | gitlab-mr-review | ready / not ready | glab auth |
 | jira skill (ticket to brief and ticket creation) | ready / not ready | jira-cli + JIRA_API_TOKEN |
-| Planning workflow (plan-guide, obsidian-topic) | ready / not ready | vault config |
+| Planning workflow (plan-guide, topic) | ready / not ready | vault config |
 | Write-time rules | main: always ready (session start); subagents: configured / offered / declined | subagents only: check 6 |
 | Prompt-free scripts, vault read rule + orchestration env | configured / offered / declined | check 6 |
 | Auto-update | on / offered / declined | check 6 |

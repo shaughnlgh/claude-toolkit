@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-# Vault file ops (rm|mv|cp), image attachments from a git checkout (attach) and reads (sha256|index) with containment guardrails.
+# Vault file ops (rm|mv|cp), image attachments from a git checkout (attach), reads (sha256|index) with containment guardrails, and the topic index write (topic-index).
 # - Vault inputs are vault-relative only; absolute paths and any `..` are refused lexically.
 # - Every effective source/destination is then canonically resolved (symlinks and
 #   all) and must remain inside the canonical vault root — a symlinked directory
@@ -9,8 +9,9 @@ set -euo pipefail
 #   beside the destination then mv is the toolkit's atomic-write mechanism.
 # - cp replaces an existing destination like mv. attach copies one PNG or JPEG of at most 10 MiB from inside a git checkout and never replaces a destination.
 # - Regular files only. No directory ops, no locking, no content validation.
-# Vault root resolves from the user's obsidian-sync.json (see obsidian-sync.json.template)
-CFG="$HOME/.claude/obsidian-sync.json"
+# Vault root resolves from the user's vault config (see toolkit-vault.json.template)
+. "$(dirname "${BASH_SOURCE[0]}")/../hooks/lib/vault-config.sh"
+CFG=$(vault_config_file) || { echo "vault-fs: no vault config, expected ~/.claude/toolkit-vault.json" >&2; exit 1; }
 ROOT="$(python3 - "$CFG" <<'PY' 2>/dev/null || true
 import json, os, sys
 try:
@@ -29,7 +30,7 @@ PY
 # Single source for the hint every path refusal appends (not the unknown-command one).
 HINT="(vault root: $ROOT, expected form: Projects/<repo>/...)"
 
-cmd="${1:?usage: vault-fs.sh rm|mv|cp|sha256|index <relpath> [dst], or attach <checkout> <src-relpath> <dst-relpath>}"
+cmd="${1:?usage: vault-fs.sh rm|mv|cp|sha256|index <relpath> [dst], attach <checkout> <src-relpath> <dst-relpath>, or topic-index}"
 
 # Cheap lexical guard first; canonical containment (canon) below catches what
 # this cannot: escape through a symlinked directory inside the vault.
@@ -109,6 +110,8 @@ case "$cmd" in
     t="$(resolve "${2:?path required}")"
     canon "$t" file
     python3 "$(dirname "${BASH_SOURCE[0]}")/plan-index.py" "$t" ;;
+  topic-index)
+    python3 "$(dirname "${BASH_SOURCE[0]}")/vault-index.py" "$ROOT" ;;
   cp)
     s="$(resolve "${2:?src required}")"; d="$(resolve "${3:?dst required}")"
     canon "$s" file

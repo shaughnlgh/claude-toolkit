@@ -2,93 +2,65 @@
 
 [![verify](https://github.com/shaughnlgh/claude-toolkit/actions/workflows/verify.yml/badge.svg)](https://github.com/shaughnlgh/claude-toolkit/actions/workflows/verify.yml)
 
-Shaughn's Claude Code toolkit — agents, skills, and working doctrine — distributed as a Claude Code plugin. Personally owned and maintained (see LICENSE), free for anyone with access to use. Third-party components it vendors or adapts are attributed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+A Claude Code plugin that runs a plan-first workflow: a brief becomes a plan note that you approve, worker agents build it step by step, a review panel checks the result, and a ship flow opens and merges the pull request under the git permissions the plan note records. It ships 14 worker agents, 20 skills, 8 slash commands, 12 hooks, 4 workflows, write-time rules and the doctrine that ties them together. It is for any Claude Code user who wants planned, reviewed changes instead of one long unplanned session. Shaughn owns and maintains it under the MIT license, and the third-party components it vendors or adapts are attributed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
 
-Under construction: components land one at a time, each tested through the plugin before its source-of-truth moves here.
+## What switches on at install
+
+Installing the plugin switches on twelve hooks in every Claude Code session, with no opt-in and no separate config. They hard-block writes to keys, lockfiles and `.git/`, hard-block a fixed list of destructive shell commands, ask before a write that looks like a credential, inject the write-time rules and a git briefing at session start, and refuse a direct file edit by the main conversation so that a worker agent makes it. [`docs/hooks.md`](docs/hooks.md) lists what each hook blocks, what it only asks, and every environment variable it honors. Read it before you trust the toolkit with a repo.
+
+The override flags are environment variables. `TOOLKIT_CONDUCTOR_EDITS=1` lets the main conversation edit project files for one session, or for one project through `/setup` check 10. `TOOLKIT_CTX_SENTINEL=0` turns off the context-size nudges, and `TOOLKIT_REMEMBER_GUARD=0` turns off the remember-pass warning. [`docs/overrides.md`](docs/overrides.md) explains how to replace any doctrine file, rule, agent or skill with your own copy.
+
+## Quick start
+
+1. Install the plugin with the two commands under [Install](#install).
+2. Start a new Claude Code session and run `/setup`. It checks the CLI prerequisites, creates the vault config, and prints a readiness report.
+3. In a repo, describe a piece of work. The `crawl` skill reads it, checks it against the codebase, and recommends a route.
+4. Ask for the plan flow. It writes a plan note into your vault and stops for your approval.
+5. Approve the plan, then ask for the execute flow, and after it the ship flow.
+
+## Supported platforms
+
+- macOS: supported and tested.
+- Linux: untested.
+- Windows: through WSL.
 
 ## Docs
 
-Full transparency — what ships, what runs automatically, and why.
-
-**The components**
-
-- [`docs/prerequisites.md`](docs/prerequisites.md) — the CLI prerequisites: what each is for, install, and auth.
-- [`docs/skills.md`](docs/skills.md) — the skills, with short demos of each in action.
-- [`docs/brief-template.md`](docs/brief-template.md): the shape of the brief that opens a piece of work.
-- [`docs/agents.md`](docs/agents.md) — the 14 worker agents and the conductor/leaf-worker model.
-- [`docs/commands.md`](docs/commands.md) — all seven slash commands (`/setup`, `/obsidian-topic`, `/override`, and the thinking tools).
-- [`docs/hooks.md`](docs/hooks.md) — the twelve hooks that run automatically once installed, with no opt-in, in full: what each blocks, what it only asks, env vars, and fail-safe behavior. Read it before trusting the toolkit with a repo.
-- [`docs/rules.md`](docs/rules.md) — the write-time rules injected into every session.
-- [`docs/scripts.md`](docs/scripts.md) — the shipped scripts and their safety guardrails.
-- [`docs/workflows.md`](docs/workflows.md) — the multi-agent workflows (the MR-review engine, the plan flow, the execute flow, and the ship flow).
-
-**How it works**
-
-- [`plugins/toolkit/README.md`](plugins/toolkit/README.md) — the conductor-and-workers model and the design decisions behind it.
-- [`plugins/toolkit/CLAUDE.md`](plugins/toolkit/CLAUDE.md) — the working doctrine index, one concern per file under [`doctrine/`](plugins/toolkit/doctrine).
-- [`docs/overrides.md`](docs/overrides.md) — how to override any default (doctrine, rules, agents, skills) with your own, and how `/override` works.
-- [`docs/context-economics.md`](docs/context-economics.md) — how prompt-cache mechanics drive cost, and the practices (and doctrine) that follow from it.
-- [`VERIFY.md`](VERIFY.md) — the live-session verification checklist (the mechanical battery is `verify.sh`).
-- [`REVIEW.md`](REVIEW.md): the review rules the review panel reads from the default branch, and the high-risk paths that pick the full six-reviewer panel.
+- [`docs/README.md`](docs/README.md) is the index of every page under `docs/`: the components, the glossary, the decision records and the context notes.
+- [https://shaughnlgh.github.io/claude-toolkit/](https://shaughnlgh.github.io/claude-toolkit/) is the toolkit site, with walkthroughs of the plan, execute and ship flows.
 
 ## Prerequisites
 
-The toolkit shells out to a few CLIs rather than holding any credentials of its own: gh, glab, jira-cli, jq, and python3. What each is for, plus the install and auth commands (including the jira token flow), lives in [`docs/prerequisites.md`](docs/prerequisites.md). The Install step below needs gh's SSH setup first; after installing, `/setup` checks every prerequisite and reports exactly what is missing.
+The toolkit shells out to a few CLIs rather than holding any credentials of its own: gh, glab, jira-cli, jq, and python3. [`docs/prerequisites.md`](docs/prerequisites.md) says what each is for and gives the install and auth commands, including the jira token flow. After installing, `/setup` checks every prerequisite and reports what is missing.
 
 ## Install
 
 ```
-claude plugin marketplace add git@github.com:shaughnlgh/claude-toolkit.git
+claude plugin marketplace add https://github.com/shaughnlgh/claude-toolkit.git
 claude plugin install toolkit@shaughn-toolkit
 ```
 
-Use the SSH URL as shown. HTTPS works for the initial install, but Claude Code's background auto-update disables git credential helpers, so auto-update cannot authenticate to a private repo over HTTPS — only SSH (with a loaded `ssh-agent` key) survives the background pull.
-
-### Install troubleshooting
-
-The marketplace clone runs non-interactively, so it needs GitHub SSH access that works without any prompt: the host key already trusted, and a key loaded in `ssh-agent`. First time using SSH with GitHub on this machine? The easiest path:
-
-```
-gh auth login            # choose SSH, let it generate and upload a key
-ssh -T git@github.com    # accept the fingerprint once; expect "Hi <username>!"
-```
-
-Then the errors, in the order a fresh machine hits them:
-
-- **`Host key verification failed`** — github.com isn't in `~/.ssh/known_hosts` yet. Run `ssh -T git@github.com` once and accept the fingerprint (verify it against [GitHub's published fingerprints](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints)), then re-run the install commands.
-- **`Permission denied (publickey)`** — no usable key reached GitHub. If `ssh -T git@github.com` also fails, no key is registered: `gh ssh-key list` shows what GitHub has; fix with `gh auth login` (SSH option) or `gh ssh-key add ~/.ssh/id_ed25519.pub --type authentication`. If `ssh -T` *works* but the install still fails, the key isn't in the agent — interactive ssh can prompt for the passphrase, the clone can't. `ssh-add -l` will say "The agent has no identities"; fix with `ssh-add --apple-use-keychain ~/.ssh/id_ed25519` (use your key's name; plain `ssh-add` on Linux), and make it survive reboots with this in `~/.ssh/config`:
-
-  ```
-  Host github.com
-    AddKeysToAgent yes
-    UseKeychain yes
-    IdentityFile ~/.ssh/id_ed25519
-  ```
-
-  `UseKeychain` is macOS-only — on Linux it makes ssh reject the whole config file, so omit that line there.
-
-- **`Repository not found`** — SSH auth worked, but your GitHub account has no access to this (private) repo. Ask to be added.
-- **`Plugin "toolkit" not found in marketplace "shaughn-toolkit"`** — fallout from a failed `marketplace add`: there is nothing local to install from. Fix the clone error above, re-run the add (or `claude plugin marketplace update shaughn-toolkit` if the marketplace half-exists), then install.
+If the install reports `Plugin "toolkit" not found in marketplace "shaughn-toolkit"`, the `marketplace add` failed and there is nothing local to install from. Fix the error the add printed, re-run it, or run `claude plugin marketplace update shaughn-toolkit` if the marketplace half-exists, then install.
 
 ## Setup
 
-After installing, run `/setup` in any Claude Code session — it checks everything below, guides you through the vault config, and prints a readiness report.
+After installing, run `/setup` in any Claude Code session. It checks everything below, guides you through the vault config, and prints a readiness report.
 
-- **CLI tooling** — gh, glab, jira, jq, python3: see [`docs/prerequisites.md`](docs/prerequisites.md) for what each is for and the install and auth commands. `/setup` reports the readiness of each.
-- **Planning workflow** (optional; required only for plan-guide / obsidian-topic): plan and topic notes are written into an Obsidian vault you control. If you don't have Obsidian yet, download it from [obsidian.md](https://obsidian.md/), open it, and follow its prompts to create a vault (any name and location work — you'll point the toolkit at it next). `/setup` then creates `~/.claude/obsidian-sync.json` from the shipped template; all docs and scripts resolve your vault location and root folder from that file.
+- **CLI tooling**: gh, glab, jira, jq, python3. See [`docs/prerequisites.md`](docs/prerequisites.md) for what each is for and the install and auth commands. `/setup` reports the readiness of each.
+- **Planning workflow** (optional, needed only by `plan-guide` and `/topic`): plan notes and topic notes are written into a vault you control. Any folder of markdown works, and no note-taking app is required. If you have none yet, create an empty folder in any location. `/setup` then creates `~/.claude/toolkit-vault.json` from the shipped template, and every script and skill resolves your vault location and root folder from that file. An install that already holds `~/.claude/obsidian-sync.json` keeps working, because every reader falls back to it when `~/.claude/toolkit-vault.json` is absent.
 
 ## Updating
 
-New commits are new versions (there is no version field, by design). Pick them up one of two ways.
+New commits are new versions, and there is no version field by design. Pick them up one of two ways.
 
 ### Auto-update
 
-Enable auto-update on the marketplace so each session start background-pulls and prompts you to `/reload-plugins` when a new version arrives — either via `/plugin` → Marketplaces → enable auto-update, or in settings:
+Enable auto-update on the marketplace so each session start pulls in the background and prompts you to `/reload-plugins` when a new version arrives. Turn it on through `/plugin`, then Marketplaces, then enable auto-update, or in settings:
 
 ```json
 "extraKnownMarketplaces": {
   "shaughn-toolkit": {
-    "source": { "source": "git", "url": "git@github.com:shaughnlgh/claude-toolkit.git" },
+    "source": { "source": "git", "url": "https://github.com/shaughnlgh/claude-toolkit.git" },
     "autoUpdate": true
   }
 }
@@ -102,15 +74,19 @@ Without auto-update, pull the latest when you want it:
 claude plugin update toolkit@shaughn-toolkit
 ```
 
-After any update — auto or manual — run `/setup` to confirm you are current: it reports the installed commit and re-checks that every capability is still ready.
+After any update, auto or manual, run `/setup` to confirm you are current. It reports the installed commit and re-checks that every capability is still ready.
 
 ## Verifying
 
-`bash verify.sh` runs the mechanical acceptance battery (structure, manifest, hook fixtures, script guardrails, plan validator, topic recall, vault-fs containment, resolver, docs coverage) — free and fast. `bash functional-test.sh <mode>` adds live hermetic probes (real Claude calls, each in a throwaway workspace; `self-test` mode tests the harness itself for free) that prove rules injection, skill contract facts, and event-verified agent spawns against seeded fixtures. `VERIFY.md` documents what each layer proves and keeps the checklist for what only a real interactive session can show (interview loops, consent gates, live leaf-worker behavior, doctrine adherence, in-session hook enforcement).
+`bash verify.sh` runs the mechanical acceptance battery (structure, manifest, hook fixtures, script guardrails, plan validator, topic recall, vault-fs containment, resolver, docs coverage), free and fast. `bash functional-test.sh <mode>` adds live hermetic probes: real Claude calls, each in a throwaway workspace, with a `self-test` mode that tests the harness itself for free. They prove rules injection, skill contract facts, and event-verified agent spawns against seeded fixtures. [`VERIFY.md`](VERIFY.md) documents what each layer proves and keeps the checklist for what only a real interactive session can show (interview loops, consent gates, live leaf-worker behavior, doctrine adherence, in-session hook enforcement).
 
 ### Testing a branch
 
 `claude --plugin-dir <checkout>/plugins/toolkit` replaces the installed toolkit for that session, and hooks, skills, commands, and agents each resolve the plugin root from that copy. The global CLAUDE.md lines that `/setup` writes resolve the installed root only for calls outside a toolkit skill, command, or agent, and `/setup` offers the current lines to a user whose block predates them. The script allow rules match only the installed cache path, so a script call in such a session asks or goes to the classifier.
+
+## Contributing and security
+
+The repo takes bug reports and security reports. Outside pull requests are by invitation. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for bug reports and pull requests, and [`SECURITY.md`](SECURITY.md) for how to report a security issue.
 
 ## Uninstall
 
@@ -120,4 +96,8 @@ claude plugin marketplace remove shaughn-toolkit
 rm -rf ~/.claude/plugins/cache/shaughn-toolkit
 ```
 
-(The cache directory is not swept by uninstall.)
+Uninstall does not sweep the cache directory, so the third command removes it.
+
+## License
+
+MIT, see [`LICENSE`](LICENSE). Third-party components are attributed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).

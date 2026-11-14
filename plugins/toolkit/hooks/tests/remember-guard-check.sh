@@ -30,12 +30,12 @@ _rg_write_plan() {
     "$2" "$3" > "$1"
 }
 
-# $1 base dir. Builds a HOME whose obsidian-sync.json points at a vault holding one in-progress plan
+# $1 base dir. Builds a HOME whose toolkit-vault.json points at a vault holding one in-progress plan
 # that lists session fx-rg-1, a one-commit git repo named demo, and an empty TMPDIR for the marker.
 _rg_setup() {
   local base="$1"
   mkdir -p "$base/home/.claude" "$base/tmp" "$base/demo" || return 1
-  printf '{"vault_path":"%s","root_folder":"%s"}\n' "$base/vault" "$RG_ROOT_FOLDER" > "$base/home/.claude/obsidian-sync.json" || return 1
+  printf '{"vault_path":"%s","root_folder":"%s"}\n' "$base/vault" "$RG_ROOT_FOLDER" > "$base/home/.claude/toolkit-vault.json" || return 1
   _rg_write_plan "$base/vault/$RG_ROOT_FOLDER/$RG_PLAN_REL" in-progress fx-rg-1 || return 1
   git -C "$base/demo" init -q || return 1
   printf 'demo\n' > "$base/demo/README.md" || return 1
@@ -85,6 +85,14 @@ _rg_new_base() {
 check_rg_warns() {
   local label="warns-when-commit-suggested-and-no-remember-line"
   _rg_new_base "$label" || return
+  _rg_expect_warn "$label" "$RG_BASE" "$RG_BASE/demo" fx-rg-1 false "$RG_MSG"
+}
+
+check_rg_warns_with_legacy_config_only() {
+  local label="warns-with-only-the-legacy-config"
+  _rg_new_base "$label" || return
+  mv "$RG_BASE/home/.claude/toolkit-vault.json" "$RG_BASE/home/.claude/obsidian-sync.json" \
+    || { _rg_fail "$label :: setup failed"; rm -rf "$RG_BASE"; return; }
   _rg_expect_warn "$label" "$RG_BASE" "$RG_BASE/demo" fx-rg-1 false "$RG_MSG"
 }
 
@@ -253,6 +261,7 @@ check_rg_worktree_uses_main_repo_name() {
 
 run_remember_guard_checks() {
   check_rg_warns
+  check_rg_warns_with_legacy_config_only
   check_rg_warns_on_prefixed_signature
   check_rg_silent_without_signature
   check_rg_silent_with_remember_line

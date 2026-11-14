@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Execute flow walkthrough - claude-toolkit</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+<nav aria-label="Site">
+<ul>
+<li><a href="index.html">Home</a></li>
+<li><a href="walkthrough-plan.html">Plan flow</a></li>
+<li><a href="walkthrough-execute.html" aria-current="page">Execute flow</a></li>
+<li><a href="walkthrough-ship.html">Ship flow</a></li>
+<li><a href="sessions.html">Sessions</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+</ul>
+</nav>
+</header>
+<main>
+<h1>Execute flow walkthrough</h1>
+<p class="lead">The execute flow builds an approved plan note end to end and stops with a commit suggestion. It asks nothing after the run options, and it never runs the suggested git commands.</p>
+
+<h2>The setup</h2>
+<p>The project is still <code>todo-api</code>, and the plan note from the <a href="walkthrough-plan.html">plan flow walkthrough</a> sits in <code>~/notes</code> with <code>status: approved</code>.</p>
+
+<section id="recording">
+<h2>The steps</h2>
+<ol class="steps">
+<li>
+<p class="types"><code>run the execute flow here</code>, or <code>yes</code> to the run-here form of the post-approval question.</p>
+<p class="does">The flow reads the run options from the plan note and asks nothing more. It checks the seat, which is the repo's main checkout. It opens a worktree for the plan with no question when another session holds the main checkout, when the main checkout holds changes, or when it sits on its default branch, and it runs the repo's install step inside that worktree. It checks the tree and the branch and runs topic recall.</p>
+</li>
+<li>
+<p class="types">nothing.</p>
+<p class="does">The flow moves the plan note to <code>status: in-progress</code>, tells you the step count and the first line of each Implementation Step, and says that a permission prompt pauses the run until you answer it. It then launches the <code>execute-runner</code> workflow.</p>
+</li>
+<li>
+<p class="types">an answer to any permission prompt the run raises.</p>
+<p class="does">The runner checks a baseline, then runs one implementer agent per Implementation Step, in plan order. A verifier runs the plan's Validation Steps, with one fix round for a failing step. The runner captures the diff and hands it to the <code>review-mr</code> panel, whose verifier must reproduce a finding before it counts. A bounded fix loop fixes the reproduced findings. A cold reader then reads the final diff with no context. When nothing blocked, a doc pass updates the repo docs the change touched, the Validation Steps run again when a fix or the doc pass changed files, and a remember pass proposes topic note updates.</p>
+</li>
+<li>
+<p class="types">nothing yet. Read the report.</p>
+<p class="does">On a clean run the report opens with the Repo, Branch and Scope lines, then a line that begins <code>Suggested commit</code>, then the <code>Remember:</code> line and each file to stage, with a paste-ready block that names every path. A list under the line "To settle" holds the manual checks and open items, or "none". The plan note records the session as <code>execute-flow finished:</code>, which the ship flow reads.</p>
+<p>A Validation Step that needs the running local stack cannot run in a worktree. The report then begins with the line "Deferred to the seat" and one line per such step, and those steps run later in the seat run from the main checkout.</p>
+<p>On a blocked run the report opens with every blocked reason instead, says what you settle, and offers no commit.</p>
+</li>
+</ol>
+</section>
+
+<h2>Next</h2>
+<p>The <a href="walkthrough-ship.html">ship flow walkthrough</a> carries this slice to a merged pull request.</p>
+<p>Source: <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/plugins/toolkit/skills/execute-flow/SKILL.md">skills/execute-flow/SKILL.md</a> and <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/workflows.md">docs/workflows.md</a>.</p>
+</main>
+<footer>
+<p>MIT licensed. Source at <a href="https://github.com/shaughnlgh/claude-toolkit">github.com/shaughnlgh/claude-toolkit</a>.</p>
+</footer>
+</body>
+</html>

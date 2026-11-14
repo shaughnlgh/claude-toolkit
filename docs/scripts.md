@@ -15,7 +15,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved.
 
 | Script | What it does | Guardrails |
 |---|---|---|
-| `vault-fs.sh` | Vault file ops `rm`, `mv` and `cp`, image attachments `attach`, and vault reads `sha256` and `index` | Refuses absolute paths, `..` traversal, symlink escape from the vault (canonical containment), non-regular-file targets, missing sources, unknown subcommands; attach: PNG or JPEG of at most 10 MiB from inside a git checkout, never over an existing file |
+| `vault-fs.sh` | Vault file ops `rm`, `mv` and `cp`, image attachments `attach`, vault reads `sha256` and `index`, and the topic index write `topic-index` | Refuses absolute paths, `..` traversal, symlink escape from the vault (canonical containment), non-regular-file targets, missing sources, unknown subcommands; attach: PNG or JPEG of at most 10 MiB from inside a git checkout, never over an existing file |
 | `git-ro.sh` | Read-only git in any directory — `status`, `diff`, `log`, `show` | Subcommand allowlist; refuses write options (`--output`/`-o`/`--ext-diff`); neutralizes pager, fsmonitor, ext-diff and textconv (the execute-on-read vectors) |
 | `seat-check.sh` | Reports which live Claude sessions hold a repo's main checkout, with its branch and dirty count | Read-only; never writes a file; reads sessions through `claude agents --json`; needs only `jq` and `git` |
 | `seat-queue.sh` | Keeps the queue of sessions that wait for a repo's main checkout, and waits for a session's turn | Writes only `toolkit-seat-queue/` in the git common dir: one file per joined session, empty while the session waits and holding `seated` once its turn came, one `.miss-<sessionId>` marker per session that one read missed, the `.grant` lock directory while a grant step or a leave runs, and `.grant.break` while a contender removes a stale lock; removes only its own entry and the entries of sessions that two reads missed; reads liveness and the seat through `seat-check.sh`; needs `git`, `stat`, and the `jq` that `seat-check.sh` needs |
@@ -27,14 +27,15 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved.
 | `run-checkpoint.py` | Prints an execute-runner Workflow run's checkpoint from its journal, and with `--replay` writes a runner copy that replays the recorded results | Reads only the run folders it is given and their run summaries, refuses a folder that is not a run folder under `~/.claude/projects`, stdlib only, writes only the `--replay` copy, and refuses a replay of a run that may still be live, died inside a stage that edits the tree, whose run summary lacks the args or the `const REPLAY = null` line, whose recorded `pluginRoot` is gone, or that another plan or checkout recorded, and with `--tree-hash` refuses a tree that changed since the run blocked |
 | `slice-capture.py` | Captures the uncommitted diff of one or several repo roots into one file and prints its hash, its paths, and one part hash per repo | Runs only read-only git, writes only `slice-<hash12>.diff` under `--scratch`, refuses a repo outside `--root`, stdlib only |
 | `topic-recall.py` | Lexical topic search over the vault index, with a frontmatter fallback and an optional repo `docs/` source | Read-only against the vault and the repo, stdlib only, skips symlinks and non-regular files, INDEX.md included, reads at most 64 KiB of each scanned note or doc, stops at a 3-second deadline |
-| `obsidian-sync.json.template` | Vault config template `setup` instantiates to `~/.claude/obsidian-sync.json` | n/a — config, not an executable |
+| `vault-index.py` | Writes the topic index `INDEX.md` at the vault root from the `type: topic` notes, run through `vault-fs.sh topic-index` | Stdlib only, reuses the scan and row parser of `topic-recall.py`, writes only `INDEX.md` through a temporary file and a rename, refuses an `INDEX.md` that is not a regular file, and leaves an `INDEX.md` without its marker line untouched |
+| `toolkit-vault.json.template` | Vault config template `setup` instantiates to `~/.claude/toolkit-vault.json` | n/a — config, not an executable |
 | `resolve-models.sh` | Resolves each shipped agent's model and effort from the template, the user file, and the plan note's run options, and prints one JSON map | Read-only; never writes a file; refuses Haiku and invalid values with a stderr warning; needs only `jq` |
 | `toolkit-models.json.template` | Default layer of per-agent model and effort routing for Agent-tool spawns and Workflow `agent()` calls | n/a, config, not an executable |
 | `design-detector/` | Deterministic, no-LLM detector for AI-generated frontend anti-patterns (most of 46 rules) | Vendored from Impeccable (Apache-2.0, attributed); read-only; zero-dep by default |
 
 ## vault-fs.sh
 
-Atomic file ops (`rm`, `mv`, `cp`) and image attachments (`attach`) scoped to the Obsidian vault, so skills like `plan-guide` and `handoff` never touch the filesystem with a raw shell command.
+Atomic file ops (`rm`, `mv`, `cp`), image attachments (`attach`) and the topic index write (`topic-index`) scoped to the vault, so skills like `plan-guide` and `handoff` never touch the filesystem with a raw shell command.
 
 Invoke:
 
@@ -45,11 +46,12 @@ bash "$PLUGIN_ROOT/scripts/vault-fs.sh" sha256 <relpath>
 bash "$PLUGIN_ROOT/scripts/vault-fs.sh" index <relpath>
 bash "$PLUGIN_ROOT/scripts/vault-fs.sh" cp <relpath-src> <relpath-dst>
 bash "$PLUGIN_ROOT/scripts/vault-fs.sh" attach <checkout> <src-relpath> <dst-relpath>
+bash "$PLUGIN_ROOT/scripts/vault-fs.sh" topic-index
 ```
 
-`vault-fs.sh sha256` prints the sha256 of a vault file, and `vault-fs.sh index` runs `plan-index.py` on a vault plan note and prints the index the execute runner reads ([workflows.md](workflows.md#execute-runnerjs)). Both take one vault-relative path and apply the containment and regular-file checks that `rm` applies.
+`vault-fs.sh sha256` prints the sha256 of a vault file, and `vault-fs.sh index` runs `plan-index.py` on a vault plan note and prints the index the execute runner reads ([workflows.md](workflows.md#execute-runnerjs)). Both take one vault-relative path and apply the containment and regular-file checks that `rm` applies. `vault-fs.sh topic-index` takes no argument and runs `vault-index.py` on the resolved vault root.
 
-The vault root is resolved from `~/.claude/obsidian-sync.json` (`vault_path` + `root_folder` — see the template below). If that file is missing or the resolved root doesn't exist as a directory, the script refuses outright.
+The vault root is resolved from `~/.claude/toolkit-vault.json`, or `~/.claude/obsidian-sync.json` when that file is absent (`vault_path` + `root_folder`, see the template below). If neither file exists or the resolved root doesn't exist as a directory, the script refuses outright.
 
 Guardrails — this is the point of the script:
 - **Refuses absolute paths and traversal lexically.** Any path starting with `/` or containing `..` is rejected before it's joined to the vault root — relative vault paths only. `attach` takes its checkout as an absolute path and its source relative to that checkout, and refuses a source with `..`.
@@ -63,7 +65,7 @@ Guardrails — this is the point of the script:
 
 What it does NOT provide, deliberately: directory creation, locking or concurrency control, content/frontmatter validation, or a general filesystem sandbox beyond these operations.
 
-Tests: `bash plugins/toolkit/scripts/tests/vault-fs/run-tests.sh` (42 behavior cases in a temporary vault; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/vault-fs/run-tests.sh` (47 behavior cases in a temporary vault; also run by `verify.sh`).
 
 ## git-ro.sh
 
@@ -288,11 +290,11 @@ Invoke:
 python3 "$PLUGIN_ROOT/scripts/topic-recall.py" [--repo <name>] [--repo-root <path>] [--top N] [--format text|json] [--version] [query words...]
 ```
 
-Defaults are `--top 10` and `--format text`. The vault root comes from `~/.claude/obsidian-sync.json` (`vault_path` plus `root_folder`).
+Defaults are `--top 10` and `--format text`. The vault root comes from `~/.claude/toolkit-vault.json`, or `~/.claude/obsidian-sync.json` when that file is absent (`vault_path` plus `root_folder`).
 
 `--version` prints the toolkit content version to stdout and exits 0 before the script reads any config. The script resolves symlinks in its own path and treats the directory above `scripts/` as the plugin root. If the parent of that root is named `toolkit`, as in the plugin cache, the script prints the name of the root directory, which is the install version. Otherwise it prints `git rev-parse --short=12 HEAD` of the root, or `unknown` if git is missing or finds no commit.
 
-Source: the script reads `<vault_path>/<root_folder>/INDEX.md`, which Mission Control writes. The toolkit never writes it. Only rows under `## Topics by domain` count, up to the next level-2 heading, so the plan links under `## Projects` stay out. The script reads the parenthesized meta of each row by content, not by position. A segment that starts with `verified` or `unverified` is the verified state, a segment that equals `stale` after the script strips the `⚠` sign and whitespace marks the row stale, and any other segment is the comma-separated repo list. Mission Control omits the repo segment when a topic has no repos, so rows ending in `(unverified)` or `(verified 2026-08-10; ⚠ stale)` parse with no repos. The script reads a regular INDEX.md whole. If INDEX.md is missing, unreadable, a symlink, not a regular file, or has no topic rows, the script walks the root folder instead and keeps files whose frontmatter says `type: topic`. If INDEX.md exists but is a symlink, is not a regular file, or cannot be read, the script prints one line naming the path to stderr before it falls back. Text output from the fallback starts with `source: frontmatter scan (INDEX.md unavailable)`, and every fallback row reports `stale` as false.
+Source: the script reads `<vault_path>/<root_folder>/INDEX.md`. Three facts govern it. First, `vault-fs.sh topic-index` (see `vault-index.py` below) or another tool writes the index, and the script reads both kinds the same way. Second, a toolkit-written index, one that holds the generator's marker line, is used only while no folder and no `.md` file under the root folder has a newer modification time than the index. Otherwise the script treats it as out of date and scans the frontmatter instead, so a note added, edited, moved or deleted by hand after the last index write is never hidden. An index without the marker is used whenever it has topic rows. Third, the generator writes nothing while a topic note cannot be written as a row or while two topic notes share a name, so recall stays on the frontmatter scan in those states. Only rows under `## Topics by domain` count, up to the next level-2 heading, so sections such as `## Projects` that another tool may add stay out. The script reads the parenthesized meta of each row by content, not by position. A segment that starts with `verified` or `unverified` is the verified state, a segment that equals `stale` after the script strips the `⚠` sign and whitespace marks the row stale, and any other segment is the comma-separated repo list. A row with no repos omits the repo segment, so rows ending in `(unverified)` or `(verified 2026-08-10; ⚠ stale)` parse with no repos. The script reads a regular INDEX.md whole. If INDEX.md is missing, unreadable, a symlink, not a regular file, has no topic rows, or is an out-of-date toolkit-written index, the script walks the root folder instead and keeps files whose frontmatter says `type: topic`. If INDEX.md exists but is a symlink, is not a regular file, or cannot be read, the script prints one line naming the path to stderr before it falls back. Text output from the fallback starts with `source: frontmatter scan (INDEX.md unavailable or out of date)`, and every fallback row reports `stale` as false.
 
 File reads: the frontmatter fallback walk and the repo docs walk skip symlinked files, symlinked directories, and any entry that is not a regular file, such as a FIFO or a device. The script reads at most 64 KiB of each file, drops a leading UTF-8 byte order mark, and keeps at most the first 120 lines of that. It ignores frontmatter that does not close within those lines. Frontmatter values can be plain scalars, `[a, b]` lists, `- item` lists, or YAML block scalars (`>`, `>-`, `>+`, `|`, `|-`, `|+`). The script joins the indented lines of a block scalar with spaces.
 
@@ -300,13 +302,13 @@ Repo source: if `--repo-root <path>` is given, the script adds the Markdown file
 
 Scoring: the script lower-cases the query, splits it on `[a-z0-9]+`, and drops tokens shorter than 3 characters. Each distinct query token found in a title adds 8, and each distinct query token found in a summary adds 3. For a vault row, a `--repo` value listed in the row's repos adds 6 once. A repo row gets no repo bonus, because every repo row lists the repo. The repo row for `<repo-root>/docs/README.md` adds 2 if it has at least one token hit, so the docs index leads its folder on equal hits. With no query words, every repo row scores 0. Rows that score 0 are dropped. Hits sort by score, highest first, then by title. A stale or unverified row scores the same as a verified one.
 
-Output: text prints three lines per hit. The first line is the title, the repos in brackets, then `[vault]` and the verified state for a vault row, or `[repo]` for a repo row, and it ends with `(score N)`. The summary and the absolute note path follow. JSON prints a list of objects with `title`, `summary`, `repos`, `verified`, `stale`, `path`, `source`, and `score`. The path is blank in JSON, and `(no local file)` in text, when no `<Title>.md` exists under the root folder, for example when iCloud has evicted the note. The script writes stdout as UTF-8 whatever the locale, and replaces any character it cannot encode.
+Output: text prints three lines per hit. The first line is the title, the repos in brackets, then `[vault]` and the verified state for a vault row, or `[repo]` for a repo row, and it ends with `(score N)`. The summary and the absolute note path follow. JSON prints a list of objects with `title`, `summary`, `repos`, `verified`, `stale`, `path`, `source`, and `score`. The path is blank in JSON, and `(no local file)` in text, when no `<Title>.md` exists under the root folder, for example when a sync client has evicted the note. The script writes stdout as UTF-8 whatever the locale, and replaces any character it cannot encode.
 
-Exit codes: `0` with hits or with none, or after `--version`, `2` if `~/.claude/obsidian-sync.json` is missing or unreadable, or the vault root is not a directory, and `3` if the run passes its internal 3-second deadline. The script sets that deadline with `SIGALRM`, so a platform without `SIGALRM` has no exit 3. On exit 2 or 3 the reason goes to stderr and nothing goes to stdout.
+Exit codes: `0` with hits or with none, or after `--version`, `2` if the vault config (`~/.claude/toolkit-vault.json`, or `~/.claude/obsidian-sync.json` when that file is absent) is missing or unreadable, or the vault root is not a directory, and `3` if the run passes its internal 3-second deadline. The script sets that deadline with `SIGALRM`, so a platform without `SIGALRM` has no exit 3. On exit 2 or 3 the reason goes to stderr and nothing goes to stdout.
 
 Embedding seam: `rank()` is the only function an embedding backend replaces. It receives the candidates, the query words, the repo name, and the docs index path. Loading, path resolution, and rendering stay as they are, so the CLI and its output do not change.
 
-Tests: `bash plugins/toolkit/scripts/tests/topic-recall/run-tests.sh` (45 behavior cases in temporary vaults and repos with an overridden HOME). `verify.sh` also runs it.
+Tests: `bash plugins/toolkit/scripts/tests/topic-recall/run-tests.sh` (61 behavior cases in temporary vaults and repos with an overridden HOME, the index generator's cases included). `verify.sh` also runs it.
 
 ## run-checkpoint.py
 
@@ -366,11 +368,29 @@ Output: one JSON line with `diffPath`, `hash12` (the first 12 hex characters of 
 
 Tests: `bash plugins/toolkit/scripts/tests/slice-capture/run-tests.sh` (18 behavior cases over fixture repos: one root byte for byte as the single-repo capture, sibling and nested roots, odd file names, part hashes, and bad arguments). `bash plugins/toolkit/scripts/tests/several-repos/run-tests.sh` (18 cases) runs the execute-flow section 2b command forms, each checked verbatim against the skill, on fixture repos with no network, and ends with a five-root capture. `verify.sh` runs both.
 
-## obsidian-sync.json.template
+## vault-index.py
 
-The source template `setup` copies to `~/.claude/obsidian-sync.json` on first setup. It is config, not an executable — this is what `vault-fs.sh` (and the vault-writing skills) read `vault_path` and `root_folder` from to resolve the vault root.
+Writes `<vault_path>/<root_folder>/INDEX.md`, the topic index that `topic-recall.py` reads. The `/topic` command and the remember pass run it after they create, update, move or remove a topic note.
 
-Fields, by what each observably does: `vault_path` (per-machine, set during setup — the physical vault root), `root_folder` (the toolkit-owned subtree inside the vault; everything the toolkit writes lives under it), `plan_folder_template` (the canonical plan-directory layout the planning workflow creates and consumers like mc-catchup enumerate), and `_readme` (human guidance only, read by nothing). A live config may carry additional legacy or external-consumer fields; the toolkit ignores them and never rewrites the file.
+Invoke:
+
+```bash
+bash "$PLUGIN_ROOT/scripts/vault-fs.sh" topic-index
+```
+
+The script scans the `type: topic` notes under the root folder with the scan `topic-recall.py` uses, and writes one row per note under `## Topics by domain`, sorted by title, after a `# Vault index` heading and the marker line `Generated by the toolkit (vault-fs.sh topic-index). Do not edit.` It writes through a temporary file and a rename, then sets the file's modification time, so the index reads as current until a folder or `.md` file under the root folder changes.
+
+It writes nothing, and recall stays on the frontmatter scan, when a note's title or repo list cannot be written as a row that parses back to the same values, or when two topic notes share a title, because an index row carries a title and no path. It names each such note on stderr. It leaves an `INDEX.md` that lacks the marker line untouched, because another tool writes that file.
+
+Exit codes: `0` when it wrote or refreshed the file, or wrote nothing for one of the reasons above. `1` when `INDEX.md` is not a regular file or the write failed.
+
+Tests: the topic-recall suite and the vault-fs suite cover it.
+
+## toolkit-vault.json.template
+
+The source template `setup` copies to `~/.claude/toolkit-vault.json` on first setup. Every reader takes the legacy `~/.claude/obsidian-sync.json` when `~/.claude/toolkit-vault.json` is absent. It is config, not an executable — this is what `vault-fs.sh` (and the vault-writing skills) read `vault_path` and `root_folder` from to resolve the vault root.
+
+Fields, by what each observably does: `vault_path` (per-machine, set during setup — the physical vault root), `root_folder` (the toolkit-owned subtree inside the vault; everything the toolkit writes lives under it), `plan_folder_template` (the canonical plan-directory layout the planning workflow creates and other tools can enumerate), and `_readme` (human guidance only, read by nothing). A live config may carry additional legacy or external-consumer fields; the toolkit ignores them and never rewrites the file.
 
 ## toolkit-models.json.template
 
