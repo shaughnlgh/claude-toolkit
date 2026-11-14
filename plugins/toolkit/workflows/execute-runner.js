@@ -811,7 +811,7 @@ ${planRead(STOP)}
 
 ${planBlock('RELATED TOPICS', 'Related Topics')}
 
-Task-specific constraints. The plugin root is ${a.pluginRoot}. Before your first write, read these files under that root: commands/obsidian-topic.md, doctrine/security.md, doctrine/repo-artifacts.md, and the usage header of scripts/vault-fs.sh.
+Task-specific constraints. The plugin root is ${a.pluginRoot}. Before your first write, read these files under that root: commands/topic.md, doctrine/security.md, doctrine/repo-artifacts.md, and the usage header of scripts/vault-fs.sh.
 
 Routing: before any write, classify each durable fact. Class (a) is shareable engineering knowledge about this repo. Class (b) is cross-repo, not about any repo, or personal workflow. A class (a) fact routes only to a docs/context/ doc that carries the <!-- managed-by: toolkit --> marker: an existing one that covers the subject, else a new docs/context/context-<kebab>.md. Never route a fact into a hand-written repo doc. If a hand-written repo doc covers the subject, name it as the related doc on the proposal. A class (b) fact routes to the vault topic note. If a vault note carries the repo-mode banner, route its new facts to the doc the banner names, never into the note.${MULTI ? ` In this run a class (a) fact is about one repo under REPOS and routes only to a docs/context/ doc under that repo's root, a fact about how two repos work together is class (b), and each proposal path starts with that root's path relative to ${a.repoRoot}.` : ''}
 

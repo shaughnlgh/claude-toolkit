@@ -3,7 +3,7 @@ title: Seat queue in the git common dir
 summary: A seat run that finds the main checkout taken waits in a queue kept in the git common dir and ordered by join second, then session id, behind a mkdir lock, with an entry removed only after two missed agents reads and a run whose parent holds the main checkout stopped at once only when the parent is the only live session with its name.
 type: decision
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-10
 ---
 

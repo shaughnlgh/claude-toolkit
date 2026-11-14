@@ -3,7 +3,7 @@ title: macOS script portability
 summary: Constraints that the macOS system Python and a piped stdin put on the toolkit's Python scripts and test suites.
 type: context
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-10-28
 source_refs:
   - plugins/toolkit/scripts/topic-recall.py

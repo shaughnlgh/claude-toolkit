@@ -3,7 +3,7 @@ title: Crawl session is the parent
 summary: The crawl session is the parent of the work it routes, so its plan-guide route ends with a plan flow offer, every session records its own name on its plan note entry, and after approval a session named parent- recommends a child session named child-<planName> and puts a bare yes on that line.
 type: decision
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-09
 ---
 

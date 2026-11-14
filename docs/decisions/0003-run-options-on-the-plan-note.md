@@ -3,7 +3,7 @@ title: Run options on the plan note
 summary: The flows read their run options, the git ceiling first, from eight optional frontmatter keys on the plan note, asked once and cached per session for that plan.
 type: decision
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-05
 ---
 

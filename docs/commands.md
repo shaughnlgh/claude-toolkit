@@ -1,6 +1,6 @@
 # Commands
 
-The toolkit ships seven slash commands in two groups: **setup and vault** helpers, and on-demand **thinking tools**. This page is the reference for what each does, when to run it, and what it changes.
+The toolkit ships eight slash commands in two groups: **setup and vault** helpers, and on-demand **thinking tools**. This page is the reference for what each does, when to run it, and what it changes.
 
 ## Setup & vault
 
@@ -13,12 +13,12 @@ Checks this machine's toolkit setup and guides the user through anything missing
 **What it checks, in order:**
 
 1. **Plugin state** — install location and content version.
-2. **Vault config** (needed by `plan-guide` and `/obsidian-topic`) — validates `~/.claude/obsidian-sync.json`: parses as JSON, `vault_path` exists on disk, `root_folder` is set, and `plan_folder_template` is set and internally consistent with `root_folder`. Unknown or legacy fields are tolerated, never rewritten. If the file is missing, offers to create it from the shipped template.
+2. **Vault config** (needed by `plan-guide` and `/topic`): reads `~/.claude/toolkit-vault.json`, or the legacy `~/.claude/obsidian-sync.json` when that file is absent, reports which file it read, and validates it: parses as JSON, `vault_path` exists on disk, `root_folder` is set, and `plan_folder_template` is set and internally consistent with `root_folder`. Unknown or legacy fields are tolerated, never rewritten. It never renames, rewrites or deletes the legacy file and offers no migration. If neither file exists, offers to create `~/.claude/toolkit-vault.json` from the shipped template.
 3. **GitLab tooling** (needed by `gitlab-mr-review` only) — whether `glab` is installed and, if so, its per-host auth status. Never prints a token value.
 4. **Jira tooling** (needed by the `jira` skill only): whether `jira` (jira-cli) is installed and, if so, whether an authenticated `jira me` probe succeeds. Never prints a token value.
 5. **Other tooling**: whether `gh`, `jq`, and `python3` are present.
 6. **Permissions and environment** (optional, consent-gated): separate offers, each asked as a question with the recommended answer first, through AskUserQuestion outside auto mode and as a numbered list with one paste-ready block of `yes <name>` lines under auto mode:
-   - Prompt-free allow rules for the plugin's `vault-fs.sh`, `git-ro.sh`, `watch-mr.sh`, and `seat-queue.sh` scripts in `~/.claude/settings.json`, and a `Read(//<vault_path>/<root_folder>/**)` rule built from `~/.claude/obsidian-sync.json`, offered whenever `permissions.allow` lacks that exact rule, with a matching `## Toolkit Scripts` usage block for the global `~/.claude/CLAUDE.md`. Setup offers to replace a `watch-mr.sh` usage line in that block that lacks the `review` mode, under the name `Toolkit Scripts watch-mr line`.
+   - Prompt-free allow rules for the plugin's `vault-fs.sh`, `git-ro.sh`, `watch-mr.sh`, and `seat-queue.sh` scripts in `~/.claude/settings.json`, and a `Read(//<vault_path>/<root_folder>/**)` rule built from `~/.claude/toolkit-vault.json`, or `~/.claude/obsidian-sync.json` when that file is absent, offered whenever `permissions.allow` lacks that exact rule, with a matching `## Toolkit Scripts` usage block for the global `~/.claude/CLAUDE.md`. Setup offers to replace a `watch-mr.sh` usage line in that block that lacks the `review` mode, under the name `Toolkit Scripts watch-mr line`.
    - A read-only command allowlist (`gh`/`glab`/`jira` view/list/diff subcommands) in `~/.claude/settings.json`.
    - Under auto mode only: mutating git allow rules (`git add`, `git commit`, `git push`, `glab mr create` or `gh pr create`) so a plan note's `ceiling: mr` or `ceiling: merge` holds without a classifier check on commit, push, and MR creation. Merge and tag are never offered as allow rules.
    - Under auto mode only: one `Source control: <host>/<group>` entry in `autoMode.environment` for each source-control host and group that the origin remote names and the user confirms, and one Own PR Merge or Own MR Merge entry in `autoMode.allow` that clears Merge Without Review for the ship runner's exact merge command in the current repository only, on a pull or merge request the session opened from its own pushed branch against the default branch. Setup writes a missing array as `["$defaults", <entry>]`, appends to an array that holds `$defaults`, and appends to an array without it without inserting it, stating that such a list replaces that section's built-in entries. An existing merge entry whose wording differs from the shipped text gets a `replace Own PR Merge` or `replace Own MR Merge` question. `autoMode.environment` entries that describe one repository under a confirmed host and group get one `rewrite repository environment entries` question. The rewrite puts them at that same host and group level and leaves every other entry as it is, an entry about a repository on any other host or group included.
@@ -42,24 +42,28 @@ Ends with a readiness report table (one row per capability, its status, and what
 
     /setup
 
-### `/obsidian-topic`
+### `/topic`
 
-Creates or updates a single topic note in the Obsidian vault — the vault's distilled, cross-plan knowledge layer for stable concepts (a payment provider, a subsystem, a recurring pattern). This file is the single source of truth for topic notes; the `plan-guide` skill and CLAUDE.md point here rather than duplicating the rules.
+Creates or updates a single topic note in the vault — the vault's distilled, cross-plan knowledge layer for stable concepts (a payment provider, a subsystem, a recurring pattern). This file is the single source of truth for topic notes; the `plan-guide` skill and CLAUDE.md point here rather than duplicating the rules.
 
-**Usage** — `/obsidian-topic <Topic Name> [repo]`. Errors with a usage message if no topic name is given.
+**Usage** — `/topic <Topic Name> [repo]`. Errors with a usage message if no topic name is given.
 
 **When to run it** — ad hoc, any time a topic note needs creating or refreshing outside the normal planning/execution flow. In the normal flow, `plan-guide` calls the same process automatically: on every plan, topic recall runs first and every topic in the plan's Related Topics either resolves to an existing note or gets a stub created. During execution, workers return durable facts as Topic note material, and the remember pass routes them once per slice. It routes each durable fact to a toolkit-managed context doc under the repo's `docs/context/`, behind the repo-mode consent gate, or to the vault topic note. It never edits a hand-written repo doc.
 
-**Location** — resolved from `~/.claude/obsidian-sync.json`. New topic notes start in the current project's directory, `Projects/{repo_name}/<Topic>.md`. A topic gets promoted to `<root_folder>/Docs/` once a second project links it. Claude never writes outside `<root_folder>/`.
+**Location** — resolved from `~/.claude/toolkit-vault.json`, or `~/.claude/obsidian-sync.json` when that file is absent. New topic notes start in the current project's directory, `Projects/{repo_name}/<Topic>.md`. A topic gets promoted to `<root_folder>/Docs/` once a second project links it. Claude never writes outside `<root_folder>/`.
 
 **Freshness validation** — a topic note is a claim about the world as of its `verified` timestamp (blank means unverified); `updated` records edit recency only. Before relying on one, at least one `source_refs` entry is spot-checked against current code. A clean check sets `verified`; a correction from checked evidence sets both `updated` and `verified`; a non-verifying edit bumps only `updated`. If reality disagrees, the code wins: the note is corrected or the disagreement is flagged in the plan — never silently trusted, whatever the dates say.
 
-**What it changes** — only files under `<root_folder>/` in the vault (writes go through an atomic Write-then-`vault-fs.sh mv`). It never touches project source code or git state, and never invents facts, ticket references, or test data.
+**What it changes** — only files under `<root_folder>/` in the vault (writes go through an atomic Write-then-`vault-fs.sh mv`). After a topic note is created, updated, moved or removed, it runs `vault-fs.sh topic-index` to rewrite the toolkit's topic index. It never touches project source code or git state, and never invents facts, ticket references, or test data.
 
 **Examples**
 
-    /obsidian-topic "Payment Gateway" my-repo
-    /obsidian-topic "Caching Strategy"
+    /topic "Payment Gateway" my-repo
+    /topic "Caching Strategy"
+
+### `/obsidian-topic`
+
+The old name of `/topic`. It forwards its arguments to `/topic`.
 
 ### `/override`
 

@@ -37,8 +37,8 @@ COMMON=$(git rev-parse --git-common-dir 2>/dev/null); COMMON=$([ -n "$COMMON" ] 
 [ "$(basename "$COMMON" 2>/dev/null)" = ".git" ] && REPO=$(basename "$(dirname "$COMMON")")
 
 # (c) vault config resolves a Projects folder for this repo.
-CFG="$HOME/.claude/obsidian-sync.json"
-[ -f "$CFG" ] || exit 0
+. "$(dirname "${BASH_SOURCE[0]}")/lib/vault-config.sh" 2>/dev/null
+CFG=$(vault_config_file 2>/dev/null) || exit 0
 VAULT=$(jq -r '.vault_path // empty' "$CFG" 2>/dev/null)
 FOLDER=$(jq -r '.root_folder // empty' "$CFG" 2>/dev/null)
 [ -n "$VAULT" ] && [ -n "$FOLDER" ] && [ -d "$VAULT/$FOLDER/Projects/$REPO" ] || exit 0
@@ -78,5 +78,5 @@ done
 
 # A failed marker write still warns: the cost is a repeat warning, never a missed one.
 { : > "$MARKER"; } 2>/dev/null
-jq -n --arg sm "A commit was suggested but the plan note has no Remember: line. Run the remember pass (obsidian-topic, § Remember pass) and record its line before the commit suggestion." '{systemMessage:$sm}'
+jq -n --arg sm "A commit was suggested but the plan note has no Remember: line. Run the remember pass (topic command, § Remember pass) and record its line before the commit suggestion." '{systemMessage:$sm}'
 exit 0

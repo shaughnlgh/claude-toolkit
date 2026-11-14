@@ -4,7 +4,7 @@
 # the MAIN conversation (no agent_id in the payload) to a file inside the project
 # (cwd), and the refusal reason tells the model to route the edit to a worker.
 # Subagent edits pass untouched. Conductor-owned artifacts always pass: any path under
-# ~/.claude/, under the vault_path in ~/.claude/obsidian-sync.json, or under the
+# ~/.claude/, under the vault_path in the vault config (hooks/lib/vault-config.sh), or under the
 # /tmp/claude-*/ (or /private/tmp/claude-*/) scratchpad, the project's own
 # <cwd>/.claude/settings.local.json, and other paths outside cwd.
 # TOOLKIT_CONDUCTOR_EDITS=1 is the human's override and disables the guard, set for one
@@ -31,7 +31,8 @@ FP=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook
 # Checked before the cwd test so a session started in $HOME still writes them; a /../ path never qualifies.
 H="$HOME"; while [ "$H" != "${H%/}" ]; do H="${H%/}"; done
 VAULT=""
-[ -n "$H" ] && [ -f "$H/.claude/obsidian-sync.json" ] && VAULT=$(jq -r '.vault_path // empty' "$H/.claude/obsidian-sync.json" 2>/dev/null)
+. "$(dirname "${BASH_SOURCE[0]}")/lib/vault-config.sh" 2>/dev/null
+[ -n "$H" ] && CFG=$(vault_config_file "$H" 2>/dev/null) && VAULT=$(jq -r '.vault_path // empty' "$CFG" 2>/dev/null)
 while [ "$VAULT" != "${VAULT%/}" ]; do VAULT="${VAULT%/}"; done
 case "$FP" in */../*) ;; *)
   case "$FP" in /tmp/claude-*/*|/private/tmp/claude-*/*) exit 0 ;; esac

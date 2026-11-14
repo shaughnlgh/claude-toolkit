@@ -3,7 +3,7 @@ title: Watch MR script
 summary: The host API behavior `watch-mr.sh` works around and the head, pipeline, and suite rules a change to the script must keep.
 type: context
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-10
 source_refs:
   - plugins/toolkit/scripts/watch-mr.sh

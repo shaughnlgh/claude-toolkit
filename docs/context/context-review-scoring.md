@@ -3,7 +3,7 @@ title: Review scoring
 summary: How the review panel scores, verifies, and routes findings, how the execute runner picks the panel and caps the fix loop, and the constraints a change to those rules must keep.
 type: context
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-06
 source_refs:
   - plugins/toolkit/workflows/review-mr.js

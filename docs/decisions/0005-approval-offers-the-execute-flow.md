@@ -3,7 +3,7 @@ title: Approval offers the execute flow
 summary: After a plan is approved the session asks once in plain text whether to run the execute flow here, open a child session for it, or stop, and the execute flow opens the plan's worktree on a default branch, names it after the plan, and leaves it with keep for the seat run.
 type: decision
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-07
 ---
 

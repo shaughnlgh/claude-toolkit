@@ -3,7 +3,7 @@ title: Ticket question and ticket creation on the user's yes
 summary: Before a plan name or branch is derived for work with no ticket, the agent asks once whether to use an existing ticket, create one, or go without, records the answer, and creates a ticket only on the user's explicit yes to a shown draft.
 type: decision
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-08
 ---
 

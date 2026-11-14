@@ -3,7 +3,7 @@ title: Execute flow asks nothing after approval
 summary: After it reads the run options, the execute flow asks no question, so every former question is a plan note read or a stop with a report, and a seat run from the main checkout finishes the Validation Steps that a worktree run deferred.
 type: decision
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-06
 ---
 

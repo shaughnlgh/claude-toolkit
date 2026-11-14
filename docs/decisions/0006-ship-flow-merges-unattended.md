@@ -3,7 +3,7 @@ title: Ship flow merges unattended
 summary: The ship flow asks nothing after it reads the run options, works bot review threads in bounded rounds, merges over its own fix commits once a verifier's read shows they changed only the plan's paths, cleans up the branch and worktree under merge, and starts on a dispatch from the parent session the user's launch prompt names.
 type: decision
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-10
 ---
 

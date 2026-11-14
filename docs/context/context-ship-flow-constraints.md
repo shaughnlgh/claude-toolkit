@@ -3,7 +3,7 @@ title: Ship flow constraints
 summary: The invariants the ship-runner workflow, its control-flow suite, and the ship-flow conductor's waits must keep, covering the ceiling and the seat cap, fix commits and the carried fix, hands-off paths, pipeline state, the merge guard, the release-only resume, the cleanup, the background wait and relaunch, several-repos asks, and the shared git rule text.
 type: context
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-10
 source_refs:
   - plugins/toolkit/workflows/ship-runner.js

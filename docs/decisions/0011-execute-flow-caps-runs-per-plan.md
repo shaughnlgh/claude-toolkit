@@ -3,7 +3,7 @@ title: Execute flow caps runs per plan
 summary: A plan gets three fresh execute runs, three journal resumes and three fix rounds, a finding the fix cap stops goes to the PR for one tested fix commit in the ship run, every run records its baseline, and a blocked run resumes from its journal only over a tree unchanged since it blocked.
 type: decision
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-10
 ---
 

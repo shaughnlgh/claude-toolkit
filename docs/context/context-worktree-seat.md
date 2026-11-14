@@ -3,7 +3,7 @@ title: Worktree seat
 summary: The constraints that seat-check.sh, the session-start seat line, and the execute flow's seat check and worktrees, several-repos runs included, must keep when a change touches how a session decides who holds a repo's main checkout.
 type: context
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-10
 source_refs:
   - plugins/toolkit/scripts/seat-check.sh

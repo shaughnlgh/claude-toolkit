@@ -3,7 +3,7 @@ title: Plans span several repos
 summary: A plan note whose repo set holds two or more repos runs from a session started in the projects root, with one worktree per top-level repo, one runner run and one combined capture, each repo's rule files passed to every worker by path, and a ship flow that opens every repo's PR or MR and merges them in ship order only once every one was ready.
 type: decision
 status: active
-owner: Shaughn Le Grange - Hatlen
+owner: Shaughn
 last_reviewed: 2026-11-10
 ---
 
