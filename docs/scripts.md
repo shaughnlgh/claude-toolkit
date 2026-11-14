@@ -308,7 +308,7 @@ Exit codes: `0` with hits or with none, or after `--version`, `2` if the vault c
 
 Embedding seam: `rank()` is the only function an embedding backend replaces. It receives the candidates, the query words, the repo name, and the docs index path. Loading, path resolution, and rendering stay as they are, so the CLI and its output do not change.
 
-Tests: `bash plugins/toolkit/scripts/tests/topic-recall/run-tests.sh` (61 behavior cases in temporary vaults and repos with an overridden HOME, the index generator's cases included). `verify.sh` also runs it.
+Tests: `bash plugins/toolkit/scripts/tests/topic-recall/run-tests.sh` (62 behavior cases in temporary vaults and repos with an overridden HOME, the index generator's cases included). `verify.sh` also runs it.
 
 ## run-checkpoint.py
 
