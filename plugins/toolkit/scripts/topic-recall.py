@@ -6,7 +6,7 @@ Usage: topic-recall.py [--repo <name>] [--repo-root <path>] [--top N]
 
 Exit codes:
   0  ran, with hits or with none, or printed the --version output
-  2  the vault config (~/.claude/toolkit-vault.json) missing or unreadable, or the vault root is not a directory
+  2  neither ~/.claude/toolkit-vault.json nor ~/.claude/obsidian-sync.json exists, the one in use is unreadable, or the vault root is not a directory
   3  the run passed its internal deadline (POSIX only)
 
 Read-only against the vault and the repo. Python 3 standard library only.
