@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Release notes - claude-toolkit</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+<nav aria-label="Site">
+<ul>
+<li><a href="index.html">Home</a></li>
+<li><a href="walkthrough-plan.html">Plan flow</a></li>
+<li><a href="walkthrough-execute.html">Execute flow</a></li>
+<li><a href="walkthrough-ship.html">Ship flow</a></li>
+<li><a href="sessions.html">Sessions</a></li>
+<li><a href="release-notes.html" aria-current="page">Release notes</a></li>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+</ul>
+</nav>
+</header>
+<main>
+<h1>Release notes</h1>
+<p class="lead">What shipped, by month, newest first. Each merged change is one line. The toolkit has no version field, so every merge to <code>main</code> is a new version.</p>
+
+<h2>November 2026</h2>
+<ul>
+<li>The planning grill is a fixed step of every first-draft plan flow, run between a discovery launch and a draft launch, and it states the outcome of the work before its first question.</li>
+<li><code>/setup</code> asks its questions with a recommended answer first, and the crawl runs the grill on the route that splits work into several plans.</li>
+<li>One plan can span several sibling repos and nested module repos, and the ship flow merges no repo until every repo has a green pipeline and no open thread.</li>
+<li>A seat run that finds the main checkout taken joins a queue and waits its turn instead of stopping.</li>
+<li>Every execute run and seat run writes an evidence note beside the plan note, and plan note changes send only the changed lines.</li>
+<li>The crawl session is the parent of the work it routes, and it ends the plan route with a plain-text offer to run the plan flow.</li>
+<li>Planning asks one ticket question before any branch or plan name is derived: use a ticket, create one, or go without.</li>
+<li>The execute runner indexes the plan note once, and each worker reads only the lines of the plan its job needs.</li>
+<li><code>/setup</code> offers the auto mode allow rules for each source control host and a per-project override for the conductor guard, each only on a typed reply that names it.</li>
+<li>In a repo with no CI configuration, the ship flow stops waiting for a pipeline after two minutes, and a review bot that says it did not review is reported as such.</li>
+<li>The nits run option decides whether the review loops fix small findings, and <code>/setup</code> records the review bot logins for each host.</li>
+<li>The ship flow asks nothing after the run options, works bot review threads in up to three rounds, and cleans up the branch and the worktree after a merge.</li>
+<li>After plan approval the session asks in plain text whether to run the execute flow here, open a child session, or stop, and a child reports to its parent by message.</li>
+<li>The execute flow asks nothing after the run options, and a seat run finishes the end-to-end steps that a worktree run deferred.</li>
+<li>One resolver sets each agent's model and effort on both spawn paths, and the agent files no longer pin either.</li>
+<li>The plan note records the run options, the crawl asks them once, and a ceiling replaces the git permission question.</li>
+<li>The execute flow runs the repo's install step in a worktree it opens and defers the Validation Steps that need the running local stack to the seat.</li>
+<li>The main conversation keeps its rules across a compaction, direct edits by the main conversation are refused, and a run opens a worktree when another session holds the main checkout.</li>
+</ul>
+
+<h2>October 2026</h2>
+<ul>
+<li>The verifier's verdict, not the score, decides which review findings get fixed.</li>
+<li>Session start and the execute flow report which session holds a repo's main checkout.</li>
+<li><code>/setup</code> detects and offers the git allow rules that auto mode needs.</li>
+<li>The skills for hand-run planning and execution are renamed <code>plan-guide</code> and <code>execution-guide</code>.</li>
+<li>The ship flow waits on a pipeline or a bot review in the background and relaunches itself.</li>
+<li>Each execute runner worker receives only the plan sections its job acts on.</li>
+<li>Worker agents send an ambiguity to Assumptions and keep Blockers for work they could not do.</li>
+<li>A rerun of a blocked execute flow continues over the changes the earlier run left in the tree.</li>
+<li>Review findings carry a score, verification runs in batches, and the review panel is picked by the paths a change touches.</li>
+<li>The ship flow carries a reviewed slice through commit, push, pull request, merge and tag.</li>
+<li>The execute flow finishes by settling the findings of its cold read.</li>
+<li>Topic recall has a <code>--version</code> flag that prints the toolkit content version.</li>
+<li>The execute flow builds an approved plan and stops with a commit suggestion.</li>
+<li>The plan flow's workflow is renamed <code>plan-builder</code> so that it no longer shadows the skill.</li>
+<li>The plan flow turns a brief into a validated plan note.</li>
+<li>A hook warns when a reply suggests a commit before the remember pass has run.</li>
+<li>Sessions recall vault topic notes and repo docs, and each slice runs one remember pass.</li>
+</ul>
+
+<h2>September 2026</h2>
+<ul>
+<li>The hook tests create their dangling-symlink fixture at test time.</li>
+<li>Each agent's model is set per agent from a models file, with the code-writing and review workers on the strongest tier.</li>
+<li>The review-threads skill resolves the threads it fixed on every supported host.</li>
+<li>The functional test probes for skills give the same result on every run.</li>
+<li>Corrections that hold across projects can be promoted into the doctrine and the rules.</li>
+</ul>
+
+<h2>August 2026</h2>
+<ul>
+<li>Every worker agent receives the write-time rules at spawn.</li>
+<li>The prose rules join the injected rules, with a catalog of patterns to avoid.</li>
+<li>A plan note requires a Plain Language Summary section.</li>
+<li>The merge request review skill reads its access token through the host CLI and refuses a malformed token.</li>
+<li>The design rules catalog adds form controls, loading feedback and color.</li>
+<li>The review workflow resolves from the working tree when it runs in this repo.</li>
+<li>The red team reads the change cold, independent of the session that wrote it.</li>
+<li>The red team gates each implementation slice before it is handed off.</li>
+<li>The doctrine explains when to resume a worker and when to start a fresh one, and a writing rule joins the rules.</li>
+<li>A design rules catalog adds one file per design concern behind an index.</li>
+<li>The notification hook posts a fixed message instead of untrusted hook input, and session start announces only the rules it injected.</li>
+<li>Skills write durable knowledge into fixed locations in the repo, always behind a consent question.</li>
+</ul>
+
+<h2>July 2026</h2>
+<ul>
+<li>The setup command is renamed <code>/setup</code>, and it offers auto-update.</li>
+<li>A context sentinel and the conductor guard keep the main conversation delegating its work.</li>
+<li>A read-only ticket skill turns a tracker ticket into a brief.</li>
+<li>The crawl skill reads new work first and routes it, and the doctrine is injected again after a compaction.</li>
+<li>The review workflow's agents are namespaced, and discovery goes to the explorer agent.</li>
+</ul>
+</main>
+<footer>
+<p>MIT licensed. Source at <a href="https://github.com/shaughnlgh/claude-toolkit">github.com/shaughnlgh/claude-toolkit</a>.</p>
+</footer>
+</body>
+</html>

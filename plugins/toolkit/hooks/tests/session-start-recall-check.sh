@@ -20,11 +20,11 @@ _sr_fail() {
   FAILED_NAMES+=("session-start-recall::$1")
 }
 
-# $1 base dir. Writes a HOME whose obsidian-sync.json points at a vault with two INDEX.md rows.
+# $1 base dir. Writes a HOME whose toolkit-vault.json points at a vault with two INDEX.md rows.
 _sr_make_vault() {
   local base="$1" root="$1/vault/$SR_ROOT_FOLDER"
   mkdir -p "$base/home/.claude" "$root" || return 1
-  printf '{"vault_path":"%s","root_folder":"%s"}\n' "$base/vault" "$SR_ROOT_FOLDER" > "$base/home/.claude/obsidian-sync.json" || return 1
+  printf '{"vault_path":"%s","root_folder":"%s"}\n' "$base/vault" "$SR_ROOT_FOLDER" > "$base/home/.claude/toolkit-vault.json" || return 1
   printf '# Vault index\n\n## Topics by domain\n\n### general\n\n%s\n%s\n\n## Projects\n\n' \
     "$SR_REPO_ROW" "$SR_LOOSE_ROW" > "$root/INDEX.md"
 }
@@ -43,16 +43,19 @@ _sr_make_repo() {
   git -C "$repo" add -A && git -C "$repo" -c user.name=fixture -c user.email=fixture@example.invalid commit -qm init
 }
 
-# $1 label, $2 cwd, $3 HOME. Sets SR_CTX to the hook's additionalContext.
+# $1 label, $2 cwd, $3 HOME, $4 optional hook input (default {}). Sets SR_CTX to the hook's additionalContext
+# and SR_SM to its systemMessage.
 _sr_run() {
-  local label="$1" cwd="$2" home="$3" out rc
-  out="$(cd "$cwd" && printf '{}' | env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR \
+  local label="$1" cwd="$2" home="$3" input="${4:-}" out rc
+  [[ -n "$input" ]] || input='{}'
+  out="$(cd "$cwd" && printf '%s' "$input" | env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR \
     HOME="$home" CLAUDE_PLUGIN_ROOT="$ROOT/.." bash "$SR_HOOK" 2>/dev/null)"
   rc=$?
   if [[ $rc -ne 0 ]]; then
     _sr_fail "$label :: hook exited $rc"
     return 1
   fi
+  SR_SM="$(printf '%s' "$out" | jq -r '.systemMessage // empty' 2>/dev/null)"
   SR_CTX="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)"
   if [[ -z "$SR_CTX" ]]; then
     _sr_fail "$label :: no additionalContext in hook output"
@@ -82,6 +85,27 @@ check_sr_vault_rows() {
     _sr_fail "$label :: plain-name hint line missing"; return
   fi
   _sr_pass "$label :: header, the repo row, no repo-less row, plain-name hint"
+}
+
+check_sr_legacy_config_only() {
+  local label="legacy-config-only" base
+  base="$(mktemp -d)" || { _sr_fail "$label :: mktemp -d failed"; return; }
+  if ! _sr_make_vault "$base" || ! _sr_make_repo "$base/demo" \
+     || ! mv "$base/home/.claude/toolkit-vault.json" "$base/home/.claude/obsidian-sync.json"; then
+    _sr_fail "$label :: setup failed"; rm -rf "$base"; return
+  fi
+  _sr_run "$label" "$base/demo" "$base/home" '{"source":"startup"}' || { rm -rf "$base"; return; }
+  rm -rf "$base"
+  if [[ "$SR_CTX" != *"Demo Cache [demo]"* ]]; then
+    _sr_fail "$label :: repo row missing"; return
+  fi
+  if [[ "$SR_CTX" != *'--repo demo --repo-root /'* ]]; then
+    _sr_fail "$label :: recall hint missing"; return
+  fi
+  if [[ "$SR_SM" != *"planning ready"* ]]; then
+    _sr_fail "$label :: status line does not say planning ready"; return
+  fi
+  _sr_pass "$label :: obsidian-sync.json alone gives the repo row, the hint and planning ready"
 }
 
 check_sr_docs_index_with_vault() {
@@ -152,6 +176,7 @@ check_sr_hostile_repo_name() {
 
 run_session_start_recall_checks() {
   check_sr_vault_rows
+  check_sr_legacy_config_only
   check_sr_docs_index_with_vault
   check_sr_docs_index_without_vault
   check_sr_worktree_repo_name

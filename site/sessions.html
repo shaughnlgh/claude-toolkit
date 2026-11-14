@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parent and child sessions - claude-toolkit</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+<nav aria-label="Site">
+<ul>
+<li><a href="index.html">Home</a></li>
+<li><a href="walkthrough-plan.html">Plan flow</a></li>
+<li><a href="walkthrough-execute.html">Execute flow</a></li>
+<li><a href="walkthrough-ship.html">Ship flow</a></li>
+<li><a href="sessions.html" aria-current="page">Sessions</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+</ul>
+</nav>
+</header>
+<main>
+<h1>Parent and child sessions</h1>
+<p class="lead">One session plans the work and another builds it. The parent holds the plan and the main checkout. The child runs one plan's flows in that plan's worktree and reports back by message.</p>
+
+<figure>
+<svg viewBox="0 0 720 400" role="img" aria-labelledby="sessions-title sessions-desc" xmlns="http://www.w3.org/2000/svg">
+<title id="sessions-title">Parent and child sessions</title>
+<desc id="sessions-desc">The user talks to the parent session in the main checkout and opens the child session with the launch command. The child runs in the plan's worktree, reports to the parent by message, and takes the parent's next dispatch by message. The parent runs the seat run after the child ends.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+<path class="head" d="M0,0 L10,5 L0,10 z"/>
+</marker>
+</defs>
+
+<rect class="box" x="290" y="16" width="140" height="48" rx="6"/>
+<text class="label" x="360" y="46" text-anchor="middle">User</text>
+
+<rect class="zone" x="20" y="130" width="280" height="250" rx="8"/>
+<text class="note" x="32" y="152">main checkout</text>
+<rect class="zone" x="420" y="130" width="280" height="250" rx="8"/>
+<text class="note" x="432" y="152">plan worktree</text>
+
+<rect class="box" x="40" y="190" width="220" height="120" rx="6"/>
+<text class="label" x="150" y="222" text-anchor="middle">Parent session</text>
+<text class="note" x="150" y="246" text-anchor="middle">parent-&lt;planName&gt;</text>
+<text class="note" x="150" y="268" text-anchor="middle">crawl, plan flow</text>
+
+<rect class="box" x="460" y="190" width="220" height="120" rx="6"/>
+<text class="label" x="570" y="222" text-anchor="middle">Child session</text>
+<text class="note" x="570" y="246" text-anchor="middle">child-&lt;planName&gt;</text>
+<text class="note" x="570" y="268" text-anchor="middle">execute flow, ship flow</text>
+
+<path class="edge" d="M320,64 L180,188" marker-end="url(#arrow)"/>
+<text class="edge-label" x="244" y="112" text-anchor="end">brief, approval</text>
+
+<path class="edge" d="M400,64 L540,188" marker-end="url(#arrow)"/>
+<text class="edge-label" x="476" y="112">launch command</text>
+
+<path class="edge" d="M458,226 L262,226" marker-end="url(#arrow)"/>
+<text class="edge-label" x="360" y="218" text-anchor="middle">report by message</text>
+
+<path class="edge" d="M262,284 L458,284" marker-end="url(#arrow)"/>
+<text class="edge-label" x="360" y="276" text-anchor="middle">dispatch by message</text>
+<text class="edge-label" x="360" y="302" text-anchor="middle">&lt;planName&gt;: run the ship flow</text>
+
+<text class="note" x="150" y="340" text-anchor="middle">seat run, after the child ends</text>
+<text class="note" x="570" y="340" text-anchor="middle">leaves with keep, then ends</text>
+</svg>
+<figcaption>The parent session and the child session of one plan.</figcaption>
+</figure>
+
+<h2>How it runs</h2>
+<ul>
+<li>The user describes the work in the parent session. The <code>crawl</code> skill routes it, and on the plan route the parent runs the plan flow. The crawl session is the parent of the work it routes. Its name starts <code>parent-</code> only when a launcher starts it with such a name, such as <code>claude -n 'parent-&lt;slug&gt;'</code>, or when the user runs crawl's <code>/rename parent-&lt;planName&gt;</code> line.</li>
+<li>After approval the parent hands the user one launch command for a new terminal. It starts the child in the main checkout under the name <code>child-&lt;planName&gt;</code>, and its prompt asks for the execute flow and names the parent to report to.</li>
+<li>The child's execute flow opens the plan's worktree with no question, because the parent holds the main checkout, and runs the repo's install step there.</li>
+<li>When its flow finishes or stops, the child reports to the parent by message. The parent checks the report against the plan note and tells the user the next step the report names.</li>
+<li>When the report's <code>Next:</code> line names it, the parent sends the child <code>&lt;planName&gt;: run the ship flow</code>, and the child runs the ship flow within the ceiling the plan note records. A dispatch never raises the ceiling or answers a permission prompt.</li>
+<li>A child leaves its worktree with keep only after a report whose <code>Next:</code> line tells the user to end the child session, and then ends. After any other report it waits in its worktree for the parent's dispatch.</li>
+<li>The seat run, which runs the Validation Steps that need the running local stack, needs the main checkout to itself. It runs after the child has ended.</li>
+<li>Children stay short. A child that would compact is a signal to finish and hand back.</li>
+</ul>
+<p>Source: <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/plugins/toolkit/doctrine/orchestration.md">doctrine/orchestration.md</a>, section Parent and child sessions.</p>
+</main>
+<footer>
+<p>MIT licensed. Source at <a href="https://github.com/shaughnlgh/claude-toolkit">github.com/shaughnlgh/claude-toolkit</a>.</p>
+</footer>
+</body>
+</html>
