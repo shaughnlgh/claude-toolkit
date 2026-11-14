@@ -20,6 +20,7 @@ if command -v jq >/dev/null 2>&1 && [ -n "$INPUT" ]; then
 fi
 . "$(dirname "${BASH_SOURCE[0]}")/lib/session-scratchpad.sh" 2>/dev/null || SCRATCHPAD_LIB_MISSING=1
 . "$(dirname "${BASH_SOURCE[0]}")/lib/component-names.sh" 2>/dev/null || NAMES_LIB_MISSING=1
+. "$(dirname "${BASH_SOURCE[0]}")/lib/vault-config.sh" 2>/dev/null || VAULT_LIB_MISSING=1
 VERBOSE="${TOOLKIT_SESSION_VERBOSE:-0}"
 CTX=""
 add() { [ -n "$CTX" ] && CTX="${CTX}
@@ -171,7 +172,7 @@ if command -v jq >/dev/null 2>&1 && [ -f "$SETTINGS" ] && [ "$(jq -r '.permissio
   fi
 fi
 
-# Vault topic recall and repo docs index for the current repo (read-only; INDEX.md is Mission Control's output).
+# Vault topic recall and repo docs index for the current repo (read-only; vault-fs.sh topic-index or another tool writes INDEX.md).
 # Silent skip on any failure: no config, no python3, no repo, script error, or timeout.
 # topic-recall.py bounds itself with an internal 3 s deadline. `timeout 3` adds an outer bound where the binary exists.
 TOPICS_CAP=4000  # re-sent every request
@@ -201,7 +202,8 @@ if [ -n "$ROOT" ]; then
     fi
   fi
   VAULT_OK=""
-  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$HOME/.claude/obsidian-sync.json" ] && [ -n "$REPO" ] && python_usable; then
+  [ -n "${VAULT_LIB_MISSING:-}" ] && add "toolkit session-start: hooks/lib/vault-config.sh not found, so the vault config was not read and topic recall did not run."
+  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && vault_config_file >/dev/null 2>&1 && [ -n "$REPO" ] && python_usable; then
     VAULT_OK=1
     TR=(python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/topic-recall.py" --repo "$REPO" --top 6 --format text)
     command -v timeout >/dev/null 2>&1 && TR=(timeout 3 "${TR[@]}")
@@ -308,7 +310,9 @@ if [ "$SOURCE" = "startup" ]; then
     STATUS="toolkit active — RULES NOT INJECTED (missing ${RULES_MISSING_PATH})"
   elif [ -n "$RULES_MISSING_PATH" ]; then
     STATUS="toolkit${VER} active — RULES NOT INJECTED (missing ${RULES_MISSING_PATH}); ${NA} agents, ${NS} skills"
-  elif [ -f "$HOME/.claude/obsidian-sync.json" ]; then
+  elif [ -n "${VAULT_LIB_MISSING:-}" ]; then
+    STATUS="toolkit${VER} active — ${NA} agents, ${NS} skills · VAULT CONFIG NOT READ (missing hooks/lib/vault-config.sh)"
+  elif vault_config_file >/dev/null 2>&1; then
     STATUS="toolkit${VER} active — ${NA} agents, ${NS} skills, planning ready"
   else
     STATUS="toolkit${VER} active — ${NA} agents, ${NS} skills · planning not configured: run /setup"

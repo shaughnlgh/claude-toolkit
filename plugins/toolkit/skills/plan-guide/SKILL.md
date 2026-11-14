@@ -2,7 +2,7 @@
 name: plan-guide
 description: >-
   MANDATORY companion for plan work. Invoke BEFORE creating, filling in, updating, or
-  closing out any plan note (plan - <name>.md) in the Obsidian vault — including
+  closing out any plan note (plan - <name>.md) in the vault — including
   pre-scaffolded plan notes — and at the start and end of any planning or
   execution session tied to a plan. Contains the canonical artifact locations, naming
   rules, plan frontmatter and sections, planning steps, status lifecycle, session
@@ -23,7 +23,7 @@ Do not begin implementation until the plan has been written and explicitly appro
 
 ### Canonical artifact location
 
-Workflow artifacts are written directly into the Obsidian vault, at the location the user's `~/.claude/obsidian-sync.json` defines (`vault_path` + `plan_folder_template`):
+Workflow artifacts are written directly into the vault, at the location the vault config defines, `~/.claude/toolkit-vault.json`, or `~/.claude/obsidian-sync.json` when that file is absent, (`vault_path` + `plan_folder_template`):
 
     <vault_path>/<plan_folder_template>
     e.g. with the default template: <vault_path>/AI/Claude-Code/Projects/{repo_name}/{date}-{plan_name}/
@@ -32,7 +32,7 @@ The plan name must be short, lowercase, kebab-case, and derived from the task pu
 
 ### Artifact naming
 
-Every artifact filename embeds the plan name so Obsidian graph nodes are unique and wiki links resolve unambiguously:
+Every artifact filename embeds the plan name so note names are unique across the vault and wiki links resolve unambiguously:
 
     {artifact} - {plan_name}.{ext}
 
@@ -81,11 +81,11 @@ Example (with the default template):
 
     <root_folder>/Projects/my-repo/2026-05-19-cr-123-runtime-error-handling/
 
-Resolve the vault path and folder template from `~/.claude/obsidian-sync.json`.
+Resolve the vault path and folder template from the vault config: `~/.claude/toolkit-vault.json`, or `~/.claude/obsidian-sync.json` when that file is absent.
 
 ### Repo-local plans directory
 
-Do not write workflow artifacts (plan, handoff, and session notes) to repo-local `.claude/plans/`. The Obsidian vault is the only location for these workflow artifacts; it does not govern repo-owned knowledge artifacts (facts, decisions, playbooks, glossary), which follow `doctrine/repo-artifacts.md` instead.
+Do not write workflow artifacts (plan, handoff, and session notes) to repo-local `.claude/plans/`. The vault is the only location for these workflow artifacts; it does not govern repo-owned knowledge artifacts (facts, decisions, playbooks, glossary), which follow `doctrine/repo-artifacts.md` instead.
 
 ### Built-in plan directory
 
@@ -93,7 +93,7 @@ Do not write workflow artifacts (plan, handoff, and session notes) to repo-local
 
 ## Required Artifacts
 
-The one required artifact, written to the Obsidian plan directory:
+The one required artifact, written to the vault plan directory:
 
 - `plan - <plan-name>.md` — the single source of truth. A living document: kept current during execution (decisions, gaps, deviations) so it records both what was intended and what actually happened. Carries its own session history and worklogs in frontmatter.
 
@@ -101,7 +101,7 @@ Other skills may create optional sibling artifacts in the same directory (e.g. `
 
 The plan note plus git (the branch diff and, after a squash-merge, the squashed commit) plus the session ids recorded on the plan are the complete record of what was done. Execution details belong in the plan note under "Plan Changes During Execution". Topic notes (the cross-plan knowledge layer) are maintained during planning and execution, not written at finalization.
 
-Write every vault file atomically. To create a file, Write the content to a `.tmp.md` file beside the destination, then move it into place with the toolkit's `scripts/vault-fs.sh mv`. To change an existing plan note or evidence note, send only the changed lines: copy the note to its `.tmp.md` sibling with `vault-fs.sh cp`, Read the copy with `offset` and `limit` around each change, Edit the copy, then `vault-fs.sh mv` it over the note. Every skill that changes an existing plan note takes this changed-lines path, with one exception: a fill of most of a note's sections, such as `plan-flow`'s fill of a pre-scaffolded note, Writes the whole filled note to the `.tmp.md` file, because its new lines are most of the note. Topic notes keep the whole Write that `commands/obsidian-topic.md` and the execute runner's remember pass define. `vault-fs.sh index` prints a plan note's section heading lines, and the frontmatter ends before the first section. Read the copy in ranges, because a whole-file Read of a long note costs context and the Read tool refuses a file over its size cap. Each Edit anchor must be unique in the copy. If the Edit tool or the Write tool refuses the copy, remove the copy with `vault-fs.sh rm`, Write the whole content to the same `.tmp.md` path as a new file, then `vault-fs.sh mv` it over the note, because the Write tool refuses an existing file that the session has not read. The Read of the copy needs Read permission on the vault, and `/setup` check 6 offers a vault Read rule. The vault path contains spaces and sits inside iCloud Drive. The `.tmp.md` suffix keeps the markdown hooks firing on the temporary write. `vault-fs.sh` takes paths relative to `vault_path` plus `root_folder` from `~/.claude/obsidian-sync.json`, so a plan note path starts at `Projects/<repo>/...`. `<plugin-root>` is `../..` from this skill's base directory, the directory that holds this SKILL.md, resolved to an absolute path, so a `--plugin-dir` session runs the loaded copy's scripts. This root takes precedence over a CLAUDE.md line that resolves the installed root. When `../../.claude-plugin/plugin.json` does not exist relative to this skill's base directory, as in a `/override` copy under `~/.claude/skills/`, the plugin root is the installed root instead, the path that `jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json` prints, as the setup CLAUDE.md block resolves it. Worked example with the default template:
+Write every vault file atomically. To create a file, Write the content to a `.tmp.md` file beside the destination, then move it into place with the toolkit's `scripts/vault-fs.sh mv`. To change an existing plan note or evidence note, send only the changed lines: copy the note to its `.tmp.md` sibling with `vault-fs.sh cp`, Read the copy with `offset` and `limit` around each change, Edit the copy, then `vault-fs.sh mv` it over the note. Every skill that changes an existing plan note takes this changed-lines path, with one exception: a fill of most of a note's sections, such as `plan-flow`'s fill of a pre-scaffolded note, Writes the whole filled note to the `.tmp.md` file, because its new lines are most of the note. Topic notes keep the whole Write that `commands/topic.md` and the execute runner's remember pass define. `vault-fs.sh index` prints a plan note's section heading lines, and the frontmatter ends before the first section. Read the copy in ranges, because a whole-file Read of a long note costs context and the Read tool refuses a file over its size cap. Each Edit anchor must be unique in the copy. If the Edit tool or the Write tool refuses the copy, remove the copy with `vault-fs.sh rm`, Write the whole content to the same `.tmp.md` path as a new file, then `vault-fs.sh mv` it over the note, because the Write tool refuses an existing file that the session has not read. The Read of the copy needs Read permission on the vault, and `/setup` check 6 offers a vault Read rule. The vault path can contain spaces. The `.tmp.md` suffix keeps the markdown hooks firing on the temporary write. `vault-fs.sh` takes paths relative to `vault_path` plus `root_folder` from the vault config, `~/.claude/toolkit-vault.json`, or `~/.claude/obsidian-sync.json` when that file is absent, so a plan note path starts at `Projects/<repo>/...`. `<plugin-root>` is `../..` from this skill's base directory, the directory that holds this SKILL.md, resolved to an absolute path, so a `--plugin-dir` session runs the loaded copy's scripts. This root takes precedence over a CLAUDE.md line that resolves the installed root. When `../../.claude-plugin/plugin.json` does not exist relative to this skill's base directory, as in a `/override` copy under `~/.claude/skills/`, the plugin root is the installed root instead, the path that `jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json` prints, as the setup CLAUDE.md block resolves it. Worked example with the default template:
 
     Write tool target: <vault_path>/<root_folder>/Projects/my-repo/<date>-example-feature/plan - example-feature.tmp.md
     bash <plugin-root>/scripts/vault-fs.sh mv "Projects/my-repo/<date>-example-feature/plan - example-feature.tmp.md" "Projects/my-repo/<date>-example-feature/plan - example-feature.md"
@@ -111,15 +111,15 @@ Write every vault file atomically. To create a file, Write the content to a `.tm
 
 ## Plan Sync
 
-After creating or refining the plan note, it is written directly to the Obsidian plan directory. There is no separate sync step for new plans.
+After creating or refining the plan note, it is written directly to the vault plan directory. There is no separate sync step for new plans.
 
-If the plan note cannot be written to Obsidian (vault missing, path error, iCloud issue), stop and report the failure. Do not write repo-local workflow artifacts.
+If the plan note cannot be written to the vault (vault missing, path error, sync issue), stop and report the failure. Do not write repo-local workflow artifacts.
 
 ### Do not write if
 
 - The active plan directory is ambiguous.
 - The plan note does not exist or has not been created yet. (Exception: an expedition's `work - <name>.md` and `brief - <name>.md`, and an incident investigation's `incident - <name>.md`, precede the plan note by design. Each derives the plan name at ingestion per this skill's naming rules, so the artifact carries the eventual plan name and lands in the eventual plan directory.)
-- The Obsidian config is missing.
+- The vault config is missing.
 - Sensitive data may be present in the artifacts.
 - The user explicitly says not to write.
 
@@ -259,10 +259,10 @@ Every Implementation Step in a plan the execute flow runs is work an implementer
 - An end-to-end step whose screenshots serve user acceptance carries `[shots]` directly after `[e2e]`, as in `3. [e2e] [shots] Run E2E_SHOTS=1 npx playwright test checkout.spec.ts --output tests/playwright/reports/s3 against the local site`. The execute flow copies the screenshots of `[shots]` steps only, pass or fail, into the vault and the evidence note. The screenshots of every other step stay in the repo.
 - A `[shots]` step names its own output directory under a path the repo ignores. Playwright clears its output directory at the start of every run, so a step that shares the config's directory loses its images to the next step's run before the flow attaches them.
 - A `[shots]` step names a command that captures on pass. Playwright has no command-line screenshot option, so the repo's config reads a switch, such as `screenshot: process.env.E2E_SHOTS ? 'on' : 'only-on-failure'`, or the spec calls `page.screenshot({ path: testInfo.outputPath('checkout.png') })`. When the repo captures only on failure, an Implementation Step adds that switch.
-- The vault syncs through iCloud and the evidence note is meant for sharing, so a `[shots]` step runs against anonymised or fixture data. If the local stack holds unmasked customer data, the plan names that data under Risks as needing the user's explicit acceptance, and the user's approval of the plan with that Risk in it is the acceptance.
+- A vault may sync to a cloud service and the evidence note is meant for sharing, so a `[shots]` step runs against anonymised or fixture data. If the local stack holds unmasked customer data, the plan names that data under Risks as needing the user's explicit acceptance, and the user's approval of the plan with that Risk in it is the acceptance.
 - An end-to-end step runs against the running local stack. No flow runs one against staging, and a staging run happens only when the user asks for it after the MR opens.
-- A step that needs a fixture plan note builds it in a scratch vault: a `mktemp -d` directory, a temporary `HOME` whose `.claude/obsidian-sync.json` points `vault_path` at that directory, and an `EXIT` trap that removes it, as `scripts/tests/vault-fs/run-tests.sh` does. Mission Control and the remember guard read the real `~/.claude/obsidian-sync.json`, and they count an open plan note there as work in flight.
-- A manual check that needs a live Claude Code session reads the real config, so its notes go in the real vault under `Projects/<repo>-scratch/`. A flow files its notes under the basename of the repo's main checkout, so a check that launches a flow runs it in a scratch repo whose directory is named `<repo>-scratch`. Each fixture plan note the plan writes there carries `status: completed`, which Mission Control does not count as open. The plan's last Validation Step is a manual check that removes every entry that is not a folder under `Projects/<repo>-scratch/` with `vault-fs.sh rm`, then the emptied folders with `rmdir`, and fails unless the folder is gone, as below.
+- A step that needs a fixture plan note builds it in a scratch vault: a `mktemp -d` directory, a temporary `HOME` whose `.claude/toolkit-vault.json` points `vault_path` at that directory, and an `EXIT` trap that removes it, as `scripts/tests/vault-fs/run-tests.sh` does. The remember guard and any other tool that reads plan notes read the real vault config, and they count an open plan note there as work in flight.
+- A manual check that needs a live Claude Code session reads the real config, so its notes go in the real vault under `Projects/<repo>-scratch/`. A flow files its notes under the basename of the repo's main checkout, so a check that launches a flow runs it in a scratch repo whose directory is named `<repo>-scratch`. Each fixture plan note the plan writes there carries `status: completed`, which the remember guard does not count as open. The plan's last Validation Step is a manual check that removes every entry that is not a folder under `Projects/<repo>-scratch/` with `vault-fs.sh rm`, then the emptied folders with `rmdir`, and fails unless the folder is gone, as below.
 
 ```
 r="<vault_path>/<root_folder>"
@@ -297,7 +297,7 @@ During execution, if implementation reality diverges from the plan, Claude must 
 
 ## Run options
 
-Eight frontmatter keys record how the flows run a plan: `ceiling`, `worker_model`, `verifier_model`, `verifier_effort`, `nits`, `tests`, `e2e`, and `tag_merge`. They are optional on every note and are not part of the Required plan frontmatter block, so a skeleton, an older note, and a Mission Control scaffold still validate. A key is written only with a value, except that the three model and effort keys may be written blank, meaning the models file decides. `validate-plan.py` reads a blank key as absent and checks a value only when one is present. This section is the only definition of the keys, the reading rule, and the session cache. The `testing-gate` skill owns a separate tests-only question for work with no plan note. Every other run option question lives only in this section, and a flow references this section by name and carries no copy of the question set. It also defines the ticket question, which writes the required `ticket` key and is not a run option key.
+Eight frontmatter keys record how the flows run a plan: `ceiling`, `worker_model`, `verifier_model`, `verifier_effort`, `nits`, `tests`, `e2e`, and `tag_merge`. They are optional on every note and are not part of the Required plan frontmatter block, so a skeleton, an older note, and a note from another tool that writes plan notes still validate. A key is written only with a value, except that the three model and effort keys may be written blank, meaning the models file decides. `validate-plan.py` reads a blank key as absent and checks a value only when one is present. This section is the only definition of the keys, the reading rule, and the session cache. The `testing-gate` skill owns a separate tests-only question for work with no plan note. Every other run option question lives only in this section, and a flow references this section by name and carries no copy of the question set. It also defines the ticket question, which writes the required `ticket` key and is not a run option key.
 
 ### Values
 
@@ -397,23 +397,23 @@ A flow uses the cache only when its `plan:` slug equals the note's `plan:` value
 
 ## Topic links
 
-Related Topics sections use `[[wiki links]]` to topic notes. Every topic linked from a plan note must resolve: if the topic note does not exist anywhere in the vault, create a stub during planning. The full topic note spec (location, frontmatter, structure, content rules, freshness validation, build process) lives in the toolkit's obsidian-topic command (`<plugin-root>/commands/obsidian-topic.md`) — Read it before creating or updating topic notes or stubs. Prefer fewer, better topic links over many noisy ones. Do not rely on Obsidian-only plugins for basic readability.
+Related Topics sections use `[[wiki links]]` to topic notes. Every topic linked from a plan note must resolve: if the topic note does not exist anywhere in the vault, create a stub during planning. The full topic note spec (location, frontmatter, structure, content rules, freshness validation, build process) lives in the toolkit's topic command (`<plugin-root>/commands/topic.md`) — Read it before creating or updating topic notes or stubs. Prefer fewer, better topic links over many noisy ones. Do not rely on note-app plugins for basic readability.
 
-Stubs created during planning stay vault-side; promoting a topic's canonical facts into the project repo happens only through `obsidian-topic`'s own consent gate (Repo mode), never as a side effect of planning.
+Stubs created during planning stay vault-side; promoting a topic's canonical facts into the project repo happens only through the `topic` command's own consent gate (Repo mode), never as a side effect of planning.
 
-Use plain strings in the plan frontmatter `related_topics`, and Obsidian `[[wiki links]]` in the body Related Topics section. Linked Artifacts follows its rule under Required plan sections (existing sibling artifacts only); never link bare generic names like `[[plan]]`.
+Use plain strings in the plan frontmatter `related_topics`, and `[[wiki links]]` in the body Related Topics section. Linked Artifacts follows its rule under Required plan sections (existing sibling artifacts only); never link bare generic names like `[[plan]]`.
 
 ## Planning Workflow
 
 For non-trivial tasks, follow these steps before writing the plan note:
 
-1. Topic recall: derive candidate topics from the task, run the toolkit's `scripts/topic-recall.py` with `--repo <repo>`, `--repo-root <repo root>`, and the task words, which reads the vault topics and the repo's `docs/` together, read the top hits, and search prior plan folders. Validate topic notes before relying on them (see the toolkit's obsidian-topic command, `<plugin-root>/commands/obsidian-topic.md`, § Freshness and validation). Split the result into known facts and gaps. Only the gaps need exploration. The conductor does this directly. It is one script run plus the reads, not a delegated task.
+1. Topic recall: derive candidate topics from the task, run the toolkit's `scripts/topic-recall.py` with `--repo <repo>`, `--repo-root <repo root>`, and the task words, which reads the vault topics and the repo's `docs/` together, read the top hits, and search prior plan folders. Validate topic notes before relying on them (see the toolkit's topic command, `<plugin-root>/commands/topic.md`, § Freshness and validation). Split the result into known facts and gaps. Only the gaps need exploration. The conductor does this directly. It is one script run plus the reads, not a delegated task.
 2. Read relevant code, config, docs, and existing patterns (see Docs-First Discipline in the toolkit's CLAUDE.md doctrine).
 3. Invoke the `/testing-gate` skill to determine the required testing level.
 4. AFTER topic recall, delegate discovery and investigation, scoped to the gaps from step 1. Discovery and investigation (repo/doc scan, mapping how existing code works, answering factual questions from the codebase) goes to the `explorer` agent. Skip it when recall and your step-2 reads closed every gap, and say so. Escalate the explorer's model per invocation for genuinely hard tracing (orchestration model policy); evidence that needs commands run (a failing test, a repro) goes to the `verifier` agent instead, since explorer is read-only.
 5. Run the planning grill on the evidence from steps 1 to 4, per § Planning grill below.
 6. Drafting the reviewable plan itself (proposed steps, risks, verification approach) goes to the `planner` agent, fed with the recall facts, the explorer findings and the grill block so it does not re-derive them, except when the main challenge is choosing architecture, which the conductor keeps per orchestration doctrine. Skip delegation in steps 4 and 6 only when the task is obviously too small, and say why.
-7. Write the plan note (`plan - <plan-name>.md`) to the Obsidian plan directory. Create the plan directory per the canonical layout, or fill in a pre-scaffolded note where one exists. Create stubs for Related Topics links that do not resolve.
+7. Write the plan note (`plan - <plan-name>.md`) to the vault plan directory. Create the plan directory per the canonical layout, or fill in a pre-scaffolded note where one exists. Create stubs for Related Topics links that do not resolve.
 8. Include a suggested branch name.
 9. Note project-specific high-risk areas from the project's `01-project-core.md`.
 10. No implementation code changes in this mode.
@@ -532,7 +532,7 @@ The record of the work is the plan note (kept current during execution), git (th
 ### What Claude must do as a session ends
 
 1. Make sure the plan note is current: decisions, gaps, and deviations recorded in "Plan Changes During Execution"; Validation, Risks, and Open Questions up to date.
-2. If Plan Changes During Execution holds no `Remember:` line for this slice, the remember pass has not run. Run it now (obsidian-topic command, § Remember pass) and record its `Remember:` line there. Capture the slice diff for its brief as red-team step 2 does: `git diff HEAD` plus each untracked file.
+2. If Plan Changes During Execution holds no `Remember:` line for this slice, the remember pass has not run. Run it now (topic command, § Remember pass) and record its `Remember:` line there. Capture the slice diff for its brief as red-team step 2 does: `git diff HEAD` plus each untracked file.
 3. Update this session's `sessions:` entry with the real one-line outcome (append one only if it is somehow missing — never a second entry for the same session id).
 4. Report that execution is complete.
 
@@ -543,7 +543,7 @@ Mark a plan done once the MRs are merged: post a comment to the ticket, transiti
 ### Do not mark a plan complete if
 
 - There is no plan for this session, or the plan is ambiguous.
-- The Obsidian config or vault is missing.
+- The vault config or vault is missing.
 - The MRs are not actually merged.
 - Plan Changes During Execution has no Remember: line, for a plan created on or after 2026-10-18.
 
@@ -551,6 +551,6 @@ If completion is skipped, state exactly why.
 
 ### Guardrails
 
-- The Obsidian plan note is the source of truth for the work.
+- The plan note in the vault is the source of truth for the work.
 - Do not invent a plan name. If the active plan is ambiguous, ask before writing.
 - Keep this discipline only for real planned work, not trivial Q&A or explanation-only sessions.

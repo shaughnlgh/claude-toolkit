@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan flow walkthrough - claude-toolkit</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+<nav aria-label="Site">
+<ul>
+<li><a href="index.html">Home</a></li>
+<li><a href="walkthrough-plan.html" aria-current="page">Plan flow</a></li>
+<li><a href="walkthrough-execute.html">Execute flow</a></li>
+<li><a href="walkthrough-ship.html">Ship flow</a></li>
+<li><a href="sessions.html">Sessions</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+</ul>
+</nav>
+</header>
+<main>
+<h1>Plan flow walkthrough</h1>
+<p class="lead">The plan flow turns a brief into a validated plan note in your vault and stops for your approval. It writes no repo file and runs no git.</p>
+
+<h2>The setup</h2>
+<p>The project is an invented repo named <code>todo-api</code>. The vault is the folder <code>~/notes</code>. <code>/setup</code> has created <code>~/.claude/toolkit-vault.json</code> from the shipped template, with <code>vault_path</code> set to that folder. The brief is: add a due date to each todo and a filter that lists the overdue ones.</p>
+
+<section id="recording">
+<h2>The steps</h2>
+<ol class="steps">
+<li>
+<p class="types">the brief, in a Claude Code session started in <code>todo-api</code>.</p>
+<p class="does">The <code>crawl</code> skill reads the brief, checks it against the codebase, and recommends a route. For one piece of work on one branch the route is <code>plan-guide</code>. Once you confirm it, crawl asks the run options in at most two question forms, the first of which opens with the question below, and it asks whether the work has a ticket.</p>
+<blockquote>Where does the ship flow stop?</blockquote>
+</li>
+<li>
+<p class="types">an answer to each question form.</p>
+<p class="does">Crawl creates the plan folder under <code>~/notes</code>, writes the brief beside the plan note, and scaffolds the note with its evidence in Current Context, Assumptions and Open Questions. It ends the reply with the plan flow offer.</p>
+<blockquote>The plan note is scaffolded. Run the plan flow on it now?</blockquote>
+</li>
+<li>
+<p class="types"><code>run the plan flow</code>, or <code>yes</code>.</p>
+<p class="does">The plan flow reads the run options from the note, runs topic recall over the vault topic notes and the repo's <code>docs/</code>, and states the route in one sentence. The crawl's evidence is the discovery, so the flow launches nothing yet. It then runs the planning grill. It prints one line that starts <code>Outcome:</code> and states the outcome of the work as the grill understands it, then asks one question at a time.</p>
+</li>
+<li>
+<p class="types">your own answer to each grill question.</p>
+<p class="does">The flow writes the agreed points into Current Context under the line <code>Agreed in the grill:</code>. It launches the <code>plan-builder</code> workflow, which drafts every plan section, runs a pre-mortem with a revise loop, and has a second critic read the plan cold. The flow writes the note into the vault, runs <code>validate-plan.py</code> on it, and sets <code>status: review</code>.</p>
+</li>
+<li>
+<p class="types">nothing yet. Read the report.</p>
+<p class="does">The flow states the final verdict, the cold verdict, and every blocked reason and gap, or "none". It prints the note's Plain Language Summary under the heading <code>Plain language summary</code> and asks for your approval.</p>
+<blockquote>Approve this plan as written, or tell me what to change?</blockquote>
+</li>
+<li>
+<p class="types">your approval, or what to change.</p>
+<p class="does">On approval the flow sets <code>status: approved</code> and today's date, validates the note again, and ends with the post-approval question. In a session that is not a crawl parent it takes the run-here form.</p>
+<blockquote>The plan is approved. Run the execute flow here now?</blockquote>
+<p>A session whose name starts <code>parent-</code> gets the child form instead, which recommends a child session. <a href="sessions.html">Parent and child sessions</a> shows that shape.</p>
+</li>
+</ol>
+</section>
+
+<h2>Next</h2>
+<p>The <a href="walkthrough-execute.html">execute flow walkthrough</a> builds this plan.</p>
+<p>Source: <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/plugins/toolkit/skills/plan-flow/SKILL.md">skills/plan-flow/SKILL.md</a> and <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/workflows.md">docs/workflows.md</a>.</p>
+</main>
+<footer>
+<p>MIT licensed. Source at <a href="https://github.com/shaughnlgh/claude-toolkit">github.com/shaughnlgh/claude-toolkit</a>.</p>
+</footer>
+</body>
+</html>

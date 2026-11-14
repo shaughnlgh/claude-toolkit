@@ -37,7 +37,7 @@ Run `python3 <plugin-root>/scripts/topic-recall.py --repo <repoName> --repo-root
 Read the exit code before the output:
 
 - `0` means the search ran. Read the top hits of both sources and pass the text output as `recallHits`. If the output is empty, pass `none`, because the script rejects a blank `recallHits`.
-- `2` means `~/.claude/obsidian-sync.json` is missing or unreadable, or the vault root is not a directory.
+- `2` means the vault config is missing or unreadable, or the vault root is not a directory.
 - `3` means the run passed its internal deadline.
 
 On `2` or `3`, stop and report the exit code and stderr to the user. Never pass `none` for a failed recall.
@@ -144,7 +144,7 @@ Add Plan Changes During Execution and Linked Artifacts, both empty at creation a
 
 Append the tripwires to Validation Steps and the walk-away checks to Risks, one line each. If `critiqueStale` is true, end each of those tripwire and walk-away lines with the sentence "Written against an earlier draft, re-check against the final plan." List every `openObjections` entry under Risks as an open objection, one line each with its section, claim, and fix. List every `coldObjections` entry that the final plan does not resolve under Risks, one line each with its section and claim.
 
-Record the session entry per `plan-guide`, with the id taken from the scratchpad path. When the gate in section 6 sets `status: approved`, the session summary must say that the approval came from the `approveIf` judge and quote the goal sentence, so a reader knows that a model judged the plan against a goal the user wrote and that no human read the note first. Create stubs for unresolved Related Topics per the obsidian-topic command (`<plugin-root>/commands/obsidian-topic.md`).
+Record the session entry per `plan-guide`, with the id taken from the scratchpad path. When the gate in section 6 sets `status: approved`, the session summary must say that the approval came from the `approveIf` judge and quote the goal sentence, so a reader knows that a model judged the plan against a goal the user wrote and that no human read the note first. Create stubs for unresolved Related Topics per the topic command (`<plugin-root>/commands/topic.md`).
 
 Then run `python3 <plugin-root>/scripts/validate-plan.py "<plan note path>"` and require exit 0. A failure is reported with the validator output, never patched silently.
 
