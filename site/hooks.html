@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hooks - claude-toolkit</title>
+<meta name="description" content="The 12 hooks claude-toolkit switches on at install, the event each runs on, and what it blocks, asks or adds.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap site-header__inner">
+<a class="wordmark" href="index.html"><span class="wordmark__mark" aria-hidden="true">&gt;_</span> claude-toolkit</a>
+<nav class="site-nav" aria-label="Site">
+<ul>
+<li><a href="index.html#flows">Flows</a></li>
+<li><a href="agents.html">Agents</a></li>
+<li><a href="skills.html">Skills</a></li>
+<li><a href="commands.html">Commands</a></li>
+<li><a href="hooks.html" aria-current="page">Hooks</a></li>
+<li><a href="overrides.html">Overrides</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
+<li><a class="nav-repo" href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+</ul>
+</nav>
+</div>
+</header>
+
+<main id="main">
+<section class="page-head">
+<div class="wrap">
+<p class="crumbs"><a href="index.html">Home</a> / Reference / Hooks</p>
+<h1>Hooks</h1>
+<p class="lead">Hooks are scripts that Claude Code runs on session events. Installing the plugin switches on all 12 in every session, with no opt-in and no separate config. Most add context or ask you to confirm. A few hard-block. Read this page, or <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/hooks.md">docs/hooks.md</a> for the full accounting, before you trust the toolkit with a repo.</p>
+<nav aria-label="On this page">
+<ul class="jump">
+<li><a href="#pre-tool">PreToolUse <span class="jump__n">6</span></a></li>
+<li><a href="#post-tool">PostToolUse <span class="jump__n">2</span></a></li>
+<li><a href="#session">SessionStart <span class="jump__n">1</span></a></li>
+<li><a href="#subagent">SubagentStart <span class="jump__n">1</span></a></li>
+<li><a href="#notification">Notification <span class="jump__n">1</span></a></li>
+<li><a href="#stop">Stop <span class="jump__n">1</span></a></li>
+<li><a href="#boundary">What enforces what</a></li>
+</ul>
+</nav>
+</div>
+</section>
+
+<section class="section">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">Across all 12</p>
+<h2>Two properties</h2>
+</div>
+<div class="prose">
+<p><strong>Fails safe.</strong> No hook can crash or hang your session. <code>protect-files.sh</code> and <code>block-dangerous-commands.sh</code> need <code>jq</code> to parse the tool call, so without it they block that one write or command rather than let a check that cannot run pass. The other hooks fall back to less output, or do nothing, when they cannot run.</p>
+<p><strong>Reads no network</strong>, with one exception: the verbose mode of <code>session-start.sh</code> (<code>TOOLKIT_SESSION_VERBOSE=1</code>) calls <code>gh pr view</code> when the <code>gh</code> CLI is installed. Every other path is local: file reads, git plumbing, <code>jq</code> and OS notification APIs.</p>
+</div>
+</div>
+</section>
+
+<section class="section section--alt" id="pre-tool">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">6 hooks</p>
+<h2>PreToolUse</h2>
+<p class="section-note">Runs before a tool call, on the tools its matcher names, and can block, ask or add context.</p>
+</div>
+<dl class="ref">
+<div id="protect-files">
+<dt><code>protect-files.sh</code><span class="ref__meta"><span class="tag tag--block">Blocks</span> <span class="tag">Asks</span></span></dt>
+<dd>
+<p>Hard-blocks a write to key and certificate files, <code>credentials.json</code>, <code>.npmrc</code>, <code>.pypirc</code>, lockfiles, generated or minified files, anything under <code>.git/</code> or <code>secrets/</code>, and hook scripts. Asks before a write to <code>.env</code> files, <code>.claude/settings.json</code> and <code>.claude/settings.local.json</code>.</p>
+<p class="ref__line"><span class="step-label">Matcher</span><code>Edit|Write</code></p>
+</dd>
+</div>
+<div id="scan-secrets">
+<dt><code>scan-secrets.sh</code><span class="ref__meta"><span class="tag">Asks</span></span></dt>
+<dd>
+<p>Scans the content being written for secret-shaped strings: access keys, host tokens, <code>sk-</code> style keys, chat tokens, private-key blocks, connection strings with a user and password, and credential names assigned a quoted value. Every match asks for confirmation, because a match could be a test fixture. It never blocks.</p>
+<p class="ref__line"><span class="step-label">Matcher</span><code>Edit|Write</code></p>
+</dd>
+</div>
+<div id="block-dangerous-commands">
+<dt><code>block-dangerous-commands.sh</code><span class="ref__meta"><span class="tag tag--block">Blocks</span></span></dt>
+<dd>
+<p>Hard-blocks common destructive command patterns: a push to a protected branch and any force push (<code>--force-with-lease</code> is allowed), a recursive forced <code>rm</code> on <code>/</code>, <code>~</code>, <code>.</code> or a system directory, <code>DROP</code>, <code>TRUNCATE</code> and an unbounded <code>DELETE FROM</code> through a database client, a world-writable <code>chmod</code>, <code>curl</code> or <code>wget</code> piped to a shell, writes to raw devices, <code>mkfs</code> and <code>dd</code> to a device, <code>git reset --hard</code>, <code>git clean -f</code>, and package publish commands without a dry-run flag. It has no ask path.</p>
+<p class="ref__line"><span class="step-label">Matcher</span><code>Bash</code></p>
+<p class="ref__line"><span class="step-label">Setting</span><code>CLAUDE_PROTECTED_BRANCHES</code> replaces the default protected list, <code>main,master</code> plus the repo's configured default branch.</p>
+</dd>
+</div>
+<div id="conductor-guard">
+<dt><code>conductor-guard.sh</code><span class="ref__meta"><span class="tag tag--block">Blocks</span></span></dt>
+<dd>
+<p>Denies a direct edit to a project file by the main conversation, with a reason that routes the edit to a worker agent. Worker edits pass, and so do conductor writes outside the project and paths under <code>~/.claude/</code> or the vault. It is a workflow guard, not a security boundary.</p>
+<p class="ref__line"><span class="step-label">Matcher</span><code>Edit|Write|NotebookEdit</code></p>
+<p class="ref__line"><span class="step-label">Setting</span><code>TOOLKIT_CONDUCTOR_EDITS=1</code> is the only override: in the shell for one session, or for one project through <code>/setup</code> check 10.</p>
+</dd>
+</div>
+<div id="design-rules-reminder">
+<dt><code>design-rules-reminder.sh</code><span class="ref__meta"><span class="tag">Adds context</span></span></dt>
+<dd>
+<p>When the target file matches a frontend pattern, by extension or directory, adds a one-line pointer at the <code>rules/design.md</code> catalog to the model's context, once per session. It never blocks.</p>
+<p class="ref__line"><span class="step-label">Matcher</span><code>Edit|Write|NotebookEdit</code></p>
+</dd>
+</div>
+<div id="agent-model">
+<dt><code>agent-model.sh</code><span class="ref__meta"><span class="tag">Adds context</span></span></dt>
+<dd>
+<p>Adds the model and effort that <code>scripts/resolve-models.sh</code> resolves for an agent to an Agent call that does not carry them. A field the call already carries wins. A bare name that one of your own agents shadows gets nothing added. It never blocks or asks.</p>
+<p class="ref__line"><span class="step-label">Matcher</span><code>Agent</code></p>
+<p class="ref__line"><span class="step-label">Setting</span><code>TOOLKIT_MODELS_FILE</code> points at a models file in place of <code>~/.claude/toolkit-models.json</code>.</p>
+</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section class="section" id="post-tool">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">2 hooks</p>
+<h2>PostToolUse</h2>
+<p class="section-note">Runs after a tool call and feeds a finding back. Neither hook here blocks.</p>
+</div>
+<dl class="ref">
+<div id="md-wrap-check">
+<dt><code>md-wrap-check.sh</code><span class="ref__meta"><span class="tag">Warns</span></span></dt>
+<dd>
+<p>Flags hard-wrapped prose in the content a <code>.md</code> write just produced and feeds the finding back to the model. It checks only the new content.</p>
+<p class="ref__line"><span class="step-label">Matcher</span><code>Edit|Write</code></p>
+</dd>
+</div>
+<div id="context-sentinel">
+<dt><code>context-sentinel.sh</code><span class="ref__meta"><span class="tag">Warns</span></span></dt>
+<dd>
+<p>Reads the session transcript for the context size. Past 200k tokens it nudges the model to delegate and plan a wrap-up, past 400k it also tells you to reach a stable point and continue in a fresh session, and past 600k it says to wrap up now. Each threshold fires once per crossing.</p>
+<p class="ref__line"><span class="step-label">Matcher</span>Every tool</p>
+<p class="ref__line"><span class="step-label">Setting</span><code>TOOLKIT_CTX_SENTINEL=0</code> turns the hook off.</p>
+</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section class="section section--alt" id="session">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">1 hook</p>
+<h2>SessionStart</h2>
+<p class="section-note">Runs when a session starts, resumes, clears or compacts.</p>
+</div>
+<dl class="ref">
+<div id="session-start">
+<dt><code>session-start.sh</code><span class="ref__meta"><span class="tag">Adds context</span></span></dt>
+<dd>
+<p>Injects the eight write-time rules, using your override where one exists, a doctrine pointer, a git briefing, the current repo's vault topics, and a line when another live session shares the main checkout. It announces every active override. On startup it also prints a one-line status for you. After a compaction it injects the rules again with the session's compact handoff, and from the second compaction on it warns.</p>
+<p class="ref__line"><span class="step-label">Matcher</span><code>startup|resume|clear|compact</code></p>
+<p class="ref__line"><span class="step-label">Setting</span><code>TOOLKIT_SESSION_VERBOSE=1</code> extends the git briefing, and adds the current PR through <code>gh pr view</code> when <code>gh</code> is installed.</p>
+</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section class="section" id="subagent">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">1 hook</p>
+<h2>SubagentStart</h2>
+<p class="section-note">Runs once for each worker agent, before it does anything else.</p>
+</div>
+<dl class="ref">
+<div id="subagent-rules">
+<dt><code>subagent-rules.sh</code><span class="ref__meta"><span class="tag">Adds context</span></span></dt>
+<dd>
+<p>Injects the same eight rule bodies, a pointer to the doctrine index, and the frontend and design pointer into every worker at spawn, and announces any active rule overrides. It is the worker-side counterpart to <code>session-start.sh</code>.</p>
+<p class="ref__line"><span class="step-label">Matcher</span>None</p>
+</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section class="section section--alt" id="notification">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">1 hook</p>
+<h2>Notification</h2>
+<p class="section-note">Runs on every notification Claude Code raises.</p>
+</div>
+<dl class="ref">
+<div id="notify">
+<dt><code>notify.sh</code><span class="ref__meta"><span class="tag">Notifies</span></span></dt>
+<dd>
+<p>Fires a native OS notification with a fixed title and message when Claude needs input: <code>osascript</code> on macOS, <code>notify-send</code> on Linux, a PowerShell toast on WSL. It never reads the message from the hook payload, because that input is untrusted.</p>
+<p class="ref__line"><span class="step-label">Matcher</span>None</p>
+</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section class="section" id="stop">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">1 hook</p>
+<h2>Stop</h2>
+<p class="section-note">Runs each time Claude finishes a reply.</p>
+</div>
+<dl class="ref">
+<div id="remember-guard">
+<dt><code>remember-guard.sh</code><span class="ref__meta"><span class="tag">Warns</span></span></dt>
+<dd>
+<p>Warns you, once per session, when a reply suggests a commit but the session's in-progress plan note has no <code>Remember:</code> line under Plan Changes During Execution. It never blocks.</p>
+<p class="ref__line"><span class="step-label">Matcher</span>None</p>
+<p class="ref__line"><span class="step-label">Setting</span><code>TOOLKIT_REMEMBER_GUARD=0</code> turns the hook off.</p>
+</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section class="section section--alt" id="boundary">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">Boundaries</p>
+<h2>What enforces what</h2>
+</div>
+<div class="prose">
+<ol class="ladder">
+<li><p><strong>The permission system</strong> <span>Claude Code's own permission prompts govern every tool call, including every <code>Bash</code> command. That is the outer boundary.</span></p></li>
+<li><p><strong>Matcher-scoped hard blocks</strong> <span><code>protect-files.sh</code> within <code>Edit|Write</code>, and <code>block-dangerous-commands.sh</code> for its listed patterns within <code>Bash</code>. Inside those scopes the deny is absolute.</span></p></li>
+<li><p><strong>Advisory warnings</strong> <span><code>scan-secrets.sh</code> only ever asks.</span></p></li>
+</ol>
+<p>A file written by a subprocess started through <code>Bash</code> does not pass through <code>protect-files.sh</code>, unless the permission system stops the call or the command matches a blocked pattern. These hooks guard against common mistakes. They are not a sandbox.</p>
+</div>
+</div>
+</section>
+</main>
+
+<footer class="site-footer">
+<div class="wrap site-footer__inner">
+<div class="site-footer__credit">
+<p><span class="wordmark"><span class="wordmark__mark" aria-hidden="true">&gt;_</span> claude-toolkit</span></p>
+<p>MIT licensed. Source at <a href="https://github.com/shaughnlgh/claude-toolkit">github.com/shaughnlgh/claude-toolkit</a>. This site is plain HTML and one stylesheet.</p>
+</div>
+<nav class="site-footer__nav" aria-label="Footer">
+<div>
+<p class="site-footer__h">Workflow</p>
+<ul>
+<li><a href="walkthrough-plan.html">Plan flow</a></li>
+<li><a href="walkthrough-execute.html">Execute flow</a></li>
+<li><a href="walkthrough-ship.html">Ship flow</a></li>
+<li><a href="sessions.html">Sessions</a></li>
+</ul>
+</div>
+<div>
+<p class="site-footer__h">Reference</p>
+<ul>
+<li><a href="agents.html">Agents</a></li>
+<li><a href="skills.html">Skills</a></li>
+<li><a href="commands.html">Commands</a></li>
+<li><a href="hooks.html">Hooks</a></li>
+<li><a href="overrides.html">Overrides</a></li>
+</ul>
+</div>
+<div>
+<p class="site-footer__h">Project</p>
+<ul>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/LICENSE">Licence</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
+</ul>
+</div>
+</nav>
+</div>
+</footer>
+</body>
+</html>

@@ -8,88 +8,278 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-<nav aria-label="Site">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap site-header__inner">
+<a class="wordmark" href="index.html" aria-current="page"><span class="wordmark__mark" aria-hidden="true">&gt;_</span> claude-toolkit</a>
+<nav class="site-nav" aria-label="Site">
 <ul>
-<li><a href="index.html" aria-current="page">Home</a></li>
+<li><a href="index.html#flows">Flows</a></li>
+<li><a href="agents.html">Agents</a></li>
+<li><a href="skills.html">Skills</a></li>
+<li><a href="commands.html">Commands</a></li>
+<li><a href="hooks.html">Hooks</a></li>
+<li><a href="overrides.html">Overrides</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
+<li><a class="nav-repo" href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+</ul>
+</nav>
+</div>
+</header>
+
+<main id="main">
+<section class="hero">
+<div class="wrap">
+<div class="hero__copy">
+<h1 class="hero__title">Plan, approve, build, review, ship.</h1>
+<p class="hero__tagline">claude-toolkit is a Claude Code plugin that runs a plan-first workflow.</p>
+<p class="actions">
+<a class="button button--primary" href="#install">Install</a>
+<a class="button button--secondary" href="https://github.com/shaughnlgh/claude-toolkit">View the repository</a>
+</p>
+</div>
+<div class="terminal" role="group" aria-label="Install commands">
+<div class="terminal__bar"><span>Install</span><span>shell</span></div>
+<pre><code><span class="cmd">claude plugin marketplace add https://github.com/shaughnlgh/claude-toolkit.git</span>
+<span class="cmd">claude plugin install toolkit@shaughn-toolkit</span></code></pre>
+</div>
+</div>
+</section>
+
+<section class="section" id="what">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">Overview</p>
+<h2>What it is</h2>
+</div>
+<div class="prose">
+<p class="lead">A brief becomes a plan note that you approve, worker agents build it step by step, a review panel checks the result, and a ship flow opens and merges the pull request under the git permissions the plan note records.</p>
+<p>The plugin ships 14 worker agents, 20 skills, 8 slash commands, 12 hooks, 4 workflows, write-time rules and the doctrine that ties them together. The main conversation plans and supervises. Worker agents make every file change and report back. Plan notes and topic notes go into a vault, which is any folder of markdown on your machine. No note-taking app is required.</p>
+</div>
+<ul class="tally full" aria-label="What the plugin ships">
+<li><span class="tally__n">14</span> <span class="tally__label"><a href="agents.html">worker agents <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Make every file change and report back.</span></li>
+<li><span class="tally__n">20</span> <span class="tally__label"><a href="skills.html">skills <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Including <code>crawl</code> and <code>plan-guide</code>.</span></li>
+<li><span class="tally__n">8</span> <span class="tally__label"><a href="commands.html">slash commands <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Including <code>/setup</code> and <code>/topic</code>.</span></li>
+<li><span class="tally__n">12</span> <span class="tally__label"><a href="hooks.html">hooks <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Switched on in every session at install.</span></li>
+<li><span class="tally__n">4</span> <span class="tally__label"><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/workflows.md">workflows <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Including <code>plan-builder</code>, <code>execute-runner</code> and <code>ship-runner</code>.</span></li>
+</ul>
+<ul class="tally-plus full" aria-label="Also in the plugin">
+<li><span class="tally__label">Write-time rules</span> <span class="tally__note">Injected at session start and into every worker agent at spawn.</span></li>
+<li><span class="tally__label">Doctrine</span> <span class="tally__note">Ties the agents, skills, commands, hooks and workflows together.</span></li>
+</ul>
+</div>
+</section>
+
+<section class="section section--alt" id="who">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">Audience</p>
+<h2>Who it is for</h2>
+</div>
+<div class="prose">
+<p>Any Claude Code user who wants planned, reviewed changes instead of one long unplanned session. The toolkit suits work that touches a real repo, where you want a written plan to approve before anything changes, a review before anything ships, and a record of what was decided.</p>
+</div>
+</div>
+</section>
+
+<section class="section" id="flows">
+<div class="wrap">
+<div class="section-head">
+<p class="eyebrow">Walkthroughs</p>
+<h2>The three flows</h2>
+</div>
+<p class="lead">The walkthroughs follow one invented project, <code>todo-api</code>, with a vault at <code>~/notes</code>.</p>
+<ul class="cards">
+<li class="card">
+<h3><a href="walkthrough-plan.html">Plan flow <span aria-hidden="true">&rarr;</span></a></h3>
+<p>A brief becomes a validated plan note that waits for your approval.</p>
+<p class="card__cmd"><code>run the plan flow</code></p>
+</li>
+<li class="card">
+<h3><a href="walkthrough-execute.html">Execute flow <span aria-hidden="true">&rarr;</span></a></h3>
+<p>Worker agents build the approved plan, run its Validation Steps and a review panel, and stop with a commit suggestion.</p>
+<p class="card__cmd"><code>run the execute flow here</code></p>
+</li>
+<li class="card">
+<h3><a href="walkthrough-ship.html">Ship flow <span aria-hidden="true">&rarr;</span></a></h3>
+<p>The reviewed slice is committed, pushed, opened as a pull request and merged, up to the ceiling the plan note records.</p>
+<p class="card__cmd"><code>run the ship flow</code></p>
+</li>
+<li class="card">
+<h3><a href="sessions.html">Parent and child sessions <span aria-hidden="true">&rarr;</span></a></h3>
+<p>How one session plans and another builds.</p>
+<p class="card__cmd"><code>parent-&lt;planName&gt;</code>, <code>child-&lt;planName&gt;</code></p>
+</li>
+</ul>
+</div>
+</section>
+
+<section class="section section--alt" id="hooks">
+<div class="wrap">
+<div class="section-head">
+<p class="eyebrow">Hooks</p>
+<h2>What switches on at install</h2>
+</div>
+<div class="prose">
+<p>Installing the plugin switches on twelve hooks in every Claude Code session, with no opt-in and no separate config. Read <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/hooks.md">docs/hooks.md</a> before you trust the toolkit with a repo. It lists what each hook blocks, what it only asks, and every environment variable it honors.</p>
+</div>
+<dl class="hooks">
+<div>
+<dt><code>protect-files.sh</code></dt>
+<dd>Blocks a write to keys, certificates, lockfiles, generated files, <code>.git/</code>, <code>secrets/</code> and hook scripts, and asks before a write to <code>.env*</code> and <code>.claude/settings*.json</code>.</dd>
+</div>
+<div>
+<dt><code>scan-secrets.sh</code></dt>
+<dd>Asks for confirmation when written content looks like a credential. It never blocks.</dd>
+</div>
+<div>
+<dt><code>block-dangerous-commands.sh</code></dt>
+<dd>Blocks a fixed list of destructive shell command patterns.</dd>
+</div>
+<div>
+<dt><code>session-start.sh</code></dt>
+<dd>Injects the write-time rules, a doctrine pointer, a git briefing and the current repo's vault topics at session start and after a compaction.</dd>
+</div>
+<div>
+<dt><code>subagent-rules.sh</code></dt>
+<dd>Injects the same write-time rules and doctrine pointer into every worker agent at spawn.</dd>
+</div>
+<div>
+<dt><code>notify.sh</code></dt>
+<dd>Fires a native OS notification when Claude needs input.</dd>
+</div>
+<div>
+<dt><code>md-wrap-check.sh</code></dt>
+<dd>Flags hard-wrapped prose in a markdown write. It warns and never blocks.</dd>
+</div>
+<div>
+<dt><code>context-sentinel.sh</code></dt>
+<dd>Nudges the conversation to delegate and plan a handoff past 200k, 400k and 600k tokens of context. It never blocks.</dd>
+</div>
+<div>
+<dt><code>conductor-guard.sh</code></dt>
+<dd>Refuses a direct edit to a project file by the main conversation, so that a worker agent makes it. <code>TOOLKIT_CONDUCTOR_EDITS=1</code> is the only override.</dd>
+</div>
+<div>
+<dt><code>design-rules-reminder.sh</code></dt>
+<dd>Points at the design rules catalog once per session when a frontend file is edited.</dd>
+</div>
+<div>
+<dt><code>agent-model.sh</code></dt>
+<dd>Adds the resolved model and effort to an agent call that does not carry them.</dd>
+</div>
+<div>
+<dt><code>remember-guard.sh</code></dt>
+<dd>Warns when a reply suggests a commit but the plan note has no remember line. It never blocks.</dd>
+</div>
+</dl>
+<p><a class="text-link" href="hooks.html">Hooks reference: the event, matcher and settings for each hook</a></p>
+</div>
+</section>
+
+<section class="section" id="make-it-yours">
+<div class="wrap split">
+<div class="section-head">
+<p class="eyebrow">Overrides</p>
+<h2>Make it yours</h2>
+</div>
+<div class="prose">
+<p class="lead">The doctrine, rules, agents and skills are defaults, not law. When your own config disagrees, yours wins, so you bend the toolkit to how you and your team work instead of forking it.</p>
+<p>Put a same-named copy under your global <code>~/.claude/</code>, or let <code>/override</code> make the copy for you, then edit it. Most specific wins: project config beats your global config, which beats the plugin's defaults. The session-start hook announces every active override, so a change is never silent. The safety sections may be tightened, never loosened.</p>
+<div class="terminal" role="group" aria-label="Override example">
+<div class="terminal__bar"><span>Claude Code</span></div>
+<pre><code>/override conventions
+/override rules security
+/override code-reviewer</code></pre>
+</div>
+<p><a class="button button--secondary" href="overrides.html">How overrides work</a></p>
+</div>
+</div>
+</section>
+
+<section class="section section--alt" id="install">
+<div class="wrap">
+<div class="section-head">
+<p class="eyebrow">Get started</p>
+<h2>Install</h2>
+</div>
+<div class="install-grid">
+<ol class="install-steps">
+<li>
+<p>Add the marketplace and install the plugin.</p>
+<div class="terminal" role="group" aria-label="Install commands">
+<pre><code><span class="cmd">claude plugin marketplace add https://github.com/shaughnlgh/claude-toolkit.git</span>
+<span class="cmd">claude plugin install toolkit@shaughn-toolkit</span></code></pre>
+</div>
+</li>
+<li>
+<p>Then start a new Claude Code session and run <code>/setup</code>. It checks the CLI prerequisites (gh, glab, jira-cli, jq and python3), creates the vault config, and prints a readiness report. <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/prerequisites.md">docs/prerequisites.md</a> gives the install and auth command for each CLI.</p>
+</li>
+</ol>
+<aside aria-labelledby="platforms">
+<h3 id="platforms">Supported platforms</h3>
+<ul class="platforms">
+<li><strong>macOS</strong>: supported and tested.</li>
+<li><strong>Linux</strong>: untested.</li>
+<li><strong>Windows</strong>: through WSL, untested.</li>
+</ul>
+</aside>
+</div>
+</div>
+</section>
+
+<section class="section" id="more">
+<div class="wrap">
+<div class="section-head">
+<p class="eyebrow">Docs</p>
+<h2>Read more</h2>
+</div>
+<ul class="link-row">
+<li><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/README.md">README</a></li>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/README.md">Docs index</a></li>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/CONTRIBUTING.md">Contributing</a></li>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/SECURITY.md">Security</a></li>
+</ul>
+</div>
+</section>
+</main>
+
+<footer class="site-footer">
+<div class="wrap site-footer__inner">
+<div class="site-footer__credit">
+<p><span class="wordmark"><span class="wordmark__mark" aria-hidden="true">&gt;_</span> claude-toolkit</span></p>
+<p>MIT licensed. Source at <a href="https://github.com/shaughnlgh/claude-toolkit">github.com/shaughnlgh/claude-toolkit</a>. This site is plain HTML and one stylesheet.</p>
+</div>
+<nav class="site-footer__nav" aria-label="Footer">
+<div>
+<p class="site-footer__h">Workflow</p>
+<ul>
 <li><a href="walkthrough-plan.html">Plan flow</a></li>
 <li><a href="walkthrough-execute.html">Execute flow</a></li>
 <li><a href="walkthrough-ship.html">Ship flow</a></li>
 <li><a href="sessions.html">Sessions</a></li>
-<li><a href="release-notes.html">Release notes</a></li>
+</ul>
+</div>
+<div>
+<p class="site-footer__h">Reference</p>
+<ul>
+<li><a href="agents.html">Agents</a></li>
+<li><a href="skills.html">Skills</a></li>
+<li><a href="commands.html">Commands</a></li>
+<li><a href="hooks.html">Hooks</a></li>
+<li><a href="overrides.html">Overrides</a></li>
+</ul>
+</div>
+<div>
+<p class="site-footer__h">Project</p>
+<ul>
 <li><a href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/LICENSE">Licence</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
 </ul>
+</div>
 </nav>
-</header>
-<main>
-<h1>claude-toolkit</h1>
-<p class="lead">A Claude Code plugin that runs a plan-first workflow. A brief becomes a plan note that you approve, worker agents build it step by step, a review panel checks the result, and a ship flow opens and merges the pull request under the git permissions the plan note records.</p>
-
-<h2>What it is</h2>
-<p>The plugin ships 14 worker agents, 20 skills, 8 slash commands, 12 hooks, 4 workflows, write-time rules and the doctrine that ties them together. The main conversation plans and supervises. Worker agents make every file change and report back. Plan notes and topic notes go into a vault, which is any folder of markdown on your machine. No note-taking app is required.</p>
-
-<h2>Who it is for</h2>
-<p>Any Claude Code user who wants planned, reviewed changes instead of one long unplanned session. The toolkit suits work that touches a real repo, where you want a written plan to approve before anything changes, a review before anything ships, and a record of what was decided.</p>
-
-<h2>What switches on at install</h2>
-<p>Installing the plugin switches on twelve hooks in every Claude Code session, with no opt-in and no separate config. Read <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/hooks.md">docs/hooks.md</a> before you trust the toolkit with a repo. It lists what each hook blocks, what it only asks, and every environment variable it honors.</p>
-<dl class="hooks">
-<dt><code>protect-files.sh</code></dt>
-<dd>Blocks a write to keys, certificates, lockfiles, generated files, <code>.git/</code>, <code>secrets/</code> and hook scripts, and asks before a write to <code>.env*</code> and <code>.claude/settings*.json</code>.</dd>
-<dt><code>scan-secrets.sh</code></dt>
-<dd>Asks for confirmation when written content looks like a credential. It never blocks.</dd>
-<dt><code>block-dangerous-commands.sh</code></dt>
-<dd>Blocks a fixed list of destructive shell command patterns.</dd>
-<dt><code>session-start.sh</code></dt>
-<dd>Injects the write-time rules, a doctrine pointer, a git briefing and the current repo's vault topics at session start and after a compaction.</dd>
-<dt><code>subagent-rules.sh</code></dt>
-<dd>Injects the same write-time rules and doctrine pointer into every worker agent at spawn.</dd>
-<dt><code>notify.sh</code></dt>
-<dd>Fires a native OS notification when Claude needs input.</dd>
-<dt><code>md-wrap-check.sh</code></dt>
-<dd>Flags hard-wrapped prose in a markdown write. It warns and never blocks.</dd>
-<dt><code>context-sentinel.sh</code></dt>
-<dd>Nudges the conversation to delegate and plan a handoff past 200k, 400k and 600k tokens of context. It never blocks.</dd>
-<dt><code>conductor-guard.sh</code></dt>
-<dd>Refuses a direct edit to a project file by the main conversation, so that a worker agent makes it. <code>TOOLKIT_CONDUCTOR_EDITS=1</code> is the only override.</dd>
-<dt><code>design-rules-reminder.sh</code></dt>
-<dd>Points at the design rules catalog once per session when a frontend file is edited.</dd>
-<dt><code>agent-model.sh</code></dt>
-<dd>Adds the resolved model and effort to an agent call that does not carry them.</dd>
-<dt><code>remember-guard.sh</code></dt>
-<dd>Warns when a reply suggests a commit but the plan note has no remember line. It never blocks.</dd>
-</dl>
-
-<h2>Install</h2>
-<pre><code>claude plugin marketplace add https://github.com/shaughnlgh/claude-toolkit.git
-claude plugin install toolkit@shaughn-toolkit</code></pre>
-<p>Then start a new Claude Code session and run <code>/setup</code>. It checks the CLI prerequisites (gh, glab, jira-cli, jq and python3), creates the vault config, and prints a readiness report. <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/prerequisites.md">docs/prerequisites.md</a> gives the install and auth command for each CLI.</p>
-
-<h2>Supported platforms</h2>
-<ul>
-<li>macOS: supported and tested.</li>
-<li>Linux: untested.</li>
-<li>Windows: through WSL, untested.</li>
-</ul>
-
-<h2>The three flows</h2>
-<p>The walkthroughs follow one invented project, <code>todo-api</code>, with a vault at <code>~/notes</code>.</p>
-<ul>
-<li><a href="walkthrough-plan.html">Plan flow</a>: a brief becomes a validated plan note that waits for your approval.</li>
-<li><a href="walkthrough-execute.html">Execute flow</a>: worker agents build the approved plan, run its Validation Steps and a review panel, and stop with a commit suggestion.</li>
-<li><a href="walkthrough-ship.html">Ship flow</a>: the reviewed slice is committed, pushed, opened as a pull request and merged, up to the ceiling the plan note records.</li>
-<li><a href="sessions.html">Parent and child sessions</a>: how one session plans and another builds.</li>
-</ul>
-
-<h2>Read more</h2>
-<ul>
-<li><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/README.md">README</a></li>
-<li><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/README.md">Docs index</a></li>
-<li><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/CONTRIBUTING.md">Contributing</a> and <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/SECURITY.md">security</a></li>
-</ul>
-</main>
-<footer>
-<p>MIT licensed. Source at <a href="https://github.com/shaughnlgh/claude-toolkit">github.com/shaughnlgh/claude-toolkit</a>.</p>
+</div>
 </footer>
 </body>
 </html>

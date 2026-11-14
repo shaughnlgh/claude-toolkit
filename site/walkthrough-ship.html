@@ -7,60 +7,142 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-<nav aria-label="Site">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap site-header__inner">
+<a class="wordmark" href="index.html"><span class="wordmark__mark" aria-hidden="true">&gt;_</span> claude-toolkit</a>
+<nav class="site-nav" aria-label="Site">
 <ul>
-<li><a href="index.html">Home</a></li>
+<li><a href="index.html#flows" aria-current="true">Flows</a></li>
+<li><a href="agents.html">Agents</a></li>
+<li><a href="skills.html">Skills</a></li>
+<li><a href="commands.html">Commands</a></li>
+<li><a href="hooks.html">Hooks</a></li>
+<li><a href="overrides.html">Overrides</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
+<li><a class="nav-repo" href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+</ul>
+</nav>
+</div>
+</header>
+
+<main id="main">
+<section class="page-head">
+<div class="wrap">
+<p class="crumbs"><a href="index.html#flows">Walkthroughs</a> / Ship flow</p>
+<h1>Ship flow walkthrough</h1>
+<p class="lead">The ship flow carries a reviewed slice up the ladder suggest, commit, push, mr, merge, release, and stops at the ceiling the plan note records. It prints every external side effect before it starts and asks nothing.</p>
+<nav aria-label="Walkthroughs">
+<ol class="flow-track">
 <li><a href="walkthrough-plan.html">Plan flow</a></li>
 <li><a href="walkthrough-execute.html">Execute flow</a></li>
 <li><a href="walkthrough-ship.html" aria-current="page">Ship flow</a></li>
-<li><a href="sessions.html">Sessions</a></li>
-<li><a href="release-notes.html">Release notes</a></li>
-<li><a href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
-</ul>
-</nav>
-</header>
-<main>
-<h1>Ship flow walkthrough</h1>
-<p class="lead">The ship flow carries a reviewed slice up the ladder suggest, commit, push, mr, merge, release, and stops at the ceiling the plan note records. It prints every external side effect before it starts and asks nothing.</p>
-
-<h2>The setup</h2>
-<p>The project is still <code>todo-api</code>. The execute flow finished on the plan note in <code>~/notes</code>, and the note records <code>ceiling: merge</code>. The ceiling is the limit on what any flow may do in git:</p>
-<ul>
-<li><code>none</code> stops at suggest: the flow hands you the commit commands and runs none.</li>
-<li><code>mr</code> commits, pushes, opens the pull request, watches the pipeline and works the bot review threads.</li>
-<li><code>merge</code> adds the merge, and with <code>tag_merge: true</code> it also tags the merge commit.</li>
-</ul>
-
-<section id="recording">
-<h2>The steps</h2>
-<ol class="steps">
-<li>
-<p class="types"><code>run the ship flow</code>.</p>
-<p class="does">The flow reads the run options from the plan note. One verifier reads the host, the remote, the branch, the tree and any open pull request, and the flow derives where the run starts from that observed state, never from your input. It takes the staging list and the commit message from the execute flow's report or from the shipping record on the plan note.</p>
-</li>
-<li>
-<p class="types">nothing. Read the preview.</p>
-<p class="does">The flow states the ceiling, in the form "The ceiling is &lt;ceiling&gt;, so the run stops at &lt;stage&gt;." It prints the commit message, the pull request title and body, each path to stage, the fix message templates <code>fix(ci): &lt;failing check&gt; (ship-flow)</code> and <code>fix(review): &lt;thread summary&gt; (ship-flow)</code>, the reply template <code>Fixed in &lt;short sha&gt;: &lt;what changed&gt;</code>, the protected paths, and that no commit carries a Co-Authored-By trailer and that human threads are never touched.</p>
-</li>
-<li>
-<p class="types">nothing.</p>
-<p class="does">The flow launches the <code>ship-runner</code> workflow. Its agents stage each listed path by name and commit, push the branch, and open the pull request with <code>gh pr create</code>, or the merge request with <code>glab mr create</code>. A verifier watches the pipeline of the pushed commit, and a failing check gets a bounded fix loop. The runner waits for a bot review, then fixes, replies to and resolves each fixable bot thread, in up to three rounds. It merges only that exact commit, on a green pipeline with no open thread, and then removes the branch and the worktree when no other session sits in them. When a pipeline or a bot review is slow, the flow waits in the background with <code>watch-mr.sh</code> and relaunches itself.</p>
-</li>
-<li>
-<p class="types">nothing yet. Read the report.</p>
-<p class="does">The report opens with the Repo, Branch and Scope lines, then <code>MR: &lt;url&gt;</code> followed by <code>merged &lt;sha&gt;</code>. Under <code>Fixed beyond the plan:</code> it lists each fix commit with its reason, and under <code>Caveats:</code> it lists what is left for you, such as a human review thread. After a merge it gives the undo command, <code>git revert -m 1 &lt;mergeSha&gt;</code> for a merge commit. The plan note records the session as <code>ship-flow finished: merge</code>.</p>
-</li>
 </ol>
+</nav>
+</div>
 </section>
 
-<h2>Other ceilings</h2>
+<section class="section">
+<div class="wrap walk">
+<aside class="setup" aria-labelledby="setup">
+<p class="eyebrow">Context</p>
+<h2 id="setup">The setup</h2>
+<p>The project is still <code>todo-api</code>. The execute flow finished on the plan note in <code>~/notes</code>, and the note records <code>ceiling: merge</code>. The ceiling is the limit on what any flow may do in git:</p>
+<dl class="ceilings">
+<div>
+<dt><code>none</code></dt>
+<dd>Stops at suggest: the flow hands you the commit commands and runs none.</dd>
+</div>
+<div>
+<dt><code>mr</code></dt>
+<dd>Commits, pushes, opens the pull request, watches the pipeline and works the bot review threads.</dd>
+</div>
+<div>
+<dt><code>merge</code></dt>
+<dd>Adds the merge, and with <code>tag_merge: true</code> it also tags the merge commit.</dd>
+</div>
+</dl>
+</aside>
+
+<div class="steps-block" id="recording">
+<div class="section-head">
+<p class="eyebrow">Step by step</p>
+<h2>The steps</h2>
+</div>
+<ol class="steps">
+<li>
+<p class="types"><strong class="step-label">You type<span class="vh">:</span></strong> <code>run the ship flow</code>.</p>
+<p class="does"><strong class="step-label">The flow<span class="vh">:</span></strong> The flow reads the run options from the plan note. One verifier reads the host, the remote, the branch, the tree and any open pull request, and the flow derives where the run starts from that observed state, never from your input. It takes the staging list and the commit message from the execute flow's report or from the shipping record on the plan note.</p>
+</li>
+<li>
+<p class="types"><strong class="step-label">You type<span class="vh">:</span></strong> nothing. Read the preview.</p>
+<p class="does"><strong class="step-label">The flow<span class="vh">:</span></strong> The flow states the ceiling, in the form "The ceiling is &lt;ceiling&gt;, so the run stops at &lt;stage&gt;." It prints the commit message, the pull request title and body, each path to stage, the fix message templates <code>fix(ci): &lt;failing check&gt; (ship-flow)</code> and <code>fix(review): &lt;thread summary&gt; (ship-flow)</code>, the reply template <code>Fixed in &lt;short sha&gt;: &lt;what changed&gt;</code>, the protected paths, and that no commit carries a Co-Authored-By trailer and that human threads are never touched.</p>
+</li>
+<li>
+<p class="types"><strong class="step-label">You type<span class="vh">:</span></strong> nothing.</p>
+<p class="does"><strong class="step-label">The flow<span class="vh">:</span></strong> The flow launches the <code>ship-runner</code> workflow. Its agents stage each listed path by name and commit, push the branch, and open the pull request with <code>gh pr create</code>, or the merge request with <code>glab mr create</code>. A verifier watches the pipeline of the pushed commit, and a failing check gets a bounded fix loop. The runner waits for a bot review, then fixes, replies to and resolves each fixable bot thread, in up to three rounds. It merges only that exact commit, on a green pipeline with no open thread, and then removes the branch and the worktree when no other session sits in them. When a pipeline or a bot review is slow, the flow waits in the background with <code>watch-mr.sh</code> and relaunches itself.</p>
+</li>
+<li>
+<p class="types"><strong class="step-label">You type<span class="vh">:</span></strong> nothing yet. Read the report.</p>
+<p class="does"><strong class="step-label">The flow<span class="vh">:</span></strong> The report opens with the Repo, Branch and Scope lines, then <code>MR: &lt;url&gt;</code> followed by <code>merged &lt;sha&gt;</code>. Under <code>Fixed beyond the plan:</code> it lists each fix commit with its reason, and under <code>Caveats:</code> it lists what is left for you, such as a human review thread. After a merge it gives the undo command, <code>git revert -m 1 &lt;mergeSha&gt;</code> for a merge commit. The plan note records the session as <code>ship-flow finished: merge</code>.</p>
+</li>
+</ol>
+
+<section class="after" aria-labelledby="other-ceilings">
+<div class="section-head">
+<p class="eyebrow">Variations</p>
+<h2 id="other-ceilings">Other ceilings</h2>
+</div>
 <p>Under <code>ceiling: none</code> the report is a commit handoff: the three header lines, a line that begins <code>Suggested commit</code>, and a paste-ready block that names each path. Under <code>ceiling: mr</code> the run stops once the pull request is open, its pipeline watched and its bot threads worked. Raise the note's ceiling to <code>merge</code> and ask again to merge it.</p>
 <p>When the execute flow deferred a Validation Step to the seat, the run stops at mr until the seat run passes on the commit it would merge.</p>
-<p>Source: <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/plugins/toolkit/skills/ship-flow/SKILL.md">skills/ship-flow/SKILL.md</a> and <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/workflows.md">docs/workflows.md</a>.</p>
+</section>
+
+<p class="source">Source: <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/plugins/toolkit/skills/ship-flow/SKILL.md">skills/ship-flow/SKILL.md</a> and <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/workflows.md">docs/workflows.md</a>.</p>
+<nav class="pager" aria-label="Previous and next">
+<a href="walkthrough-execute.html" rel="prev"><span class="pager__dir">Previous</span> <span class="pager__title">Execute flow walkthrough</span> <span class="pager__desc">Worker agents build the approved plan and stop with a commit suggestion.</span></a>
+<a href="sessions.html" rel="next"><span class="pager__dir">Next</span> <span class="pager__title">Parent and child sessions</span> <span class="pager__desc">How one session plans and another builds.</span></a>
+</nav>
+</div>
+</div>
+</section>
 </main>
-<footer>
-<p>MIT licensed. Source at <a href="https://github.com/shaughnlgh/claude-toolkit">github.com/shaughnlgh/claude-toolkit</a>.</p>
+
+<footer class="site-footer">
+<div class="wrap site-footer__inner">
+<div class="site-footer__credit">
+<p><span class="wordmark"><span class="wordmark__mark" aria-hidden="true">&gt;_</span> claude-toolkit</span></p>
+<p>MIT licensed. Source at <a href="https://github.com/shaughnlgh/claude-toolkit">github.com/shaughnlgh/claude-toolkit</a>. This site is plain HTML and one stylesheet.</p>
+</div>
+<nav class="site-footer__nav" aria-label="Footer">
+<div>
+<p class="site-footer__h">Workflow</p>
+<ul>
+<li><a href="walkthrough-plan.html">Plan flow</a></li>
+<li><a href="walkthrough-execute.html">Execute flow</a></li>
+<li><a href="walkthrough-ship.html">Ship flow</a></li>
+<li><a href="sessions.html">Sessions</a></li>
+</ul>
+</div>
+<div>
+<p class="site-footer__h">Reference</p>
+<ul>
+<li><a href="agents.html">Agents</a></li>
+<li><a href="skills.html">Skills</a></li>
+<li><a href="commands.html">Commands</a></li>
+<li><a href="hooks.html">Hooks</a></li>
+<li><a href="overrides.html">Overrides</a></li>
+</ul>
+</div>
+<div>
+<p class="site-footer__h">Project</p>
+<ul>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/LICENSE">Licence</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
+</ul>
+</div>
+</nav>
+</div>
 </footer>
 </body>
 </html>

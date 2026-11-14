@@ -7,25 +7,37 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-<nav aria-label="Site">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap site-header__inner">
+<a class="wordmark" href="index.html"><span class="wordmark__mark" aria-hidden="true">&gt;_</span> claude-toolkit</a>
+<nav class="site-nav" aria-label="Site">
 <ul>
-<li><a href="index.html">Home</a></li>
-<li><a href="walkthrough-plan.html">Plan flow</a></li>
-<li><a href="walkthrough-execute.html">Execute flow</a></li>
-<li><a href="walkthrough-ship.html">Ship flow</a></li>
-<li><a href="sessions.html">Sessions</a></li>
+<li><a href="index.html#flows">Flows</a></li>
+<li><a href="agents.html">Agents</a></li>
+<li><a href="skills.html">Skills</a></li>
+<li><a href="commands.html">Commands</a></li>
+<li><a href="hooks.html">Hooks</a></li>
+<li><a href="overrides.html">Overrides</a></li>
 <li><a href="release-notes.html" aria-current="page">Release notes</a></li>
-<li><a href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+<li><a class="nav-repo" href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
 </ul>
 </nav>
+</div>
 </header>
-<main>
+
+<main id="main">
+<section class="page-head">
+<div class="wrap">
 <h1>Release notes</h1>
 <p class="lead">What shipped, by month, newest first. Each merged change is one line. The toolkit has no version field, so every merge to <code>main</code> is a new version.</p>
+</div>
+</section>
 
-<h2>November 2026</h2>
-<ul>
+<div class="wrap months">
+<section class="month" aria-labelledby="m-2026-11">
+<h2 id="m-2026-11"><time datetime="2026-11">November 2026</time></h2>
+<ul class="changes">
 <li>The <code>/obsidian-topic</code> command is now <code>/topic</code>, and the old name still works as a pointer. The vault config file is now <code>~/.claude/toolkit-vault.json</code>, and an existing <code>obsidian-sync.json</code> keeps working. <code>vault-fs.sh topic-index</code> writes the vault's topic index, and the repository has a project site, <code>CONTRIBUTING.md</code> and <code>SECURITY.md</code>.</li>
 <li>The planning grill is a fixed step of every first-draft plan flow, run between a discovery launch and a draft launch, and it states the outcome of the work before its first question.</li>
 <li><code>/setup</code> asks its questions with a recommended answer first, and the crawl runs the grill on the route that splits work into several plans.</li>
@@ -46,9 +58,10 @@
 <li>The execute flow runs the repo's install step in a worktree it opens and defers the Validation Steps that need the running local stack to the seat.</li>
 <li>The main conversation keeps its rules across a compaction, direct edits by the main conversation are refused, and a run opens a worktree when another session holds the main checkout.</li>
 </ul>
-
-<h2>October 2026</h2>
-<ul>
+</section>
+<section class="month" aria-labelledby="m-2026-10">
+<h2 id="m-2026-10"><time datetime="2026-10">October 2026</time></h2>
+<ul class="changes">
 <li>The verifier's verdict, not the score, decides which review findings get fixed.</li>
 <li>Session start and the execute flow report which session holds a repo's main checkout.</li>
 <li><code>/setup</code> detects and offers the git allow rules that auto mode needs.</li>
@@ -67,18 +80,20 @@
 <li>A hook warns when a reply suggests a commit before the remember pass has run.</li>
 <li>Sessions recall vault topic notes and repo docs, and each slice runs one remember pass.</li>
 </ul>
-
-<h2>September 2026</h2>
-<ul>
+</section>
+<section class="month" aria-labelledby="m-2026-09">
+<h2 id="m-2026-09"><time datetime="2026-09">September 2026</time></h2>
+<ul class="changes">
 <li>The hook tests create their dangling-symlink fixture at test time.</li>
 <li>Each agent's model is set per agent from a models file, with the code-writing and review workers on the strongest tier.</li>
 <li>The review-threads skill resolves the threads it fixed on every supported host.</li>
 <li>The functional test probes for skills give the same result on every run.</li>
 <li>Corrections that hold across projects can be promoted into the doctrine and the rules.</li>
 </ul>
-
-<h2>August 2026</h2>
-<ul>
+</section>
+<section class="month" aria-labelledby="m-2026-08">
+<h2 id="m-2026-08"><time datetime="2026-08">August 2026</time></h2>
+<ul class="changes">
 <li>Every worker agent receives the write-time rules at spawn.</li>
 <li>The prose rules join the injected rules, with a catalog of patterns to avoid.</li>
 <li>A plan note requires a Plain Language Summary section.</li>
@@ -92,18 +107,56 @@
 <li>The notification hook posts a fixed message instead of untrusted hook input, and session start announces only the rules it injected.</li>
 <li>Skills write durable knowledge into fixed locations in the repo, always behind a consent question.</li>
 </ul>
-
-<h2>July 2026</h2>
-<ul>
+</section>
+<section class="month" aria-labelledby="m-2026-07">
+<h2 id="m-2026-07"><time datetime="2026-07">July 2026</time></h2>
+<ul class="changes">
 <li>The setup command is renamed <code>/setup</code>, and it offers auto-update.</li>
 <li>A context sentinel and the conductor guard keep the main conversation delegating its work.</li>
 <li>A read-only ticket skill turns a tracker ticket into a brief.</li>
 <li>The crawl skill reads new work first and routes it, and the doctrine is injected again after a compaction.</li>
 <li>The review workflow's agents are namespaced, and discovery goes to the explorer agent.</li>
 </ul>
+</section>
+</div>
 </main>
-<footer>
-<p>MIT licensed. Source at <a href="https://github.com/shaughnlgh/claude-toolkit">github.com/shaughnlgh/claude-toolkit</a>.</p>
+
+<footer class="site-footer">
+<div class="wrap site-footer__inner">
+<div class="site-footer__credit">
+<p><span class="wordmark"><span class="wordmark__mark" aria-hidden="true">&gt;_</span> claude-toolkit</span></p>
+<p>MIT licensed. Source at <a href="https://github.com/shaughnlgh/claude-toolkit">github.com/shaughnlgh/claude-toolkit</a>. This site is plain HTML and one stylesheet.</p>
+</div>
+<nav class="site-footer__nav" aria-label="Footer">
+<div>
+<p class="site-footer__h">Workflow</p>
+<ul>
+<li><a href="walkthrough-plan.html">Plan flow</a></li>
+<li><a href="walkthrough-execute.html">Execute flow</a></li>
+<li><a href="walkthrough-ship.html">Ship flow</a></li>
+<li><a href="sessions.html">Sessions</a></li>
+</ul>
+</div>
+<div>
+<p class="site-footer__h">Reference</p>
+<ul>
+<li><a href="agents.html">Agents</a></li>
+<li><a href="skills.html">Skills</a></li>
+<li><a href="commands.html">Commands</a></li>
+<li><a href="hooks.html">Hooks</a></li>
+<li><a href="overrides.html">Overrides</a></li>
+</ul>
+</div>
+<div>
+<p class="site-footer__h">Project</p>
+<ul>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit">Repository</a></li>
+<li><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/LICENSE">Licence</a></li>
+<li><a href="release-notes.html">Release notes</a></li>
+</ul>
+</div>
+</nav>
+</div>
 </footer>
 </body>
 </html>
