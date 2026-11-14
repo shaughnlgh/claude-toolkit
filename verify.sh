@@ -458,6 +458,11 @@ if command -v claude >/dev/null 2>&1; then
 else
   skip "skipped: claude CLI not found"
 fi
+pv="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("version",""))' "$P/.claude-plugin/plugin.json" 2>/dev/null)"
+if [[ "$pv" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then ok "plugin.json version is three dot-separated numbers"; else no "plugin.json version is not three dot-separated numbers (got: ${pv:0:60})"; fi
+mv_keys="$(python3 -c 'import json,sys; print(" ".join(sorted(k for p in json.load(open(sys.argv[1]))["plugins"] if p.get("name")=="toolkit" for k in p)))' "$ROOT/.claude-plugin/marketplace.json" 2>/dev/null)"
+if [ -n "$mv_keys" ] && [[ " $mv_keys " != *" version "* ]]; then ok "marketplace entry for toolkit carries no version key"; else no "marketplace entry for toolkit is missing or carries a version key (keys: ${mv_keys:0:60})"; fi
+if [ -n "$pv" ] && grep -qF "id=\"v$pv\"" "$ROOT/site/release-notes.html"; then ok "site/release-notes.html holds an entry for plugin.json version $pv"; else no "site/release-notes.html holds no entry with id=\"v$pv\" for the plugin.json version"; fi
 
 echo "== Hook behavior (fixture suite is authoritative) =="
 hout="$(cd "$P/hooks/tests" && bash run-all.sh 2>&1)"; hrc=$?
@@ -793,4 +798,4 @@ echo "RESULT: $pass passed, $skip skipped, $fail failed"
 # Floor, not just zero-failures: silently deleting real checks must not read green.
 # Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
 # no node, no local plugin install) must not read as a vanished check.
-[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 187 ]
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 190 ]

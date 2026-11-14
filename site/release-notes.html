@@ -30,7 +30,7 @@
 <section class="page-head">
 <div class="wrap">
 <h1>Release notes</h1>
-<p class="lead">What shipped, by month, newest first. Each merged change is one line. The toolkit has no version field, so every merge to <code>main</code> is a new version.</p>
+<p class="lead">What shipped, by month, newest first. Each merged change is one line, and a release is the line that names its version. An install receives changes only when a new version is released.</p>
 </div>
 </section>
 
@@ -38,6 +38,7 @@
 <section class="month" aria-labelledby="m-2026-11">
 <h2 id="m-2026-11"><time datetime="2026-11">November 2026</time></h2>
 <ul class="changes">
+<li id="v1.0.0"><span class="tag tag--block">v1.0.0</span> <time datetime="2026-11-14">14 November 2026</time>. The first numbered release. The plugin now carries a version number, and an install receives changes when a new version is released.</li>
 <li>The <code>/obsidian-topic</code> command is now <code>/topic</code>, and the old name still works as a pointer. The vault config file is now <code>~/.claude/toolkit-vault.json</code>, and an existing <code>obsidian-sync.json</code> keeps working. <code>vault-fs.sh topic-index</code> writes the vault's topic index, and the repository has a project site, <code>CONTRIBUTING.md</code> and <code>SECURITY.md</code>.</li>
 <li>The planning grill is a fixed step of every first-draft plan flow, run between a discovery launch and a draft launch, and it states the outcome of the work before its first question.</li>
 <li><code>/setup</code> asks its questions with a recommended answer first, and the crawl runs the grill on the route that splits work into several plans.</li>

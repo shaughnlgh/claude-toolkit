@@ -51,7 +51,7 @@ After installing, run `/setup` in any Claude Code session. It checks everything 
 
 ## Updating
 
-New commits are new versions, and there is no version field by design. Pick them up one of two ways.
+The plugin carries a version number, and an install receives changes when a new version is released. Pick them up one of two ways.
 
 ### Auto-update
 
@@ -74,7 +74,9 @@ Without auto-update, pull the latest when you want it:
 claude plugin update toolkit@shaughn-toolkit
 ```
 
-After any update, auto or manual, run `/setup` to confirm you are current. It reports the installed commit and re-checks that every capability is still ready.
+An update finds nothing new until the next version is released, because a merge to `main` alone does not change the version. Releases are listed at [github.com/shaughnlgh/claude-toolkit/releases](https://github.com/shaughnlgh/claude-toolkit/releases) and on the site's [release notes](https://shaughnlgh.github.io/claude-toolkit/release-notes.html) page.
+
+After any update, auto or manual, run `/setup` to confirm you are current. It reports the installed version and re-checks that every capability is still ready.
 
 ## Verifying
 

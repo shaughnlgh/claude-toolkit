@@ -42,6 +42,7 @@ Every page under `docs/`, with what each covers. The root [`README.md`](../READM
 - [`0011`](decisions/0011-execute-flow-caps-runs-per-plan.md): Execute flow caps runs per plan.
 - [`0012`](decisions/0012-grill-is-a-fixed-step-of-planning.md): Grill is a fixed step of planning.
 - [`0013`](decisions/0013-rewrite-history-in-place-before-going-public.md): Rewrite history in place before going public.
+- [`0014`](decisions/0014-versioned-releases-on-the-maintainers-decision.md): Versioned releases on the maintainer's decision.
 
 ## Context notes
 
