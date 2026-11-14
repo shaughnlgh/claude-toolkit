@@ -22,7 +22,7 @@ The override flags are environment variables. `TOOLKIT_CONDUCTOR_EDITS=1` lets t
 
 - macOS: supported and tested.
 - Linux: untested.
-- Windows: through WSL.
+- Windows: through WSL, untested.
 
 ## Docs
 
