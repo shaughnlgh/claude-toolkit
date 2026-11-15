@@ -157,18 +157,18 @@ if command -v jq >/dev/null 2>&1 && [ -f "$SETTINGS" ] && [ "$(jq -r '.permissio
   for rule in "${WANT_RULES[@]}"; do
     jq -e --arg r "$rule" '(.permissions.allow // []) | index($r) != null' "$SETTINGS" >/dev/null 2>&1 || MISSING="${MISSING} ${rule}"
   done
-  [ -n "$MISSING" ] && AUTO_NOTE="Auto mode is on and ~/.claude/settings.json lacks these allow rules:${MISSING}. Every commit, push and MR or PR creation goes to the classifier, which cannot see the plan note's recorded ceiling, so an mr ceiling does not stop denials. /setup check 6 offers the rules."
+  [ -n "$MISSING" ] && AUTO_NOTE="Auto mode is on and ~/.claude/settings.json lacks these allow rules:${MISSING}. Every commit, push and MR or PR creation goes to the classifier, which cannot see the plan note's recorded ceiling, so an mr ceiling does not stop denials. /toolkit:setup check 6 offers the rules."
   if [ -n "$ORIGIN_HOST" ] && jq -e '(.autoMode.environment // []) | length > 0' "$SETTINGS" >/dev/null 2>&1; then
     jq -e --arg h "$ORIGIN_HOST" '(.autoMode.environment // []) | map(select(type == "string" and contains($h))) | length > 0' "$SETTINGS" >/dev/null 2>&1 \
       || AUTO_NOTE="${AUTO_NOTE:+$AUTO_NOTE
-}The autoMode environment block in ~/.claude/settings.json does not name this repo's remote host (${ORIGIN_HOST}), so the classifier reads a push or MR here as a write to a foreign system. /setup check 6 offers a Source control entry for this host."
+}The autoMode environment block in ~/.claude/settings.json does not name this repo's remote host (${ORIGIN_HOST}), so the classifier reads a push or MR here as a write to a foreign system. /toolkit:setup check 6 offers a Source control entry for this host."
   fi
   NODEF=$(jq -r '[("environment", "allow", "soft_deny", "hard_deny") as $k | select((.autoMode[$k] | type) == "array" and ((.autoMode[$k] | index("$defaults")) == null)) | $k] | join(" ")' "$SETTINGS" 2>/dev/null)
   [ -n "$NODEF" ] && AUTO_NOTE="${AUTO_NOTE:+$AUTO_NOTE
-}"'autoMode arrays in ~/.claude/settings.json with no $defaults entry: '"$NODEF"'. Each one replaces Claude Code'"'"'s built-in entries for that section, future updates included, and an allow array without it turns off Git Push Destination and Session-Created Job Cleanup, so a push to this repo can be denied. /setup check 6 offers to add $defaults to each one.'
+}"'autoMode arrays in ~/.claude/settings.json with no $defaults entry: '"$NODEF"'. Each one replaces Claude Code'"'"'s built-in entries for that section, future updates included, and an allow array without it turns off Git Push Destination and Session-Created Job Cleanup, so a push to this repo can be denied. /toolkit:setup check 6 offers to add $defaults to each one.'
   if [ -n "$AUTO_NOTE" ]; then
     add "$AUTO_NOTE"
-    AUTO_STATUS="auto mode: classifier settings incomplete, run /setup"
+    AUTO_STATUS="auto mode: classifier settings incomplete, run /toolkit:setup"
   fi
 fi
 
@@ -315,7 +315,7 @@ if [ "$SOURCE" = "startup" ]; then
   elif vault_config_file >/dev/null 2>&1; then
     STATUS="toolkit${VER} active — ${NA} agents, ${NS} skills, planning ready"
   else
-    STATUS="toolkit${VER} active — ${NA} agents, ${NS} skills · planning not configured: run /setup"
+    STATUS="toolkit${VER} active — ${NA} agents, ${NS} skills · planning not configured: run /toolkit:setup"
   fi
 elif [ "$NCOMPACT" -ge 2 ]; then
   STATUS="toolkit: session compacted ${NCOMPACT}× — the plan/work note carries the state; consider a fresh session"

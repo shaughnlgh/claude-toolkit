@@ -5,7 +5,7 @@ description: >-
   conductor from ticket ingestion through crawl, grill, split decision, planning,
   execution, and review, all the way to a manually-confirmed complete — with the stage
   persisted in a vault work note so the effort survives across days and sessions. Use
-  ONLY when the user explicitly invokes it ("/expedition", "run the expedition on
+  ONLY when the user explicitly invokes it ("/toolkit:expedition", "run the expedition on
   this", "take this through the full workflow") or asks to resume one ("where is the
   expedition on X?"). Never fires automatically, never fires on task size or fuzziness
   alone — committing to this workflow is the human's decision. Small work (a diagnosed

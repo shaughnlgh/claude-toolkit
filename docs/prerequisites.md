@@ -1,10 +1,10 @@
 # Prerequisites
 
-The toolkit shells out to a few CLIs rather than holding any credentials of its own. Each is a one-time install and auth on your machine; after installing the plugin, `/setup` checks every one of these and reports exactly what is missing.
+The toolkit shells out to a few CLIs rather than holding any credentials of its own. Each is a one-time install and auth on your machine; after installing the plugin, `/toolkit:setup` checks every one of these and reports exactly what is missing.
 
 ### Claude Code
 
-The `agent-model.sh` hook adds an `effort` field to Agent tool calls. The toolkit is tested on the Claude Code version that `/setup` check 8 names, and whether an older Agent tool accepts the field is untested. Check 8 compares `claude --version` against the tested version.
+The `agent-model.sh` hook adds an `effort` field to Agent tool calls. The toolkit is tested on the Claude Code version that `/toolkit:setup` check 8 names, and whether an older Agent tool accepts the field is untested. Check 8 compares `claude --version` against the tested version.
 
 ### gh (GitHub CLI)
 

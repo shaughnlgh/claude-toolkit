@@ -5,7 +5,7 @@ argument-hint: [message or text to read]
 
 # Mirror Test
 
-Read my last message back to me the way a stranger would hear it, with no benefit of the doubt. Honest, not kind. Invoke it before sending something that matters (a review, a message to a colleague, a ticket) to hear how it actually lands. Where `/cold-read` surfaces the unspoken premises behind what I say, this is about tone: how the words themselves land to a reader.
+Read my last message back to me the way a stranger would hear it, with no benefit of the doubt. Honest, not kind. Invoke it before sending something that matters (a review, a message to a colleague, a ticket) to hear how it actually lands. Where `/toolkit:cold-read` surfaces the unspoken premises behind what I say, this is about tone: how the words themselves land to a reader.
 
 ## Usage
 

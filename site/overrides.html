@@ -38,7 +38,7 @@
 <li><a href="#rule">The rule</a></li>
 <li><a href="#what">What you can override</a></li>
 <li><a href="#ways">Two ways</a></li>
-<li><a href="#command">The /override command</a></li>
+<li><a href="#command">The /toolkit:override command</a></li>
 <li><a href="#example">Worked example</a></li>
 <li><a href="#announce">What you see</a></li>
 <li><a href="#safety">Safety sections</a></li>
@@ -128,7 +128,7 @@
 <li><code>testing</code></li>
 <li><code>writing</code></li>
 </ul>
-<p class="section-note">The <code>frontend</code> and <code>design</code> rules are reference-only and never injected, so a rule override has nothing to replace. The content of <code>frontend</code> lives in the <code>frontend-designer</code> agent, so override that instead. <code>design</code> is an index over the <code>rules/design/</code> catalog. <code>/override</code> tells you this if you try.</p>
+<p class="section-note">The <code>frontend</code> and <code>design</code> rules are reference-only and never injected, so a rule override has nothing to replace. The content of <code>frontend</code> lives in the <code>frontend-designer</code> agent, so override that instead. <code>design</code> is an index over the <code>rules/design/</code> catalog. <code>/toolkit:override</code> tells you this if you try.</p>
 </div>
 <div class="section-head">
 <h3>Agents and skills</h3>
@@ -152,7 +152,7 @@
 </li>
 <li>
 <h3>Replace a whole file</h3>
-<p>Put a same-named copy under <code>~/.claude/</code> and edit it. <code>/override</code> makes the copy for you, or you can drop the file in by hand. There is no pointer to write or maintain.</p>
+<p>Put a same-named copy under <code>~/.claude/</code> and edit it. <code>/toolkit:override</code> makes the copy for you, or you can drop the file in by hand. There is no pointer to write or maintain.</p>
 </li>
 </ul>
 <p>Doctrine and rules take effect because the session-start hook loads them fresh each session. Agents and skills are resolved by Claude Code itself, with no hook involved, but only when called by their bare name. A copied agent or skill sits outside the plugin, so it still runs the scripts of the installed plugin, and a copied skill reads the doctrine, commands, workflows and other skills it names from there too.</p>
@@ -164,13 +164,13 @@
 <div class="wrap split">
 <div class="section-head">
 <p class="eyebrow">Step by step</p>
-<h2>The <code>/override</code> command</h2>
-<p class="section-note">Usage: <code>/override [type] [name]</code></p>
+<h2>The <code>/toolkit:override</code> command</h2>
+<p class="section-note">Usage: <code>/toolkit:override [type] [name]</code></p>
 </div>
 <div class="prose">
 <ol class="steps">
 <li>
-<p><strong>Pick the component.</strong> With no argument, <code>/override</code> lists everything you can override, grouped by type, and asks which one. With a name, such as <code>/override conventions</code>, it detects the type. A name that exists under two types needs the type first: <code>security</code> is both a doctrine file and a rule, so you run <code>/override rules security</code>.</p>
+<p><strong>Pick the component.</strong> With no argument, <code>/toolkit:override</code> lists everything you can override, grouped by type, and asks which one. With a name, such as <code>/toolkit:override conventions</code>, it detects the type. A name that exists under two types needs the type first: <code>security</code> is both a doctrine file and a rule, so you run <code>/toolkit:override rules security</code>.</p>
 </li>
 <li>
 <p><strong>It checks the name.</strong> It refuses an unknown or ambiguous name, never overwrites an override you already created, and refuses when one of your agents or skills under another file or directory name already carries that frontmatter <code>name</code>.</p>
@@ -200,14 +200,14 @@
 <p>The <code>conventions</code> doctrine file says to match the codebase's patterns, write docs first, keep comments sparse and single-line, and flag and ask before deviating. To make it yours:</p>
 <div class="terminal" role="group" aria-label="Override the conventions doctrine">
 <div class="terminal__bar"><span>Claude Code</span></div>
-<pre><code>/override conventions</code></pre>
+<pre><code>/toolkit:override conventions</code></pre>
 </div>
 <ol class="plain-list">
 <li>The command finds one component with that name, a doctrine file, and copies it to <code>~/.claude/doctrine/conventions.md</code>.</li>
 <li>You edit that file to say how you work.</li>
 <li>From the next session on, the session-start hook announces the doctrine override for <code>conventions</code>, and the model reads your copy for that concern instead of the plugin's.</li>
 </ol>
-<p>The same steps work for a rule, an agent or a skill. For <code>/override code-reviewer</code>, the copy lands at <code>~/.claude/agents/code-reviewer.md</code>, and you call it as <code>code-reviewer</code>, not <code>toolkit:code-reviewer</code>.</p>
+<p>The same steps work for a rule, an agent or a skill. For <code>/toolkit:override code-reviewer</code>, the copy lands at <code>~/.claude/agents/code-reviewer.md</code>, and you call it as <code>code-reviewer</code>, not <code>toolkit:code-reviewer</code>.</p>
 </div>
 </div>
 </section>
@@ -268,13 +268,13 @@
 <div>
 <dt><code>~/.claude/toolkit-models.json</code></dt>
 <dd>
-<p>Changes an agent's model or effort as a <code>{"model": ..., "effort": ...}</code> object per agent, without copying the agent file. <code>/setup</code> offers it, and both the <code>agent-model.sh</code> hook and the workflow runners apply it. A plan note's run options override the implementer and verifier entries for that plan.</p>
+<p>Changes an agent's model or effort as a <code>{"model": ..., "effort": ...}</code> object per agent, without copying the agent file. <code>/toolkit:setup</code> offers it, and both the <code>agent-model.sh</code> hook and the workflow runners apply it. A plan note's run options override the implementer and verifier entries for that plan.</p>
 <p class="ref__line">A copied agent freezes that agent's future updates, and it runs on the default subagent model or the session model until you add <code>model:</code> and <code>effort:</code> lines to its frontmatter.</p>
 </dd>
 </div>
 <div>
 <dt><code>TOOLKIT_CONDUCTOR_EDITS=1</code></dt>
-<dd><p>Lets the main conversation edit project files itself. Set it in the shell for one session, or for one project through <code>/setup</code> check 10, which writes it to that project's <code>.claude/settings.local.json</code>.</p></dd>
+<dd><p>Lets the main conversation edit project files itself. Set it in the shell for one session, or for one project through <code>/toolkit:setup</code> check 10, which writes it to that project's <code>.claude/settings.local.json</code>.</p></dd>
 </div>
 <div>
 <dt><code>CLAUDE_PROTECTED_BRANCHES</code></dt>

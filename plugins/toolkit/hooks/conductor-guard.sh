@@ -55,5 +55,5 @@ case "$FP" in
 esac
 [ "$GUARD" = "1" ] || exit 0
 
-jq -n '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Conductor guard: the main conversation tried to edit a project file directly. Toolkit doctrine (orchestration.md) delegates every change, however small, to a worker agent: route this edit to toolkit:implementer or to the worker already on the job. The human can allow direct conductor edits with TOOLKIT_CONDUCTOR_EDITS=1, for one session or, through /setup check 10, for one project."}}'
+jq -n '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Conductor guard: the main conversation tried to edit a project file directly. Toolkit doctrine (orchestration.md) delegates every change, however small, to a worker agent: route this edit to toolkit:implementer or to the worker already on the job. The human can allow direct conductor edits with TOOLKIT_CONDUCTOR_EDITS=1, for one session or, through /toolkit:setup check 10, for one project."}}'
 exit 0

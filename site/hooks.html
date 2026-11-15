@@ -95,7 +95,7 @@
 <dd>
 <p>Denies a direct edit to a project file by the main conversation, with a reason that routes the edit to a worker agent. Worker edits pass, and so do conductor writes outside the project and paths under <code>~/.claude/</code> or the vault. It is a workflow guard, not a security boundary.</p>
 <p class="ref__line"><span class="step-label">Matcher</span><code>Edit|Write|NotebookEdit</code></p>
-<p class="ref__line"><span class="step-label">Setting</span><code>TOOLKIT_CONDUCTOR_EDITS=1</code> is the only override: in the shell for one session, or for one project through <code>/setup</code> check 10.</p>
+<p class="ref__line"><span class="step-label">Setting</span><code>TOOLKIT_CONDUCTOR_EDITS=1</code> is the only override: in the shell for one session, or for one project through <code>/toolkit:setup</code> check 10.</p>
 </dd>
 </div>
 <div id="design-rules-reminder">

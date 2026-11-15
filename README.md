@@ -8,12 +8,12 @@ A Claude Code plugin that runs a plan-first workflow: a brief becomes a plan not
 
 Installing the plugin switches on twelve hooks in every Claude Code session, with no opt-in and no separate config. They hard-block writes to keys, lockfiles and `.git/`, hard-block a fixed list of destructive shell commands, ask before a write that looks like a credential, inject the write-time rules and a git briefing at session start, and refuse a direct file edit by the main conversation so that a worker agent makes it. [`docs/hooks.md`](docs/hooks.md) lists what each hook blocks, what it only asks, and every environment variable it honors. Read it before you trust the toolkit with a repo.
 
-The override flags are environment variables. `TOOLKIT_CONDUCTOR_EDITS=1` lets the main conversation edit project files for one session, or for one project through `/setup` check 10. `TOOLKIT_CTX_SENTINEL=0` turns off the context-size nudges, and `TOOLKIT_REMEMBER_GUARD=0` turns off the remember-pass warning. [`docs/overrides.md`](docs/overrides.md) explains how to replace any doctrine file, rule, agent or skill with your own copy.
+The override flags are environment variables. `TOOLKIT_CONDUCTOR_EDITS=1` lets the main conversation edit project files for one session, or for one project through `/toolkit:setup` check 10. `TOOLKIT_CTX_SENTINEL=0` turns off the context-size nudges, and `TOOLKIT_REMEMBER_GUARD=0` turns off the remember-pass warning. [`docs/overrides.md`](docs/overrides.md) explains how to replace any doctrine file, rule, agent or skill with your own copy.
 
 ## Quick start
 
 1. Install the plugin with the two commands under [Install](#install).
-2. Start a new Claude Code session and run `/setup`. It checks the CLI prerequisites, creates the vault config, and prints a readiness report.
+2. Start a new Claude Code session and run `/toolkit:setup`, because the plugin's commands carry the `toolkit:` prefix. It checks the CLI prerequisites, creates the vault config, and prints a readiness report.
 3. In a repo, describe a piece of work. The `crawl` skill reads it, checks it against the codebase, and recommends a route.
 4. Ask for the plan flow. It writes a plan note into your vault and stops for your approval.
 5. Approve the plan, then ask for the execute flow, and after it the ship flow.
@@ -31,7 +31,7 @@ The override flags are environment variables. `TOOLKIT_CONDUCTOR_EDITS=1` lets t
 
 ## Prerequisites
 
-The toolkit shells out to a few CLIs rather than holding any credentials of its own: gh, glab, jira-cli, jq, and python3. [`docs/prerequisites.md`](docs/prerequisites.md) says what each is for and gives the install and auth commands, including the jira token flow. After installing, `/setup` checks every prerequisite and reports what is missing.
+The toolkit shells out to a few CLIs rather than holding any credentials of its own: gh, glab, jira-cli, jq, and python3. [`docs/prerequisites.md`](docs/prerequisites.md) says what each is for and gives the install and auth commands, including the jira token flow. After installing, `/toolkit:setup` checks every prerequisite and reports what is missing.
 
 ## Install
 
@@ -44,10 +44,10 @@ If the install reports `Plugin "toolkit" not found in marketplace "shaughn-toolk
 
 ## Setup
 
-After installing, run `/setup` in any Claude Code session. It checks everything below, guides you through the vault config, and prints a readiness report.
+After installing, run `/toolkit:setup` in any Claude Code session. It checks everything below, guides you through the vault config, and prints a readiness report.
 
-- **CLI tooling**: gh, glab, jira, jq, python3. See [`docs/prerequisites.md`](docs/prerequisites.md) for what each is for and the install and auth commands. `/setup` reports the readiness of each.
-- **Planning workflow** (optional, needed only by `plan-guide` and `/topic`): plan notes and topic notes are written into a vault you control. Any folder of markdown works, and no note-taking app is required. If you have none yet, create an empty folder in any location. `/setup` then creates `~/.claude/toolkit-vault.json` from the shipped template, and every script and skill resolves your vault location and root folder from that file. An install that already holds `~/.claude/obsidian-sync.json` keeps working, because every reader falls back to it when `~/.claude/toolkit-vault.json` is absent.
+- **CLI tooling**: gh, glab, jira, jq, python3. See [`docs/prerequisites.md`](docs/prerequisites.md) for what each is for and the install and auth commands. `/toolkit:setup` reports the readiness of each.
+- **Planning workflow** (optional, needed only by `plan-guide` and `/toolkit:topic`): plan notes and topic notes are written into a vault you control. Any folder of markdown works, and no note-taking app is required. If you have none yet, create an empty folder in any location. `/toolkit:setup` then creates `~/.claude/toolkit-vault.json` from the shipped template, and every script and skill resolves your vault location and root folder from that file. An install that already holds `~/.claude/obsidian-sync.json` keeps working, because every reader falls back to it when `~/.claude/toolkit-vault.json` is absent.
 
 ## Updating
 
@@ -76,7 +76,7 @@ claude plugin update toolkit@shaughn-toolkit
 
 An update finds nothing new until the next version is released, because a merge to `main` alone does not change the version. Releases are listed at [github.com/shaughnlgh/claude-toolkit/releases](https://github.com/shaughnlgh/claude-toolkit/releases) and on the site's [release notes](https://shaughnlgh.github.io/claude-toolkit/release-notes.html) page.
 
-After any update, auto or manual, run `/setup` to confirm you are current. It reports the installed version and re-checks that every capability is still ready.
+After any update, auto or manual, run `/toolkit:setup` to confirm you are current. It reports the installed version and re-checks that every capability is still ready.
 
 ## Verifying
 
@@ -84,7 +84,7 @@ After any update, auto or manual, run `/setup` to confirm you are current. It re
 
 ### Testing a branch
 
-`claude --plugin-dir <checkout>/plugins/toolkit` replaces the installed toolkit for that session, and hooks, skills, commands, and agents each resolve the plugin root from that copy. The global CLAUDE.md lines that `/setup` writes resolve the installed root only for calls outside a toolkit skill, command, or agent, and `/setup` offers the current lines to a user whose block predates them. The script allow rules match only the installed cache path, so a script call in such a session asks or goes to the classifier.
+`claude --plugin-dir <checkout>/plugins/toolkit` replaces the installed toolkit for that session, and hooks, skills, commands, and agents each resolve the plugin root from that copy. The global CLAUDE.md lines that `/toolkit:setup` writes resolve the installed root only for calls outside a toolkit skill, command, or agent, and `/toolkit:setup` offers the current lines to a user whose block predates them. The script allow rules match only the installed cache path, so a script call in such a session asks or goes to the classifier.
 
 ## Contributing and security
 

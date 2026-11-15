@@ -38,19 +38,20 @@
 <section class="month" aria-labelledby="m-2026-11">
 <h2 id="m-2026-11"><time datetime="2026-11">November 2026</time></h2>
 <ul class="changes">
+<li id="v1.0.1"><span class="tag tag--block">v1.0.1</span> <time datetime="2026-11-15">15 November 2026</time>. The docs, the site, the bug report template and the plugin's own messages name each command and skill with the plugin's <code>toolkit:</code> prefix, as in <code>/toolkit:setup</code>, which is the name a user types. <code>/toolkit:setup</code> offers to add <code>topic-index</code> to an older Toolkit Scripts block in the global CLAUDE.md.</li>
 <li id="v1.0.0"><span class="tag tag--block">v1.0.0</span> <time datetime="2026-11-14">14 November 2026</time>. The first numbered release. The plugin now carries a version number, and an install receives changes when a new version is released.</li>
-<li>The <code>/obsidian-topic</code> command is now <code>/topic</code>, and the old name still works as a pointer. The vault config file is now <code>~/.claude/toolkit-vault.json</code>, and an existing <code>obsidian-sync.json</code> keeps working. <code>vault-fs.sh topic-index</code> writes the vault's topic index, and the repository has a project site, <code>CONTRIBUTING.md</code> and <code>SECURITY.md</code>.</li>
+<li>The <code>/toolkit:obsidian-topic</code> command is now <code>/toolkit:topic</code>, and the old name still works as a pointer. The vault config file is now <code>~/.claude/toolkit-vault.json</code>, and an existing <code>obsidian-sync.json</code> keeps working. <code>vault-fs.sh topic-index</code> writes the vault's topic index, and the repository has a project site, <code>CONTRIBUTING.md</code> and <code>SECURITY.md</code>.</li>
 <li>The planning grill is a fixed step of every first-draft plan flow, run between a discovery launch and a draft launch, and it states the outcome of the work before its first question.</li>
-<li><code>/setup</code> asks its questions with a recommended answer first, and the crawl runs the grill on the route that splits work into several plans.</li>
+<li><code>/toolkit:setup</code> asks its questions with a recommended answer first, and the crawl runs the grill on the route that splits work into several plans.</li>
 <li>One plan can span several sibling repos and nested module repos, and the ship flow merges no repo until every repo has a green pipeline and no open thread.</li>
 <li>A seat run that finds the main checkout taken joins a queue and waits its turn instead of stopping.</li>
 <li>Every execute run and seat run writes an evidence note beside the plan note, and plan note changes send only the changed lines.</li>
 <li>The crawl session is the parent of the work it routes, and it ends the plan route with a plain-text offer to run the plan flow.</li>
 <li>Planning asks one ticket question before any branch or plan name is derived: use a ticket, create one, or go without.</li>
 <li>The execute runner indexes the plan note once, and each worker reads only the lines of the plan its job needs.</li>
-<li><code>/setup</code> offers the auto mode allow rules for each source control host and a per-project override for the conductor guard, each only on a typed reply that names it.</li>
+<li><code>/toolkit:setup</code> offers the auto mode allow rules for each source control host and a per-project override for the conductor guard, each only on a typed reply that names it.</li>
 <li>In a repo with no CI configuration, the ship flow stops waiting for a pipeline after two minutes, and a review bot that says it did not review is reported as such.</li>
-<li>The nits run option decides whether the review loops fix small findings, and <code>/setup</code> records the review bot logins for each host.</li>
+<li>The nits run option decides whether the review loops fix small findings, and <code>/toolkit:setup</code> records the review bot logins for each host.</li>
 <li>The ship flow asks nothing after the run options, works bot review threads in up to three rounds, and cleans up the branch and the worktree after a merge.</li>
 <li>After plan approval the session asks in plain text whether to run the execute flow here, open a child session, or stop, and a child reports to its parent by message.</li>
 <li>The execute flow asks nothing after the run options, and a seat run finishes the end-to-end steps that a worktree run deferred.</li>
@@ -65,7 +66,7 @@
 <ul class="changes">
 <li>The verifier's verdict, not the score, decides which review findings get fixed.</li>
 <li>Session start and the execute flow report which session holds a repo's main checkout.</li>
-<li><code>/setup</code> detects and offers the git allow rules that auto mode needs.</li>
+<li><code>/toolkit:setup</code> detects and offers the git allow rules that auto mode needs.</li>
 <li>The skills for hand-run planning and execution are renamed <code>plan-guide</code> and <code>execution-guide</code>.</li>
 <li>The ship flow waits on a pipeline or a bot review in the background and relaunches itself.</li>
 <li>Each execute runner worker receives only the plan sections its job acts on.</li>
@@ -112,7 +113,7 @@
 <section class="month" aria-labelledby="m-2026-07">
 <h2 id="m-2026-07"><time datetime="2026-07">July 2026</time></h2>
 <ul class="changes">
-<li>The setup command is renamed <code>/setup</code>, and it offers auto-update.</li>
+<li>The setup command is renamed <code>/toolkit:setup</code>, and it offers auto-update.</li>
 <li>A context sentinel and the conductor guard keep the main conversation delegating its work.</li>
 <li>A read-only ticket skill turns a tracker ticket into a brief.</li>
 <li>The crawl skill reads new work first and routes it, and the doctrine is injected again after a compaction.</li>

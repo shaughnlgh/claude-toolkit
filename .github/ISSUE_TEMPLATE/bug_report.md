@@ -18,9 +18,9 @@ labels: bug
 2.
 3.
 
-## Output of /setup
+## Output of /toolkit:setup
 
-<!-- Start a new Claude Code session, run /setup and paste its readiness report. Remove any path or name you do not want to publish. -->
+<!-- Start a new Claude Code session, run /toolkit:setup and paste its readiness report. Remove any path or name you do not want to publish. -->
 
 ```
 ```

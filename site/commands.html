@@ -32,7 +32,7 @@
 <div class="wrap">
 <p class="crumbs"><a href="index.html">Home</a> / Reference / Commands</p>
 <h1>Slash commands</h1>
-<p class="lead">The toolkit ships 8 slash commands in two groups: setup and vault helpers, and thinking tools you run on demand. You type a command in a Claude Code session, with or without arguments.</p>
+<p class="lead">The toolkit ships 8 slash commands in two groups: setup and vault helpers, and thinking tools you run on demand. You type a command in a Claude Code session, with or without arguments. Each command carries the plugin's <code>toolkit:</code> prefix, as in <code>/toolkit:setup</code>.</p>
 <nav aria-label="On this page">
 <ul class="jump">
 <li><a href="#setup-vault">Setup and vault <span class="jump__n">4</span></a></li>
@@ -51,40 +51,40 @@
 </div>
 <dl class="ref">
 <div id="setup">
-<dt><code>/setup</code></dt>
+<dt><code>/toolkit:setup</code></dt>
 <dd>
 <p>Checks this machine's toolkit setup in order and guides you through anything missing: plugin state, the vault config, the CLI tools, optional permission and environment offers, leftover local copies that conflict with the plugin, worker models and effort, review bot logins, the per-project conductor-guard override, and the ticket tracker. It ends with a readiness report and a one-line verdict.</p>
 <p class="ref__line"><span class="step-label">Run</span>On first setup on a new machine, after a plugin update, or when something in the toolkit seems misconfigured. It is safe to re-run.</p>
 <p class="ref__line"><span class="step-label">Changes</span>Nothing without your answer to the question that names the entry or block.</p>
-<p class="ref__example">/setup</p>
+<p class="ref__example">/toolkit:setup</p>
 </dd>
 </div>
 <div id="topic">
-<dt><code>/topic</code></dt>
+<dt><code>/toolkit:topic</code></dt>
 <dd>
 <p>Creates or updates one topic note in the vault, the distilled knowledge layer for stable concepts such as a subsystem or a recurring pattern. A topic note is a claim as of its <code>verified</code> timestamp, so at least one source reference is spot-checked against current code before the note is relied on, and the code wins when they disagree.</p>
-<p class="ref__line"><span class="step-label">Run</span><code>/topic &lt;Topic Name&gt; [repo]</code>, any time a topic note needs creating or refreshing outside the normal flow. Inside the flow, <code>plan-guide</code> runs the same process.</p>
+<p class="ref__line"><span class="step-label">Run</span><code>/toolkit:topic &lt;Topic Name&gt; [repo]</code>, any time a topic note needs creating or refreshing outside the normal flow. Inside the flow, <code>plan-guide</code> runs the same process.</p>
 <p class="ref__line"><span class="step-label">Changes</span>Files under the vault's root folder, then it rewrites the topic index with <code>vault-fs.sh topic-index</code>. Never project source code or git state. In repo mode, and only after you confirm, it also writes one context doc under <code>docs/context/</code> in the project repo.</p>
-<p class="ref__example">/topic "Payment Gateway" my-repo</p>
-<p class="ref__example">/topic "Caching Strategy"</p>
+<p class="ref__example">/toolkit:topic "Payment Gateway" my-repo</p>
+<p class="ref__example">/toolkit:topic "Caching Strategy"</p>
 </dd>
 </div>
 <div id="obsidian-topic">
-<dt><code>/obsidian-topic</code></dt>
+<dt><code>/toolkit:obsidian-topic</code></dt>
 <dd>
-<p>The old name of <code>/topic</code>. It forwards its arguments to <code>/topic</code>.</p>
+<p>The old name of <code>/toolkit:topic</code>. It forwards its arguments to <code>/toolkit:topic</code>.</p>
 </dd>
 </div>
 <div id="override">
-<dt><code>/override</code></dt>
+<dt><code>/toolkit:override</code></dt>
 <dd>
 <p>Copies a toolkit doctrine file, rule, agent or skill into your global <code>~/.claude/</code> so your version wins for that concern, without editing the plugin. It refuses unknown or ambiguous names and never overwrites an override you already have.</p>
-<p class="ref__line"><span class="step-label">Run</span><code>/override [type] [name]</code>. With no argument it lists everything overridable. With a name it detects the type. Give the type too only for an ambiguous name.</p>
+<p class="ref__line"><span class="step-label">Run</span><code>/toolkit:override [type] [name]</code>. With no argument it lists everything overridable. With a name it detects the type. Give the type too only for an ambiguous name.</p>
 <p class="ref__line"><span class="step-label">Changes</span>Writes into <code>~/.claude/</code> only. Nothing in the plugin, nothing in git.</p>
-<p class="ref__example">/override</p>
-<p class="ref__example">/override conventions</p>
-<p class="ref__example">/override rules security</p>
-<p class="ref__example">/override code-reviewer</p>
+<p class="ref__example">/toolkit:override</p>
+<p class="ref__example">/toolkit:override conventions</p>
+<p class="ref__example">/toolkit:override rules security</p>
+<p class="ref__example">/toolkit:override code-reviewer</p>
 <p class="ref__line"><a class="text-link" href="overrides.html">How overrides work</a></p>
 </dd>
 </div>
@@ -97,39 +97,39 @@
 <div class="section-head">
 <p class="eyebrow">4 commands</p>
 <h2>Thinking tools</h2>
-<p class="section-note">Reflection and red-team commands. None of them changes files or git state. <code>/mentor</code> is a mode that lasts for the session, and the rest are one-shot.</p>
+<p class="section-note">Reflection and red-team commands. None of them changes files or git state. <code>/toolkit:mentor</code> is a mode that lasts for the session, and the rest are one-shot.</p>
 </div>
 <dl class="ref">
 <div id="glass-box">
-<dt><code>/glass-box</code></dt>
+<dt><code>/toolkit:glass-box</code></dt>
 <dd>
 <p>Audits the provenance of the last answer, or the one about to be given, and surfaces exactly three things: the load-bearing fact, tagged verified or derived; the unchecked assumption, naming the place not looked; and an offer to verify the derived fact now, or the answer restated with the assumption inline.</p>
-<p class="ref__line"><span class="step-label">Run</span><code>/glass-box [what to audit]</code>, when an answer feels too confident, an action is hard to undo, or you want the load-bearing assumption surfaced before you act.</p>
-<p class="ref__example">/glass-box the migration estimate you just gave</p>
+<p class="ref__line"><span class="step-label">Run</span><code>/toolkit:glass-box [what to audit]</code>, when an answer feels too confident, an action is hard to undo, or you want the load-bearing assumption surfaced before you act.</p>
+<p class="ref__example">/toolkit:glass-box the migration estimate you just gave</p>
 </dd>
 </div>
 <div id="mentor">
-<dt><code>/mentor</code></dt>
+<dt><code>/toolkit:mentor</code></dt>
 <dd>
 <p>Switches on a learning mode for the rest of the session. It explains plainly first, then asks one deeper question after each step, and moves on only when you explain the idea back in your own words. It runs until you say stop.</p>
-<p class="ref__line"><span class="step-label">Run</span><code>/mentor [topic]</code>, when you want to learn a concept rather than only get the answer.</p>
-<p class="ref__example">/mentor how database indexes actually work</p>
+<p class="ref__line"><span class="step-label">Run</span><code>/toolkit:mentor [topic]</code>, when you want to learn a concept rather than only get the answer.</p>
+<p class="ref__example">/toolkit:mentor how database indexes actually work</p>
 </dd>
 </div>
 <div id="cold-read">
-<dt><code>/cold-read</code></dt>
+<dt><code>/toolkit:cold-read</code></dt>
 <dd>
 <p>Reads back the unstated assumptions behind how you have been talking in the conversation: the premise you treat as fact, the frame that hides options, and the tell you would not endorse out loud. It works only from what you said.</p>
-<p class="ref__line"><span class="step-label">Run</span><code>/cold-read [decision or thread]</code>, when a direction feels obvious, or before you commit to one.</p>
-<p class="ref__example">/cold-read the way I've scoped this migration</p>
+<p class="ref__line"><span class="step-label">Run</span><code>/toolkit:cold-read [decision or thread]</code>, when a direction feels obvious, or before you commit to one.</p>
+<p class="ref__example">/toolkit:cold-read the way I've scoped this migration</p>
 </dd>
 </div>
 <div id="mirror-test">
-<dt><code>/mirror-test</code></dt>
+<dt><code>/toolkit:mirror-test</code></dt>
 <dd>
 <p>Reads your last message back the way a stranger would hear it, with no benefit of the doubt: how it lands, where intent and wording come apart, and the one change that closes the gap.</p>
-<p class="ref__line"><span class="step-label">Run</span><code>/mirror-test [message or text]</code>, before you send something that matters, such as a review comment, a message to a colleague or a ticket.</p>
-<p class="ref__example">/mirror-test the PR review I just drafted</p>
+<p class="ref__line"><span class="step-label">Run</span><code>/toolkit:mirror-test [message or text]</code>, before you send something that matters, such as a review comment, a message to a colleague or a ticket.</p>
+<p class="ref__example">/toolkit:mirror-test the PR review I just drafted</p>
 </dd>
 </div>
 </dl>

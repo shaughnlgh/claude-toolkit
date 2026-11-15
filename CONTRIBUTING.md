@@ -2,7 +2,7 @@
 
 ## Bug reports
 
-Report a bug by opening an issue with the bug report template. Include the output of `/setup`, your platform and your Claude Code version, because most problems trace back to a missing prerequisite or a vault config the toolkit cannot read.
+Report a bug by opening an issue with the bug report template. Include the output of `/toolkit:setup`, your platform and your Claude Code version, because most problems trace back to a missing prerequisite or a vault config the toolkit cannot read.
 
 Report a security vulnerability through [`SECURITY.md`](SECURITY.md), never in a public issue.
 

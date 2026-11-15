@@ -2,7 +2,7 @@
 
 The toolkit ships a small set of scripts under `plugins/toolkit/scripts/`. Most are plain bash and stdlib-only Python with no dependencies. One is a vendored Node design-detector under `scripts/design-detector/` (the one piece of third-party code here — see below). Skills and the user invoke them directly rather than reimplementing the logic inline.
 
-All of them are called through the plugin root, resolved once and reused. A skill, command, or agent names the root of the copy Claude Code loaded, so a `claude --plugin-dir` session runs that copy's scripts. A `/override` copy of a skill or agent sits outside the plugin, so it runs the installed root's scripts. A shell outside them resolves the installed root:
+All of them are called through the plugin root, resolved once and reused. A skill, command, or agent names the root of the copy Claude Code loaded, so a `claude --plugin-dir` session runs that copy's scripts. A `/toolkit:override` copy of a skill or agent sits outside the plugin, so it runs the installed root's scripts. A shell outside them resolves the installed root:
 
 ```bash
 PLUGIN_ROOT="$(jq -r '.plugins["toolkit@shaughn-toolkit"][0].installPath' ~/.claude/plugins/installed_plugins.json)"
@@ -20,7 +20,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved.
 | `seat-check.sh` | Reports which live Claude sessions hold a repo's main checkout, with its branch and dirty count | Read-only; never writes a file; reads sessions through `claude agents --json`; needs only `jq` and `git` |
 | `seat-queue.sh` | Keeps the queue of sessions that wait for a repo's main checkout, and waits for a session's turn | Writes only `toolkit-seat-queue/` in the git common dir: one file per joined session, empty while the session waits and holding `seated` once its turn came, one `.miss-<sessionId>` marker per session that one read missed, the `.grant` lock directory while a grant step or a leave runs, and `.grant.break` while a contender removes a stale lock; removes only its own entry and the entries of sessions that two reads missed; reads liveness and the seat through `seat-check.sh`; needs `git`, `stat`, and the `jq` that `seat-check.sh` needs |
 | `watch-mr.sh` | Waits on one GitLab MR or GitHub PR until its pipeline settles, a bot review lands, or a bot review in progress ends, then prints one status line | Reads only, through `gh` and `glab`, which hold their own auth; never reads or prints a token; validates every argument; exits on a wall-clock bound |
-| `override.sh` | Copy a plugin doctrine, rule, agent, or skill into `~/.claude/` to override it (drives `/override`) | Name only (no paths); refuses unknown/ambiguous names; won't clobber an existing override |
+| `override.sh` | Copy a plugin doctrine, rule, agent, or skill into `~/.claude/` to override it (drives `/toolkit:override`) | Name only (no paths); refuses unknown/ambiguous names; won't clobber an existing override |
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
 | `validate-plan.py` | Validates a plan note against the plan-guide contract | Read-only — never edits the note; no network, no config, stdlib only |
 | `plan-index.py` | Indexes a plan note for the execute runner: its sha256, the line of every section heading, and each step's heading and start line | Read-only, stdlib only, prints one JSON object with no section text, exits 1 on a file that is not UTF-8 |
@@ -235,7 +235,7 @@ Tests: `bash plugins/toolkit/scripts/tests/watch-mr/run-tests.sh` (95 behavior c
 
 ## override.sh
 
-Backs the `/override` command. Copies a plugin **doctrine, rule, agent, or skill** into `~/.claude/` so your copy overrides the plugin's for that concern.
+Backs the `/toolkit:override` command. Copies a plugin **doctrine, rule, agent, or skill** into `~/.claude/` so your copy overrides the plugin's for that concern.
 
 Invoke:
 
@@ -370,7 +370,7 @@ Tests: `bash plugins/toolkit/scripts/tests/slice-capture/run-tests.sh` (18 behav
 
 ## vault-index.py
 
-Writes `<vault_path>/<root_folder>/INDEX.md`, the topic index that `topic-recall.py` reads. The `/topic` command and the remember pass run it after they create, update, move or remove a topic note.
+Writes `<vault_path>/<root_folder>/INDEX.md`, the topic index that `topic-recall.py` reads. The `/toolkit:topic` command and the remember pass run it after they create, update, move or remove a topic note.
 
 Invoke:
 

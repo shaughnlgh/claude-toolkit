@@ -232,7 +232,7 @@ for f in "$P"/skills/*/SKILL.md; do
   done < <(grep -E '(plugin root|`<plugin-root>`) is `\.\./\.\.` from this skill' "$f")
 done
 if [ "$pr_n" -gt 0 ] && [ -z "$pr_bad" ]; then ok "each of the ${pr_n} skill plugin-root sentences states its precedence and falls back to the installed root when ../.. holds no plugin manifest"; else no "skill plugin-root sentence without the precedence sentence or the plugin manifest fallback (${pr_n} found) ->${pr_bad}"; fi
-# A /override copy reaches plugin files only through <plugin-root>, so ../ survives only in the plugin-root sentence.
+# A /toolkit:override copy reaches plugin files only through <plugin-root>, so ../ survives only in the plugin-root sentence.
 bare_rel="$(cd "$P" && grep -nE '(^|[^.])\.\./' skills/*/SKILL.md | sed -e 's/`\.\.\/\.\.` from this skill//g' -e 's/`\.\.\/\.\.\/\.claude-plugin\/plugin\.json` does not exist//g' | grep -E '(^|[^.])\.\./' | cut -d: -f1,2 | tr '\n' ' ')"
 [ -z "$bare_rel" ] && ok "no skill line outside its plugin-root sentence reaches a plugin file by a bare ../.. or ../<name>/ path" || no "skill line reaches a plugin file by a bare ../.. or ../<name>/ path instead of <plugin-root>: $bare_rel"
 fd_blk="$(sed -n '/^```bash$/,/^```$/p' "$P/agents/frontend-designer.md")"
@@ -313,12 +313,12 @@ if [[ "$sr_sec" == *'seat-queue.sh wait'* ]] && [[ "$sr_sec" == *'seat-queue.sh 
 if [[ "$sr_sec" == *'<parent flag>'* ]] && [[ "$sr_sec" == *'PARENT'* ]] && [[ "$sr_sec" == *'starts no watcher'* ]] && [[ "$sr_sec" == *'runs the seat run itself, or moves into a linked worktree'* ]] && grep -qF 'starts no watcher' "$P/doctrine/orchestration.md" && grep -qF 'starts no watcher' "$P/skills/plan-guide/SKILL.md"; then ok "the seat run starts no watcher and stops when its parent holds the main checkout, and doctrine and plan-guide say so"; else no "the parent stop is missing from execute-flow section 11, orchestration.md or plan-guide"; fi
 if grep -qF 'scripts/seat-queue.sh *)' "$P/commands/setup.md" && grep -qF 'scripts/seat-queue.sh <join|leave|list|wait>' "$P/commands/setup.md"; then ok "setup offers the prompt-free seat-queue rule and its usage line"; else no "setup lacks the seat-queue allow rule or its usage line"; fi
 su_rules="$(sed -n '/^## Rules$/,$p' "$P/commands/setup.md")"
-su_doc="$(sed -n '/^### `\/setup`$/,/^### `\/topic`$/p' "$ROOT/docs/commands.md")"
+su_doc="$(sed -n '/^### `\/toolkit:setup`$/,/^### `\/toolkit:topic`$/p' "$ROOT/docs/commands.md")"
 su_miss=""
 for t in 'AskUserQuestion' '(Recommended)' 'yes <name>' 'pending (human)' 'protect-files.sh'; do [[ "$su_rules" == *"$t"* ]] || su_miss="${su_miss} rules:'${t}'"; done
 for t in 'AskUserQuestion' 'yes <name>' 'pending (human)'; do [[ "$su_doc" == *"$t"* ]] || su_miss="${su_miss} docs:'${t}'"; done
 grep -qF 'yes <name>' "$P/doctrine/git-safety.md" || su_miss="${su_miss} git-safety:'yes <name>'"
-for t in 'Toolkit Scripts watch-mr line' 'replace Own PR Merge' 'replace Own MR Merge' 'rewrite repository environment entries'; do grep -qF "$t" "$P/commands/setup.md" && [[ "$su_doc" == *"$t"* ]] || su_miss="${su_miss} offer:'${t}'"; done
+for t in 'Toolkit Scripts watch-mr line' 'Toolkit Scripts topic-index line' 'replace Own PR Merge' 'replace Own MR Merge' 'rewrite repository environment entries'; do grep -qF "$t" "$P/commands/setup.md" && [[ "$su_doc" == *"$t"* ]] || su_miss="${su_miss} offer:'${t}'"; done
 [ -z "$su_miss" ] && ok "setup's Rules, its doc and git-safety state the yes <name> line, the Rules and doc the question form and the other-session rule, the Rules the file guard confirm, and setup and its doc name the new offers" || no "setup question wording missing:${su_miss}"
 su_old=""
 [[ "$su_rules" == *'Never ask through AskUserQuestion'* ]] && su_old="${su_old} rules:'Never ask through AskUserQuestion'"
@@ -514,7 +514,7 @@ printf '{"permissions":{"defaultMode":"auto","allow":["Bash(git push:*)"]},"auto
 amout="$(echo '{"source":"startup"}' | HOME="$amh" bash "$P/hooks/session-start.sh" 2>/dev/null)"
 want "session-start announces missing auto mode git rules" "$amout" "lacks these allow rules: Bash(git add:*) Bash(git commit:*)"
 want "session-start announces an environment block that omits this repo's host" "$amout" "does not name this repo's remote host"
-want "session-start status line points auto mode gaps at /setup" "$amout" "auto mode: classifier settings incomplete, run /setup"
+want "session-start status line points auto mode gaps at /toolkit:setup" "$amout" "auto mode: classifier settings incomplete, run /toolkit:setup"
 printf '{"permissions":{"defaultMode":"auto"},"autoMode":{"environment":["x"],"allow":["Own PR Merge: x"],"soft_deny":["y"],"hard_deny":["z"]}}\n' > "$amh/.claude/settings.json"
 amout="$(echo '{"source":"startup"}' | HOME="$amh" bash "$P/hooks/session-start.sh" 2>/dev/null)"
 want "session-start names every autoMode array without \$defaults" "$amout" 'no $defaults entry: environment allow soft_deny hard_deny.'
