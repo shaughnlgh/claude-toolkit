@@ -5,7 +5,7 @@ argument-hint: [decision or thread to focus on]
 
 # Cold Read
 
-Read back the unstated assumptions behind how I have been talking to you in this conversation. The blind-spot check: surface what I am taking for granted without realizing it. Invoke it when a direction feels obvious, or before committing to one, to catch the premises I never examined. Where `/mirror-test` checks how my words land, this checks the premises underneath them.
+Read back the unstated assumptions behind how I have been talking to you in this conversation. The blind-spot check: surface what I am taking for granted without realizing it. Invoke it when a direction feels obvious, or before committing to one, to catch the premises I never examined. Where `/toolkit:mirror-test` checks how my words land, this checks the premises underneath them.
 
 ## Usage
 

@@ -59,7 +59,7 @@
 <ul class="tally full" aria-label="What the plugin ships">
 <li><span class="tally__n">14</span> <span class="tally__label"><a href="agents.html">worker agents <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Make every file change and report back.</span></li>
 <li><span class="tally__n">20</span> <span class="tally__label"><a href="skills.html">skills <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Including <code>crawl</code> and <code>plan-guide</code>.</span></li>
-<li><span class="tally__n">8</span> <span class="tally__label"><a href="commands.html">slash commands <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Including <code>/setup</code> and <code>/topic</code>.</span></li>
+<li><span class="tally__n">8</span> <span class="tally__label"><a href="commands.html">slash commands <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Including <code>/toolkit:setup</code> and <code>/toolkit:topic</code>.</span></li>
 <li><span class="tally__n">12</span> <span class="tally__label"><a href="hooks.html">hooks <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Switched on in every session at install.</span></li>
 <li><span class="tally__n">4</span> <span class="tally__label"><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/workflows.md">workflows <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Including <code>plan-builder</code>, <code>execute-runner</code> and <code>ship-runner</code>.</span></li>
 </ul>
@@ -185,12 +185,12 @@
 </div>
 <div class="prose">
 <p class="lead">The doctrine, rules, agents and skills are defaults, not law. When your own config disagrees, yours wins, so you bend the toolkit to how you and your team work instead of forking it.</p>
-<p>Put a same-named copy under your global <code>~/.claude/</code>, or let <code>/override</code> make the copy for you, then edit it. Most specific wins: project config beats your global config, which beats the plugin's defaults. The session-start hook announces every active override, so a change is never silent. The safety sections may be tightened, never loosened.</p>
+<p>Put a same-named copy under your global <code>~/.claude/</code>, or let <code>/toolkit:override</code> make the copy for you, then edit it. Most specific wins: project config beats your global config, which beats the plugin's defaults. The session-start hook announces every active override, so a change is never silent. The safety sections may be tightened, never loosened.</p>
 <div class="terminal" role="group" aria-label="Override example">
 <div class="terminal__bar"><span>Claude Code</span></div>
-<pre><code>/override conventions
-/override rules security
-/override code-reviewer</code></pre>
+<pre><code>/toolkit:override conventions
+/toolkit:override rules security
+/toolkit:override code-reviewer</code></pre>
 </div>
 <p><a class="button button--secondary" href="overrides.html">How overrides work</a></p>
 </div>
@@ -213,7 +213,7 @@
 </div>
 </li>
 <li>
-<p>Then start a new Claude Code session and run <code>/setup</code>. It checks the CLI prerequisites (gh, glab, jira-cli, jq and python3), creates the vault config, and prints a readiness report. <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/prerequisites.md">docs/prerequisites.md</a> gives the install and auth command for each CLI.</p>
+<p>Then start a new Claude Code session and run <code>/toolkit:setup</code>. It checks the CLI prerequisites (gh, glab, jira-cli, jq and python3), creates the vault config, and prints a readiness report. <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/prerequisites.md">docs/prerequisites.md</a> gives the install and auth command for each CLI.</p>
 </li>
 </ol>
 <aside aria-labelledby="platforms">

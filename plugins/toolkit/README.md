@@ -11,7 +11,7 @@ The main chat is a **conductor** that plans, delegates, and accepts; **worker ag
 - **Workers are leaf nodes.** They carry explicit tool allowlists without the Agent tool, so they cannot spawn sub-agents; blockers bubble up to the conductor. This killed a real failure mode: recursive agent trees that burned tokens until they died.
 - **Contracts over tools.** The planning workflow defines an artifact contract (plan note frontmatter, naming, lifecycle). Any tooling that visualizes or automates plans consumes that contract; the workflow never depends on the tooling.
 - **Rules are write-time law; reviewer agents are review-time enforcement** of the same sins. Complementary, not redundant.
-- **Everything consent-gated.** `/setup` changes nothing without an explicit yes; hooks are listed transparently in the root README; the plugin never self-privileges (no permission self-grants, no prompt-skipping hooks — the one documented lever for that was deliberately rejected).
+- **Everything consent-gated.** `/toolkit:setup` changes nothing without an explicit yes; hooks are listed transparently in the root README; the plugin never self-privileges (no permission self-grants, no prompt-skipping hooks — the one documented lever for that was deliberately rejected).
 - **Overridable by design.** Closest scope wins: personal global config overrides doctrine; repo-local rules override distributed rules. Disagreement is solved by overriding locally or proposing a change upstream — never by forking silently.
 
 ## Verification culture

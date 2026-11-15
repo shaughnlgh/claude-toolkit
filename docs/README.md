@@ -8,7 +8,7 @@ Every page under `docs/`, with what each covers. The root [`README.md`](../READM
 - [`skills.md`](skills.md): the skills, what each does and when it fires.
 - [`brief-template.md`](brief-template.md): the shape of the brief that opens a piece of work.
 - [`agents.md`](agents.md): the 14 worker agents and the conductor and leaf-worker model.
-- [`commands.md`](commands.md): the eight slash commands, among them `/setup`, `/topic`, `/override` and the thinking tools.
+- [`commands.md`](commands.md): the eight slash commands, among them `/toolkit:setup`, `/toolkit:topic`, `/toolkit:override` and the thinking tools.
 - [`hooks.md`](hooks.md): the twelve hooks that run once the plugin is installed, with no opt-in: what each blocks, what it only asks, its environment variables, and how it fails safe.
 - [`rules.md`](rules.md): the write-time rules injected into every session and every worker.
 - [`scripts.md`](scripts.md): the shipped scripts and their guardrails.
@@ -18,7 +18,7 @@ Every page under `docs/`, with what each covers. The root [`README.md`](../READM
 
 - [`../plugins/toolkit/README.md`](../plugins/toolkit/README.md): the conductor-and-workers model and the design decisions behind it.
 - [`../plugins/toolkit/CLAUDE.md`](../plugins/toolkit/CLAUDE.md): the doctrine index, one concern per file under [`doctrine/`](../plugins/toolkit/doctrine).
-- [`overrides.md`](overrides.md): how to replace any doctrine file, rule, agent or skill with your own copy, and how `/override` works.
+- [`overrides.md`](overrides.md): how to replace any doctrine file, rule, agent or skill with your own copy, and how `/toolkit:override` works.
 - [`context-economics.md`](context-economics.md): how prompt-cache mechanics drive cost, and the practices and doctrine that follow from it.
 - [`../VERIFY.md`](../VERIFY.md): the live-session verification checklist. The mechanical battery is `verify.sh`.
 - [`../REVIEW.md`](../REVIEW.md): the review rules the review panel reads from the default branch, and the high-risk paths that pick the full six-reviewer panel.

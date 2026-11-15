@@ -17,14 +17,14 @@ Arguments are the topic name, optionally followed by a repo hint.
 
 Examples:
 
-- `/topic Stripe Payments`
-- `/topic 3D Secure my-shop-repo`
-- `/topic Mobile Safari Tab Suspension`
+- `/toolkit:topic Stripe Payments`
+- `/toolkit:topic 3D Secure my-shop-repo`
+- `/toolkit:topic Mobile Safari Tab Suspension`
 
 If no topic name is provided, stop and report:
 
     error: topic name is required.
-    usage: /topic <Topic Name> [repo]
+    usage: /toolkit:topic <Topic Name> [repo]
 
 ## What topic notes are
 
@@ -128,7 +128,7 @@ A topic note is a claim about the world at its `verified` time. A blank `verifie
 
 - During planning: topic recall runs first, and every topic linked from the plan's Related Topics either resolves to an existing note or gets a stub created.
 - During execution: workers return durable facts as Topic note material, and the remember pass routes them once per slice (§ Remember pass).
-- Ad hoc: `/topic <Topic Name>` creates or updates a single topic note using the full process below.
+- Ad hoc: `/toolkit:topic <Topic Name>` creates or updates a single topic note using the full process below.
 - Topic notes are the cross-plan knowledge layer. Reviewing and maintaining them across plans is part of the work; tooling may assist.
 - Keep the bar for new topics at stable recurring concepts. One-off details belong in the plan note, not a topic.
 

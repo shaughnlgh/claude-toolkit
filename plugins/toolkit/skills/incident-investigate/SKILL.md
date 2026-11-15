@@ -2,7 +2,7 @@
 name: incident-investigate
 description: >-
   Root-cause investigation for a production incident. Use only on explicit request:
-  "investigate this incident", "/incident-investigate", or a pasted production alert
+  "investigate this incident", "/toolkit:incident-investigate", or a pasted production alert
   with "find the cause". Input is an incident description, a ticket key, or a list of
   named items (record ids, request ids, transaction ids). Fences scope to the question asked,
   checks evidence-source readiness before spawning anything, gathers evidence in

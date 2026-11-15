@@ -8,7 +8,7 @@ Most specific wins: project config beats your global config beats the plugin's d
 
 ## What you can override, and how each takes effect
 
-You override by placing a same-named copy under your global `~/.claude/`. The `/override` command does the copy for you (below), or you can drop the file in by hand.
+You override by placing a same-named copy under your global `~/.claude/`. The `/toolkit:override` command does the copy for you (below), or you can drop the file in by hand.
 
 | Type | Put your copy at | How it wins |
 |---|---|---|
@@ -19,19 +19,19 @@ You override by placing a same-named copy under your global `~/.claude/`. The `/
 
 Doctrine and rules are picked up because the hook loads them fresh each session. Agents and skills are resolved natively by Claude Code, so they work with no hook involvement, but only when invoked by their bare name. A copied skill or agent sits outside the plugin, so it runs the scripts of the installed plugin root, and a copied skill reads the doctrine, commands, workflows, and other skills it names from that root too.
 
-Two rules are exceptions: `frontend` and `design` are reference-only (never injected), so there is nothing for a rule override to replace. `frontend`'s content lives in the `frontend-designer` agent — override that instead. `design` is just an index over the `rules/design/` catalog, with no equivalent component to override. `/override` will tell you this if you try.
+Two rules are exceptions: `frontend` and `design` are reference-only (never injected), so there is nothing for a rule override to replace. `frontend`'s content lives in the `frontend-designer` agent — override that instead. `design` is just an index over the `rules/design/` catalog, with no equivalent component to override. `/toolkit:override` will tell you this if you try.
 
 ## Agent models without an override
 
-To change only an agent's model or effort, do not copy the agent file. Set it in `~/.claude/toolkit-models.json` as a `{"model": ..., "effort": ...}` object instead, offered by `/setup`, and both the `agent-model.sh` hook on Agent-tool spawns and the workflow runner scripts apply it. A copied agent under `~/.claude/agents/` freezes that agent's future updates, so it is the wrong tool for a model-only change. The shipped agent files pin no model or effort, and the hook adds nothing to a bare name that a copy shadows, so a copy runs on the default subagent model or the session model until you add `model:` and `effort:` lines to its frontmatter.
+To change only an agent's model or effort, do not copy the agent file. Set it in `~/.claude/toolkit-models.json` as a `{"model": ..., "effort": ...}` object instead, offered by `/toolkit:setup`, and both the `agent-model.sh` hook on Agent-tool spawns and the workflow runner scripts apply it. A copied agent under `~/.claude/agents/` freezes that agent's future updates, so it is the wrong tool for a model-only change. The shipped agent files pin no model or effort, and the hook adds nothing to a bare name that a copy shadows, so a copy runs on the default subagent model or the session model until you add `model:` and `effort:` lines to its frontmatter.
 
-## The `/override` command
+## The `/toolkit:override` command
 
-`/override [type] [name]`:
+`/toolkit:override [type] [name]`:
 
 - **no argument** — lists everything overridable, grouped by type.
-- **a name** (`/override conventions`) — auto-detects the type and copies it.
-- **a type and name** (`/override rules security`) — needed only for an ambiguous name (`security` is both a doctrine and a rule).
+- **a name** (`/toolkit:override conventions`) — auto-detects the type and copies it.
+- **a type and name** (`/toolkit:override rules security`) — needed only for an ambiguous name (`security` is both a doctrine and a rule).
 
 It refuses unknown or ambiguous names, and never overwrites an override you have already created (edit that one directly). It also refuses when a user agent or personal skill under another file or directory name already carries that frontmatter `name`. Under the hood it runs `scripts/override.sh`, which is self-locating and needs no config.
 
