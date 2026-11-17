@@ -390,6 +390,8 @@ Create a ticket runs this procedure after the question is answered and before an
 
 A flow uses the cache only when its `plan:` slug equals the note's `plan:` value, and rewrites the whole file for the plan it runs. A missing file means no run option question has been asked in this session. A missing, empty, or unrecognised `ceiling` line reads as `none`, so until the question is answered no flow mutates git. A resumed session keeps its scratchpad and so keeps the cache. A new session reads the plan note. On work that has no plan note, the file holds a blank `plan:` line followed by a `tests:` line from the `testing-gate` skill, the `ticket:` and `ticket_work:` lines from the ticket question, or both, and each writer keeps the other's lines. No plan flow reads that cache.
 
+The session-start agent model list predates a cache written later in the session. After a flow writes or rewrites the cache, it runs `bash <plugin-root>/scripts/resolve-models.sh --list --options '<scratchpad>/flow-run-options'` and passes the `model` and `effort` that list prints on each later Agent-tool spawn of a `toolkit:` agent. If that run fails, the flow passes neither field and the `agent-model.sh` hook adds them.
+
     plan:
     tests: required
     ticket: none

@@ -185,6 +185,12 @@ declare -F run_agent_model_options_checks >/dev/null || { echo "FATAL: run_agent
 echo "== agent-model options (non-fixture) =="
 run_agent_model_options_checks
 
+# Checks that compare the session-start agent list with agent-model.sh's output per agent and need a real scratchpad, which JSON fixtures cannot express.
+source "$ROOT/tests/agent-model-list-check.sh" || { echo "FATAL: cannot source agent-model-list-check.sh" >&2; exit 2; }
+declare -F run_agent_model_list_checks >/dev/null || { echo "FATAL: run_agent_model_list_checks not defined" >&2; exit 2; }
+echo "== agent-model list (non-fixture) =="
+run_agent_model_list_checks
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 if [[ $FAIL -gt 0 ]]; then
