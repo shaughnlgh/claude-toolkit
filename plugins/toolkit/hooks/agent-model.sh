@@ -3,7 +3,7 @@
 # shipped template defaults, then the user's ~/.claude/toolkit-models.json, then the plan-guide run options cache.
 # Model and effort are added per field, and a field the call already carries wins for that field only.
 # A bare name that a project or user agent file shadows gets nothing added, because that file's agent is the one spawned.
-# A shadowing agent is found by its frontmatter name, and a model that is not an Agent-tool alias is sent as the one family alias it names, or not at all.
+# A shadowing agent is found by its frontmatter name, and resolve-models.sh --alias sends a model that is not an Agent-tool alias as the one family alias it names, or not at all.
 # Fails open: a missing jq, a missing hooks/lib, a resolver warning and a resolver failure each surface as a
 # systemMessage, and blank resolved fields add nothing. CLAUDE_CODE_SUBAGENT_MODEL_FORCE, when set, wins over the hook.
 # A partial updatedInput replaces tool_input wholesale and fails Agent-tool schema validation, so the emitted
@@ -33,6 +33,7 @@ NAME="${NAME#toolkit:}"
 SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 OPTS_FILE=$(session_run_options_file "$SESSION_ID")
 OPTS=(); [ -n "$OPTS_FILE" ] && OPTS=(--options "$OPTS_FILE")
+[ -n "$CALL_MODEL" ] || OPTS+=(--alias)
 
 RESOLVER="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/resolve-models.sh"
 WARN_FILE=$(mktemp) || exit 0
@@ -48,16 +49,6 @@ MODEL=$(printf '%s' "$RESOLVED" | jq -r --arg n "$NAME" '.agents[$n].model // ""
 EFFORT=$(printf '%s' "$RESOLVED" | jq -r --arg n "$NAME" '.agents[$n].effort // ""' 2>/dev/null)
 [ -n "$CALL_MODEL" ] && MODEL=""     # an explicit per-call field wins for that field only
 [ -n "$CALL_EFFORT" ] && EFFORT=""
-case "$MODEL" in
-  ''|sonnet|opus|haiku|fable) ;;
-  *)
-    FAMILY=$(printf '%s' "$MODEL" | grep -oE 'opus|sonnet|haiku|fable' | sort -u)
-    case "$FAMILY" in
-      opus|sonnet|haiku|fable) NOTE="[$NAME] model $MODEL is not an Agent-tool alias, sent as $FAMILY" ;;
-      *) NOTE="[$NAME] model $MODEL is not an Agent-tool alias and names no single model family, so no model was added"; FAMILY="" ;;
-    esac
-    MODEL="$FAMILY"; WARN="${WARN:+$WARN | }$NOTE" ;;
-esac
 
 printf '%s' "$INPUT" | jq -c --arg m "$MODEL" --arg e "$EFFORT" --arg sm "$WARN" '
   (.tool_input + (if $m != "" then {model: $m} else {} end) + (if $e != "" then {effort: $e} else {} end)) as $ti

@@ -29,7 +29,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved.
 | `topic-recall.py` | Lexical topic search over the vault index, with a frontmatter fallback and an optional repo `docs/` source | Read-only against the vault and the repo, stdlib only, skips symlinks and non-regular files, INDEX.md included, reads at most 64 KiB of each scanned note or doc, stops at a 3-second deadline |
 | `vault-index.py` | Writes the topic index `INDEX.md` at the vault root from the `type: topic` notes, run through `vault-fs.sh topic-index` | Stdlib only, reuses the scan and row parser of `topic-recall.py`, writes only `INDEX.md` through a temporary file and a rename, refuses an `INDEX.md` that is not a regular file, and leaves an `INDEX.md` without its marker line untouched |
 | `toolkit-vault.json.template` | Vault config template `setup` instantiates to `~/.claude/toolkit-vault.json` | n/a — config, not an executable |
-| `resolve-models.sh` | Resolves each shipped agent's model and effort from the template, the user file, and the plan note's run options, and prints one JSON map | Read-only; never writes a file; refuses Haiku and invalid values with a stderr warning; needs only `jq` |
+| `resolve-models.sh` | Resolves each shipped agent's model and effort from the template, the user file, and the plan note's run options, and prints one JSON map, or one line per agent with `--list` | Read-only; never writes a file; refuses Haiku and invalid values with a stderr warning; needs only `jq` |
 | `toolkit-models.json.template` | Default layer of per-agent model and effort routing for Agent-tool spawns and Workflow `agent()` calls | n/a, config, not an executable |
 | `design-detector/` | Deterministic, no-LLM detector for AI-generated frontend anti-patterns (most of 46 rules) | Vendored from Impeccable (Apache-2.0, attributed); read-only; zero-dep by default |
 
@@ -173,7 +173,7 @@ Resolves the model and effort of every shipped agent, so the `agent-model.sh` ho
 Invoke:
 
 ```bash
-bash "$PLUGIN_ROOT/scripts/resolve-models.sh" [--agent <name>] [--options <file>] [--worker-model <m>] [--verifier-model <m>] [--verifier-effort <e>]
+bash "$PLUGIN_ROOT/scripts/resolve-models.sh" [--agent <name>] [--options <file>] [--worker-model <m>] [--verifier-model <m>] [--verifier-effort <e>] [--alias] [--list]
 ```
 
 The script reads three layers in order:
@@ -187,6 +187,8 @@ The script reads three layers in order:
 The per-field rule: the script picks `model` and `effort` separately for each agent, and a later layer wins over an earlier one. A blank value never overrides. `inherit` overrides the layers below and prints blank. A blank field is not passed on, so a Workflow `agent()` call inherits the session value, and an Agent-tool spawn with no model uses the agent definition's model, then a configured default subagent model, then the parent session's model. A user value can be a `{model, effort}` object or a bare string, which sets the model only. A model that contains `haiku`, a model that fails the model ID pattern, an effort outside `low`, `medium`, `high`, `xhigh`, `max`, a field that is not a string, and a value that is neither a string nor an object are each ignored with a warning, so the field keeps what the earlier layers set, and the field is blank when the template holds that value. A user key that is not a template agent is dropped with a warning. A key other than `model` and `effort` inside a user object is ignored with a warning.
 
 Output: one line on stdout, `{"agents":{"<name>":{"model":"...","effort":"..."},...}}`, with one entry per template agent in template order.
+
+`--alias` turns each resolved model that is not an Agent-tool alias (`sonnet`, `opus`, `haiku`, `fable`) into the one family alias it names, or blank when it names none or several, and warns with the agent in square brackets. `agent-model.sh` runs the resolver with it. The workflow launchers do not, so the runners keep the full value. `--list` implies `--alias` and prints one line per agent in place of the JSON, such as `toolkit:implementer: model opus, effort high`, with `omit model` or `omit effort` for a blank field. `session-start.sh` adds that list to the session's context.
 
 Warnings go to stderr, one `toolkit resolve-models:` line each. A warning about a value names its agent in square brackets, and `--agent <name>` prints only that agent's value warnings. A warning about a whole file or about a user agent name that matches no template agent names no agent and always prints. `--agent` filters warnings only: stdout still lists every agent. The script warns on a refused or invalid value, an unknown key inside a user object, a user agent name that matches no template agent, a malformed user file, a user file with no `agents` object, and a missing options file, and still exits 0 with the layers it could read.
 
