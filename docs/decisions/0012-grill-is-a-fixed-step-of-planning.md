@@ -13,6 +13,8 @@ Date: 2026-11-12
 
 Status: Accepted
 
+Amended by [0015](0015-lead-and-worker-sessions.md), which replaces the relay sentences from "A parent session may relay it." to the end of the bullet that opens "A planning grill question takes only the user's own answer" and the Consequences text on a parent session that relays the user's answer, so a worker session's planning grill reaches the user through AskUserQuestion and no session relays an answer.
+
 ## Context
 
 The grill fired only on an explicit request or from the crawl, so a plan that reached planning by another route was never grilled. Plans drafted from parent-written stubs reached review with their gaps as Open Questions and critic objections, nine on one plan.

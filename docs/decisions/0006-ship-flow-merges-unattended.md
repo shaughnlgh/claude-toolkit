@@ -13,6 +13,8 @@ Date: 2026-11-07
 
 Status: Accepted
 
+Amended by [0015](0015-lead-and-worker-sessions.md), which replaces the bullet that opens "The user's child launch prompt grants", so the grant sits in a worker session's first prompt up to the recorded ceiling and a lead's continue message only continues inside it.
+
 ## Context
 
 The ship flow asked Go, Edit, or Stop at a confirmation gate after the run options, although the note's `ceiling` already records how far the run may go. The runner refused any merge over a fix commit its own launch pushed, and the conductor capped every relaunch after a fix at `mr`, so a run that fixed anything never merged without a person. The pipeline fixer could edit any file, CI scripts included, and nothing compared its changes with the plan's paths. After a merge the plan's worktree, its local and remote branch, and a stale main checkout stayed for the user to clean by hand. The runner waited for a bot review only when the user named the bot, and then fetched, fixed, and refetched the threads once. A child session ignored every message from its parent, because a message from another session is not the user's ask.

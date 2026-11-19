@@ -13,6 +13,8 @@ Date: 2026-11-08
 
 Status: Accepted
 
+Amended by [0015](0015-lead-and-worker-sessions.md), which replaces the bullet "A parent session may answer the ticket question but never the create confirmation", so the lead answers a worker session's ticket question by message and the create confirmation goes from the worker session to the user through AskUserQuestion.
+
 ## Context
 
 The git-safety doctrine suggested branch names with no condition, and on the default branch it fell back to `<type>/<slug>` when there was no ticket without asking whether one existed, so a side fix found on a feature branch or a small fix on main got a branch with no ticket question. The plan-guide skill derived the plan name from the task alone when no ticket was given and left `ticket` blank, so blank meant both "never asked" and "chose none". The plan builder told the planner that the branch is `<type>/<slug>`, and the plan flow accepted a branch with no ticket. The jira skill was read-only, so a ticket for new work had to be created outside the session. A company's ticket rules, such as key prefixes, labels, and sprint links, live in that company's own plugin and reach the session only as injected project rules, so the toolkit cannot name a company host or tracker.

@@ -19,6 +19,8 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved.
 | `git-ro.sh` | Read-only git in any directory — `status`, `diff`, `log`, `show` | Subcommand allowlist; refuses write options (`--output`/`-o`/`--ext-diff`); neutralizes pager, fsmonitor, ext-diff and textconv (the execute-on-read vectors) |
 | `seat-check.sh` | Reports which live Claude sessions hold a repo's main checkout, with its branch and dirty count | Read-only; never writes a file; reads sessions through `claude agents --json`; needs only `jq` and `git` |
 | `seat-queue.sh` | Keeps the queue of sessions that wait for a repo's main checkout, and waits for a session's turn | Writes only `toolkit-seat-queue/` in the git common dir: one file per joined session, empty while the session waits and holding `seated` once its turn came, one `.miss-<sessionId>` marker per session that one read missed, the `.grant` lock directory while a grant step or a leave runs, and `.grant.break` while a contender removes a stale lock; removes only its own entry and the entries of sessions that two reads missed; reads liveness and the seat through `seat-check.sh`; needs `git`, `stat`, and the `jq` that `seat-check.sh` needs |
+| `worker-spawn.sh` | Fills a worker type's template from `templates/`, starts the worker session with `claude --bg`, and records it in the lead's scratchpad | Requires `--model` and `--effort` with no default; refuses an unfilled placeholder, a lead name with a double quote, a backslash or a control character, and a note with no ceiling; starts the worker only in the mode the `worker-spawn-mode.sh` hook recorded; writes only one line to `<scratchpad>/workers`; needs `jq` |
+| `worker-watch.sh` | The lead's bounded watch over its worker sessions, which exits with one line per event, plus `list` and `name` | Reads the session list and the lead's scratchpad; writes only `worker-watch.state` and the `worker-watch.lock` directory in that scratchpad; never stops or messages a session; needs `jq` |
 | `watch-mr.sh` | Waits on one GitLab MR or GitHub PR until its pipeline settles, a bot review lands, or a bot review in progress ends, then prints one status line | Reads only, through `gh` and `glab`, which hold their own auth; never reads or prints a token; validates every argument; exits on a wall-clock bound |
 | `override.sh` | Copy a plugin doctrine, rule, agent, or skill into `~/.claude/` to override it (drives `/toolkit:override`) | Name only (no paths); refuses unknown/ambiguous names; won't clobber an existing override |
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
@@ -97,7 +99,7 @@ The holder rule: a session from `claude agents --json` holds the seat when it ha
 
 `--worktree <path>` lists the live sessions that work in that worktree. A session is an occupant when it passes the same `pid` and `--self` tests and its `cwd` is that path or a directory under it. A session whose `cwd` is the main checkout is a holder and not an occupant. A path that is not a directory is an error. The execute flow reads it before section 1 re-enters or adopts a worktree, before section 2a enters one that `test -d` found, before the seat run detaches the plan's worktree, and before the release returns to the worktree it left. The ship flow's cleanup reads it before it removes the worktree.
 
-`--live` lists every live session, the `--self` session included. A session is live when its `pid` is numeric and `kill -0` accepts it, whatever its `cwd`, so a session with `pid: null` gets no line. The flag changes no other line and not the exit code. `seat-queue.sh` reads liveness from it, and the execute flow's seat run reads it to find the session id of its parent.
+`--live` lists every live session, the `--self` session included. A session is live when its `pid` is numeric and `kill -0` accepts it, whatever its `cwd`, so a session with `pid: null` gets no line. The flag changes no other line and not the exit code. `seat-queue.sh` reads liveness from it.
 
 Output, one line each, in this order:
 
@@ -115,6 +117,8 @@ A caller inside a worktree session must invoke the script by a path and argument
 
 `TOOLKIT_AGENTS_FILE` names a JSON file the script reads instead of running `claude agents --json`. It is the test seam.
 
+`scripts/lib/agents-list.sh` is the one reader of `claude agents --json`. `seat-check.sh`, `worker-spawn.sh` and `worker-watch.sh` source it, so the 3 second cap and the `TOOLKIT_AGENTS_FILE` seam live in one place.
+
 Tests: `bash plugins/toolkit/scripts/tests/seat-check/run-tests.sh` (20 behavior cases in a temporary repo with one linked worktree and no ignore entry for it; also run by `verify.sh`).
 
 ## seat-queue.sh
@@ -124,8 +128,8 @@ Keeps the order in which sessions wait for a repo's main checkout, and waits in 
 Invoke:
 
 ```bash
-bash "$PLUGIN_ROOT/scripts/seat-queue.sh" join <repo path> --self <sessionId> [--parent <sessionId>]
-bash "$PLUGIN_ROOT/scripts/seat-queue.sh" wait <repo path> --self <sessionId> [--parent <sessionId>] [--bound <n>] [--interval <seconds>]
+bash "$PLUGIN_ROOT/scripts/seat-queue.sh" join <repo path> --self <sessionId> [--lead <sessionId>]
+bash "$PLUGIN_ROOT/scripts/seat-queue.sh" wait <repo path> --self <sessionId> [--lead <sessionId>] [--bound <n>] [--interval <seconds>]
 bash "$PLUGIN_ROOT/scripts/seat-queue.sh" leave <repo path> --self <sessionId>
 bash "$PLUGIN_ROOT/scripts/seat-queue.sh" list <repo path>
 ```
@@ -140,7 +144,7 @@ The miss rule. A verdict considers only the entries in the listing it took befor
 
 The turn rule. A session outside the main checkout gets its turn when no waiting entry is ahead of it, no other session holds the main checkout or a seated entry, and its own session read live. A session already in the main checkout ignores order, because it holds the seat for every other session by its `cwd`, and waits only for the other holders. A `WAIT` verdict empties the session's own mark, so a run that lost a free seat to a session that never joined stops holding it.
 
-An unqueued holder is a session in the main checkout with no entry, other than the caller. `--parent <sessionId>` names the caller's parent session. When that session is an unqueued holder, the queue removes the caller's entry under the lock and prints `PARENT <sessionId>`, because a parent stays until its user ends it. The execute flow's seat run then starts no watcher and stops, so the parent runs the seat run itself or moves into a linked worktree and dispatches it again. A parent that holds a queue entry is waited for like any other holder.
+An unqueued holder is a session in the main checkout with no entry, other than the caller. `--lead <sessionId>` names the caller's lead session. When that session is an unqueued holder, the queue removes the caller's entry under the lock and prints `LEAD <sessionId>`, because a lead stays until its user ends it. The execute flow's seat run then starts no watcher and stops, so the lead runs the seat run itself once the worker session is stopped, or moves into a linked worktree and dispatches it again. A lead that holds a queue entry is waited for like any other holder. The script still accepts `--parent`, the option's earlier name, as the same option.
 
 Status lines and exit codes:
 
@@ -152,19 +156,104 @@ Status lines and exit codes:
 | `BOUND <minutes> <ahead> <holders> <unqueued> <dirty>` | 12 | the bound ran out, with the counts of the last `WAIT`, or `unknown` for each count when no round read `WAIT` (`wait` only) |
 | `LEFT` | 13 | the caller's entry is gone (`wait` only) |
 | `DIRTY <dirty>` | 14 | the session's turn, with its entry seated, on a main checkout whose dirty count is above 0, which waiting does not clear |
-| `PARENT <sessionId>` | 15 | the `--parent` session is an unqueued holder, and the caller's entry is removed |
+| `LEAD <sessionId>` | 15 | the `--lead` session is an unqueued holder, and the caller's entry is removed |
 | none | 3 | the seat check or the lock failed five `wait` rounds in a row: the queue's own `error:` line, last on stderr, names the last round's cause, after the seat check's `error:` line, when one exists, from each round whose seat check failed |
 | none | 2 | error: the queue's own `error:` line, last on stderr, after the seat check's `error:` line when one exists, for a bad argument, a path that is not a git repo, a failed seat check on `join` or `list`, a lock that stayed taken on `join` or `leave`, a write that failed, a `join` whose session has no live row on two reads, or a `join` whose existing entry a leave or a sweep removed before its verdict read it |
 
 `leave` exits 0 once the caller's entry and miss marker are gone. `list` exits 0 and prints one line per entry whose session is live, in queue order, as the `live:` fields of seat-check behind `seated: ` or `waiter: `, then one `unqueued: <name>\t<status>\t<kind>\t<sessionId>\t<cwd>` line for each holder with no entry.
 
-`--bound` takes minutes, or seconds with a trailing `s`, default 180. `--interval` takes seconds between rounds, default 30, floor 1. A `wait` exits on `TURN`, `DEADLOCK`, `LEFT`, `DIRTY` or `PARENT`, and on the bound.
+`--bound` takes minutes, or seconds with a trailing `s`, default 180. `--interval` takes seconds between rounds, default 30, floor 1. A `wait` exits on `TURN`, `DEADLOCK`, `LEFT`, `DIRTY` or `LEAD`, and on the bound.
 
 `TOOLKIT_AGENTS_FILE` reaches seat-check through the environment, so it fixes the session list for every round. It is the test seam.
 
 `/toolkit:setup` check 6 offers a prompt-free allow rule for the script, because the seat run calls `join`, `list` and `leave` in the foreground and `wait` in the background.
 
-Tests: `bash plugins/toolkit/scripts/tests/seat-queue/run-tests.sh` (54 behavior cases against its own repo with two linked worktrees, with a stub `claude` on the `PATH` for the cases whose session list changes between rounds; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/seat-queue/run-tests.sh` (55 behavior cases against its own repo with two linked worktrees, with a stub `claude` on the `PATH` for the cases whose session list changes between rounds; also run by `verify.sh`).
+
+## worker-spawn.sh
+
+Starts one worker session for a lead. The lead runs it after the user's typed yes to its proposal, as `doctrine/orchestration.md` § Lead and worker sessions and `plan-guide` § After approval define.
+
+Invoke:
+
+```bash
+bash "$PLUGIN_ROOT/scripts/worker-spawn.sh" --scratchpad <dir> --type <investigate|plan|execute|ship> --key <key> --plan <planName|-> --note <plan note|-> --lead-name <name> --model <model> --effort <level> --task-file <path> [--worktree <name>] [--cwd <dir>]
+```
+
+- `--scratchpad` is the lead's own scratchpad, a directory named `scratchpad` whose parent is the lead's session id. The script takes the lead's session id from that parent.
+- `--model` and `--effort` are required and have no default, because the worker sessions' model and effort are the user's answer that the run option keys `session_model` and `session_effort` record. A missing one exits 2 with no spawn. The model follows the model rule of `resolve-models.sh`, a leading letter and an optional `[1m]` suffix, up to 80 characters, and refuses `inherit` and any value that names haiku, and the effort is one of `low`, `medium`, `high`, `xhigh` and `max`.
+- `--note` is the plan note, a `plan - <slug>.md` file, and `-` for an investigate worker session. `--plan` is the plan name, or `-` for an investigate or plan worker session.
+- `--lead-name` is 1 to 80 characters with no double quote, backslash, control character or `{{`. `--task-file` is a non-empty file of at most 4000 bytes with no `{{`, which the lead writes with the Write tool before each spawn.
+- `--worktree <name>` passes `-w <name>` to `claude --bg`, and only then. Claude Code creates `.claude/worktrees/<name>` on `worktree-<name>`, or opens that worktree when it exists, so a rerun lands in the plan's worktree. `--cwd` is the directory the worker session starts in, by default the current one.
+
+Templates. The first prompt is `templates/worker-<type>.md` from the plugin root, one file per type: `worker-investigate.md`, `worker-plan.md`, `worker-execute.md` and `worker-ship.md`. The script fills `{{worker_name}}`, `{{lead_name}}`, `{{lead_session_id}}`, `{{key}}`, `{{plan_name}}`, `{{plan_note}}`, `{{ceiling}}`, `{{run_options}}`, `{{plugin_root}}` and `{{task}}`, and exits 2 on any `{{...}}` placeholder left after the fill, because no filled value may hold `{{`.
+
+Run options. The script reads the plan note's frontmatter, strips and unquotes each value as `validate-plan.py` does, puts every one of the ten run option keys that holds a value into `{{run_options}}`, and takes `ceiling` for `{{ceiling}}`. A plan or investigate worker session with no ceiling gets `none`. An execute or ship worker session whose note records no ceiling of `none`, `mr` or `merge` exits 2, because the ceiling is the user's permission given in advance.
+
+Mode. The script reads `<scratchpad>/worker-spawn-mode`, which the `worker-spawn-mode.sh` hook writes when the spawn command runs, and passes its mode as `--permission-mode`, with `default` passed as `manual`. A missing record, a record older than the task file, or an unknown mode stops the spawn with `NOMODE`, because the lead writes the task file before each spawn call, so an older record came from an earlier spawn.
+
+Name. The name is `worker-<type>-<key>`. The script reads `claude agents --json --all` through `scripts/lib/agents-list.sh`, up to three times one second apart, because one call can stall past its 3 second cap, and exits 3 after three failed reads. When any listed row, a stopped one included, carries the name, it appends `-2` and up to `-9`, because a stopped worker session keeps its row and name until `claude rm`. The script sets no cap on how many worker sessions run.
+
+Spawn. The script runs `claude --bg -n <name> --permission-mode <mode> --model <model> --effort <level>`, plus `-w` for `--worktree`, with the filled prompt, from `--cwd`. When the plugin root sits outside `~/.claude/plugins/cache`, it adds `--plugin-dir <plugin root>`, so a lead loaded by path gets a worker session on the same copy. It reads the 8-hex id from the `backgrounded · <id> · <name>` line, below any `Starting background service` line. `claude --bg` refuses a repo the user has not trusted, and the script then exits 3 with Claude Code's line. On success it appends one tab-separated line to `<scratchpad>/workers`: the id, the name, the type, the plan name or `-`, and the spawn epoch in seconds. A failed or refused spawn writes no line. When `claude --bg` exits 0 but prints no 8-hex id, or the `workers` write fails, the worker session runs unrecorded, and the script prints `UNRECORDED <name>` with exit 14.
+
+Status lines and exit codes:
+
+| Line | Exit | Meaning |
+|---|---|---|
+| `STARTED <id> <name>` | 0 | the worker session started and is recorded |
+| `NOBG` | 12 | `claude --help` lists no `--bg`, so this Claude Code cannot start a worker session |
+| `NOMODE` | 13 | no mode record newer than the task file, or an unknown mode |
+| `UNRECORDED <name>` | 14 | the worker session started, but no 8-hex id was printed or the `workers` write failed, so the watch does not cover it, with one `error:` line on stderr |
+| none | 2 | error: a bad or missing argument, a missing `--model` or `--effort`, a note with no ceiling, `--plan -` for an execute or ship worker session, an unfilled placeholder, or a missing `jq`, `scripts/lib/agents-list.sh` or `hooks/lib/session-scratchpad.sh`, with one `error:` line on stderr |
+| none | 3 | failure: a missing template, three failed agents reads, no free name after `-9`, or a non-zero `claude --bg` exit with its first line, with one `error:` line on stderr |
+
+Tests: `bash plugins/toolkit/scripts/tests/worker-spawn/run-tests.sh` (50 behavior cases against a stub `claude` first on the `PATH` that answers `--help`, the agents read and the spawn and records each spawn's argv, working directory and prompt; also run by `verify.sh`).
+
+## worker-watch.sh
+
+The lead's bounded watch over the worker sessions that its `<scratchpad>/workers` file records. The lead starts `wait` in the background, tells the user one line per event when it exits, and starts it again.
+
+Invoke:
+
+```bash
+bash "$PLUGIN_ROOT/scripts/worker-watch.sh" wait --scratchpad <dir> [--bound <n>] [--interval <seconds>] [--push-after <seconds>] [--start-grace <seconds>] [--hold <id>]...
+bash "$PLUGIN_ROOT/scripts/worker-watch.sh" list --scratchpad <dir>
+bash "$PLUGIN_ROOT/scripts/worker-watch.sh" name <sessionId>
+```
+
+`--bound` takes minutes, or seconds with a trailing `s`, default 60. `--interval` takes seconds between rounds, default 15, floor 1. `--push-after` defaults to 120 seconds and `--start-grace` to 300 seconds. `--hold <id>` can repeat.
+
+Each round reads the `workers` file and `claude agents --json --all` through `scripts/lib/agents-list.sh`, and reads each owned worker session's row. A row that waits on a permission prompt or a sandbox request reads as needing permission, and a row with any other `waitingFor`, a `waiting` status or a `blocked` state reads as needing input. A row that is missing, `failed` or `stopped` reads as gone, and a gone worker session is read again each round, so one read that misses a live row or a restarted worker session never ends its watch, a `working` row that is not idle reads as busy, and any other row reads as idle with its state. A row with no pid is read by its `state`, because Claude Code's supervisor ends the process of a worker session left unattached for about an hour and keeps its row.
+
+Pending and settled. A worker session the watch has not yet seen busy or waiting stays pending with no event while it reads idle or is not listed, because a new worker session reads idle before it starts work. Once `--start-grace` seconds have passed since its spawn, the watch reports it with `NOSTART`. A worker session that sits idle in the same state as its last event, or is gone, is settled. When every owned worker session is settled or gone, `wait` exits `NONE`. `--hold <id>` keeps that worker session watched while it still reads as it did at the watch start, so a worker session that the lead just sent a continue message does not read settled before it turns busy.
+
+The state file `<scratchpad>/worker-watch.state` keeps each worker session's last reading, the time it began, and whether a push went out, so a re-armed watch never repeats an event. The `worker-watch.lock` directory in the scratchpad lets one watcher run at a time, and a lock untouched for three intervals counts as stale and is removed. The watch also reads the `workers` file of every live session, found through `hooks/lib/session-scratchpad.sh`, so a background session that another lead owns never reads as unowned.
+
+Events, one line each, in this order within one exit:
+
+- `NEEDS <name> <id> permission`, then `NEEDS <name> <id> input`
+- `PUSH <name> <id> <permission|input> <minutes>m`, once for each wait on permission or input that lasts past `--push-after`
+- `IDLE <name> <id> <state>` when a worker session turns idle
+- `NOSTART <name> <id>` when a pending worker session passes `--start-grace`
+- `GONE <name> <id>` when a worker session disappears or stops mid-task. A worker session that was idle before it went gives no `GONE`.
+- `UNOWNED <count>: <name> (<id>), ...` when the set of live background sessions that no live session's `workers` file records, other than the lead, changes and is not empty
+
+A round whose agents read fails is skipped. After `MAX_BAD_ROUNDS`, three failed reads in a row, `wait` exits 3 and leaves the state file unchanged, so one stalled call does not end the watch.
+
+`list` prints one `worker: <name>\t<id>\t<type>\t<plan>\t<status>\t<state>\t<waitingFor>` line for each owned worker session whose row has a pid or a `working` or `blocked` state. `session-start.sh` runs it on resume and compact. `name <sessionId>` prints `name: <name>` for the live session with that session id, and a worker session runs it to find its lead's current name when a report fails to send.
+
+Status lines and exit codes:
+
+| Line | Exit | Meaning |
+|---|---|---|
+| one event line per event | 0 | `wait`: one or more events; `list` and `name`: success |
+| `BOUND` | 10 | `wait`: the bound ran out with no event |
+| `NONE` | 11 | `wait`: every owned worker session is settled or gone; `name`: no live session has that session id |
+| `RUNNING` | 12 | `wait`: another watcher holds the lock |
+| none | 2 | error: a bad subcommand, option, duration, `--hold` id or session id, or a scratchpad whose parent is not a session id, with one `error:` line on stderr |
+| none | 3 | failure: a missing `jq` or library, three failed agents reads in a row, one failed read in `list` or `name`, or a failed state write, with one `error:` line on stderr |
+
+Tests: `bash plugins/toolkit/scripts/tests/worker-watch/run-tests.sh` (47 behavior cases against per-case agents JSON through `TOOLKIT_AGENTS_FILE`, and a stub `claude` for the read failure cases; also run by `verify.sh`).
 
 ## resolve-models.sh
 
@@ -280,7 +369,7 @@ Exit codes: `0` valid, `1` contract violation(s) (each printed as `VIOLATION: ..
 
 When it runs: the `plan-guide` skill requires a passing validation after every plan-note write, before presenting a plan for approval, before starting execution, and at session closure.
 
-Tests: `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` (48 behavior cases over 46 fixtures plus a direct nonexistent-path case; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` (51 behavior cases over 49 fixtures plus a direct nonexistent-path case; also run by `verify.sh`).
 
 ## topic-recall.py
 

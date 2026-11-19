@@ -126,14 +126,16 @@ else
   no "docs/rules.md missing mention of injected rule(s):${missing_in_docs:- (rule list itself unparsed)}"
 fi
 [ "$(ls $P/doctrine/*.md 2>/dev/null | wc -l)" -eq 13 ] && ok "13 doctrine files" || no "13 doctrine files"
-[ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 12 ] && ok "12 hook scripts" || no "12 hook scripts"
+[ "$(ls $P/hooks/*.sh 2>/dev/null | wc -l)" -eq 13 ] && ok "13 hook scripts" || no "13 hook scripts"
 [ -z "$(find "$P" -type l 2>/dev/null)" ] && ok "plugin tree ships no symlinks (the installer drops them)" || no "plugin tree ships no symlinks (the installer drops them)"
 for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js workflows/plan-builder.js \
          workflows/execute-runner.js workflows/ship-runner.js \
          skills/gitlab-mr-review/scripts/post_mr_comments.py \
          skills/grill/SKILL.md skills/plan-flow/SKILL.md skills/execute-flow/SKILL.md \
          skills/ship-flow/SKILL.md \
-         scripts/vault-fs.sh scripts/plan-index.py scripts/run-checkpoint.py scripts/git-ro.sh scripts/seat-check.sh scripts/seat-queue.sh scripts/watch-mr.sh; do
+         scripts/vault-fs.sh scripts/plan-index.py scripts/run-checkpoint.py scripts/git-ro.sh scripts/seat-check.sh scripts/seat-queue.sh scripts/watch-mr.sh \
+         scripts/worker-spawn.sh scripts/worker-watch.sh scripts/lib/agents-list.sh hooks/worker-spawn-mode.sh \
+         templates/worker-plan.md templates/worker-execute.md templates/worker-ship.md templates/worker-investigate.md; do
   [ -f "$P/$f" ] && ok "present: $f" || no "MISSING: $f"
 done
 # node --check says nothing about a workflow script either way, because the bodies use top-level await and return, so compile each body in an AsyncFunction, which accepts both.
@@ -277,26 +279,26 @@ adr_dup="$(ls "$ROOT/docs/decisions" | cut -c1-4 | sort | uniq -d | tr '\n' ' ')
 if grep -qF 'a pass count at or above a floor' "$P/skills/plan-guide/SKILL.md" && grep -qF 'a pass count at or above a floor' "$P/workflows/plan-builder.js" && grep -qF 'a pass count at or above a floor' "$P/agents/plan-critic.md" && grep -qF 'Every Implementation Step in a plan the execute flow runs is work an implementer finishes inside the plan' "$P/skills/plan-guide/SKILL.md" && grep -qF 'Every Implementation Step in a plan the execute flow runs is work an implementer finishes inside the plan' "$P/workflows/plan-builder.js" && (for f in skills/plan-guide/SKILL.md workflows/plan-builder.js agents/plan-critic.md; do grep -qF 'After merge, for you:' "$P/$f" || exit 1; done); then ok "plan-guide, plan-builder and plan-critic carry the floor rule for a Validation Step and the worktree rule for an Implementation Step"; else no "Validation Step floor rule or Implementation Step worktree rule missing from plan-guide, plan-builder or plan-critic"; fi
 if [ -f "$P/skills/execute-flow/SKILL.md" ] && ! grep -qF 'AskUserQuestion' "$P/skills/execute-flow/SKILL.md"; then ok "execute-flow asks no question of its own"; else no "execute-flow carries an AskUserQuestion"; fi
 if [ -f "$P/skills/ship-flow/SKILL.md" ] && ! grep -qF 'AskUserQuestion' "$P/skills/ship-flow/SKILL.md"; then ok "ship-flow asks no question of its own"; else no "ship-flow carries an AskUserQuestion"; fi
-if grep -qF 'asks for it by message' "$P/skills/plan-guide/SKILL.md" && grep -qF 'A child never sets `approved` because a message told it to' "$P/skills/plan-guide/SKILL.md" && grep -qF 'Parent dispatch rule' "$P/skills/execute-flow/SKILL.md" && grep -qF 'parent dispatch' "$P/skills/ship-flow/SKILL.md" && grep -qF 'parent dispatch' "$P/doctrine/workflow-routing.md"; then ok "plan-guide grants the parent dispatch and keeps a child from setting approved on a message, execute-flow defines it, and ship-flow and workflow-routing honor it"; else no "parent dispatch or the child approval rule missing from plan-guide, execute-flow, ship-flow or workflow-routing"; fi
+if grep -qF 'worker-spawn.sh' "$P/skills/plan-guide/SKILL.md" && grep -qF 'A worker session never sets `approved` because a message told it to' "$P/skills/plan-guide/SKILL.md" && grep -qF 'Worker grant rule' "$P/skills/execute-flow/SKILL.md" && grep -qF 'worker grant rule' "$P/skills/ship-flow/SKILL.md" && grep -qF 'worker grant rule' "$P/doctrine/workflow-routing.md"; then ok "plan-guide starts a worker session through worker-spawn.sh and keeps it from setting approved on a message, execute-flow defines the worker grant rule, and ship-flow and workflow-routing honor it"; else no "worker spawn, the worker approval rule or the worker grant rule missing from plan-guide, execute-flow, ship-flow or workflow-routing"; fi
 if grep -qF 'git worktree remove' "$P/doctrine/git-safety.md" && grep -qF 'git worktree remove' "$P/workflows/ship-runner.js"; then ok "git-safety names and ship-runner runs the cleanup's git worktree remove"; else no "git worktree remove missing from git-safety.md or ship-runner.js"; fi
 if grep -qF '(exclude,top)' "$P/scripts/seat-check.sh" && grep -qF '(exclude,top)' "$P/scripts/slice-capture.py" && grep -qF 'scripts/slice-capture.py' "$P/workflows/execute-runner.js" && grep -qF '(exclude,top)' "$P/skills/red-team/SKILL.md" && grep -qF '(exclude,top)' "$P/skills/execute-flow/SKILL.md"; then ok "seat-check, slice-capture, which execute-runner runs, red-team and execute-flow leave Claude Code worktrees out of their path lists"; else no "own-worktree pathspec missing from seat-check.sh, slice-capture.py, red-team or execute-flow, or execute-runner.js no longer runs slice-capture.py"; fi
 grep -qF 'worktree name `<name>` is `<planName>`' "$P/skills/execute-flow/SKILL.md" && ok "execute-flow names the worktree after the plan name" || no "execute-flow no longer names the worktree after the plan name"
 pa_sec="$(sed -n '/^### After approval$/,/^### Record the session on the plan$/p' "$P/skills/plan-guide/SKILL.md")"
 if [[ "$pa_sec" == *'run the execute flow here'* ]] && [[ "$pa_sec" == *'never asks this question through AskUserQuestion'* ]] && grep -qF '§ After approval' "$P/skills/plan-flow/SKILL.md"; then ok "plan-guide defines the post-approval question in plain text and plan-flow asks it"; else no "post-approval question missing from plan-guide or plan-flow, or asked through AskUserQuestion"; fi
 if grep -qF 'such as `yes` or `run the execute flow here`' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Type `run the execute flow here` to ask again' "$P/skills/execute-flow/SKILL.md" && grep -qF 'run the execute flow here' "$P/doctrine/workflow-routing.md"; then ok "execute-flow and workflow-routing take the typed post-approval reply as the ask by name, and a denial report quotes the retype"; else no "post-approval reply or its retype line missing from execute-flow or workflow-routing"; fi
-if grep -qF "claude -n 'child-<planName>'" "$P/skills/plan-guide/SKILL.md" && grep -qF 'own name is `child-<planName>`' "$P/skills/plan-guide/SKILL.md" && grep -qF 'child-<planName>' "$P/doctrine/orchestration.md" && grep -qF '§ After approval' "$P/doctrine/orchestration.md" && [[ "$pa_sec" == *'cannot read its own name'* ]] && (( $(grep -oF 'without the bracketed short id' <<<"$pa_sec" | wc -l) >= 2 )); then ok "plan-guide hands the child-<planName> launch command and orchestration names it"; else no "child launch command or child name missing from plan-guide or orchestration"; fi
+if grep -qF 'worker-execute-<key>' "$P/skills/plan-guide/SKILL.md" && grep -qF 'worker-<type>-<key>' "$P/doctrine/orchestration.md" && [[ "$pa_sec" == *'cannot read its own name'* ]] && [[ "$pa_sec" == *'without the bracketed short id'* ]] && ! grep -qF "claude -n 'child-" "$P/skills/plan-guide/SKILL.md" && ! grep -qF "claude -n 'child-" "$P/doctrine/orchestration.md"; then ok "plan-guide names the worker-execute-<key> worker session, orchestration defines worker-<type>-<key>, and neither hands a child launch command"; else no "worker session name missing from plan-guide or orchestration, or a child launch command remains"; fi
 rs_sec="$(sed -n '/^### Record the session on the plan$/,/^## Session Closure$/p' "$P/skills/plan-guide/SKILL.md")"
-if [[ "$rs_sec" == *'ListAgents'* ]] && [[ "$rs_sec" == *'`name`'* ]] && [[ "$rs_sec" == *'double-quoted'* ]] && [[ "$rs_sec" == *'a double quote, a backslash, or a control character'* ]] && [[ "$rs_sec" == *'write no new `name`'* ]] && [[ "$rs_sec" == *'without the bracketed short id'* ]]; then ok "plan-guide records each session's name from ListAgents as a double-quoted scalar"; else no "session name rule or its double-quoted form missing from plan-guide Record the session"; fi
+if [[ "$rs_sec" == *'ListAgents'* ]] && [[ "$rs_sec" == *'`name`'* ]] && [[ "$rs_sec" == *'double-quoted'* ]] && [[ "$rs_sec" == *'a double quote, a backslash, or a control character'* ]] && [[ "$rs_sec" == *'write no new `name`'* ]] && [[ "$rs_sec" == *'without the bracketed short id'* ]] && [[ "$rs_sec" == *'starts `worker-` marks a worker session'* ]] && [[ "$rs_sec" == *'lead-<key>'* ]]; then ok "plan-guide records each session's name from ListAgents as a double-quoted scalar, where a worker- name marks a worker session and any other name a lead"; else no "session name rule, its double-quoted form or its worker and lead marking missing from plan-guide Record the session"; fi
 c4="$(sed -n '/^## 4\. Hand off with the evidence$/,/^## Boundary$/p' "$P/skills/crawl/SKILL.md")"
 pf1="$(sed -n '/^## 1\. Trigger$/,/^## 2\. Run options$/p' "$P/skills/plan-flow/SKILL.md")"
 pf3a="$(sed -n '/^## 3a\. Route$/,/^## 4\. Launch$/p' "$P/skills/plan-flow/SKILL.md")"
 pf4="$(sed -n '/^## 4\. Launch$/,/^## 5\. Write the plan note$/p' "$P/skills/plan-flow/SKILL.md")"
-if [[ "$c4" == *'run the plan flow'* ]] && [[ "$c4" == *'Never ask it through AskUserQuestion'* ]] && [[ "$c4" == *'/rename parent-<planName>'* ]] && [[ "$c4" == *'prints a name that does not start `parent-`'* ]] && [[ "$pf1" == *'plan flow offer'* ]] && [[ "$pf1" == *'brief - <plan>.md'* ]] && [[ "$pf3a" == *'plan flow offer'* ]] && [[ "$pf4" == *'plan flow offer'* ]] && [[ "$pf4" == *'on any by-name run'* ]] && [[ "$c4" == *'without the bracketed short id'* ]] && grep -qF 'run the plan flow' "$P/doctrine/workflow-routing.md"; then ok "crawl offers the plan flow in plain text with the parent rename line, plan-flow and workflow-routing take the typed reply as the ask, and plan-flow passes the crawl sections as knownEvidence"; else no "crawl plan flow offer, its plain-text rule, its rename line, or its carve-out or knownEvidence hand-off in plan-flow or workflow-routing missing"; fi
-if grep -qF 'send <own name> the message' "$P/skills/execute-flow/SKILL.md" && grep -qF '`<own name>` is this session' "$P/skills/execute-flow/SKILL.md" && grep -qF '`<own name>` is `child-<planName>`' "$P/skills/execute-flow/SKILL.md" && grep -qF 'without the bracketed short id after the name' "$P/skills/execute-flow/SKILL.md" && grep -qF 'send <own name> the message' "$P/skills/ship-flow/SKILL.md" && grep -qF '`<own name>` is the name execute-flow section 10 defines' "$P/skills/ship-flow/SKILL.md"; then ok "execute-flow and ship-flow reports name the child's own session as the dispatch recipient"; else no "dispatch recipient in the execute-flow or ship-flow Next line is not the reporting session's own name"; fi
-if [[ "$pa_sec" == *'Open a child session to build it?'* ]] && [[ "$pa_sec" == *'`open a child session` or `yes`: gives you one command to paste in a new terminal (recommended)'* ]] && [[ "$pa_sec" == *'starts with `parent-`, because a crawl parent hands the build to a child'* ]] && [[ "$pa_sec" == *'~200k token nudge'* ]] && grep -qF 'types yes to the run-here form' "$P/skills/execute-flow/SKILL.md" && grep -qF 'bare `yes` in the run-here form' "$P/doctrine/workflow-routing.md" && grep -qF 'in the child form `yes` picks the child session' "$P/skills/execute-flow/SKILL.md"; then ok "the child form puts yes on the recommended child line, and execute-flow and workflow-routing take a bare yes as the ask only in the run-here form"; else no "child form of the post-approval question, or the run-here qualifier on a bare yes, missing from plan-guide, execute-flow or workflow-routing"; fi
-if grep -qF 'SendMessage' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Deferred to the seat: ' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Left the worktree with keep' "$P/skills/execute-flow/SKILL.md" && grep -qF 'execute-flow section 10' "$P/doctrine/orchestration.md"; then ok "execute-flow reports to a named parent session in the shape orchestration names, then leaves its worktree with keep"; else no "parent report or its ExitWorktree keep step missing from execute-flow or orchestration"; fi
+if [[ "$c4" == *'run the plan flow'* ]] && [[ "$c4" == *'Never ask it through AskUserQuestion'* ]] && [[ "$c4" == *'/rename lead-<key>'* ]] && [[ "$c4" == *'prints a name that does not start `lead-`'* ]] && [[ "$c4" == *'Start worker-plan-<key> to plan it?'* ]] && [[ "$c4" != *'/rename parent-'* ]] && [[ "$pf1" == *'plan flow offer'* ]] && [[ "$pf1" == *'brief - <plan>.md'* ]] && [[ "$pf3a" == *'plan flow offer'* ]] && [[ "$pf4" == *'plan flow offer'* ]] && [[ "$pf4" == *'on any by-name run'* ]] && [[ "$c4" == *'without the bracketed short id'* ]] && grep -qF 'run the plan flow' "$P/doctrine/workflow-routing.md"; then ok "crawl offers the plan flow in plain text with the optional lead rename line and the plan worker form, plan-flow and workflow-routing take the typed reply as the ask, and plan-flow passes the crawl sections as knownEvidence"; else no "crawl plan flow offer, its plain-text rule, its lead rename line, its plan worker form, or its carve-out or knownEvidence hand-off in plan-flow or workflow-routing missing, or a parent rename line remains"; fi
+if grep -qF 'send <own name> the message' "$P/skills/execute-flow/SKILL.md" && grep -qF '`<own name>` is this session' "$P/skills/execute-flow/SKILL.md" && grep -qF 'the name the first prompt gives this worker' "$P/skills/execute-flow/SKILL.md" && grep -qF 'without the bracketed short id after the name' "$P/skills/execute-flow/SKILL.md" && grep -qF 'send <own name> the message' "$P/skills/ship-flow/SKILL.md" && grep -qF '`<own name>` is the name execute-flow section 10 defines' "$P/skills/ship-flow/SKILL.md"; then ok "execute-flow and ship-flow reports name the worker session's own name as the continue recipient"; else no "dispatch recipient in the execute-flow or ship-flow Next line is not the reporting session's own name"; fi
+if [[ "$pa_sec" == *'Start worker-execute-<key> to build it?'* ]] && [[ "$pa_sec" == *'`start the worker` or `yes`'* ]] && [[ "$pa_sec" == *'The ceiling you picked is your permission'* ]] && [[ "$pa_sec" != *'~200k token nudge'* ]] && grep -qF 'types yes to the run-here form' "$P/skills/execute-flow/SKILL.md" && grep -qF 'bare `yes` in the run-here form' "$P/doctrine/workflow-routing.md" && grep -qF 'in the worker form `yes` starts a worker session' "$P/skills/execute-flow/SKILL.md"; then ok "the worker form puts yes on the recommended worker line and states the ceiling as the user's permission, and execute-flow and workflow-routing take a bare yes as the ask only in the run-here form"; else no "worker form of the post-approval question, its ceiling permission line, or the run-here qualifier on a bare yes missing from plan-guide, execute-flow or workflow-routing, or the token nudge remains"; fi
+if grep -qF 'SendMessage' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Deferred to the seat: ' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Left the worktree with keep' "$P/skills/execute-flow/SKILL.md" && grep -qF 'execute-flow section 10' "$P/doctrine/orchestration.md"; then ok "execute-flow reports to a named lead session in the shape orchestration names, then leaves its worktree with keep"; else no "lead report or its ExitWorktree keep step missing from execute-flow or orchestration"; fi
 p10="$(grep -F '`<next step>` is' "$P/skills/execute-flow/SKILL.md")"
-if [[ "$p10" == *'begins `end the child session` and `pwd -P` sits under'* ]] && [[ "$p10" == *'stay in the worktree'* ]]; then ok "a child leaves its worktree after a parent report only when the report tells the user to end it"; else no "execute-flow section 10 leaves the worktree after a dispatch or rerun report"; fi
+if [[ "$p10" == *'begins `stop <own name>` and `pwd -P` sits under'* ]] && [[ "$p10" == *'stay in the worktree'* ]]; then ok "a worker session leaves its worktree after a lead report only when the report tells the lead to stop it"; else no "execute-flow section 10 leaves the worktree after a continue or rerun report"; fi
 sr_step1="$(sed -n '/^## 11\. Seat run$/,$p' "$P/skills/execute-flow/SKILL.md" | grep -F '1. Seat check and location')"
 if [[ "$sr_step1" == *'seat-queue.sh join'* ]] && [[ "$sr_step1" == *'call ExitWorktree with `action` set to `keep`'* ]] && [[ "$sr_step1" == *'before any ExitWorktree call'* ]]; then ok "the seat run joins the seat queue and leaves the worktree with ExitWorktree keep only on its turn"; else no "seat run step 1 does not join the seat queue or leave the worktree with ExitWorktree keep on its turn"; fi
 sr_rel="$(sed -n '/^## 11\. Seat run$/,$p' "$P/skills/execute-flow/SKILL.md" | grep -F -- '- The release.')"
@@ -307,18 +309,39 @@ if [ -n "$own_rule" ] && [[ "$own_rule" != *'rev-list'* ]]; then ok "execute-flo
 occ_rule="$(grep -F 'Occupant check: before an EnterWorktree `path` call on an existing worktree' "$P/skills/execute-flow/SKILL.md")"
 if [[ "$occ_rule" == *"--worktree '<path>'"* ]] && [[ "$occ_rule" == *'stop with the plan note untouched'* ]] && grep -qF 'run the occupant check below on `<path>`, then call EnterWorktree' "$P/skills/execute-flow/SKILL.md" && grep -qF 'run the section 1 occupant check on that directory, then call EnterWorktree' "$P/skills/execute-flow/SKILL.md"; then ok "execute-flow stops before re-entering a worktree another live session occupies"; else no "execute-flow occupant stop missing before a section 1 or section 2a worktree entry"; fi
 if [[ "$occ_rule" == *'A held seat, exit 10, does not stop this check'* ]] && [[ "$occ_rule" == *'unrecorded worktree rule adopts'* ]]; then ok "the occupant check carves out a held seat and runs before an adoption"; else no "occupant check lost the held-seat carve-out or the adoption case"; fi
-if [[ "$pa_sec" == *'When this session runs in a linked worktree, it does not hold the seat'* ]] && [[ "$pa_sec" == *'seat queue'* ]]; then ok "plan-guide states where a linked-worktree parent's child runs and that the seat run waits in the seat queue"; else no "plan-guide After approval lost the linked-worktree parent bullet or the seat queue wait"; fi
+if [[ "$pa_sec" == *'When this session runs in a linked worktree, it does not hold the seat'* ]] && [[ "$pa_sec" == *'seat queue'* ]]; then ok "plan-guide states where a linked-worktree lead's worker session runs and that the seat run waits in the seat queue"; else no "plan-guide After approval lost the linked-worktree lead bullet or the seat queue wait"; fi
 sr_sec="$(sed -n '/^## 11\. Seat run$/,$p' "$P/skills/execute-flow/SKILL.md")"
 if [[ "$sr_sec" == *'seat-queue.sh wait'* ]] && [[ "$sr_sec" == *'seat-queue.sh leave'* ]] && [[ "$sr_sec" == *'seat-run-<planName>.return'* ]] && [[ "$sr_sec" == *'seated entry'* ]] && [[ "$sr_sec" == *'unqueued:'* ]] && [[ "$sr_sec" != *'TODO(seat-run): wait'* ]]; then ok "the seat run waits in the seat queue, names unqueued holders, holds a seated entry, and returns to the worktree it left"; else no "seat run queue wait, unqueued naming, seated entry, leave, or worktree return missing from execute-flow section 11"; fi
-if [[ "$sr_sec" == *'<parent flag>'* ]] && [[ "$sr_sec" == *'PARENT'* ]] && [[ "$sr_sec" == *'starts no watcher'* ]] && [[ "$sr_sec" == *'runs the seat run itself, or moves into a linked worktree'* ]] && grep -qF 'starts no watcher' "$P/doctrine/orchestration.md" && grep -qF 'starts no watcher' "$P/skills/plan-guide/SKILL.md"; then ok "the seat run starts no watcher and stops when its parent holds the main checkout, and doctrine and plan-guide say so"; else no "the parent stop is missing from execute-flow section 11, orchestration.md or plan-guide"; fi
-if grep -qF 'scripts/seat-queue.sh *)' "$P/commands/setup.md" && grep -qF 'scripts/seat-queue.sh <join|leave|list|wait>' "$P/commands/setup.md"; then ok "setup offers the prompt-free seat-queue rule and its usage line"; else no "setup lacks the seat-queue allow rule or its usage line"; fi
+if [[ "$sr_sec" == *'<lead flag>'* ]] && [[ "$sr_sec" == *'LEAD'* ]] && [[ "$sr_sec" == *'starts no watcher'* ]] && [[ "$sr_sec" == *'runs the seat run itself'* ]] && grep -qF 'starts no watcher' "$P/doctrine/orchestration.md" && grep -qF 'starts no watcher' "$P/skills/plan-guide/SKILL.md"; then ok "the seat run starts no watcher and stops when its lead holds the main checkout, and doctrine and plan-guide say so"; else no "the lead stop is missing from execute-flow section 11, orchestration.md or plan-guide"; fi
+or_miss=""
+for t in 'claude stop' '--hold' 'NOSTART' 'second exit 3 in a row' "the user's permission, given in advance" 'templates/worker-<type>.md'; do grep -qF -- "$t" "$P/doctrine/orchestration.md" || or_miss="${or_miss} '${t}'"; done
+for t in 'MAX_WORKING' 'Stop <name> now?'; do grep -qF -- "$t" "$P/doctrine/orchestration.md" && or_miss="${or_miss} still holds '${t}'"; done
+[ -z "$or_miss" ] && ok "orchestration stops worker sessions with claude stop, holds the watch, NOSTART and second exit 3 rules, states the ceiling as the user's permission, points at the templates, and sets no worker cap or stop question" || no "orchestration lead and worker rules:${or_miss}"
+for w in plan execute ship investigate; do
+  tp_miss=""
+  tp_terms=('{{worker_name}}' '{{lead_name}}' '{{lead_session_id}}' '{{plan_note}}' '{{task}}' '{{run_options}}' '{{ceiling}}' "is the user's permission, given in advance through the run options" 'make no other commit, push or pull request when you finish' 'AskUserQuestion' 'Stop point:')
+  [ "$w" = execute ] && tp_terms+=('run the ship flow')
+  for t in "${tp_terms[@]}"; do grep -qF -- "$t" "$P/templates/worker-$w.md" 2>/dev/null || tp_miss="${tp_miss} '${t}'"; done
+  [ -z "$tp_miss" ] && ok "templates/worker-$w.md carries every placeholder, the ceiling as the user's permission, the git sentence, the question routing and the stop point" || no "templates/worker-$w.md missing:${tp_miss}"
+done
+if grep -qF 'templates/worker-' "$P/scripts/worker-spawn.sh" && grep -qF 'unfilled placeholder' "$P/scripts/worker-spawn.sh" && ! grep -qF 'MAX_WORKING' "$P/scripts/worker-spawn.sh"; then ok "worker-spawn.sh fills the plugin's templates, refuses an unfilled placeholder, and sets no worker cap"; else no "worker-spawn.sh lacks the template fill or the unfilled placeholder refusal, or holds MAX_WORKING"; fi
+pg_ro="$(sed -n '/^## Run options$/,/^## [^#]/p' "$P/skills/plan-guide/SKILL.md")"
+if [[ "$pg_ro" == *'session_model'* ]] && [[ "$pg_ro" == *'session_effort'* ]] && [[ "$pg_ro" == *'Which model and effort run the worker sessions?'* ]] && grep -qF 'session_model' "$P/scripts/validate-plan.py" && grep -qF 'session_effort' "$P/scripts/validate-plan.py"; then ok "plan-guide's Run options asks the worker session question and records session_model and session_effort, and validate-plan.py checks both"; else no "worker session run option keys or question missing from plan-guide's Run options or validate-plan.py"; fi
+if grep -qF 'Fresh worktree base' "$P/skills/execute-flow/SKILL.md" && grep -qF 'worktree.baseRef' "$P/skills/execute-flow/SKILL.md"; then ok "execute-flow checks a fresh worktree's base against worktree.baseRef"; else no "fresh worktree base check missing from execute-flow"; fi
+lw_adr="$(find "$ROOT/docs/decisions" -name '*-lead-and-worker-sessions.md' | wc -l | tr -d ' ')"
+lw_miss=""
+[ "$lw_adr" = 1 ] || lw_miss="${lw_miss} decision records named *-lead-and-worker-sessions.md: ${lw_adr}, wanted 1"
+grep -qF 'superseded_by' "$ROOT/docs/decisions/0008-crawl-session-is-the-parent.md" || lw_miss="${lw_miss} 0008:'superseded_by'"
+for a in 0005 0006 0007 0009 0012; do grep -qF 'lead-and-worker-sessions.md' "$ROOT"/docs/decisions/"$a"-*.md 2>/dev/null || lw_miss="${lw_miss} ${a}:'lead-and-worker-sessions.md'"; done
+[ -z "$lw_miss" ] && ok "one lead and worker sessions decision record supersedes 0008 and amends 0005, 0006, 0007, 0009 and 0012" || no "lead and worker sessions decision record:${lw_miss}"
+if grep -qF 'scripts/seat-queue.sh *)' "$P/commands/setup.md" && grep -qF 'scripts/seat-queue.sh <join|leave|list|wait>' "$P/commands/setup.md" && grep -qF 'scripts/worker-spawn.sh *)' "$P/commands/setup.md" && grep -qF 'scripts/worker-watch.sh *)' "$P/commands/setup.md" && grep -qF '[--lead <sessionId>]' "$P/commands/setup.md" && grep -qF 'claude --bg' "$P/commands/setup.md"; then ok "setup offers the prompt-free seat-queue and worker script rules, the seat-queue usage line with its lead flag, and checks for claude --bg"; else no "setup lacks the seat-queue or worker script allow rules, the seat-queue usage line or its lead flag, or the claude --bg check"; fi
 su_rules="$(sed -n '/^## Rules$/,$p' "$P/commands/setup.md")"
 su_doc="$(sed -n '/^### `\/toolkit:setup`$/,/^### `\/toolkit:topic`$/p' "$ROOT/docs/commands.md")"
 su_miss=""
 for t in 'AskUserQuestion' '(Recommended)' 'yes <name>' 'pending (human)' 'protect-files.sh'; do [[ "$su_rules" == *"$t"* ]] || su_miss="${su_miss} rules:'${t}'"; done
 for t in 'AskUserQuestion' 'yes <name>' 'pending (human)'; do [[ "$su_doc" == *"$t"* ]] || su_miss="${su_miss} docs:'${t}'"; done
 grep -qF 'yes <name>' "$P/doctrine/git-safety.md" || su_miss="${su_miss} git-safety:'yes <name>'"
-for t in 'Toolkit Scripts watch-mr line' 'Toolkit Scripts topic-index line' 'replace Own PR Merge' 'replace Own MR Merge' 'rewrite repository environment entries'; do grep -qF "$t" "$P/commands/setup.md" && [[ "$su_doc" == *"$t"* ]] || su_miss="${su_miss} offer:'${t}'"; done
+for t in 'Toolkit Scripts watch-mr line' 'Toolkit Scripts topic-index line' 'replace Own PR Merge' 'replace Own MR Merge' 'rewrite repository environment entries' 'worker scripts rules' 'Toolkit Scripts worker lines' 'Toolkit Scripts seat-queue lead flag'; do grep -qF "$t" "$P/commands/setup.md" && [[ "$su_doc" == *"$t"* ]] || su_miss="${su_miss} offer:'${t}'"; done
 [ -z "$su_miss" ] && ok "setup's Rules, its doc and git-safety state the yes <name> line, the Rules and doc the question form and the other-session rule, the Rules the file guard confirm, and setup and its doc name the new offers" || no "setup question wording missing:${su_miss}"
 su_old=""
 [[ "$su_rules" == *'Never ask through AskUserQuestion'* ]] && su_old="${su_old} rules:'Never ask through AskUserQuestion'"
@@ -350,18 +373,18 @@ grep -qF 'Five carve-outs' "$P/doctrine/workflow-routing.md" && rt_miss="${rt_mi
 grep -qF 'five narrow carve-outs' "$ROOT/docs/skills.md" && rt_miss="${rt_miss} docs/skills.md still says 'five narrow carve-outs'"
 grep -qF 'Six carve-outs' "$P/doctrine/workflow-routing.md" && rt_miss="${rt_miss} workflow-routing still says 'Six carve-outs'"
 grep -qF 'six narrow carve-outs' "$ROOT/docs/skills.md" && rt_miss="${rt_miss} docs/skills.md still says 'six narrow carve-outs'"
-grep -qF 'Seven carve-outs' "$P/doctrine/workflow-routing.md" || rt_miss="${rt_miss} workflow-routing:'Seven carve-outs'"
-grep -qF 'seven narrow carve-outs' "$ROOT/docs/skills.md" || rt_miss="${rt_miss} docs/skills.md:'seven narrow carve-outs'"
-[ -z "$rt_miss" ] && ok "workflow-routing and docs/skills.md name the grill check carve-out and count seven carve-outs" || no "grill check carve-out:${rt_miss}"
+grep -qF 'Ten carve-outs' "$P/doctrine/workflow-routing.md" || rt_miss="${rt_miss} workflow-routing:'Ten carve-outs'"
+grep -qF 'ten narrow carve-outs' "$ROOT/docs/skills.md" || rt_miss="${rt_miss} docs/skills.md:'ten narrow carve-outs'"
+[ -z "$rt_miss" ] && ok "workflow-routing and docs/skills.md name the grill check carve-out and count ten carve-outs" || no "grill check carve-out:${rt_miss}"
 pg_plan="$(sed -n '/^## Planning Workflow$/,/^### Plan status lifecycle$/p' "$P/skills/plan-guide/SKILL.md")"
 wf_s4="$(sed -n '/^## 4\. Emit the parent umbrella plan$/,/^## 5\. Emit child plan stubs$/p' "$P/skills/wayfinder/SKILL.md")"
 wf_s5="$(sed -n '/^## 5\. Emit child plan stubs$/,/^## 6\. Hand off$/p' "$P/skills/wayfinder/SKILL.md")"
 pg_miss=""
 for t in '### Planning grill' 'skills/grill/SKILL.md' 'Agreed in the grill:' 'Agreed in the grill check:' 'plan - <parent>.md' 'route rubric' 'Outcome:'; do [[ "$pf4" == *"$t"* ]] || pg_miss="${pg_miss} plan-flow:'${t}'"; done
-for t in '### Planning grill' 'Agreed in the grill:' 'Agreed in the grill check:' 'plan - <parent>.md' 'new scope' 'route rubric' 'kebab title' "User's own answer:" 'never counts as an answer' 'Outcome:'; do [[ "$pg_plan" == *"$t"* ]] || pg_miss="${pg_miss} plan-guide:'${t}'"; done
+for t in '### Planning grill' 'Agreed in the grill:' 'Agreed in the grill check:' 'plan - <parent>.md' 'new scope' 'route rubric' 'kebab title' 'from agent view' 'never counts as an answer' 'Outcome:'; do [[ "$pg_plan" == *"$t"* ]] || pg_miss="${pg_miss} plan-guide:'${t}'"; done
 [[ "$gr_fm" == *'planning grill'* ]] || pg_miss="${pg_miss} grill frontmatter:'planning grill'"
-for t in 'Loaded grills' 'outcome line' 'more than one reasonable reading' 'A finding is not an answer' 'kebab title' 'plan - <parent>.md' "User's own answer:" 'never counts as an answer' "the message's \`from\` equals that name"; do grep -qF "$t" "$P/skills/grill/SKILL.md" || pg_miss="${pg_miss} grill:'${t}'"; done
-for t in 'planning grill question' "User's own answer:"; do grep -qF "$t" "$P/skills/wayfinder/SKILL.md" || pg_miss="${pg_miss} wayfinder:'${t}'"; done
+for t in 'Loaded grills' 'outcome line' 'more than one reasonable reading' 'A finding is not an answer' 'kebab title' 'plan - <parent>.md' 'from agent view' 'never counts as an answer'; do grep -qF "$t" "$P/skills/grill/SKILL.md" || pg_miss="${pg_miss} grill:'${t}'"; done
+for t in 'planning grill question' 'from agent view'; do grep -qF "$t" "$P/skills/wayfinder/SKILL.md" || pg_miss="${pg_miss} wayfinder:'${t}'"; done
 [[ "$wf_s4" == *'Agreed in the grill check:'* ]] || pg_miss="${pg_miss} wayfinder section 4:'Agreed in the grill check:'"
 [[ "$wf_s5" == *'grill check block'* ]] || pg_miss="${pg_miss} wayfinder section 5:'grill check block'"
 for t in 'planning grill question' 'Loaded grills'; do grep -qF "$t" "$P/doctrine/orchestration.md" || pg_miss="${pg_miss} orchestration:'${t}'"; done
@@ -371,7 +394,7 @@ grep -qF 'planning grill' "$ROOT/docs/skills.md" || pg_miss="${pg_miss} docs/ski
 for t in '### Planning grill' '### Grill check' '### Outcome line'; do grep -qF "$t" "$ROOT/docs/glossary.md" || pg_miss="${pg_miss} glossary:'${t}'"; done
 pg_adr="$(find "$ROOT/docs/decisions" -name '*-grill-is-a-fixed-step-of-planning.md' | wc -l | tr -d ' ')"
 [ "$pg_adr" = 1 ] || pg_miss="${pg_miss} decision records named *-grill-is-a-fixed-step-of-planning.md: ${pg_adr}, wanted 1"
-[ -z "$pg_miss" ] && ok "plan-flow, plan-guide, grill, wayfinder, crawl, doctrine, docs/skills.md, the glossary and one decision record define the planning grill and its relay of the user's own answer" || no "planning grill missing:${pg_miss}"
+[ -z "$pg_miss" ] && ok "plan-flow, plan-guide, grill, wayfinder, crawl, doctrine, docs/skills.md, the glossary and one decision record define the planning grill and that only the user's own answer counts" || no "planning grill missing:${pg_miss}"
 gs_old=""
 for t in 'Agreed in the grill:' 'On the plan-guide and wayfinder routes, once the route is confirmed and before the run options'; do grep -qF "$t" "$P/skills/crawl/SKILL.md" && gs_old="${gs_old} crawl:'${t}'"; done
 for t in 'Crawl-scoped grills' 'one of those two gates'; do grep -qF "$t" "$P/skills/grill/SKILL.md" && gs_old="${gs_old} grill:'${t}'"; done
@@ -379,7 +402,8 @@ for t in 'grill recommended' 'explicitly user-invoked'; do grep -qF "$t" "$P/ski
 [[ "$wf_s5" == *'Agreed in the grill check:'* ]] && gs_old="${gs_old} wayfinder section 5:'Agreed in the grill check:'"
 grep -qF 'scoped deep grill where requirements are not pinned' "$P/skills/expedition/SKILL.md" && gs_old="${gs_old} expedition:'scoped deep grill where requirements are not pinned'"
 grep -qF 'recommended a scoped grill' "$ROOT/docs/skills.md" && gs_old="${gs_old} docs/skills.md:'recommended a scoped grill'"
-[ -z "$gs_old" ] && ok "crawl, grill, wayfinder, expedition and docs/skills.md carry none of the old grill wording, and no wayfinder child stub copies the grill check block" || no "old grill wording still present:${gs_old}"
+for s in grill plan-guide plan-flow wayfinder; do grep -qF "User's own answer:" "$P/skills/$s/SKILL.md" && gs_old="${gs_old} ${s}:\"User's own answer:\""; done
+[ -z "$gs_old" ] && ok "crawl, grill, plan-guide, plan-flow, wayfinder, expedition and docs/skills.md carry none of the old grill wording or the grill answer relay, and no wayfinder child stub copies the grill check block" || no "old grill wording still present:${gs_old}"
 pb_doc="$(sed -n '/^## plan-builder\.js$/,/^## execute-runner\.js$/p' "$ROOT/docs/workflows.md")"
 tl_miss=""
 for t in 'a.discoveryOnly' 'a.skipDiscovery' 'a.grill' 'PLAN_CONTEXT'; do grep -qF "$t" "$P/workflows/plan-builder.js" || tl_miss="${tl_miss} plan-builder.js:'${t}'"; done
@@ -426,6 +450,10 @@ want "hooks.json wires remember-guard.sh to Stop" \
 want "hooks.json wires agent-model.sh to PreToolUse matcher Agent" \
   "$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); m=[e for e in d.get('hooks',{}).get('PreToolUse',[]) if e.get('matcher')=='Agent']; print(json.dumps(m))" "$P/hooks/hooks.json" 2>/dev/null)" \
   "agent-model.sh"
+# worker-spawn-mode.sh only fires if hooks.json wires it to a PreToolUse entry matched on Bash.
+want "hooks.json wires worker-spawn-mode.sh to PreToolUse matcher Bash" \
+  "$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); m=[e for e in d.get('hooks',{}).get('PreToolUse',[]) if e.get('matcher')=='Bash']; print(json.dumps(m))" "$P/hooks/hooks.json" 2>/dev/null)" \
+  "worker-spawn-mode.sh"
 # toolkit-models.json.template must offer every shipped agent under "agents" as a {model, effort}
 # object, or a new agent silently has no default layer for resolve-models.sh.
 tm_match="$(python3 -c "
@@ -473,7 +501,7 @@ else
   # exit code is part of the pass condition and the RESULT line is picked by prefix,
   # not by trailing position: a merged stderr line must not masquerade as the verdict.
   out="$(printf '%s' "$hout" | grep -E '^RESULT: ' | tail -1)"
-  if [ "$hrc" -eq 0 ] && suite_pass "$out" 230; then
+  if [ "$hrc" -eq 0 ] && suite_pass "$out" 240; then
     ok "hook fixture suite"
   else
     no "hook fixture suite (exit $hrc, got: ${out:0:60})"
@@ -566,7 +594,7 @@ rm -rf "$onh"
 
 echo "== Plan validator =="
 out="$(bash "$P/scripts/tests/validate-plan/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "plan-validator fixture suite" "$out" 48
+suite_ok "plan-validator fixture suite" "$out" 51
 
 echo "== Topic recall =="
 out="$(bash "$P/scripts/tests/topic-recall/run-tests.sh" 2>/dev/null | tail -1)"
@@ -600,7 +628,13 @@ suite_ok "seat-check behavior suite" "$out" 20
 
 echo "== seat-queue order and watcher =="
 out="$(bash "$P/scripts/tests/seat-queue/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "seat-queue behavior suite" "$out" 54
+suite_ok "seat-queue behavior suite" "$out" 55
+
+echo "== worker sessions =="
+out="$(bash "$P/scripts/tests/worker-spawn/run-tests.sh" 2>/dev/null | tail -1)"
+suite_ok "worker-spawn behavior suite" "$out" 50
+out="$(bash "$P/scripts/tests/worker-watch/run-tests.sh" 2>/dev/null | tail -1)"
+suite_ok "worker-watch behavior suite" "$out" 47
 
 echo "== resolve-models layering =="
 out="$(bash "$P/scripts/tests/resolve-models/run-tests.sh" 2>/dev/null | tail -1)"
@@ -798,4 +832,4 @@ echo "RESULT: $pass passed, $skip skipped, $fail failed"
 # Floor, not just zero-failures: silently deleting real checks must not read green.
 # Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
 # no node, no local plugin install) must not read as a vanished check.
-[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 190 ]
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 210 ]

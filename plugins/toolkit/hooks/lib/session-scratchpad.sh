@@ -1,4 +1,4 @@
-# Sourced by session-start.sh and agent-model.sh: the one definition of where Claude Code keeps a session's scratchpad.
+# Sourced by session-start.sh, agent-model.sh, worker-spawn-mode.sh, worker-spawn.sh and worker-watch.sh: the one definition of where Claude Code keeps a session's scratchpad.
 # Prints each scratchpad directory of session id $1, one per line, and nothing for an id that is not a plain id.
 session_scratchpads() {
   case "$1" in ''|*[!A-Za-z0-9_-]*) return 0 ;; esac
@@ -20,3 +20,8 @@ session_scratch_file() {
 }
 # Prints the newest plan-guide run options cache of session id $1. The one place the cache file name lives.
 session_run_options_file() { session_scratch_file "$1" flow-run-options; }
+# The worker session scratch file names, shared by the worker-spawn-mode.sh hook, worker-spawn.sh, worker-watch.sh and session-start.sh.
+WORKER_SPAWN_MODE_FILE=worker-spawn-mode
+WORKERS_FILE=workers
+# Prints the newest workers file of session id $1.
+session_workers_file() { session_scratch_file "$1" "$WORKERS_FILE"; }

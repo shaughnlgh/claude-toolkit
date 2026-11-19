@@ -67,11 +67,18 @@ On the plan-guide and wayfinder routes, once the route is confirmed, ask the run
 
 Plan flow offer: on the plan-guide route, after the scaffold, end the reply with one question in plain text and end the turn. Never ask it through AskUserQuestion, because the permission classifier reads the user's typed messages, as `plan-guide` § After approval states. Skip it when an `expedition` drives this session, because the expedition's gates sequence planning.
 
-Before the question, read this session's own name from the first line of ListAgents, which loads through ToolSearch with `select:ListAgents` when it is deferred. The own name is the session name on that line, without the bracketed short id after it. When ListAgents is absent, prints no own-name line, or prints a name that does not start `parent-`, put this line directly above the question, with `<planName>` set to the scaffolded note's `plan` value:
+Lead rename line: after the route is confirmed, on the plan-guide and wayfinder routes, read this session's own name from the first line of ListAgents, which loads through ToolSearch with `select:ListAgents` when it is deferred. The own name is the session name on that line, without the bracketed short id after it. When ListAgents is absent, prints no own-name line, or prints a name that does not start `lead-`, put this one line on the plan-guide route directly above the plan flow offer, and on the wayfinder route at the end of the reply that hands off to wayfinder. `<key>` is the note's `ticket` in lowercase when it holds a tracker key or `issue-<n>`, else its `plan` value, where the note is the scaffolded plan note on the plan-guide route and the parent note on the wayfinder route:
 
-    To mark this session as the plan's parent, run `/rename parent-<planName>` before you answer.
+    Optional: run `/rename lead-<key>` so session lists show this session as the lead. Skipping it changes nothing.
 
-The question, verbatim:
+The plan flow offer takes the worker form when the ListAgents read printed an own-name line, verbatim:
+
+    The plan note is scaffolded. Start worker-plan-<key> to plan it?
+    - `start the worker` or `yes`: starts worker-plan-<key> in the background to run the plan flow on the note with the crawl's evidence, and to stop for your approval here (recommended). I tell you here when it needs you or finishes.
+    - `run the plan flow here`: plans the note in this session with the plan-builder workflow and stops for your approval.
+    - `plan by hand` or `no`: planning continues in this session under plan-guide.
+
+When ListAgents is absent or printed no own-name line, the offer takes the two-option form, because a worker session could not report to this session, verbatim:
 
     The plan note is scaffolded. Run the plan flow on it now?
     - `run the plan flow` or `yes`: plans the note in this session with the plan-builder workflow and stops for your approval (recommended).
@@ -79,7 +86,8 @@ The question, verbatim:
 
 The user's next typed message answers it. A slash command such as `/rename` answers nothing.
 
-- `yes`, or a reply that asks to run the plan flow, such as `run the plan flow`, is the user asking for the plan flow by name. Load `plan-flow` (`<plugin-root>/skills/plan-flow/SKILL.md`) and follow it from section 1 on the scaffolded note. Pass it as `knownEvidence` the crawl's verified facts, each with its file:line, and the Current Context, Assumptions and Open Questions that this section wrote into the note, which hold the crawl's corrections to the brief and its open questions, as plan-flow section 4 defines. The crawl's evidence is the plan flow's discovery, so `plan-flow` section 4 runs no discovery launch and runs the planning grill on it. Leave the brief file as the verbatim brief.
+- `start the worker`, or a bare `yes` in the worker form, starts a worker session. Write the one-line task `Plan the scaffolded plan note.` to `<scratchpad>/worker-task.md` with the Write tool, then run, as its own call with the command first, `bash <plugin-root>/scripts/worker-spawn.sh --scratchpad '<scratchpad>' --type plan --key '<key>' --plan '<planName>' --note '<plan note path>' --lead-name '<own name>' --model '<session_model>' --effort '<session_effort>' --cwd '<main>' --task-file '<scratchpad>/worker-task.md'`, with `<session_model>` and `<session_effort>` the values that section 3's run options recorded and `<main>` the main checkout of the repo the note names. Apply the single-quote rule of `plan-guide` § After approval and handle each outcome as that subsection does, with `run the plan flow here` as the offered fallback.
+- `run the plan flow here`, a bare `yes` in the two-option form, or another reply that asks to run the plan flow, such as `run the plan flow`, is the user asking for the plan flow by name. Load `plan-flow` (`<plugin-root>/skills/plan-flow/SKILL.md`) and follow it from section 1 on the scaffolded note. Pass it as `knownEvidence` the crawl's verified facts, each with its file:line, and the Current Context, Assumptions and Open Questions that this section wrote into the note, which hold the crawl's corrections to the brief and its open questions, as plan-flow section 4 defines. The crawl's evidence is the plan flow's discovery, so `plan-flow` section 4 runs no discovery launch and runs the planning grill on it. Leave the brief file as the verbatim brief.
 - Any other reply starts no flow. Planning continues under plan-guide as normal, treating the crawl-filled sections as verified evidence rather than re-deriving them, and its Planning Workflow runs the planning grill on the crawl's evidence.
 
 ## Boundary

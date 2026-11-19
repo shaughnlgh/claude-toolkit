@@ -16,6 +16,8 @@ ceiling:
 worker_model:
 verifier_model:
 verifier_effort:
+session_model:
+session_effort:
 nits:
 tests:
 e2e:

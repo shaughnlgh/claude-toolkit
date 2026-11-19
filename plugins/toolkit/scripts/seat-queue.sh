@@ -24,21 +24,21 @@ age() {  # seconds since the mtime of $1, GNU stat first and BSD stat second
 }
 
 sub=${1:-}; [ $# -gt 0 ] && shift
-repo="" self="" parent="" bound=180 interval=30
+repo="" self="" lead="" bound=180 interval=30
 while [ $# -gt 0 ]; do
   case $1 in
     --self) [ $# -ge 2 ] || die "--self needs a session id"; self=$2; shift 2 ;;
-    --parent) [ $# -ge 2 ] || die "--parent needs a session id"; parent=$2; shift 2 ;;
+    --lead | --parent) [ $# -ge 2 ] || die "$1 needs a session id"; lead=$2; shift 2 ;;  # --parent: the pre-1.1 name, kept for skill copies made before it
     --bound) [ $# -ge 2 ] || die "--bound needs a value"; bound=$2; shift 2 ;;
     --interval) [ $# -ge 2 ] || die "--interval needs a value"; interval=$2; shift 2 ;;
     -*) die "unknown option: $1" ;;
     *) [ -z "$repo" ] || die "one repo path only"; repo=$1; shift ;;
   esac
 done
-case $sub in join | leave | list | wait) ;; *) die "usage: seat-queue.sh <join|leave|list|wait> <repo path> [--self <sessionId>] [--parent <sessionId>] [--bound <n> (minutes, default 180)] [--interval <seconds>]" ;; esac
+case $sub in join | leave | list | wait) ;; *) die "usage: seat-queue.sh <join|leave|list|wait> <repo path> [--self <sessionId>] [--lead <sessionId>] [--bound <n> (minutes, default 180)] [--interval <seconds>]" ;; esac
 [ -n "$repo" ] || die "missing repo path"
 [ "$sub" = list ] || [[ $self =~ ^[A-Za-z0-9-]{1,64}$ ]] || die "bad or missing --self: $self"
-[ -z "$parent" ] || [[ $parent =~ ^[A-Za-z0-9-]{1,64}$ ]] || die "bad --parent: $parent"
+[ -z "$lead" ] || [[ $lead =~ ^[A-Za-z0-9-]{1,64}$ ]] || die "bad --lead: $lead"
 common=$(git -C "$repo" rev-parse --git-common-dir 2>/dev/null) || die "not a git repo: $repo"
 common=$(cd "$repo" && cd "$common" 2>/dev/null && pwd -P) || die "cannot resolve the git common dir"
 Q="$common/$QUEUE"
@@ -78,8 +78,8 @@ sweep() {  # $1 the listing taken before the seat read, $2 the live session ids
   done
 }
 
-verdict() {  # prints one status line, returns 0 TURN, 10 WAIT, 11 DEADLOCK, 13 LEFT, 14 DIRTY, 15 PARENT, 2 a failed write (die), 3 seat check failed, 4 lock stayed taken
-  local snap live main_sids hold dirty f st s own_entry="" own_state="" seen="" dl="" queued="" ahead=0 others unq=0 par=""
+verdict() {  # prints one status line, returns 0 TURN, 10 WAIT, 11 DEADLOCK, 13 LEFT, 14 DIRTY, 15 LEAD, 2 a failed write (die), 3 seat check failed, 4 lock stayed taken
+  local snap live main_sids hold dirty f st s own_entry="" own_state="" seen="" dl="" queued="" ahead=0 others unq=0 ld=""
   snap=$(entries)  # listed before the seat read, so a join that lands during the read is never removed
   seat || return 3
   live=$(sids live); main_sids=$(sids holder); hold=$main_sids
@@ -100,9 +100,9 @@ verdict() {  # prints one status line, returns 0 TURN, 10 WAIT, 11 DEADLOCK, 13 
   if [ -z "$own_entry" ]; then unlock; echo LEFT; return 13; fi
   others=$(printf '%s\n' $hold | grep -vxF -- "$self" | sort -u | grep -c .)
   for s in $main_sids; do
-    [ "$s" = "$self" ] || has "$queued" "$s" || { unq=$((unq + 1)); [ "$s" != "$parent" ] || par=$s; }
+    [ "$s" = "$self" ] || has "$queued" "$s" || { unq=$((unq + 1)); [ "$s" != "$lead" ] || ld=$s; }
   done
-  if [ -n "$par" ]; then drop_mine; unlock; echo "PARENT $par"; return 15; fi  # a parent stays until its user ends it, so a wait on it would run to the bound
+  if [ -n "$ld" ]; then drop_mine; unlock; echo "LEAD $ld"; return 15; fi  # a lead stays until its user ends it, so a wait on it would run to the bound
   if has "$main_sids" "$self"; then  # sits in the main checkout and holds the seat by its cwd, so order does not apply
     if [ -n "$dl" ]; then unlock; echo "DEADLOCK $dl"; return 11; fi
     ahead=0

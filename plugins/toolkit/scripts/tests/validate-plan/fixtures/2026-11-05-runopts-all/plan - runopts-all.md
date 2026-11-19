@@ -16,6 +16,8 @@ ceiling: merge
 worker_model: opus
 verifier_model: claude-opus-4-1[1m]
 verifier_effort: xhigh
+session_model: opus
+session_effort: high
 nits: fix
 tests: required
 e2e: skip

@@ -54,13 +54,13 @@
 </div>
 <div class="prose">
 <p class="lead">A brief becomes a plan note that you approve, worker agents build it step by step, a review panel checks the result, and a ship flow opens and merges the pull request under the git permissions the plan note records.</p>
-<p>The plugin ships 14 worker agents, 20 skills, 8 slash commands, 12 hooks, 4 workflows, write-time rules and the doctrine that ties them together. The main conversation plans and supervises. Worker agents make every file change and report back. Plan notes and topic notes go into a vault, which is any folder of markdown on your machine. No note-taking app is required.</p>
+<p>The plugin ships 14 worker agents, 20 skills, 8 slash commands, 13 hooks, 4 workflows, write-time rules and the doctrine that ties them together. The main conversation plans and supervises. Worker agents make every file change and report back. Plan notes and topic notes go into a vault, which is any folder of markdown on your machine. No note-taking app is required.</p>
 </div>
 <ul class="tally full" aria-label="What the plugin ships">
 <li><span class="tally__n">14</span> <span class="tally__label"><a href="agents.html">worker agents <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Make every file change and report back.</span></li>
 <li><span class="tally__n">20</span> <span class="tally__label"><a href="skills.html">skills <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Including <code>crawl</code> and <code>plan-guide</code>.</span></li>
 <li><span class="tally__n">8</span> <span class="tally__label"><a href="commands.html">slash commands <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Including <code>/toolkit:setup</code> and <code>/toolkit:topic</code>.</span></li>
-<li><span class="tally__n">12</span> <span class="tally__label"><a href="hooks.html">hooks <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Switched on in every session at install.</span></li>
+<li><span class="tally__n">13</span> <span class="tally__label"><a href="hooks.html">hooks <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Switched on in every session at install.</span></li>
 <li><span class="tally__n">4</span> <span class="tally__label"><a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/workflows.md">workflows <span aria-hidden="true">&rarr;</span></a></span> <span class="tally__note">Including <code>plan-builder</code>, <code>execute-runner</code> and <code>ship-runner</code>.</span></li>
 </ul>
 <ul class="tally-plus full" aria-label="Also in the plugin">
@@ -106,9 +106,9 @@
 <p class="card__cmd"><code>run the ship flow</code></p>
 </li>
 <li class="card">
-<h3><a href="sessions.html">Parent and child sessions <span aria-hidden="true">&rarr;</span></a></h3>
-<p>How one session plans and another builds.</p>
-<p class="card__cmd"><code>parent-&lt;planName&gt;</code>, <code>child-&lt;planName&gt;</code></p>
+<h3><a href="sessions.html">Lead and worker sessions <span aria-hidden="true">&rarr;</span></a></h3>
+<p>How the session you start runs worker sessions in the background.</p>
+<p class="card__cmd"><code>worker-&lt;type&gt;-&lt;key&gt;</code></p>
 </li>
 </ul>
 </div>
@@ -121,7 +121,7 @@
 <h2>What switches on at install</h2>
 </div>
 <div class="prose">
-<p>Installing the plugin switches on twelve hooks in every Claude Code session, with no opt-in and no separate config. Read <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/hooks.md">docs/hooks.md</a> before you trust the toolkit with a repo. It lists what each hook blocks, what it only asks, and every environment variable it honors.</p>
+<p>Installing the plugin switches on thirteen hooks in every Claude Code session, with no opt-in and no separate config. Read <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/hooks.md">docs/hooks.md</a> before you trust the toolkit with a repo. It lists what each hook blocks, what it only asks, and every environment variable it honors.</p>
 </div>
 <dl class="hooks">
 <div>
@@ -167,6 +167,10 @@
 <div>
 <dt><code>agent-model.sh</code></dt>
 <dd>Adds the resolved model and effort to an agent call that does not carry them.</dd>
+</div>
+<div>
+<dt><code>worker-spawn-mode.sh</code></dt>
+<dd>Records the session's permission mode when it starts a worker session, so the worker session runs in the same mode. It prints nothing and never changes the call.</dd>
 </div>
 <div>
 <dt><code>remember-guard.sh</code></dt>
