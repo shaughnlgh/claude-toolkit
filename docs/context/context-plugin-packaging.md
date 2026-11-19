@@ -4,7 +4,7 @@ summary: What the installed toolkit plugin contains, why a file inside the plugi
 type: context
 status: active
 owner: Shaughn
-last_reviewed: 2026-11-09
+last_reviewed: 2026-11-19
 source_refs:
   - .claude-plugin/marketplace.json
   - plugins/toolkit/
@@ -18,9 +18,9 @@ The marketplace entry in `.claude-plugin/marketplace.json` sets the source of th
 
 ## Links from plugin files
 
-- A skill, command, doctrine, rule, or agent file must not link to a repo-root file. The link resolves in the repo and dangles in every install. Name the file in prose as a repo file that the plugin does not ship, as the `crawl` skill does for the brief template, or move the content under `plugins/toolkit/`.
+- A skill, command, doctrine, rule, or agent file must not link to a repo-root file. The link resolves in the repo and dangles in every install. Name the file in prose as a repo file that the plugin does not ship, as the `crawl` skill does for the brief template, or move the content under `plugins/toolkit/`. A skill or doctrine file never sends its reader to a repo-only doc for a fact the reader needs, because an install user has no such doc. A `verify.sh` check fails when a file under `skills/` or `doctrine/` names `docs/scripts.md`, `ADR 0001`, the repo's `docs/decisions/`, or the plugin registry rationale for a workflow script's name, which [context-workflow-script-authoring.md](context-workflow-script-authoring.md) holds.
 - A skill reaches another plugin file through its plugin root, such as `<plugin-root>/skills/plan-guide/SKILL.md` or `<plugin-root>/workflows/<name>.js`, and never by a bare `../..` or `../<name>/` path, because a `/toolkit:override` copy under `~/.claude/skills/<name>/` resolves such a path inside `~/.claude/`. A `verify.sh` check fails when a skill line outside its plugin-root sentence carries such a path.
-- Open item: `commands/setup.md` points at `docs/overrides.md`, and `doctrine/orchestration.md` points at `docs/hooks.md`.
+- Open item: `commands/setup.md` points at `docs/overrides.md`, and `doctrine/orchestration.md` points at `docs/hooks.md` and `docs/prerequisites.md`.
 
 ## Plugin root
 
