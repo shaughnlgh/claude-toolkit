@@ -45,7 +45,7 @@ If a hunk's intent cannot be worked out confidently (both sides plausible, inten
 
 ## 5. Write, then verify no markers remain
 
-Only after the human confirms a file's resolution: write the file with the conflict markers removed and the agreed content in place. Then re-run the helper (or `git status`) to confirm the file no longer shows as conflicted and no markers remain in it.
+Only after the human confirms a file's resolution, hand the agreed content to `toolkit:implementer`, which writes the file with the conflict markers removed. Then re-run the helper, or `git status`, to confirm the file no longer shows as conflicted and no markers remain in it.
 
 ## Boundary
 

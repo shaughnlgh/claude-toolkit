@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Exercises the agent model list that session-start.sh injects: each line must match what agent-model.sh adds for that agent,
-# the list must reach additionalContext, it must follow the session's run options cache, and a resolver failure must leave a note.
+# the list must reach the first 1500 bytes of additionalContext, it must follow the session's run options cache, and a resolver failure must leave a note.
 # Sourced by run-all.sh, which supplies ROOT and the PASS/FAIL/FAILED_NAMES counters. Run directly, it supplies its own and prints a RESULT line.
 # The directories it creates are removed inline at the end, because run-all.sh owns the EXIT trap. The real ~/.claude is never read.
 
@@ -37,9 +37,11 @@ _aml_from_hook() {
 # $1 user file, $2 session id (optional). Prints session-start's additionalContext.
 _aml_session_start() {
   jq -nc --arg s "${2:-}" '{session_id:$s,source:"startup"}' \
-    | HOME="$AML_BASE/home" TOOLKIT_MODELS_FILE="$1" bash "$ROOT/session-start.sh" 2>/dev/null \
+    | HOME="$AML_BASE/home" CLAUDE_PLUGIN_ROOT="$ROOT/.." TOOLKIT_MODELS_FILE="$1" bash "$ROOT/session-start.sh" 2>/dev/null \
     | jq -r '.hookSpecificOutput.additionalContext'
 }
+
+AML_HEADER='Toolkit agent models: on every Agent-tool spawn of a toolkit:<name> agent, pass model and effort from this list'
 
 run_agent_model_list_checks() {
   local tmp="/tmp/claude-$(id -u)" made_tmp="" sid="aml-$$-$RANDOM$RANDOM" ok list ctx
@@ -61,6 +63,14 @@ run_agent_model_list_checks() {
   ctx="$(_aml_session_start "$full_id")"
   ok=0; [[ -n "$list" && "$ctx" == *"$list"* ]] && ok=1
   _aml_report "session-start adds the list to additionalContext" "$ok"
+
+  ok=0; [[ -n "$list" && "$(printf '%s' "$ctx" | head -c 1500)" == *"$AML_HEADER"*$'\n'"$list"* ]] && ok=1
+  _aml_report "with full model ids the header and every list line sit in the first 1500 bytes of additionalContext" "$ok"
+
+  list="$(TOOLKIT_MODELS_FILE="$AML_BASE/no-user-file.json" bash "$ROOT/../scripts/resolve-models.sh" --list 2>/dev/null)"
+  ctx="$(_aml_session_start "$AML_BASE/no-user-file.json")"
+  ok=0; [[ -n "$list" && "$(printf '%s' "$ctx" | head -c 1500)" == *"$AML_HEADER"*$'\n'"$list"* ]] && ok=1
+  _aml_report "with the template defaults the header and every list line sit in the first 1500 bytes of additionalContext" "$ok"
 
   ok=0
   if mkdir -p "$AML_BASE/$sid/scratchpad" \

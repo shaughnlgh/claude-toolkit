@@ -19,7 +19,7 @@ A child session started from one command the parent handed the user, `claude -n 
 
 ## Decision
 
-- Roles. The session the user starts is the lead. Crawl suggests an optional `/rename lead-<key>`, and any session name that does not start `worker-` marks a lead. A worker reports to the lead's name, and when a send fails it reads the lead's current name from `claude agents --json` by the lead's session id and sends again.
+- Roles. The session the user starts is the lead. Crawl suggests an optional `/rename lead-<name>`, with a name for the whole job, and any session name that does not start `worker-` marks a lead. A worker reports to the lead's name, and when a send fails it reads the lead's current name from `claude agents --json` by the lead's session id and sends again.
 - Spawn. The lead proposes a worker session in one plain-text line that names every flow it will run, and starts it only on the user's typed yes, with `scripts/worker-spawn.sh` and `claude --bg`, in the lead's permission mode, which a PreToolUse hook records, and on the lead's own plugin copy through `--plugin-dir` when the lead loaded the plugin by path.
 - First prompt. `worker-spawn.sh` fills the first prompt from the plugin's `templates/worker-<type>.md`, and the lead never writes a first prompt by hand.
 - Worker session model. The run option keys `session_model` and `session_effort` record the model and effort of the task's worker sessions. The question is always asked of the user, and a worker session never inherits its model or effort from the lead or from the machine default. `worker-spawn.sh` requires both.

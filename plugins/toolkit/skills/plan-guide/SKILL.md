@@ -388,7 +388,7 @@ Create a ticket runs this procedure after the question is answered and before an
     worker_model:
     verifier_model:
     verifier_effort:
-    session_model: opus
+    session_model: sonnet
     session_effort: high
     nits: fix
     tests: required
@@ -428,7 +428,7 @@ For non-trivial tasks, follow these steps before writing the plan note:
 10. No implementation code changes in this mode.
 11. Stop and wait for explicit user approval before execution.
 
-On non-trivial plans, after drafting the plan note and before stopping for approval, run the `plan-critic` subagent (model: opus) to adversarially red-team the draft. Plan-critic applies the inversion pre-mortem structure and returns tripwires and walk-away checks. Fold its material objections into the plan's Risks / Assumptions / Open Questions. Copy its Tripwires block into Validation Steps, one line per failure mode, and its Walk-away checks block into Risks, one line per check, so the plan carries the measurable signal and the threshold that means stop. Then present for approval. This step is conductor-gated: skip it for trivial plans. It augments, and does not replace, the human approval gate.
+On non-trivial plans, after drafting the plan note and before stopping for approval, run the `plan-critic` subagent to adversarially red-team the draft. Plan-critic applies the inversion pre-mortem structure and returns tripwires and walk-away checks. Fold its material objections into the plan's Risks / Assumptions / Open Questions. Copy its Tripwires block into Validation Steps, one line per failure mode, and its Walk-away checks block into Risks, one line per check, so the plan carries the measurable signal and the threshold that means stop. Then present for approval. This step is conductor-gated: skip it for trivial plans. It augments, and does not replace, the human approval gate.
 
 ### Planning grill
 
@@ -525,7 +525,7 @@ At session start:
 - If resumption minted a genuinely new session id (a new transcript), that is a new session: append a new entry for it.
 - Every live session has an id — the scratchpad path is always in your context, so derivation always succeeds. Never leave `id:` blank on an entry you create, and never invent a placeholder value: if you truly cannot locate the scratchpad path, that is an error to surface to the human, not a reason to skip the id. A blank id only ever appears on a manually pre-scaffolded entry.
 
-Session name: each time this session creates, claims, or updates its entry, read its own name from the first line of ListAgents, which loads through ToolSearch with `select:ListAgents` when it is deferred, and write it as the entry's `name` when it differs. The own name is the session name on that line, without the bracketed short id after it. Always write the value as a double-quoted YAML scalar, such as `name: "PROJ-12 Fix checkout: totals"`, because a session name can hold spaces and a colon, and a plain scalar such as `123` or `true` reads as a number or a boolean. Plan-tracking tooling reads it: a name that starts `worker-` marks a worker session, and any other name marks a lead, including the optional `lead-<key>` that crawl suggests. An older `parent-` name reads as a lead and an older `child-` name as a worker session. When ListAgents is absent, prints no own-name line, or prints a name that holds a double quote, a backslash, or a control character such as a tab or a newline, write no new `name` and leave the entry's existing `name` as it is. Never escape a character inside the quotes, and never write a blank or guessed name.
+Session name: each time this session creates, claims, or updates its entry, read its own name from the first line of ListAgents, which loads through ToolSearch with `select:ListAgents` when it is deferred, and write it as the entry's `name` when it differs. The own name is the session name on that line, without the bracketed short id after it. Always write the value as a double-quoted YAML scalar, such as `name: "PROJ-12 Fix checkout: totals"`, because a session name can hold spaces and a colon, and a plain scalar such as `123` or `true` reads as a number or a boolean. Plan-tracking tooling reads it: a name that starts `worker-` marks a worker session, and any other name marks a lead, including the optional `lead-<name>` that crawl suggests. An older `parent-` name reads as a lead and an older `child-` name as a worker session. When ListAgents is absent, prints no own-name line, or prints a name that holds a double quote, a backslash, or a control character such as a tab or a newline, write no new `name` and leave the entry's existing `name` as it is. Never escape a character inside the quotes, and never write a blank or guessed name.
 
 During the session and before stopping, update that same entry's summary to the real one-line outcome. If the note carries a pre-scaffolded blank-id entry that is clearly this session's work, claim it: fill in your id and `name` rather than appending a duplicate; if ownership is ambiguous (say, two blank-id entries on the same date), stop and report the ambiguity rather than guessing. Record the id yourself. Do not rely on tooling to backfill it.
 

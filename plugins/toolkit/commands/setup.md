@@ -188,7 +188,7 @@ Optional additions, each shown verbatim, explained in one line, and asked as the
       Write-time rules: before writing code, tests, queries, error handling, or
       documentation/comments, read the matching file under `<plugin-root>/rules/`
       (testing.md, security.md, error-handling.md, database.md, performance.md,
-      writing.md, frontend.md, prose.md).
+      writing.md, frontend.md, prose.md, config-coupling.md).
 
   When the global CLAUDE.md already holds this block and the block lacks `use the plugin root it names`, show its resolution lines beside the new ones and offer to replace only those lines. Never write this command's own substituted plugin root into the block, because the user's file would then pin one version's path.
 
@@ -217,7 +217,7 @@ If this machine previously ran a copy-pasted version of this setup, local copies
 - **Agents (silent shadowing):** agent files at any depth of `~/.claude/agents/` whose frontmatter `name` matches a plugin agent's, because Claude Code keys an agent by that name and never by its file name. Effect: the LOCAL copy wins (user scope outranks plugins), so plugin updates never take effect, with no visible symptom. The diff below pairs each one with the plugin agent of that name. Offer to remove matching local agents.
 - **Skills and commands (shadowing/duplication):** a personal skill under `~/.claude/skills/` whose directory name or its frontmatter `name` equals a plugin skill's name, because Claude Code invokes a personal skill by both, and files in `~/.claude/commands/` whose file name matches a plugin command's, because Claude Code names a command file by its file name. Same effect as agents. Offer removal.
 - **Workflow scripts:** `~/.claude/workflows/review-mr.js`, `~/.claude/workflows/plan-builder.js`, `~/.claude/workflows/execute-runner.js`, or `~/.claude/workflows/ship-runner.js` duplicating the plugin's bundled copy.
-- **Rules (duplication with injection):** files in `~/.claude/rules/` matching plugin rule names (testing, security, error-handling, database, performance, writing, frontend, prose) or carrying `source: toolkit@shaughn-toolkit` frontmatter. The plugin now injects these rules live at session start, so local copies mean the content lands twice. Offer removal; the user's own unrelated rules are never touched.
+- **Rules (duplication with injection):** files in `~/.claude/rules/` matching plugin rule names (testing, security, error-handling, database, performance, writing, frontend, prose, config-coupling) or carrying `source: toolkit@shaughn-toolkit` frontmatter. The plugin now injects these rules live at session start, so local copies mean the content lands twice. Offer removal; the user's own unrelated rules are never touched.
 
 Before offering ANY removal, diff each local copy against the plugin's version (`diff -q`, then summarize real differences). If a local copy differs, say so plainly and show what differs — the user may have customized it, and that customization must be a conscious keep-or-discard decision, never collateral damage. Identical copies can be described as safe to remove.
 
