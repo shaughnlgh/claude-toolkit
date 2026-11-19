@@ -72,6 +72,8 @@ One instruction to commit, push, merge, or tag covers that one operation. The ne
 
 Inside a flow whose recorded ceiling is `mr` or `merge`, this section overrides two rules above: the opening rule that the human handles git, and the rule that authorization covers one operation. A flow is a skill whose name ends in `-flow`, driven by a Workflow script under `workflows/`.
 
+Inside a flow, the flow's own skill decides how the work branch is created: the execute flow opens a worktree for it, and where it stops on a default branch it hands the branch command over.
+
 The ceiling is the `ceiling` key on the plan note, or the `ceiling` line of `<scratchpad>/flow-run-options` when the note lacks it and that file's `plan:` line names the same plan. The `## Run options` section of the plan-guide skill (`skills/plan-guide/SKILL.md`) defines the keys, the question set, the reading rule, and the cache. A flow asks only for the keys neither source holds, so one answer holds for the plan and for every flow in the session, and a later session reads the note. A missing, empty, or unrecognised ceiling reads as `none`.
 
 - `none` keeps this doctrine as written.
