@@ -67,11 +67,11 @@ On the plan-guide and wayfinder routes, once the route is confirmed, ask the run
 
 Plan flow offer: on the plan-guide route, after the scaffold, end the reply with one question in plain text and end the turn. Never ask it through AskUserQuestion, because the permission classifier reads the user's typed messages, as `plan-guide` § After approval states. Skip it when an `expedition` drives this session, because the expedition's gates sequence planning.
 
-Lead rename line: after the route is confirmed, on the plan-guide and wayfinder routes, read this session's own name from the first line of ListAgents, which loads through ToolSearch with `select:ListAgents` when it is deferred. The own name is the session name on that line, without the bracketed short id after it. When ListAgents is absent, prints no own-name line, or prints a name that does not start `lead-`, put this one line on the plan-guide route directly above the plan flow offer, and on the wayfinder route at the end of the reply that hands off to wayfinder. `<key>` is the note's `ticket` in lowercase when it holds a tracker key or `issue-<n>`, else its `plan` value, where the note is the scaffolded plan note on the plan-guide route and the parent note on the wayfinder route:
+Lead rename line: after the route is confirmed, on the plan-guide and wayfinder routes, read this session's own name from the first line of ListAgents, which loads through ToolSearch with `select:ListAgents` when it is deferred. The own name is the session name on that line, without the bracketed short id after it. When ListAgents is absent, prints no own-name line, or prints a name that does not start `lead-`, put this one line on the plan-guide route directly above the plan flow offer, and on the wayfinder route at the end of the reply that hands off to wayfinder:
 
-    Optional: run `/rename lead-<key>` so session lists show this session as the lead. Skipping it changes nothing.
+    Optional: run `/rename lead-<name>`, with a name for the whole job this session leads, so session lists show this session as the lead. Skipping it changes nothing.
 
-The plan flow offer takes the worker form when the ListAgents read printed an own-name line, verbatim:
+The plan flow offer takes the worker form when the ListAgents read printed an own-name line, verbatim, where `<key>` is the scaffolded plan note's `ticket` in lowercase when it holds a tracker key or `issue-<n>`, else its `plan` value:
 
     The plan note is scaffolded. Start worker-plan-<key> to plan it?
     - `start the worker` or `yes`: starts worker-plan-<key> in the background to run the plan flow on the note with the crawl's evidence, and to stop for your approval here (recommended). I tell you here when it needs you or finishes.

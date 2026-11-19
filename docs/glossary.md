@@ -13,7 +13,7 @@ The `ceiling` run option on a plan note: `none`, `mr`, or `merge`. It is the sta
 
 ### Flow
 
-A skill whose name ends in `-flow`, driven by a Workflow script under `plugins/toolkit/workflows/`. A flow reads its run options, the ceiling first, from the plan note, else from the session cache when the cache names the same plan, and asks only for the keys neither has. The `## Flows` section of `doctrine/git-safety.md` defines what each ceiling permits. The toolkit ships three flows. `plan-flow` runs no git under any ceiling. `execute-flow` asks nothing after it reads the run options. It mutates git only to open a worktree on a held or dirty seat, or on a free, clean seat whose main checkout sits on its default branch on a run from approved or start-work, through EnterWorktree under any ceiling, or through `git fetch` and `git worktree add` for an existing branch only under `mr` or `merge` and as paste-ready commands under `none`, or through `git worktree add -b` for the note's branch when it exists nowhere only under `mr` or `merge`, and for the seat run's switches, fix commit, and restore under `mr` or `merge`. Otherwise its agents run in the target repo only the read-only git commands that section lists. Apart from those commands, `ship-flow` is the only flow that mutates git, only under `mr` or `merge`, and its agents run each stage's commands under a rule that names only that stage's commands.
+A skill whose name ends in `-flow`, driven by a Workflow script under `plugins/toolkit/workflows/`. A flow reads its run options, the ceiling first, from the plan note, else from the session cache when the cache names the same plan, and asks only for the keys neither has. The `## Flows` section of `doctrine/git-safety.md` defines what each ceiling permits. The toolkit ships three flows. `plan-flow` runs no git command that changes state, under any ceiling. `execute-flow` asks nothing after it reads the run options. It mutates git only to open a worktree on a held or dirty seat, or on a free, clean seat whose main checkout sits on its default branch on a run from approved or start-work, through EnterWorktree under any ceiling, or through `git fetch` and `git worktree add` for an existing branch only under `mr` or `merge` and as paste-ready commands under `none`, or through `git worktree add -b` for the note's branch when it exists nowhere only under `mr` or `merge`, and for the seat run's switches, fix commit, and restore under `mr` or `merge`. Otherwise its agents run in the target repo only the read-only git commands that section lists. Apart from those commands, `ship-flow` is the only flow that mutates git, only under `mr` or `merge`, and its agents run each stage's commands under a rule that names only that stage's commands.
 
 ### flow-run-options
 
@@ -29,7 +29,7 @@ A skill whose name ends in `-guide`, the manual a session follows by hand. `plan
 
 ### Lead session
 
-The session the user starts. It owns the worker sessions it spawns and is the gate between their phases. It may carry the optional `lead-<key>` name that crawl suggests, and any session name that does not start `worker-` marks a lead.
+The session the user starts. It owns the worker sessions it spawns and is the gate between their phases. It may carry the optional `lead-<name>` name that crawl suggests, with a name for the whole job, and any session name that does not start `worker-` marks a lead.
 
 ### Outcome line
 

@@ -204,7 +204,7 @@ Search the vault for an existing note with that basename: project dirs under `<r
 ### 4. Gather evidence
 
 1. Recall first. Search the vault for the existing note (per step 2) and for prior plan notes that mention the topic. Update, never duplicate.
-2. For module/system dossiers, delegate a read-only deep dive to the `explorer` subagent (model sonnet). Have it inventory: config and entry points (routes, crons, observers), the capability surface (declared vs actually implemented), services, owned database tables, admin configuration, and anything surprising. Require the worker handoff contract return including `Topic note material`.
+2. For module/system dossiers, delegate a read-only deep dive to the `explorer` subagent. Have it inventory: config and entry points (routes, crons, observers), the capability surface (declared vs actually implemented), services, owned database tables, admin configuration, and anything surprising. Require the worker handoff contract return including `Topic note material`.
 3. Verify before recording. Spot-check the highest-impact agent claims directly in code before they become facts, especially anything destined for Gotchas. Note the verification date on consequential claims.
 4. Validate facts against current code, not plan-era descriptions. Plans are historical records and code moves on (services get renamed, flows change).
 5. External facts (test cards, API behavior, response codes) come from official documentation via web search/fetch. Cite the URL inline and add it to `source_refs`. Never invent them. If they cannot be fetched, leave an honest stub line.

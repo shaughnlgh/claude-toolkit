@@ -57,7 +57,7 @@
 
 <rect class="box" x="40" y="190" width="220" height="120" rx="6"/>
 <text class="label" x="150" y="222" text-anchor="middle">Lead session</text>
-<text class="note" x="150" y="246" text-anchor="middle">any name, lead-&lt;key&gt; optional</text>
+<text class="note" x="150" y="246" text-anchor="middle">any name, lead-&lt;name&gt; optional</text>
 <text class="note" x="150" y="268" text-anchor="middle">crawl, plan approval, watch</text>
 
 <rect class="box" x="460" y="190" width="220" height="120" rx="6"/>
@@ -94,7 +94,7 @@
 </div>
 <div class="prose">
 <ul class="rules-list">
-<li>You describe the work in a session you start, and that session is the lead. The <code>crawl</code> skill routes the work, and once you confirm the route it suggests an optional <code title="/rename lead-<key>">/rename lead-&lt;key&gt;</code> line. The prefix is optional: any session whose name does not start <code>worker-</code> is a lead.</li>
+<li>You describe the work in a session you start, and that session is the lead. The <code>crawl</code> skill routes the work, and once you confirm the route it suggests an optional <code title="/rename lead-<name>">/rename lead-&lt;name&gt;</code> line. The prefix is optional: any session whose name does not start <code>worker-</code> is a lead.</li>
 <li>With the run options you pick the model and effort of the worker sessions, once per task. The answer is recorded on the plan note as <code>session_model</code> and <code>session_effort</code>, and every worker session of the task runs on it, never on the lead's model or the machine default.</li>
 <li>The ceiling you pick in the run options is your permission, given in advance. A worker session runs the execute flow, the ship flow and the merge up to that ceiling and never asks you again.</li>
 <li>When the lead offers a worker session, it proposes it in one plain-text line that names the session and every flow it will run, such as <code>worker-execute-&lt;key&gt;</code> for the execute flow and then the ship flow. Your typed <code>yes</code> starts it in the background with <code>claude --bg</code>. Types are <code>investigate</code>, <code>plan</code>, <code>execute</code> and <code>ship</code>.</li>

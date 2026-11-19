@@ -1,6 +1,6 @@
 #!/bin/bash
 # SessionStart hook. Two outputs:
-#  - additionalContext (model-visible): write-time rules + doctrine pointer + git briefing + vault topics + repo docs index.
+#  - additionalContext (model-visible): agent model list + write-time rules + doctrine pointer + git briefing + vault topics + repo docs index.
 #  - systemMessage (user-visible, startup only): a one-line "toolkit active" status.
 # Emits JSON when jq is available; falls back to plain-stdout context (proven path)
 # when it is not, so the rules pipeline never depends on jq to function.
@@ -25,6 +25,19 @@ VERBOSE="${TOOLKIT_SESSION_VERBOSE:-0}"
 CTX=""
 add() { [ -n "$CTX" ] && CTX="${CTX}
 $1" || CTX="$1"; }
+
+# The model and effort agent-model.sh adds per agent, listed so a spawn carries them before the auto mode classifier reviews it.
+# Added first: the harness keeps only the opening part of an over-limit output.
+AM_OPTS=(); AM_RO=""
+[ -z "${SCRATCHPAD_LIB_MISSING:-}" ] && AM_RO=$(session_run_options_file "$SESSION_ID")
+[ -n "$AM_RO" ] && AM_OPTS=(--options "$AM_RO")
+AM_LIST=$(bash "$(dirname "${BASH_SOURCE[0]}")/../scripts/resolve-models.sh" --list "${AM_OPTS[@]}" 2>/dev/null)
+if [ $? -eq 0 ] && [ -n "$AM_LIST" ]; then
+  add "Toolkit agent models: on every Agent-tool spawn of a toolkit:<name> agent, pass model and effort from this list, so the auto mode classifier reviews the final call. A model or effort the user asks for wins."
+  add "$AM_LIST"
+else
+  add "Toolkit agent models: not resolved, so the agent-model hook adds model and effort to each toolkit agent spawn."
+fi
 
 # Write-time rules + doctrine pointer, live from the plugin (always current; no local
 # copies). Frontend rules stay on-demand via the frontend-designer agent.
@@ -116,18 +129,6 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/rules" ]; the
   [ -n "$ASOVR" ] && add "Agent/skill overrides active. Claude Code resolves your global version over the plugin's for the bare name (invoke bare, not toolkit:<name>):${ASOVR}."
 else
   if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then RULES_MISSING_PATH="${CLAUDE_PLUGIN_ROOT}/rules"; else RULES_MISSING_PATH="CLAUDE_PLUGIN_ROOT unset"; fi
-fi
-
-# The model and effort agent-model.sh adds per agent, listed so a spawn carries them before the auto mode classifier reviews it.
-AM_OPTS=(); AM_RO=""
-[ -z "${SCRATCHPAD_LIB_MISSING:-}" ] && AM_RO=$(session_run_options_file "$SESSION_ID")
-[ -n "$AM_RO" ] && AM_OPTS=(--options "$AM_RO")
-AM_LIST=$(bash "$(dirname "${BASH_SOURCE[0]}")/../scripts/resolve-models.sh" --list "${AM_OPTS[@]}" 2>/dev/null)
-if [ $? -eq 0 ] && [ -n "$AM_LIST" ]; then
-  add "Toolkit agent models: on every Agent-tool spawn of a toolkit:<name> agent, pass model and effort from this list, so the auto mode classifier reviews the final call. A model or effort the user asks for wins."
-  add "$AM_LIST"
-else
-  add "Toolkit agent models: not resolved, so the agent-model hook adds model and effort to each toolkit agent spawn."
 fi
 
 # Git briefing (only inside a repo).

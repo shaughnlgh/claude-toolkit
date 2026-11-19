@@ -13,7 +13,7 @@ description: >-
   workflow for the planner draft, plan-critic pre-mortem with a revise loop, cold red team
   and optional goal judge, writes and validates the plan note in the vault, and
   gates its status on the result. Once the plan is approved, it asks in plain text whether
-  to start a worker session for the execute flow, run it here, or stop. Never writes repo files and never runs git. Do NOT
+  to start a worker session for the execute flow, run it here, or stop. Never writes repo files or runs a git command that changes state. Do NOT
   fire on a plan note whose Implementation Steps are filled (plan-guide owns that) or on
   trivial work that needs no plan.
 ---
@@ -28,7 +28,7 @@ Fire only when the user asks for the plan flow by name. Asking for "the plan wor
 
 ## 2. Run options
 
-Before anything else, read the run options per `plan-guide` § Run options (`<plugin-root>/skills/plan-guide/SKILL.md`): from the pre-scaffolded note, then from `<scratchpad>/flow-run-options` for the keys the note lacks when that file's `plan:` line names this plan, then ask only the questions for the keys still missing. On a pre-scaffolded note, write the cache for this plan at once, because the note names the plan. On a fresh brief, no plan name exists yet, so keep the answers in conversation: section 5 writes the note keys and the cache once section 4 has derived `planName`, and when section 3a moves the work to wayfinder, the answers travel with the wayfinder hand-off. The plan flow runs no git under any ceiling. The `## Flows` section of the git-safety doctrine (`<plugin-root>/doctrine/git-safety.md`) defines what each ceiling permits.
+Before anything else, read the run options per `plan-guide` § Run options (`<plugin-root>/skills/plan-guide/SKILL.md`): from the pre-scaffolded note, then from `<scratchpad>/flow-run-options` for the keys the note lacks when that file's `plan:` line names this plan, then ask only the questions for the keys still missing. On a pre-scaffolded note, write the cache for this plan at once, because the note names the plan. On a fresh brief, no plan name exists yet, so keep the answers in conversation: section 5 writes the note keys and the cache once section 4 has derived `planName`, and when section 3a moves the work to wayfinder, the answers travel with the wayfinder hand-off. The plan flow runs no git command that changes state, under any ceiling. The `## Flows` section of the git-safety doctrine (`<plugin-root>/doctrine/git-safety.md`) defines what each ceiling permits.
 
 ## 3. Recall
 
@@ -160,4 +160,4 @@ In a worker session, whose first prompt names its lead, skip the approval ask an
 
 ## Boundary
 
-The flow never writes repo files and never runs git. Prose rules bind the note. Not for a plan note whose sections are filled (`plan-guide` owns that) and not for a standalone review of a written plan (`plan-critic` owns that). An approved status never starts execution on its own. The next step waits on the user's typed answer to the post-approval question or on the user's own ask. On a reply that picks running the execute flow here, this flow ends and the `execute-flow` skill takes over under its own boundary. An approved status set by the gate records a mechanical judgement against the user's own `approveIf` sentence, not a human reading of the note. The human approval rule in `plan-guide` still governs execution, and the user can revert the status to `review`.
+The flow never writes repo files and never runs a git command that changes state. Prose rules bind the note. Not for a plan note whose sections are filled (`plan-guide` owns that) and not for a standalone review of a written plan (`plan-critic` owns that). An approved status never starts execution on its own. The next step waits on the user's typed answer to the post-approval question or on the user's own ask. On a reply that picks running the execute flow here, this flow ends and the `execute-flow` skill takes over under its own boundary. An approved status set by the gate records a mechanical judgement against the user's own `approveIf` sentence, not a human reading of the note. The human approval rule in `plan-guide` still governs execution, and the user can revert the status to `review`.
