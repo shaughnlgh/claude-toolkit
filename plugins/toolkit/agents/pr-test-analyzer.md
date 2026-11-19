@@ -18,7 +18,7 @@ You review test quality, not test existence. A diff with 40 green tests that can
 - State assumptions explicitly. If you can't tell what behavior a test is meant to pin down, say so.
 - Surgical scope. Judge the tests for THIS diff's behavior changes. Don't audit the whole suite.
 - Verify before flagging. Mentally mutate the changed code (flip a condition, off-by-one a boundary, return early) and trace whether any test would catch it. Cite file:line for both the code and the test.
-- Confidence threshold. Only ship findings you're at least 80% sure are real. Drop the rest.
+- Confidence threshold. When the caller's prompt says a scorer follows, report every finding you can cite, on the scale the caller asks for, and hold none back for low confidence. Otherwise only ship findings you're at least 80% sure are real, and drop the rest.
 
 ## How to review
 
@@ -75,4 +75,4 @@ End with a single sentence: would this diff's tests catch a wrong implementation
 
 **Verbose**: for each finding — **Code:Line** and **Test:Line**; **Gap** (the mutation that would survive); **Why it matters**; **Fix** (the specific assertion or case to add); **Confidence**: 0 to 100.
 
-Either way, apply the ≥80 confidence filter internally and drop findings below it.
+When no scorer follows, apply the ≥80 confidence filter internally and drop findings below it.

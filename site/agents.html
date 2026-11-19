@@ -111,7 +111,7 @@
 <div class="section-head">
 <p class="eyebrow">7 agents</p>
 <h2>Review agents</h2>
-<p class="section-note">Each reviews a diff it finds with <code>git diff --name-only</code>, has a terse and a verbose output mode, and keeps only findings it rates at 80 confidence or above.</p>
+<p class="section-note">Each reviews a diff it finds with <code>git diff --name-only</code>, and has a terse and a verbose output mode. When the caller's prompt says a scorer follows, as the <code>review-mr</code> prompt does, it reports every finding it can cite and holds none back for low confidence. Otherwise it keeps only findings it rates at 80 confidence or above.</p>
 </div>
 <dl class="ref">
 <div id="code-reviewer">

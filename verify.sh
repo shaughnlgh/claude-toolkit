@@ -474,6 +474,9 @@ esac
 # runs in an MR review) and present as an agent file (or the registration invokes nothing).
 grep -qF "toolkit:coupling-reviewer" "$P/workflows/review-mr.js" 2>/dev/null && ok "review-mr.js REVIEWERS registers toolkit:coupling-reviewer" || no "review-mr.js REVIEWERS missing toolkit:coupling-reviewer"
 [ -f "$P/agents/coupling-reviewer.md" ] && ok "coupling-reviewer.md agent file exists" || no "coupling-reviewer.md agent file missing"
+# The review-mr OUTPUT_CONTRACT says "A scorer follows"; each reviewer keys its confidence cut on that phrase.
+noswitch="$( { cd "$P/agents" && grep -L 'says a scorer follows, report every finding' code-reviewer.md security-reviewer.md silent-failure-hunter.md performance-reviewer.md pr-test-analyzer.md coupling-reviewer.md doc-reviewer.md $(grep -l -e '- Confidence threshold' *.md); } 2>&1 )"
+[ -z "$noswitch" ] && ok "every reviewer agent's Confidence threshold bullet names the scorer follows switch" || no "reviewer agents missing the scorer follows switch: ${noswitch//$'\n'/ }"
 # functional-test.sh's header comment states the skills mode's call count; it must
 # equal the actual skill_probe() call count, or the two silently drift apart.
 stated_skills="$(sed -nE 's/.*functional-test\.sh skills.*\(([0-9]+) calls.*/\1/p' "$ROOT/functional-test.sh")"
@@ -671,7 +674,7 @@ fi
 echo "== review-mr control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/review-mr/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "review-mr control-flow suite" "$out" 70
+  suite_ok "review-mr control-flow suite" "$out" 71
 else
   skip "skipped: node not found; review-mr control-flow suite"
 fi
