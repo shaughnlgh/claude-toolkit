@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "toolkit",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "displayName": "Shaughn's Claude Code Toolkit",
   "description": "Shaughn's Claude Code toolkit: agents, skills, hooks, write-time rules, and working doctrine",
   "author": {
