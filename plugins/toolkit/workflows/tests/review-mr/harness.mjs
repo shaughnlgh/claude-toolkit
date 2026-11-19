@@ -184,6 +184,11 @@ const cases = [
     const { prompts } = await run({}, { ...ARGS, dimensions: [{ key: 'conventions', prompt: 'Check conventions.' }] })
     return prompts['review:conventions'].includes(ARGS.contextBlock)
   }],
+  ['every reviewer prompt, registry and cold custom, carries A scorer follows', async () => {
+    const { prompts } = await run({}, { ...ARGS, dimensions: [{ key: 'cold-read', prompt: 'Read cold.', cold: true }] })
+    const keys = Object.keys(prompts).filter((k) => k.startsWith('review:'))
+    return keys.includes('review:cold-read') && keys.includes('review:code-reviewer') && keys.every((k) => prompts[k].includes('A scorer follows'))
+  }],
   ['real important at finalScore 0.6 with a reproduction is confirmed and reproduced', async () => {
     const { result } = await route([finding('src/a.js', 'Kept')], verdictsOf(verdict(0, 0.6)))
     return same(result.confirmed.map((f) => pick(f, ['title', 'finalScore', 'reproduced', 'reproduction'])), [{ title: 'Kept', finalScore: 0.6, reproduced: true, reproduction: REPRO }])

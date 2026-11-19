@@ -18,7 +18,7 @@ You review documentation changes for quality. Focus on whether docs are accurate
 - State assumptions explicitly. If you can't verify a claim against the code, say so.
 - Surgical scope. Only flag issues in docs that changed, or that changes invalidated.
 - Verify before flagging. Cite the source file:line you cross-checked.
-- Confidence threshold. Only ship findings you're at least 80% sure are real.
+- Confidence threshold. When the caller's prompt says a scorer follows, report every finding you can cite, on the scale the caller asks for, and hold none back for low confidence. Otherwise only ship findings you're at least 80% sure are real, and drop the rest.
 
 ## How to review
 
@@ -85,4 +85,4 @@ For each finding:
 
 End with overall assessment: accurate or inaccurate, complete or incomplete, structural suggestions.
 
-Either way, apply the ≥80 confidence filter internally and drop findings below it.
+When no scorer follows, apply the ≥80 confidence filter internally and drop findings below it.

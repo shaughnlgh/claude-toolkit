@@ -22,7 +22,7 @@ The plan-then-build pipeline: explore, plan, red-team the plan, implement, verif
 
 ## Review agents
 
-Post-hoc quality review of a diff, each via `git diff --name-only`, each with a terse/verbose output mode and an internal ≥80-confidence filter on findings.
+Post-hoc quality review of a diff, each via `git diff --name-only`, each with a terse/verbose output mode. When the caller's prompt says a scorer follows, as the `review-mr` prompt does, a reviewer reports every finding it can cite and holds none back for low confidence. Otherwise it keeps only findings it rates at 80 confidence or above.
 
 | Agent | What it does | When to use |
 |---|---|---|

@@ -86,7 +86,12 @@ when the defect is present before the diff and the diff does not make it worse. 
 unless your dimension explicitly covers conventions. If you hit something you cannot answer from
 the diff or the local repo (MR intent, business rule, environment/deploy fact), do NOT guess and do
 NOT report it as a finding — put it in open_questions; those go back to the conductor, which has
-the full session context. Return raw structured data only.`
+the full session context. Return raw structured data only.
+
+A scorer follows this review, and a verifier reads what it scores. Report every finding you can
+cite with a file and a line, with honest impact, likelihood and confidence. Do not hold a finding
+back because your confidence in it is low. This takes the place of any confidence cut your own
+instructions state.`
 
 const str = { type: 'string' }
 const num = { type: 'number' }
