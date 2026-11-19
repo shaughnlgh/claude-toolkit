@@ -50,7 +50,8 @@ if [ "$sub" = name ]; then
   [ $# -eq 1 ] && [[ $1 =~ ^[A-Za-z0-9-]{1,64}$ ]] || die "bad session id. $USAGE"
   command -v jq >/dev/null 2>&1 || fail "jq not found"
   rows=$(read_rows) || fail "agents source gave no JSON array"
-  n=$(jq -r --arg s "$1" "$CLEAN"' first(.[] | objects | select(.sessionId == $s and .pid != null) | .name // empty | clean)' <<<"$rows")
+  # The full name, uncut, because a worker sends to it.
+  n=$(jq -r --arg s "$1" 'first(.[] | objects | select(.sessionId == $s and .pid != null) | .name // empty | tostring | gsub("[\t\r\n]"; " "))' <<<"$rows")
   [ -n "$n" ] || finish 11 NONE
   finish 0 "name: $n"
 fi

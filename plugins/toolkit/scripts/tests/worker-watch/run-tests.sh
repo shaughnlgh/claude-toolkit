@@ -155,6 +155,10 @@ case_; agents "$(row "$A" idle done '' 5 interactive lead-x)" "$(row "$B" idle d
 run name lead-y
 { [ "$RC" -eq 11 ] && [ "$OUT" = NONE ]; } && ok "name on a row with no pid or an unknown id gives NONE exit 11" || no "name none (rc=$RC): $OUT"
 
+LONG="lead-$(printf 'x%.0s' {1..80})"
+case_; agents "$(row "$A" idle done '' 5 interactive lead-z | jq -c --arg n "$LONG" '.name = $n')"; run name lead-z
+{ [ "$RC" -eq 0 ] && [ "$OUT" = "name: $LONG" ]; } && ok "name prints a name longer than 64 characters in full" || no "long name (rc=$RC): $OUT"
+
 case_; unset TOOLKIT_AGENTS_FILE; worker "$A"; stored "$A" busy; echo 'not json' > "$CASE/agents.1"
 agents "$(row "$A" waiting blocked 'input needed')"; BOUND=6s watch
 { [ "$RC" -eq 0 ] && [ "$OUT" = "NEEDS worker-execute-$A $A input" ]; } && ok "an event follows one failed agents read" || no "one bad read (rc=$RC): $OUT $ERR"
