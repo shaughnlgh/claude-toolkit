@@ -1,13 +1,13 @@
 # Git Safety
 
-Do not run `git commit`, `git push`, `git merge`, branch operations, or open PRs.
-Suggest the branch name and commit message; the human handles git.
+By default, create the work branch and run no other git change: no `git commit`, `git push`, `git merge`, other branch operation, or PR.
+Suggest the commit message; the human handles the rest of git.
 
-The `## Flows` section is the single exception to the rules in this file.
+The ceiling the human picks widens this default, as the `## Flows` section defines. That section is the single exception to the rules in this file.
 
 ## Blocked commands
 
-Do not run any of these commands unless the user explicitly asks:
+Do not run any of these commands unless the user explicitly asks, apart from `git switch -c` to create the work branch:
 
 - `git commit`
 - `git push`
@@ -35,13 +35,13 @@ Read-only Git commands are allowed when useful:
 - `git log`
 - `git show`
 
-You may suggest branch names, commit messages, and PR/MR descriptions. Wherever HEAD is, settle the ticket as the Branch check section below does before you suggest a branch for work with no recorded ticket, reading only that work's own plan note, so a side fix found on a feature branch also gets the ticket question.
+You may suggest branch names, commit messages, and PR/MR descriptions. Wherever HEAD is, settle the ticket as the Branch check section below does before you create a branch for work with no recorded ticket, reading only that work's own plan note, so a side fix found on a feature branch also gets the ticket question.
 
-Do not perform commits, pushes, branch operations, or PR mutations without explicit instruction.
+Do not perform commits, pushes, PR mutations, or any branch operation other than creating the work branch without explicit instruction.
 
 ## Branch check before any change
 
-Run `git status -sb` in the target repo before the first edit. This applies to vendored module checkouts, which sit at a detached HEAD on the installed tag. If HEAD is `main`, `master`, or a detached tag, stop, suggest a branch named `<type>/<TICKET>-<slug>`, and wait for the human to create it. When the plan note holds a `branch` value, suggest that branch. Otherwise the ticket is the plan note's `ticket` value when the note holds one. With no plan note, it is the `ticket:` value of `<scratchpad>/flow-run-options` when that file's `plan:` line is blank and its `ticket_work:` line equals the `<slug>` of the work at hand, or else the `ticket:` value of `<scratchpad>/side-fix-ticket` when its `ticket_work:` line equals that `<slug>`. Else ask the ticket question in the `plan-guide` skill's Run options section once and record the answer as its Ticket subsection says. The execute and ship flows never ask the ticket question, because they take the branch from the plan note. Only after the user chose to go without a ticket, recorded as `none`, does the branch take the no-ticket form: `<type>/<slug>`, or the no-ticket token the project's rules name in the ticket's place. Determine the base branch with `git symbolic-ref --short refs/remotes/origin/HEAD` (fallback `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`, or the glab equivalent), never a guessed list. On a branch other than the base, detect merged work with `git merge-base --is-ancestor HEAD origin/<base>`: exit 0 means the branch tip is already in the base, so stop and ask for a fresh branch. A branch with no commits beyond the base gives the same exit 0. Outside a flow, ask whether it is merged work or a fresh branch, and stop only on merged. The execute flow asks nothing: it stops as merged when the plan note's `mr` key is set and continues as a fresh branch when it is blank. Do not edit until the branch exists or the merged check is settled.
+Run `git status -sb` in the target repo before the first edit. This applies to vendored module checkouts, which sit at a detached HEAD on the installed tag. If HEAD is `main`, `master`, or a detached tag, create a branch named `<type>/<TICKET>-<slug>` before the first edit. When the plan note holds a `branch` value, use that branch. Otherwise the ticket is the plan note's `ticket` value when the note holds one. With no plan note, it is the `ticket:` value of `<scratchpad>/flow-run-options` when that file's `plan:` line is blank and its `ticket_work:` line equals the `<slug>` of the work at hand, or else the `ticket:` value of `<scratchpad>/side-fix-ticket` when its `ticket_work:` line equals that `<slug>`. Else ask the ticket question in the `plan-guide` skill's Run options section once and record the answer as its Ticket subsection says. The execute and ship flows never ask the ticket question, because they take the branch from the plan note. Only after the user chose to go without a ticket, recorded as `none`, does the branch take the no-ticket form: `<type>/<slug>`, or the no-ticket token the project's rules name in the ticket's place. Determine the base branch with `git symbolic-ref --short refs/remotes/origin/HEAD` (fallback `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`, or the glab equivalent), never a guessed list. On a branch other than the base, detect merged work with `git merge-base --is-ancestor HEAD origin/<base>`: exit 0 means the branch tip is already in the base, so stop and ask for a fresh branch. A branch with no commits beyond the base gives the same exit 0. Outside a flow, ask whether it is merged work or a fresh branch, and stop only on merged. The execute flow asks nothing: it stops as merged when the plan note's `mr` key is set and continues as a fresh branch when it is blank. Do not edit until the branch exists or the merged check is settled.
 
 ## Commit handoff
 
@@ -70,7 +70,7 @@ One instruction to commit, push, merge, or tag covers that one operation. The ne
 
 ## Flows
 
-Inside a flow whose recorded ceiling is `mr` or `merge`, this section overrides three rules above: the opening rule that the human handles git, the branch check rule to stop and wait for the human to create the branch, and the rule that authorization covers one operation. A flow is a skill whose name ends in `-flow`, driven by a Workflow script under `workflows/`.
+Inside a flow whose recorded ceiling is `mr` or `merge`, this section overrides two rules above: the opening rule that the human handles git, and the rule that authorization covers one operation. A flow is a skill whose name ends in `-flow`, driven by a Workflow script under `workflows/`.
 
 The ceiling is the `ceiling` key on the plan note, or the `ceiling` line of `<scratchpad>/flow-run-options` when the note lacks it and that file's `plan:` line names the same plan. The `## Run options` section of the plan-guide skill (`skills/plan-guide/SKILL.md`) defines the keys, the question set, the reading rule, and the cache. A flow asks only for the keys neither source holds, so one answer holds for the plan and for every flow in the session, and a later session reads the note. A missing, empty, or unrecognised ceiling reads as `none`.
 
@@ -86,7 +86,7 @@ No ceiling permits a deploy. The plan flow runs no git under any ceiling. The ex
 - On a several-repos note (execute-flow section 2b), the flow opens each top-level repo's worktree, and each external module checkout's worktree, through `git fetch` and `git worktree add`, never EnterWorktree. It readies each nested module checkout with Composer's `reinstall --prefer-source`, and moves it to the module's branch with `git fetch origin '<ref>'` and `git switch`. Each of these commands runs as its own call under `mr` or `merge`, and is paste-ready under `none`.
 - Under `none`, every one of these commands is a paste-ready handoff and the run stops.
 
-Apart from those commands, the execute flow's agents run only read-only git in the repo: `git status`, `git diff`, `git log`, `git ls-files`, `git branch --show-current`, `git branch --list`, `git worktree list`, `git ls-remote --heads`, `git remote get-url`, `git symbolic-ref` with one ref argument, `git merge-base --is-ancestor`, `git rev-parse` with one ref argument or in the `--path-format=absolute --git-common-dir` form, `git check-ref-format --branch`, and `git show` with one `<ref>:<path>` argument. A `-c core.quotePath=false` prefix on one of these commands keeps it read-only. Apart from those commands, the ship flow is the only flow that mutates git, and only under `mr` or `merge`. The hooks apply under every ceiling, including the `block-dangerous-commands` hook and its protected-branch guard, and a flow never bypasses them. Outside a flow, and in every ad-hoc session, this doctrine applies unchanged and the human runs git. A resumed session keeps its scratchpad and so keeps the cache. A new session reads the plan note.
+Apart from those commands, the execute flow's agents run only read-only git in the repo: `git status`, `git diff`, `git log`, `git ls-files`, `git branch --show-current`, `git branch --list`, `git worktree list`, `git ls-remote --heads`, `git remote get-url`, `git symbolic-ref` with one ref argument, `git merge-base --is-ancestor`, `git rev-parse` with one ref argument or in the `--path-format=absolute --git-common-dir` form, `git check-ref-format --branch`, and `git show` with one `<ref>:<path>` argument. A `-c core.quotePath=false` prefix on one of these commands keeps it read-only. Apart from those commands, the ship flow is the only flow that mutates git, and only under `mr` or `merge`. The hooks apply under every ceiling, including the `block-dangerous-commands` hook and its protected-branch guard, and a flow never bypasses them. Outside a flow, and in every ad-hoc session, this doctrine applies unchanged. A resumed session keeps its scratchpad and so keeps the cache. A new session reads the plan note.
 
 ## Command shape under the permission classifier
 
@@ -99,7 +99,7 @@ Auto mode routes every command no allow rule matches through a classifier. The c
 
 ## Branch naming
 
-When suggesting branch names, use lowercase kebab-case with a slash-separated scope prefix.
+When naming a branch, use lowercase kebab-case with a slash-separated scope prefix.
 
 Examples:
 - `runtime/add-healthz-endpoint`
