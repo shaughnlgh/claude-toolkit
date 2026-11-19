@@ -191,6 +191,18 @@ declare -F run_agent_model_list_checks >/dev/null || { echo "FATAL: run_agent_mo
 echo "== agent-model list (non-fixture) =="
 run_agent_model_list_checks
 
+# Checks that need a real scratchpad under /tmp/claude-<uid> to read the recorded mode back, which JSON fixtures cannot express.
+source "$ROOT/tests/worker-spawn-mode-check.sh" || { echo "FATAL: cannot source worker-spawn-mode-check.sh" >&2; exit 2; }
+declare -F run_worker_spawn_mode_checks >/dev/null || { echo "FATAL: run_worker_spawn_mode_checks not defined" >&2; exit 2; }
+echo "== worker-spawn-mode (non-fixture) =="
+run_worker_spawn_mode_checks
+
+# Checks that need a real scratchpad under /tmp/claude-<uid> holding a workers file, which JSON fixtures cannot express.
+source "$ROOT/tests/session-start-workers-check.sh" || { echo "FATAL: cannot source session-start-workers-check.sh" >&2; exit 2; }
+declare -F run_session_start_workers_checks >/dev/null || { echo "FATAL: run_session_start_workers_checks not defined" >&2; exit 2; }
+echo "== session-start workers (non-fixture) =="
+run_session_start_workers_checks
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 if [[ $FAIL -gt 0 ]]; then

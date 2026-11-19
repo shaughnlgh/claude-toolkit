@@ -6,14 +6,14 @@ description: >-
   "run the plan workflow"), including on a pre-scaffolded plan note: status planning,
   ticket frontmatter, a Brief section, or a brief file beside it, and empty or template Implementation Steps
   and Validation Steps. Its Brief section or brief file is the brief, or else its Objective, Current
-  Context, and ticket. Never fires from crawl on its own: a typed yes or `run the plan flow` to crawl's offer is the ask by name. Reads the run options from the plan note or the session cache and asks only for the keys neither has,
+  Context, and ticket. Never fires from crawl on its own: `run the plan flow here`, `run the plan flow`, or a typed yes to the two-option form of crawl's offer is the ask by name, while a yes to its worker form starts a worker session instead. Reads the run options from the plan note or the session cache and asks only for the keys neither has,
   runs topic recall, runs a route check that
   recommends wayfinder on a multi-part brief, launches the plan-builder workflow for
   discovery, runs the planning grill on that evidence, one question at a time, resumes the
   workflow for the planner draft, plan-critic pre-mortem with a revise loop, cold red team
   and optional goal judge, writes and validates the plan note in the vault, and
   gates its status on the result. Once the plan is approved, it asks in plain text whether
-  to run the execute flow here, open a child session, or stop. Never writes repo files and never runs git. Do NOT
+  to start a worker session for the execute flow, run it here, or stop. Never writes repo files and never runs git. Do NOT
   fire on a plan note whose Implementation Steps are filled (plan-guide owns that) or on
   trivial work that needs no plan.
 ---
@@ -24,7 +24,7 @@ Plan-flow is the conductor side of the `plan-builder` workflow, shipped with thi
 
 ## 1. Trigger
 
-Fire only when the user asks for the plan flow by name. Asking for "the plan workflow" counts as asking by name. A `crawl` route never fires this skill on its own. A typed reply to the plan flow offer that ends `crawl` section 4, when it picks the plan flow, such as `yes` or `run the plan flow`, counts as asking by name. A pre-scaffolded plan note is accepted, and section 5 writes into that note in place instead of creating a new plan directory. A note is pre-scaffolded when its status is `planning`, it has `ticket` frontmatter, a Brief section, or a `brief - <plan>.md` file beside it, where `<plan>` is the note's `plan` value, and its Implementation Steps and Validation Steps are empty or still hold template text. Its Current Context and Objective may hold scaffold text. The brief of a pre-scaffolded note is its Brief section when it has one, else that brief file, otherwise its Objective, its Current Context, and its `ticket` frontmatter. Any other plan note, including one whose Implementation Steps are filled, belongs to `plan-guide`, so load `plan-guide` instead. Trivial work needs no plan, so it never fires this skill. Without a pre-scaffolded note, the brief is the user's text for the work, quoted verbatim.
+Fire only when the user asks for the plan flow by name. Asking for "the plan workflow" counts as asking by name. A `crawl` route never fires this skill on its own. A typed reply to the plan flow offer that ends `crawl` section 4, when it picks the plan flow here, such as `run the plan flow here`, `run the plan flow`, or a bare `yes` in the two-option form, counts as asking by name. A `yes` in the worker form of that offer starts a worker session and does not fire this skill in this session. A pre-scaffolded plan note is accepted, and section 5 writes into that note in place instead of creating a new plan directory. A note is pre-scaffolded when its status is `planning`, it has `ticket` frontmatter, a Brief section, or a `brief - <plan>.md` file beside it, where `<plan>` is the note's `plan` value, and its Implementation Steps and Validation Steps are empty or still hold template text. Its Current Context and Objective may hold scaffold text. The brief of a pre-scaffolded note is its Brief section when it has one, else that brief file, otherwise its Objective, its Current Context, and its `ticket` frontmatter. Any other plan note, including one whose Implementation Steps are filled, belongs to `plan-guide`, so load `plan-guide` instead. Trivial work needs no plan, so it never fires this skill. Without a pre-scaffolded note, the brief is the user's text for the work, quoted verbatim.
 
 ## 2. Run options
 
@@ -87,7 +87,7 @@ The result is `{discovery, incomplete}`, and `discovery` holds `areas`, `uncover
 
 Run the planning grill per `plan-guide` § Planning grill (`<plugin-root>/skills/plan-guide/SKILL.md`). When the note counts as grilled there, say so in one line, use its block, and go to the draft launch. Otherwise load `grill` (`<plugin-root>/skills/grill/SKILL.md`) and run its loaded grill inline in this session on the brief, the note's sections, the recall hits, and the discovery evidence, which is `discovery.evidence` from the discovery launch or the crawl's evidence. Print the outcome line first, as plain text in this turn, one line that starts `Outcome:` and states the outcome of the work as the grill understands it. It comes before the first question, or before the line that nothing needs an answer, and never goes inside a question form. On a wayfinder child stub, a note with a `parent` value, grill's Phase-scoped rule scopes it to the child's issue codes, and the parent note's block that `### Args` read is settled, so the grill asks none of its points again.
 
-A question takes only the user's own answer, which is a pick from the question form or a typed reply in this session, or that answer relayed by the parent session that the user's own ask in this session named, in a message that opens with the line `User's own answer:`, as grill's Loaded grills paragraph defines.
+A question takes only the user's own answer, a pick from the question form or a typed reply in this session, which a worker session's user gives from agent view, as plan-guide § Planning grill defines.
 
 When the grill hands back, and before any write to the note, re-apply the route rubric as the route re-check in `plan-guide` § Planning grill defines, on every run including one started from the crawl's plan flow offer. When the re-check asks section 3a's question and the answer is Wayfinder, follow section 3a's Wayfinder hand off, add the discovery evidence and the grill's hand back to what wayfinder receives, pass a ticket this section already settled as the parent's `ticket`, write no block into the note, and stop this flow.
 
@@ -155,6 +155,8 @@ Set `status: approved` and `approved: <today>` only when `approveIf.meets` is tr
 Whatever the gate result, state to the user the `finalVerdict`, the `coldVerdict`, every `blocked` reason, every `incomplete` marker, and every `discovery.uncovered` area. On the crawl route `discovery.areas` is empty, so state that the crawl's evidence was the discovery. State a null `coldVerdict` and each empty list as "none". When `approveIf.meets` is false, also state its `reasons` and `unmetGoals`. If the status is approved, say so.
 
 Then print the note's Plain Language Summary verbatim under the heading `Plain language summary`. If the gate left the status at `review` or `planning`, follow the summary with the approval ask: "Approve this plan as written, or tell me what to change?" The user approves from that summary. The approval follows the `plan-guide` lifecycle, so an approval here sets `status: approved` and `approved: <today>` with the same changed-lines write and validation as the gate. Once the status is `approved`, by the gate or by the user, end the reply with the post-approval question that `plan-guide` § After approval defines (`<plugin-root>/skills/plan-guide/SKILL.md`), and act on the user's typed answer as that subsection says.
+
+In a worker session, whose first prompt names its lead, skip the approval ask and the post-approval question and report to the lead in the three-line worker shape that orchestration § Lead and worker sessions defines, with `Next: approve the plan in the lead` when the status is `review`.
 
 ## Boundary
 

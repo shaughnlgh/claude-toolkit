@@ -3,6 +3,7 @@
 set -uo pipefail
 
 die() { printf 'error: %s\n' "$1" >&2; exit 2; }
+. "$(dirname "${BASH_SOURCE[0]}")/lib/agents-list.sh" 2>/dev/null || die "scripts/lib/agents-list.sh not found"
 main_of() {  # $1 any path inside the repo or a linked worktree of it
   local common; common=$(git -C "$1" rev-parse --git-common-dir 2>/dev/null) || return 1
   common=$(cd "$1" && cd "$common" 2>/dev/null && pwd -P) || return 1
@@ -35,15 +36,7 @@ command -v jq >/dev/null 2>&1 || die "jq not found"
 main=$(main_of "$repo") || die "not a git repo: $repo"
 wt_dir=""; [ -z "$wt" ] || wt_dir=$(cd "$wt" 2>/dev/null && pwd -P) || die "not a directory: $wt"
 
-if [ -n "${TOOLKIT_AGENTS_FILE:-}" ]; then
-  agents=$(cat "$TOOLKIT_AGENTS_FILE" 2>/dev/null)
-elif command -v perl >/dev/null 2>&1; then
-  # macOS ships no timeout binary, so perl kills a stalled claude call after 3 s.
-  agents=$(perl -e '$p = fork // exit 127; if (!$p) { exec @ARGV; exit 127 }
-    $SIG{ALRM} = sub { kill 9, $p; exit 124 }; alarm 3; waitpid $p, 0; exit $? >> 8' claude agents --json 2>/dev/null)
-else
-  agents=$(claude agents --json 2>/dev/null)
-fi
+agents=$(agents_json)
 # input errors on empty stdin, so a missing or failed claude command is an error, not an empty list.
 rows=$(printf '%s' "$agents" | jq -rn 'input | if type == "array" then .[] | select(.pid != null)
   | [.pid, .sessionId, .cwd, .name, .status, .kind] | map(. // "" | tostring | gsub("[\t\n\r\u001f]"; " ")) | join("\u001f")

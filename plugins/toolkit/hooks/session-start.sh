@@ -239,6 +239,20 @@ if [ -n "$ROOT" ]; then
   [ -n "$VAULT_OK" ] && add "Task-scoped recall at plan or execute start: python3 $(printf '%q' "${CLAUDE_PLUGIN_ROOT}/scripts/topic-recall.py") --repo $(printf '%q' "$REPO") --repo-root $(printf '%q' "$ROOT") <task words>"
 fi
 
+if { [ "$SOURCE" = resume ] || [ "$SOURCE" = compact ]; } && [ -z "${SCRATCHPAD_LIB_MISSING:-}" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+  WF=$(session_workers_file "$SESSION_ID")
+  if [ -s "$WF" ]; then
+    REARM="Re-arm the worker watch unless one runs: start bash $(printf '%q' "${CLAUDE_PLUGIN_ROOT}/scripts/worker-watch.sh") wait --scratchpad $(printf '%q' "$(dirname "$WF")") with run_in_background."
+    if WL=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/worker-watch.sh" list --scratchpad "$(dirname "$WF")" 2>/dev/null); then
+      # Re-sent every request: three workers, names cut to 32 chars.
+      WN=$(printf '%s' "$WL" | sed -n 's/^worker: //p' | head -3 | awk -F'\t' '{printf "%s%s (%s, %s)", (NR>1?", ":""), substr($1, 1, 32), $2, $6}')
+      [ -n "$WN" ] && add "Worker sessions this session owns: ${WN}. ${REARM}"
+    else
+      add "Worker sessions this session owns could not be listed, because the claude agents read failed. ${REARM}"
+    fi
+  fi
+fi
+
 # Compaction: the session's compact handoff (or a transcript inference), then the standing
 # rules, then the escalation. Counted from the transcript (stateless), escalated from the 2nd compact.
 NCOMPACT=0

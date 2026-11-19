@@ -10,6 +10,7 @@ source_refs:
   - plugins/toolkit/hooks/session-start.sh
   - plugins/toolkit/scripts/tests/git-ro/run-tests.sh
   - plugins/toolkit/scripts/seat-check.sh
+  - plugins/toolkit/scripts/lib/agents-list.sh
 ---
 <!-- managed-by: toolkit -->
 
@@ -31,7 +32,7 @@ The toolkit's Python scripts run under whatever `python3` the PATH resolves firs
 ## Timeouts
 
 - macOS has no `timeout` binary on the PATH. The `session-start.sh` hook wraps its `seat-check.sh` and `topic-recall.py` calls in `timeout 3` only when `command -v timeout` finds one, so on macOS those calls run unbounded.
-- `seat-check.sh` therefore bounds its own `claude agents --json` call. A perl fork runs the command, an `alarm 3` handler sends `kill 9` to the child and exits 124, and the script treats that exit like a failing binary. Where perl is missing, the call runs unbounded.
+- `scripts/lib/agents-list.sh`, which `seat-check.sh`, `worker-spawn.sh` and `worker-watch.sh` source, therefore bounds every `claude agents --json` call. A perl fork runs the command, an `alarm 3` handler sends `kill 9` to the child and exits 124, and the calling script treats that exit like a failing binary. Where perl is missing, the call runs unbounded.
 - The kill reaches only the process perl forked. A child that process started and that still holds stdout keeps the command substitution waiting. A native `claude` binary runs as that one process, so the kill ends the read.
 
 ## Related docs

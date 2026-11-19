@@ -81,9 +81,9 @@
 </li>
 <li>
 <p class="types"><strong class="step-label">You type<span class="vh">:</span></strong> your approval, or what to change.</p>
-<p class="does"><strong class="step-label">The flow<span class="vh">:</span></strong> On approval the flow sets <code>status: approved</code> and today's date, validates the note again, and ends with the post-approval question. In a session that is not a crawl parent it takes the run-here form.</p>
-<blockquote>The plan is approved. Run the execute flow here now?</blockquote>
-<p>A session whose name starts <code>parent-</code> gets the child form instead, which recommends a child session. <a href="sessions.html">Parent and child sessions</a> shows that shape.</p>
+<p class="does"><strong class="step-label">The flow<span class="vh">:</span></strong> On approval the flow sets <code>status: approved</code> and today's date, validates the note again, and ends with the post-approval question. In a session that can read its own name it takes the worker form, which recommends a worker session for the execute flow.</p>
+<blockquote>The plan is approved. Start worker-execute-&lt;key&gt; to build it?</blockquote>
+<p>A bare <code>yes</code> starts the worker session in the background, in its own worktree. It runs the execute flow, then the ship flow up to the note's ceiling when the lead tells it to continue, because the ceiling you picked is your permission. A session that cannot read its own name takes the run-here form instead, which offers <code>run the execute flow here</code>. <a href="sessions.html">Lead and worker sessions</a> shows that shape.</p>
 </li>
 </ol>
 <p class="source">Source: <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/plugins/toolkit/skills/plan-flow/SKILL.md">skills/plan-flow/SKILL.md</a> and <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/workflows.md">docs/workflows.md</a>.</p>

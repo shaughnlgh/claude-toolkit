@@ -1,0 +1,6 @@
+{
+  "name": "an unrelated command passes with nothing printed",
+  "stdin": { "session_id": "fx-wsm-none", "permission_mode": "auto", "tool_name": "Bash", "tool_input": { "command": "ls -la" } },
+  "expect_exit": 0,
+  "expect_stdout_not_contains": ["{", "updatedInput", "permission_mode"]
+}

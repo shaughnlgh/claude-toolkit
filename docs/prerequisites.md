@@ -6,6 +6,12 @@ The toolkit shells out to a few CLIs rather than holding any credentials of its 
 
 The `agent-model.sh` hook adds an `effort` field to Agent tool calls. The toolkit is tested on the Claude Code version that `/toolkit:setup` check 8 names, and whether an older Agent tool accepts the field is untested. Check 8 compares `claude --version` against the tested version.
 
+Worker sessions need three things:
+
+- A Claude Code CLI whose `claude --help` lists `--bg`. `/toolkit:setup` check 5 looks for it, and without it the lead runs every flow in its own session.
+- A repo you have opened in Claude Code once and whose trust prompt you accepted, because `claude --bg` refuses an untrusted repo and trust does not pass down from a parent directory.
+- On macOS, when the vault sits in a protected folder such as Documents or iCloud Drive, Claude Code's background host granted access to that folder in System Settings, Privacy & Security. The host asks for that access separately from the terminal, so a worker session can fail with `Operation not permitted` on a vault that the lead reads.
+
 ### gh (GitHub CLI)
 
 The official GitHub CLI. Sessions use it for read-only PR and CI checks on GitHub-hosted repos. The ship flow uses it to open a PR, watch its checks, reply to and resolve bot review threads, and merge. On a repo whose tracker is `github` (github.com, or a host that `~/.claude/toolkit-trackers.json` maps to `github`), the ticket question's create answer runs `gh issue create` after the user's yes to a draft it showed.

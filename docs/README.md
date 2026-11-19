@@ -9,7 +9,7 @@ Every page under `docs/`, with what each covers. The root [`README.md`](../READM
 - [`brief-template.md`](brief-template.md): the shape of the brief that opens a piece of work.
 - [`agents.md`](agents.md): the 14 worker agents and the conductor and leaf-worker model.
 - [`commands.md`](commands.md): the eight slash commands, among them `/toolkit:setup`, `/toolkit:topic`, `/toolkit:override` and the thinking tools.
-- [`hooks.md`](hooks.md): the twelve hooks that run once the plugin is installed, with no opt-in: what each blocks, what it only asks, its environment variables, and how it fails safe.
+- [`hooks.md`](hooks.md): the thirteen hooks that run once the plugin is installed, with no opt-in: what each blocks, what it only asks, its environment variables, and how it fails safe.
 - [`rules.md`](rules.md): the write-time rules injected into every session and every worker.
 - [`scripts.md`](scripts.md): the shipped scripts and their guardrails.
 - [`workflows.md`](workflows.md): the multi-agent workflows, which are the review engine, the plan flow, the execute flow and the ship flow.
@@ -36,13 +36,14 @@ Every page under `docs/`, with what each covers. The root [`README.md`](../READM
 - [`0005`](decisions/0005-approval-offers-the-execute-flow.md): Approval offers the execute flow.
 - [`0006`](decisions/0006-ship-flow-merges-unattended.md): Ship flow merges unattended.
 - [`0007`](decisions/0007-ticket-question-and-creation-on-yes.md): Ticket question and ticket creation on the user's yes.
-- [`0008`](decisions/0008-crawl-session-is-the-parent.md): Crawl session is the parent.
+- [`0008`](decisions/0008-crawl-session-is-the-parent.md): Crawl session is the parent. Superseded by [`0015`](decisions/0015-lead-and-worker-sessions.md).
 - [`0009`](decisions/0009-seat-queue-in-the-git-common-dir.md): Seat queue in the git common dir.
 - [`0010`](decisions/0010-plans-span-several-repos.md): Plans span several repos.
 - [`0011`](decisions/0011-execute-flow-caps-runs-per-plan.md): Execute flow caps runs per plan.
 - [`0012`](decisions/0012-grill-is-a-fixed-step-of-planning.md): Grill is a fixed step of planning.
 - [`0013`](decisions/0013-rewrite-history-in-place-before-going-public.md): Rewrite history in place before going public.
 - [`0014`](decisions/0014-versioned-releases-on-the-maintainers-decision.md): Versioned releases on the maintainer's decision.
+- [`0015`](decisions/0015-lead-and-worker-sessions.md): Lead and worker sessions.
 
 ## Context notes
 

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hooks - claude-toolkit</title>
-<meta name="description" content="The 12 hooks claude-toolkit switches on at install, the event each runs on, and what it blocks, asks or adds.">
+<meta name="description" content="The 13 hooks claude-toolkit switches on at install, the event each runs on, and what it blocks, asks or adds.">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -32,10 +32,10 @@
 <div class="wrap">
 <p class="crumbs"><a href="index.html">Home</a> / Reference / Hooks</p>
 <h1>Hooks</h1>
-<p class="lead">Hooks are scripts that Claude Code runs on session events. Installing the plugin switches on all 12 in every session, with no opt-in and no separate config. Most add context or ask you to confirm. A few hard-block. Read this page, or <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/hooks.md">docs/hooks.md</a> for the full accounting, before you trust the toolkit with a repo.</p>
+<p class="lead">Hooks are scripts that Claude Code runs on session events. Installing the plugin switches on all 13 in every session, with no opt-in and no separate config. Most add context or ask you to confirm. A few hard-block. Read this page, or <a href="https://github.com/shaughnlgh/claude-toolkit/blob/main/docs/hooks.md">docs/hooks.md</a> for the full accounting, before you trust the toolkit with a repo.</p>
 <nav aria-label="On this page">
 <ul class="jump">
-<li><a href="#pre-tool">PreToolUse <span class="jump__n">6</span></a></li>
+<li><a href="#pre-tool">PreToolUse <span class="jump__n">7</span></a></li>
 <li><a href="#post-tool">PostToolUse <span class="jump__n">2</span></a></li>
 <li><a href="#session">SessionStart <span class="jump__n">1</span></a></li>
 <li><a href="#subagent">SubagentStart <span class="jump__n">1</span></a></li>
@@ -50,7 +50,7 @@
 <section class="section">
 <div class="wrap split">
 <div class="section-head">
-<p class="eyebrow">Across all 12</p>
+<p class="eyebrow">Across all 13</p>
 <h2>Two properties</h2>
 </div>
 <div class="prose">
@@ -63,7 +63,7 @@
 <section class="section section--alt" id="pre-tool">
 <div class="wrap split">
 <div class="section-head">
-<p class="eyebrow">6 hooks</p>
+<p class="eyebrow">7 hooks</p>
 <h2>PreToolUse</h2>
 <p class="section-note">Runs before a tool call, on the tools its matcher names, and can block, ask or add context.</p>
 </div>
@@ -88,6 +88,13 @@
 <p>Hard-blocks common destructive command patterns: a push to a protected branch and any force push (<code>--force-with-lease</code> is allowed), a recursive forced <code>rm</code> on <code>/</code>, <code>~</code>, <code>.</code> or a system directory, <code>DROP</code>, <code>TRUNCATE</code> and an unbounded <code>DELETE FROM</code> through a database client, a world-writable <code>chmod</code>, <code>curl</code> or <code>wget</code> piped to a shell, writes to raw devices, <code>mkfs</code> and <code>dd</code> to a device, <code>git reset --hard</code>, <code>git clean -f</code>, and package publish commands without a dry-run flag. It has no ask path.</p>
 <p class="ref__line"><span class="step-label">Matcher</span><code>Bash</code></p>
 <p class="ref__line"><span class="step-label">Setting</span><code>CLAUDE_PROTECTED_BRANCHES</code> replaces the default protected list, <code>main,master</code> plus the repo's configured default branch.</p>
+</dd>
+</div>
+<div id="worker-spawn-mode">
+<dt><code>worker-spawn-mode.sh</code><span class="ref__meta"><span class="tag">Records</span></span></dt>
+<dd>
+<p>When a <code>Bash</code> command runs <code>scripts/worker-spawn.sh</code>, writes the session's permission mode to a file in its scratchpad, so a worker session starts in the lead's mode. It records only: it prints nothing, never blocks or asks, and never changes the call.</p>
+<p class="ref__line"><span class="step-label">Matcher</span><code>Bash</code></p>
 </dd>
 </div>
 <div id="conductor-guard">

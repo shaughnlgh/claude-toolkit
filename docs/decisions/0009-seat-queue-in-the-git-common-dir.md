@@ -13,6 +13,8 @@ Date: 2026-11-10
 
 Status: Accepted
 
+Amended by [0015](0015-lead-and-worker-sessions.md), which replaces the bullets that open "When the run's parent" and "A child leaves its worktree", so the queue prints `LEAD` when the run's lead holds the main checkout, and the lead ends a worker session with `claude stop` once its work is pushed or merged.
+
 ## Context
 
 `seat-check.sh` derives the seat from the live session list on every call and keeps no state. A seat run that found the main checkout held or dirty stopped, and the user had to end every other session there and ask again. Order between waiting runs needs state that every linked worktree of the clone sees, and the scratchpad is per session. A live row that one `claude agents --json` read leaves out, for example while the CLI rewrites the session registry file, looks the same as a dead session.

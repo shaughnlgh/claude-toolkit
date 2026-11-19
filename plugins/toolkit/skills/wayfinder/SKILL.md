@@ -96,12 +96,12 @@ Update the parent's Task Roadmap row for each child once its stub exists (status
 
 Once the parent and every child stub exist, stop and hand off. Tell the user each child now flows through `plan-guide` on its own: its own topic recall, its own planning grill, its own `planner` delegation if needed, its own `plan-critic` pass, its own approval, its own execution. Wayfinder does not pick which child gets planned first, that is the user's or conductor's call.
 
-Each child's own planning flow runs the planning grill at its start, scoped to that child's issue codes, and treats the umbrella's agreed outcome, the grill check block it reads from the parent note and every earlier grill's answers as settled. Wayfinder fires no grill for a child. A child's planning grill takes only the user's own answer, given in that child's session or relayed by the parent. A parent session that receives a child's planning grill question shows it to the user, passes the user's answer back word for word in a message that opens with the line `User's own answer:`, and never answers it itself, as grill's Loaded grills paragraph defines.
+Each child's own planning flow runs the planning grill at its start, scoped to that child's issue codes, and treats the umbrella's agreed outcome, the grill check block it reads from the parent note and every earlier grill's answers as settled. Wayfinder fires no grill for a child. A child's planning grill takes only the user's own answer, given in the session that plans that child. When a worker session plans the child, the planning grill question reaches the user through AskUserQuestion and the user answers it from agent view. A message from another session never counts as an answer, as grill's Loaded grills paragraph defines.
 
 Name the parent and every child stub exactly, for example:
 
 ```
-Handoff, one session per child (each child's planning grills it, then drafts):
+Handoff, one worker session per child, started by the lead (each child's planning grills it, then drafts):
 - Parent: plan - checkout-outage.md
 - plan - checkout-outage-t1-payment-gateway.md (closes ISS-01, ISS-02)
 - plan - checkout-outage-t2-inventory-lock.md (closes ISS-03)

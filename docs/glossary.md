@@ -27,6 +27,10 @@ The grill the crawl runs on the wayfinder route, before the work is split into c
 
 A skill whose name ends in `-guide`, the manual a session follows by hand. `plan-guide` holds the plan note contract: artifact locations, naming, frontmatter and sections, the planning steps, the status lifecycle, session recording, and session closure. `execution-guide` holds the execution steps, the progress report format, the Doc Update Pass, and the runtime-evidence debugging method. The flows run the same work for you, and `plan-flow` and `execute-flow` read these guides where they need the contract.
 
+### Lead session
+
+The session the user starts. It owns the worker sessions it spawns and is the gate between their phases. It may carry the optional `lead-<key>` name that crawl suggests, and any session name that does not start `worker-` marks a lead.
+
 ### Outcome line
 
 The one-line statement of the outcome as the grill understands it, always shown for the user to correct, even when nothing else needs asking.
@@ -45,7 +49,7 @@ The once-per-slice step that routes the durable facts a slice surfaced. One `imp
 
 ### Seat queue
 
-The order in which sessions wait for a repo's main checkout, kept by `scripts/seat-queue.sh` as one file per joined session in the git common dir. Each entry is named `<join epoch seconds>-<sessionId>`, and sessions outside the main checkout take turns sorted by entry name, so an earlier join second comes first, and joins in the same second go in session id order. A lock lets one session at a time take its turn. An entry is seated from its session's turn until the release, and a seated entry holds the seat. An entry drops out once two reads of the live session list, 5 seconds to 10 minutes apart, miss its session. A session in the main checkout with no entry holds every waiter until it ends or moves into a linked worktree. When that session is the waiting run's own parent and the only live session with the parent's name, the run starts no watcher and stops at once, and tells the parent to run the seat run itself or to move into a linked worktree. Otherwise the run waits for it as for any other holder, up to the wait bound that [scripts.md](scripts.md#seat-queuesh) states. Only an interactive session can join, and only from a shell that can signal other sessions' pids, which a sandboxed shell cannot. The seat run waits in the queue through a background watcher.
+The order in which sessions wait for a repo's main checkout, kept by `scripts/seat-queue.sh` as one file per joined session in the git common dir. Each entry is named `<join epoch seconds>-<sessionId>`, and sessions outside the main checkout take turns sorted by entry name, so an earlier join second comes first, and joins in the same second go in session id order. A lock lets one session at a time take its turn. An entry is seated from its session's turn until the release, and a seated entry holds the seat. An entry drops out once two reads of the live session list, 5 seconds to 10 minutes apart, miss its session. A session in the main checkout with no entry holds every waiter until it ends or moves into a linked worktree. When that session is the waiting run's own lead and the only live session with the lead's name, the run starts no watcher and stops at once with `LEAD`, and tells the lead to run the seat run itself or to move into a linked worktree. Otherwise the run waits for it as for any other holder, up to the wait bound that [scripts.md](scripts.md#seat-queuesh) states. Only a live session can join, one whose agents row lists a pid, and only from a shell that can signal other sessions' pids, which a sandboxed shell cannot. The seat run waits in the queue through a background watcher.
 
 ### Seat run
 
@@ -66,3 +70,7 @@ The lookup `scripts/topic-recall.py` runs over the vault's topic notes and, when
 ### Vault
 
 The folder of markdown notes that the toolkit writes plan notes and topic notes into. Any folder works, and no note-taking app is required.
+
+### Worker session
+
+A background session a lead spawns with `claude --bg` on the user's typed yes, named `worker-<type>-<key>`, which reports to its lead by message. It is not a subagent: the doctrine's plain word "worker" names a subagent.

@@ -68,7 +68,8 @@ MODEL_KEYS = ("worker_model", "verifier_model")
 # Mirrors the model value regex in scripts/resolve-models.sh.
 MODEL_RE = re.compile(r"^[A-Za-z][A-Za-z0-9.:_-]*(\[1m\])?$")
 EFFORTS = {"low", "medium", "high", "xhigh", "max", "inherit"}
-RUN_OPTION_KEYS = list(RUN_OPTION_VALUES) + list(MODEL_KEYS) + ["verifier_effort"]
+SESSION_EFFORTS = {"low", "medium", "high", "xhigh", "max"}
+RUN_OPTION_KEYS = list(RUN_OPTION_VALUES) + list(MODEL_KEYS) + ["verifier_effort", "session_model", "session_effort"]
 # Keys whose structure the validator actually checks. Anything else is unknown
 # metadata (another tool that writes plan notes may add e.g. worklogs, tracking, mockups): its indented
 # block is consumed opaquely and tolerated, however it is shaped.
@@ -213,6 +214,14 @@ def check_run_options(fm, violations):
             elif not MODEL_RE.match(v):
                 violations.append(f"{key}: must be blank, a Claude Code model alias, or a model id, "
                                   f"with an optional [1m] suffix, got {v!r}")
+        elif key == "session_model":
+            if "haiku" in v.lower() or v == "inherit":
+                violations.append(f"session_model: must be opus, sonnet, fable or a model id, never haiku or inherit, got {v!r}")
+            elif not MODEL_RE.match(v):
+                violations.append(f"session_model: must be opus, sonnet, fable or a model id, with an optional [1m] suffix, got {v!r}")
+        elif key == "session_effort":
+            if v not in SESSION_EFFORTS:
+                violations.append(f"session_effort: must be one of {', '.join(sorted(SESSION_EFFORTS))}, got {v!r}")
         elif v not in EFFORTS:
             violations.append(f"verifier_effort: must be blank or one of {', '.join(sorted(EFFORTS))}, got {v!r}")
 

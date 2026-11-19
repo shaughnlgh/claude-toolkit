@@ -175,71 +175,74 @@ q bogus "$MAIN" --self me
 reset; agents "$(row "$LIVE" me "$WT")"; q join "$MAIN" --self 'a/b'
 { [ "$RC" -eq 2 ] && [ -z "$(ls -A "$Q" 2>/dev/null)" ]; } && ok "35 a --self value with a slash exits 2 and writes nothing" || no "35 bad self (rc=$RC): $(ls -A "$Q" 2>/dev/null)"
 
-reset; agents "$(row "$LIVE" me "$WT")" "$(row "$L2" p "$MAIN")"; q join "$MAIN" --self me --parent p
-{ [ "$RC" -eq 15 ] && [ "$OUT" = "PARENT p" ] && [ -z "$(names)" ]; } && ok "36 an unqueued parent in the main checkout gives PARENT and no entry" || no "36 parent (rc=$RC): $OUT [$(names)]"
+reset; agents "$(row "$LIVE" me "$WT")" "$(row "$L2" p "$MAIN")"; q join "$MAIN" --self me --lead p
+{ [ "$RC" -eq 15 ] && [ "$OUT" = "LEAD p" ] && [ -z "$(names)" ]; } && ok "36 an unqueued lead in the main checkout gives LEAD and no entry" || no "36 lead (rc=$RC): $OUT [$(names)]"
 
-reset; agents "$(row "$LIVE" me "$WT")" "$(row "$L2" s1 "$MAIN")"; q join "$MAIN" --self me --parent x
-{ [ "$RC" -eq 10 ] && [ "$OUT" = "WAIT 0 1 1 0" ]; } && ok "37 a --parent id that holds nothing falls back to the wait" || no "37 unknown parent (rc=$RC): $OUT"
+reset; agents "$(row "$LIVE" me "$WT")" "$(row "$L2" s1 "$MAIN")"; q join "$MAIN" --self me --lead x
+{ [ "$RC" -eq 10 ] && [ "$OUT" = "WAIT 0 1 1 0" ]; } && ok "37 a --lead id that holds nothing falls back to the wait" || no "37 unknown lead (rc=$RC): $OUT"
 
-reset; enter 1000000000 p seated; agents "$(row "$LIVE" me "$WT")" "$(row "$L2" p "$MAIN")"; q join "$MAIN" --self me --parent p
-{ [ "$RC" -eq 10 ] && [ "$OUT" = "WAIT 0 1 0 0" ]; } && ok "38 a parent with a seated entry is waited for" || no "38 seated parent (rc=$RC): $OUT"
+reset; enter 1000000000 p seated; agents "$(row "$LIVE" me "$WT")" "$(row "$L2" p "$MAIN")"; q join "$MAIN" --self me --lead p
+{ [ "$RC" -eq 10 ] && [ "$OUT" = "WAIT 0 1 0 0" ]; } && ok "38 a lead with a seated entry is waited for" || no "38 seated lead (rc=$RC): $OUT"
 
 reset; enter 1000000000 me
 stub agents.1.json "$(row "$LIVE" me "$WT")" "$(row "$L2" p "$WT2")" "$(row "$L3" s1 "$MAIN")"
 stub agents.last.json "$(row "$LIVE" me "$WT")" "$(row "$L2" p "$MAIN")" "$(row "$L3" s1 "$MAIN")"
-qs wait "$MAIN" --self me --parent p --interval 1 --bound 30s
-{ [ "$RC" -eq 15 ] && [ "$OUT" = "PARENT p" ] && [ -z "$(names)" ]; } && ok "39 wait prints PARENT when the parent moves into the main checkout" || no "39 parent moves (rc=$RC): $OUT [$(names)]"
+qs wait "$MAIN" --self me --lead p --interval 1 --bound 30s
+{ [ "$RC" -eq 15 ] && [ "$OUT" = "LEAD p" ] && [ -z "$(names)" ]; } && ok "39 wait prints LEAD when the lead moves into the main checkout" || no "39 lead moves (rc=$RC): $OUT [$(names)]"
 
-reset; agents "$(row "$LIVE" me "$WT")"; q join "$MAIN" --self me --parent 'a/b'
-{ [ "$RC" -eq 2 ] && [ -z "$(ls -A "$Q" 2>/dev/null)" ]; } && ok "40 a --parent value with a slash exits 2 and writes nothing" || no "40 bad parent (rc=$RC): $(ls -A "$Q" 2>/dev/null)"
+reset; agents "$(row "$LIVE" me "$WT")"; q join "$MAIN" --self me --lead 'a/b'
+{ [ "$RC" -eq 2 ] && [ -z "$(ls -A "$Q" 2>/dev/null)" ]; } && ok "40 a --lead value with a slash exits 2 and writes nothing" || no "40 bad lead (rc=$RC): $(ls -A "$Q" 2>/dev/null)"
+
+reset; agents "$(row "$LIVE" me "$WT")" "$(row "$L2" p "$MAIN")"; q join "$MAIN" --self me --parent p
+{ [ "$RC" -eq 15 ] && [ "$OUT" = "LEAD p" ] && [ -z "$(names)" ]; } && ok "41 the pre-1.1 --parent name still gives LEAD with exit 15" || no "41 parent alias (rc=$RC): $OUT [$(names)]"
 
 reset; enter 1000000000 me seated; agents "$(row "$L2" s1 "$WT2")"; q join "$MAIN" --self me
-{ [ "$RC" -eq 10 ] && [ "$OUT" = "WAIT 0 0 0 0" ] && [ -e "$Q/1000000000-me" ]; } && ok "41 a rejoin whose read misses its own row keeps its entry and waits" || no "41 rejoin miss (rc=$RC): $OUT [$(names)]"
+{ [ "$RC" -eq 10 ] && [ "$OUT" = "WAIT 0 0 0 0" ] && [ -e "$Q/1000000000-me" ]; } && ok "42 a rejoin whose read misses its own row keeps its entry and waits" || no "42 rejoin miss (rc=$RC): $OUT [$(names)]"
 
 reset; enter 1000000000 s2 seated; touch "$Q/.miss-s2"; agents "$(row "$LIVE" me "$WT")" "$(row "$DEAD" s2 "$WT2")"; q join "$MAIN" --self me
-{ [ "$OUT" = "WAIT 0 1 0 0" ] && [ -e "$Q/1000000000-s2" ]; } && ok "42 a second miss under 5 seconds after the first keeps the seated entry" || no "42 miss floor (rc=$RC): $OUT [$(names)]"
+{ [ "$OUT" = "WAIT 0 1 0 0" ] && [ -e "$Q/1000000000-s2" ]; } && ok "43 a second miss under 5 seconds after the first keeps the seated entry" || no "43 miss floor (rc=$RC): $OUT [$(names)]"
 
 reset; enter 1000000000 s2 seated; touch "$Q/.miss-s2"; aged 60 "$Q/.miss-s2"; agents "$(row "$L3" s3 "$WT2")"; q join "$MAIN" --self me
-{ [ "$RC" -eq 2 ] && [ -e "$Q/1000000000-s2" ]; } && ok "43 a join whose read misses its own row removes no other entry" || no "43 self miss before sweep (rc=$RC): $OUT [$(names)]"
+{ [ "$RC" -eq 2 ] && [ -e "$Q/1000000000-s2" ]; } && ok "44 a join whose read misses its own row removes no other entry" || no "44 self miss before sweep (rc=$RC): $OUT [$(names)]"
 
 reset; q leave "$MAIN" --self me
-[ "$RC" -eq 0 ] && ok "44 leave with no queue directory exits 0 at once" || no "44 leave no queue (rc=$RC): $OUT"
+[ "$RC" -eq 0 ] && ok "45 leave with no queue directory exits 0 at once" || no "45 leave no queue (rc=$RC): $OUT"
 
 reset; stub agents.1.json; stub agents.last.json "$(row "$LIVE" me "$WT")"; qs join "$MAIN" --self me
-{ [ "$RC" -eq 0 ] && [ "$OUT" = TURN ] && [ "$(cat "$S/n")" -eq 2 ] && [ -n "$(names)" ]; } && ok "45 a first join whose first read misses its own row reads again and gets TURN" || no "45 first-join miss (rc=$RC): $OUT [$(names)] reads $(cat "$S/n")"
+{ [ "$RC" -eq 0 ] && [ "$OUT" = TURN ] && [ "$(cat "$S/n")" -eq 2 ] && [ -n "$(names)" ]; } && ok "46 a first join whose first read misses its own row reads again and gets TURN" || no "46 first-join miss (rc=$RC): $OUT [$(names)] reads $(cat "$S/n")"
 
 reset; stub agents.last.json "$(row "$L2" s1 "$WT2")"; qs join "$MAIN" --self me
-{ [ "$RC" -eq 2 ] && [ "$(cat "$S/n")" -eq 2 ] && [ -z "$(names)" ]; } && ok "46 a first join whose two reads miss its own row exits 2 and keeps no entry" || no "46 first-join two misses (rc=$RC): $OUT [$(names)] reads $(cat "$S/n")"
+{ [ "$RC" -eq 2 ] && [ "$(cat "$S/n")" -eq 2 ] && [ -z "$(names)" ]; } && ok "47 a first join whose two reads miss its own row exits 2 and keeps no entry" || no "47 first-join two misses (rc=$RC): $OUT [$(names)] reads $(cat "$S/n")"
 
 reset; agents "$(row "$LIVE" me "$WT")"; START=$SECONDS; q wait "$MAIN" --self me --interval 1 --bound 30s
-{ [ "$RC" -eq 13 ] && [ "$OUT" = LEFT ] && [ $((SECONDS - START)) -lt 5 ]; } && ok "47 wait with no queue directory prints LEFT at once" || no "47 wait no queue (rc=$RC, $((SECONDS - START))s): $OUT"
+{ [ "$RC" -eq 13 ] && [ "$OUT" = LEFT ] && [ $((SECONDS - START)) -lt 5 ]; } && ok "48 wait with no queue directory prints LEFT at once" || no "48 wait no queue (rc=$RC, $((SECONDS - START))s): $OUT"
 
 reset; printf '{}' > "$TOOLKIT_AGENTS_FILE"; qe join "$MAIN" --self me
-{ [ "$RC" -eq 2 ] && [ "$(sed -n 1p "$T/e")" = "error: agents source is not a JSON array" ] && [ "$(tail -1 "$T/e")" = "error: the seat check could not run" ]; } && ok "48 a join whose seat check fails exits 2 with the seat-check line, then its own line last" || no "48 join seat failure (rc=$RC): $(tr '\n' '|' < "$T/e")"
+{ [ "$RC" -eq 2 ] && [ "$(sed -n 1p "$T/e")" = "error: agents source is not a JSON array" ] && [ "$(tail -1 "$T/e")" = "error: the seat check could not run" ]; } && ok "49 a join whose seat check fails exits 2 with the seat-check line, then its own line last" || no "49 join seat failure (rc=$RC): $(tr '\n' '|' < "$T/e")"
 
 reset; printf '{}' > "$TOOLKIT_AGENTS_FILE"; q list "$MAIN"
-[ "$RC" -eq 2 ] && ok "49 list on a failed seat check exits 2" || no "49 list seat failure (rc=$RC): $OUT"
+[ "$RC" -eq 2 ] && ok "50 list on a failed seat check exits 2" || no "50 list seat failure (rc=$RC): $OUT"
 
 mkdir -p "$T/alt"; cp "$SQ" "$T/alt/seat-queue.sh"; printf '#!/usr/bin/env bash\nexit 137\n' > "$T/alt/seat-check.sh"
 reset; enter 1000000000 me; enter 1000000001 s1 seated; touch "$Q/.miss-s1"; aged 60 "$Q/.miss-s1"
 OUT="$(bash "$T/alt/seat-queue.sh" join "$MAIN" --self me 2>>"$T/err")"; RC=$?
-{ [ "$RC" -eq 2 ] && [ -e "$Q/1000000001-s1" ]; } && ok "50 a seat check killed with 137 fails the join and removes no live entry" || no "50 killed seat check (rc=$RC): $OUT [$(names)]"
+{ [ "$RC" -eq 2 ] && [ -e "$Q/1000000001-s1" ]; } && ok "51 a seat check killed with 137 fails the join and removes no live entry" || no "51 killed seat check (rc=$RC): $OUT [$(names)]"
 
 reset; enter 1000000000 me; enter 1000000001 s2; agents "$(row "$LIVE" me "$WT")" "$(row "$L2" s2 "$WT2")"; q join "$MAIN" --self me
-{ [ "$RC" -eq 0 ] && [ "$OUT" = TURN ]; } && ok "51 a waiting entry that sorts after the joiner is not ahead of it" || no "51 later waiter (rc=$RC): $OUT"
+{ [ "$RC" -eq 0 ] && [ "$OUT" = TURN ]; } && ok "52 a waiting entry that sorts after the joiner is not ahead of it" || no "52 later waiter (rc=$RC): $OUT"
 
 reset; mkdir -p "$Q/.grant" "$Q/.grant.break"; touch -t 202001010000 "$Q/.grant" "$Q/.grant.break"; agents "$(row "$LIVE" me "$WT")"; q join "$MAIN" --self me
-{ [ "$OUT" = TURN ] && [ ! -e "$Q/.grant.break" ]; } && ok "52 an orphaned stale break lock is removed and the join gets TURN" || no "52 stale break (rc=$RC): $OUT"
+{ [ "$OUT" = TURN ] && [ ! -e "$Q/.grant.break" ]; } && ok "53 an orphaned stale break lock is removed and the join gets TURN" || no "53 stale break (rc=$RC): $OUT"
 
 # A stub ls removes the entry that DROP names on its second call, the verdict's first listing, as another run's leave would.
 D="$T/dbin"; mkdir -p "$D"
 printf '#!/usr/bin/env bash\nn=$(( $(cat "$DROP.n" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$DROP.n"\n[ "$n" -ne 2 ] || rm -f "$DROP"\nexec %s "$@"\n' "$(command -v ls)" > "$D/ls"; chmod +x "$D/ls"
 reset; enter 1000000000 me; agents "$(row "$LIVE" me "$WT")"
 OUT="$(PATH="$D:$PATH" DROP="$Q/1000000000-me" bash "$SQ" join "$MAIN" --self me 2>"$T/e")"; RC=$?
-{ [ "$RC" -eq 2 ] && [ "$(tail -1 "$T/e")" = "error: the queue entry for session me was removed before the verdict read it, by a leave or by a sweep after two reads missed its live row" ]; } && ok "53 a rejoin whose entry goes before its verdict lists exits 2 and says the entry was removed" || no "53 rejoin removed (rc=$RC): $(tr '\n' '|' < "$T/e")"
+{ [ "$RC" -eq 2 ] && [ "$(tail -1 "$T/e")" = "error: the queue entry for session me was removed before the verdict read it, by a leave or by a sweep after two reads missed its live row" ]; } && ok "54 a rejoin whose entry goes before its verdict lists exits 2 and says the entry was removed" || no "54 rejoin removed (rc=$RC): $(tr '\n' '|' < "$T/e")"
 
 reset; enter 1000000000 me seated; chmod 444 "$Q/1000000000-me"; agents "$(row "$LIVE" me "$WT")" "$(row "$L2" s1 "$MAIN")"; qe join "$MAIN" --self me; chmod 644 "$Q/1000000000-me"
-{ [ "$RC" -eq 2 ] && [ "$(tail -1 "$T/e")" = "error: cannot clear the seated mark on $(cd "$Q" && pwd -P)/1000000000-me" ]; } && ok "54 a WAIT verdict that cannot clear its own seated mark exits 2 and names the entry file" || no "54 clear mark failed (rc=$RC): $(tr '\n' '|' < "$T/e")"
+{ [ "$RC" -eq 2 ] && [ "$(tail -1 "$T/e")" = "error: cannot clear the seated mark on $(cd "$Q" && pwd -P)/1000000000-me" ]; } && ok "55 a WAIT verdict that cannot clear its own seated mark exits 2 and names the entry file" || no "55 clear mark failed (rc=$RC): $(tr '\n' '|' < "$T/e")"
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"

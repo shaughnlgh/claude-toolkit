@@ -73,7 +73,7 @@
 <dt><code>ship-flow</code></dt>
 <dd>
 <p>One run that commits, pushes, opens the MR or PR, watches the pipeline, waits in the background on a slow pipeline or a pending bot review, works the bot review threads, merges, tags and cleans up a slice the execute flow reviewed. It stops at the ceiling the plan note records and asks no question.</p>
-<p class="ref__line"><span class="step-label">Trigger</span>You ask for the ship flow by name after an execute-flow report, or the parent session sends <code>&lt;planName&gt;: run the ship flow</code>. Never from crawl.</p>
+<p class="ref__line"><span class="step-label">Trigger</span>You ask for the ship flow by name after an execute-flow report, or a worker session's first prompt names it, or that worker session's lead sends <code>&lt;planName&gt;: run the ship flow</code>. Never from crawl.</p>
 <p class="ref__example">Run the ship flow on the add-csv-export plan.</p>
 </dd>
 </div>
@@ -100,7 +100,7 @@
 <div id="plan-guide">
 <dt><code>plan-guide</code></dt>
 <dd>
-<p>Writes a plan note to your vault and stops for approval before any implementation. It is the single source of truth for the plan note's layout, naming, frontmatter and status lifecycle, and its planning runs the planning grill once, after discovery. After approval it asks whether to run the execute flow here, open a child session for it, or stop.</p>
+<p>Writes a plan note to your vault and stops for approval before any implementation. It is the single source of truth for the plan note's layout, naming, frontmatter and status lifecycle, and its planning runs the planning grill once, after discovery. After approval it asks whether to start a worker session for the execute flow, run the execute flow here, or stop.</p>
 <p class="ref__line"><span class="step-label">Trigger</span>Creating, filling in or closing out a plan note, or starting a planning session.</p>
 <p class="ref__example">Let's plan adding rate limiting to the login endpoint.</p>
 </dd>
