@@ -53,7 +53,8 @@ PLAIN_LANGUAGE_SUMMARY_SINCE = "2026-08-26"
 # date the remember pass joined the workflow.
 REMEMBER_LINE_SINCE = "2026-10-18"
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-REMEMBER_LINE_RE = re.compile(r"^[ \t]*(?:- )?Remember:", re.M)
+# Group 1 is set on a `Remember pass owed:` line, which stays owed until a `Remember:` line follows it.
+REMEMBER_LINE_RE = re.compile(r"^[ \t]*(?:- )?Remember( pass owed)?:", re.M)
 # Run options (plan-guide SKILL.md § Run options). Optional and not in REQUIRED_KEYS,
 # so a skeleton, an older note, and a note from another tool that writes plan notes still validate.
 # A blank value reads as absent. A non-blank value is value-checked.
@@ -348,9 +349,11 @@ def main():
     remember_exempt = created_date is not None and created_date < REMEMBER_LINE_SINCE
     if status == "completed" and not remember_exempt:
         changes = section(body_nocode, "Plan Changes During Execution") or ""
-        if not REMEMBER_LINE_RE.search(changes):
+        lines = REMEMBER_LINE_RE.findall(changes)
+        if not lines or lines[-1]:
             violations.append("status completed requires a Remember: line under "
-                              "## Plan Changes During Execution (remember pass not recorded)")
+                              "## Plan Changes During Execution, after any Remember pass owed: line "
+                              "(remember pass not recorded)")
 
     # -- retired artifacts -- (tolerate whitespace; require a link-close/alias/space
     # boundary so a distinct artifact like `mr-description-notes` is not caught).

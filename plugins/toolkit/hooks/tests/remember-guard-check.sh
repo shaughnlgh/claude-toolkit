@@ -117,6 +117,14 @@ check_rg_silent_with_remember_line() {
   _rg_expect_silent "$label" "$RG_BASE" "$RG_BASE/demo" fx-rg-1 false "$RG_MSG"
 }
 
+check_rg_silent_with_remember_pass_owed_line() {
+  local label="silent-when-remember-pass-owed-line-present"
+  _rg_new_base "$label" || return
+  printf -- '- Remember pass owed: Projects/demo/2026-01-01-x/remember-material - x.md\n' >> "$RG_BASE/vault/$RG_ROOT_FOLDER/$RG_PLAN_REL" \
+    || { _rg_fail "$label :: setup failed"; rm -rf "$RG_BASE"; return; }
+  _rg_expect_silent "$label" "$RG_BASE" "$RG_BASE/demo" fx-rg-1 false "$RG_MSG"
+}
+
 check_rg_warns_when_remember_line_only_fenced() {
   local label="warns-when-remember-line-is-only-inside-a-fence"
   _rg_new_base "$label" || return
@@ -265,6 +273,7 @@ run_remember_guard_checks() {
   check_rg_warns_on_prefixed_signature
   check_rg_silent_without_signature
   check_rg_silent_with_remember_line
+  check_rg_silent_with_remember_pass_owed_line
   check_rg_warns_when_remember_line_only_fenced
   check_rg_fenced_heading_keeps_section
   check_rg_warns_when_remember_line_only_tilde_fenced
