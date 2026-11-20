@@ -1,6 +1,6 @@
 # Brief template
 
-A brief is the note that opens a piece of work. The `crawl` skill ingests it, and on the plan-guide route crawl writes it beside the plan note as `brief - <plan-name>.md`. On the wayfinder route wayfinder writes it beside the parent plan. Copy the block below and write each paragraph as one line. Mission Control's New work prompt carries a copy of this block, so the two change together.
+A brief is the note that opens a piece of work. The `crawl` skill ingests it, and on the plan-guide route and the two direct routes crawl writes it beside the plan note as `brief - <plan-name>.md`. On the wayfinder route wayfinder writes it beside the parent plan. Copy the block below and write each paragraph as one line. Mission Control's New work prompt carries a copy of this block, so the two change together.
 
 ```markdown
 # <What you want, in one line>

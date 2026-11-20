@@ -8,7 +8,9 @@ description: >-
   Also invoke plan-guide at execution start for the plan note spec, status
   lifecycle, and session recording rules. A request naming the execute flow or the
   execute workflow goes to the execute-flow skill, whose runner reads this guide's Doc
-  Update Pass.
+  Update Pass. Also invoke when crawl hands off a direct route, or a session opens a
+  plan note whose route is direct-drive or direct-chain: the Direct route section holds
+  its steps, its step lines, its drive and chain modes and its closing record.
 ---
 
 # Execution Guide
@@ -57,7 +59,7 @@ The plan says what to build; build the least that satisfies it. The subagent-rul
 
 ## Slice Finalization
 
-When the user signals a completed implementation slice, the `red-team` skill (`<plugin-root>/skills/red-team/SKILL.md`) owns finalization: it recommends the adversarial review, runs it on confirmation, and ends with a commit suggestion. It invokes this skill's Doc Update Pass once, after its fixes, and runs the remember pass once after the doc pass.
+When the user signals a completed implementation slice, the `red-team` skill (`<plugin-root>/skills/red-team/SKILL.md`) owns finalization: it recommends the adversarial review, runs it on confirmation, and ends with a commit suggestion. It invokes this skill's Doc Update Pass once, after its fixes, and runs the remember pass once after the doc pass. On a direct route note the Direct route section below owns that order, and red-team ends after its cold read.
 
 ## Doc Update Pass
 
@@ -78,6 +80,71 @@ Catch drift reliably — before declaring a task done:
 - Do not let docs drift behind implementation.
 
 Each project defines its commonly impacted docs and any project-specific doc-update triggers in its `01-project-core.md` / `01-project-details.md` or equivalent. Honor those in addition to the triggers above.
+
+## Direct route
+
+A direct route builds work that the user chose at `crawl`'s route question to build without a plan first. The plan note is its one record. Its `route` frontmatter value is `direct-drive` or `direct-chain` (`plan-guide` § Required plan frontmatter), the route answer is the user's go-ahead for the build, and the note needs no filled Implementation Steps and no approval. `crawl` section 4 hands off here, and so does every session that opens a note with one of those two values. Load `plan-guide` for every note write, write by its atomic write rule, and run `validate-plan.py` after each write, requiring exit 0. The lead session runs every step through agents and the review workflow. It edits no file itself and starts no worker session for the steps.
+
+### Steps
+
+The steps run in this order. Each runs the pass that already exists, never a shortened version of it.
+
+1. `build`: first, one `toolkit:verifier` runs `git -c core.quotePath=false status --porcelain -uall -- ':(exclude,top).claude/worktrees/'` and returns the output verbatim. When it lists any path, name each path and stop in both modes until the user commits it or sets it aside, because the closing record stages every changed path in the tree. Then run the git-safety branch check, which creates the work branch before the first edit when HEAD is the base or a detached tag. When HEAD is on any other branch, name that branch and ask in one plain-text question whether to build on it or on a fresh branch from the base, which chain mode stops for too, because the ship flow ships the whole branch. Record the branch the build runs on as the note's `branch`. When `pwd -P` sits under `<main>/.claude/worktrees/`, also record `Seat: worktree <path>` under Plan Changes During Execution, so the ship flow runs there. The direct route opens no worktree itself. Then delegate the change to one `toolkit:implementer` with the brief, the crawl's evidence from the note, and the Build minimal rules above. Under `tests: required` the brief tells it to follow the `test-first` skill (`<plugin-root>/skills/test-first/SKILL.md`). Under `tests: manual` it adds no test.
+2. `tests`: one `toolkit:verifier` runs the test command that the repo's rules or README name, with stdin from `/dev/null`, and returns the command, its exit code and each failing name. When the repo names no test command, record `Step done: tests: the repo names no test command`.
+3. `red team`: load the `red-team` skill (`<plugin-root>/skills/red-team/SKILL.md`) and run its steps 2 to 6: the review, its one fix round and the cold read. The user's yes to this step's offer in drive mode, or the chain mode route answer, is the confirmation that its step 1 requires. Its steps 7, 7b and 8 do not run inside this step. Print in plain text what its step 8 report would carry: each `dead` dimension, the `preExisting` entries, the `dropped` count and reasons, the nits that `nits: skip` leaves, and the residual-risk line. A non-empty `dead` fails the step, because a dimension whose reviewer died did not review the slice.
+4. `check`: under `e2e: required`, one `toolkit:browser-driver` checks the change against the running local stack and returns what it saw. Under `e2e: skip` the check is the user's own: say in two or three lines what to look at, and take the user's typed result.
+5. `docs`: the Doc Update Pass above, once, through one `toolkit:implementer`, as `red-team` step 7 runs it.
+6. `remember`: the remember pass as `red-team` step 7b runs it, once, with the cumulative diff recaptured by that skill's step 2 method and its `Remember:` line recorded under Plan Changes During Execution.
+
+### Step lines
+
+The state of each step is one line under Plan Changes During Execution, written as soon as the state is known:
+
+    Step done: <step>: <evidence>
+    Step skipped: <step>: "<the user's words>"
+    Step later: <step>: "<the user's words>"
+
+After each step whose agents change the tree, write each path they returned as its own `Changed path: <path>` line under Plan Changes During Execution.
+
+`<step>` is `build`, `tests`, `red team`, `check`, `docs` or `remember`. `<evidence>` is one line: the changed file count for `build`, the command and its exit code for `tests`, the panel, the diff hash and the count of fixed findings for `red team`, the user's words or the browser result for `check`, the docs changed or `no doc needed` for `docs`, and the `Remember:` line for `remember`. A step with no line is owed. The last line for a step is its state. Only the user's typed words skip a step or move it to later, and the line quotes them. The lead never skips, drops or reorders a step on its own judgment. A step that fails gets no line and stays owed. A skipped step is never offered or raised again. A later step is raised once more before the ship question, as Closing record below states. When the user skips `remember`, also record `Remember: skipped by the user: "<the user's words>"`, because the ship flow and `validate-plan.py` complete a merged note only with a `Remember:` line. A `remember` step left for later records no `Remember:` line, so the note stays open, as it does under a `Remember pass owed:` line.
+
+### Drive mode
+
+Under `route: direct-drive`, after every step, print these two lines and one question in plain text, and end the turn. After a step that failed, print `Failed: <step>: <reason>` above them, so the offer never reads as a first offer:
+
+    Done: <each done step, and each skipped step as "<step> (skipped)", or none>
+    Owed: <each owed step in order, and each later step as "<step> (later)", or none>
+    Run <the next owed step> next?
+
+Never ask it through AskUserQuestion, because the step lines quote the user's typed words. A typed yes runs the step. Words that skip the step, or that go on without it, record `Step skipped:`. Words that leave it for later record `Step later:`. When the reply does not say which of the two it means, ask which in one line. After a skipped or later line, the next reply offers the step after it. Any other reply is an ordinary message, and the same offer follows the answer to it.
+
+### Chain mode
+
+Under `route: direct-chain`, run the same steps in the same order with no offer between them. Stop only when a step fails or needs a decision that is the user's: a failing test or check, changes in the tree that are not this session's work, a red team unverified entry or open question, the user's own check under `e2e: skip`, or the consent gate of the remember pass. In the `red team` step every confirmed finding takes the fix round with no question, as the red-team skill's Adjudicate and fix section states for a `direct-chain` note. On a stop, print `Stopped at <step>: <reason>`, the `Done:` and `Owed:` lines, and the one question the user must answer, then go on from that step once the user answers. With no stop, end with the `Done:` and `Owed:` lines and the ship question.
+
+### Out of order
+
+The user may ask for any step or skill by name at any time, such as the red team, a commit or the ship flow, and nothing in this section stops that. When the user asks for a later step, a commit or the ship flow while a step is owed or carries a `Step later:` line, ask one plain-text question first that names each of those steps: run them first, or go on without them. A `Step later:` step counts as owed for this question. Record the reply as one `Step skipped:` or `Step later:` line per named step, with the user's words, then do what the user asked. An ask for the ship flow is the exception: the ship flow runs only when every step is done or carries a `Step skipped:` line in the user's words, so a reply that leaves a step for later starts no ship flow. A step the user ran by hand records its `Step done:` line. On an ask for a commit, write the shipping record by the capture rules of Closing record below before the commit handoff, while the tree still holds the slice, so a later ship flow goes on from the push. The `direct-route finished:` summary still waits until every step is done or skipped.
+
+### Resume
+
+A session that opens a note whose `route` is `direct-drive` or `direct-chain`, and the same session after a compaction, reads the step lines before anything else. It opens with the `Done:` and `Owed:` lines and the next offer: the next owed step in drive mode, one line that names the step the chain goes on from in chain mode, the question about the later steps when only later steps remain, and the ship question when every step is done or skipped and the last summary does not begin `ship-flow finished:`.
+
+### Closing record and the ship question
+
+The ship flow runs only when every step is done or carries a `Step skipped:` line in the user's words. A `Step later:` step counts as owed here: when no other step is owed, name each later step and ask in one plain-text question whether to run it now or skip it, and write no closing record and ask no ship question while a step is later. A reply that leaves a step for later again ends the turn with no ship question.
+
+When every step is done or skipped, write the closing record, then ask the ship question. The closing record is what execute-flow section 7 writes for an unblocked run (`<plugin-root>/skills/execute-flow/SKILL.md`): the commit message in the repo's observed convention, and the shipping record under Plan Changes During Execution, which holds the staging list, that commit message and a hash. Take the staging list and the hash from one `toolkit:verifier` briefed with the `CAPTURE_PROMPT` text of `<plugin-root>/workflows/execute-runner.js`, substituted as ship-flow section 4 substitutes it, so the ship flow's own capture compares equal. The staging list is the capture's `paths` and the hash is its `hash12`. Brief that verifier to also return the capture command's exit code. When it is not 0, say so with its output, write nothing, and stop, because a failed capture reads as an empty one. When the capture's `paths` hold a path that no `Changed path:` line names, write nothing, name each such path, and stop in both modes: the user takes it out of the tree, or answers that it is this work, which records its `Changed path:` line, and the capture runs again. When the capture is empty and the note holds no shipping record, say that the tree holds no slice, write no closing record, and ask no ship question. When the capture is empty and the note already holds a shipping record, keep that record unchanged, because the user committed the slice after it was written. In the same write, set this session's entry summary to begin `direct-route finished:`, followed by the steps done and skipped. The note holds one shipping record. When a capture that is not empty finds the note already holding one, replace that record in place with the new capture, as an execute-flow section 8 fix replaces it.
+
+The ship question is plain text and ends the turn:
+
+    Done: <as in drive mode>
+    Owed: none
+    Go into the ship flow now, up to the ceiling <ceiling>?
+    - `run the ship flow` or `yes`: ships the slice up to that ceiling (recommended).
+    - `no`: nothing ships. Ask for the ship flow by name when you are ready.
+
+A typed `run the ship flow` or bare `yes` is the user asking for the ship flow by name: load `ship-flow` (`<plugin-root>/skills/ship-flow/SKILL.md`) and follow it from its section 1 on this note. The lead never commits, pushes, or opens an MR or PR itself on a direct route.
 
 ## Runtime-Evidence Debugging
 
