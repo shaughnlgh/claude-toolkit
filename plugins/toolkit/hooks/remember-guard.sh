@@ -1,6 +1,6 @@
 #!/bin/bash
 # Stop hook: warns the user when a reply suggests a commit but the session's in-progress plan note
-# has no Remember: line under Plan Changes During Execution (the remember pass has not run).
+# has no Remember: or Remember pass owed: line under Plan Changes During Execution (the remember pass has not run).
 # The signal is a last_assistant_message line, anywhere in the message, that begins "Suggested commit",
 # which red-team step 8 places after its Repo, Branch, and Scope header lines. The transcript is
 # never read. Warn-only: a user-visible systemMessage, never decision: block, always exit 0,
@@ -47,7 +47,7 @@ FOLDER=$(jq -r '.root_folder // empty' "$CFG" 2>/dev/null)
 # frontmatter_of prints the lines between the opening and closing --- and nothing else.
 frontmatter_of() { awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1' "$1" 2>/dev/null; }
 # has_remember_line: a line under ## Plan Changes During Execution that starts with "Remember:" or
-# "- Remember:". Lines inside ``` or ~~~ fences never count and never change the section. A fence
+# "Remember pass owed:", with an optional "- ", because an owed pass is left to a later session. Lines inside ``` or ~~~ fences never count and never change the section. A fence
 # opens on 3+ fence chars plus an optional info word and closes on a bare run of the same char at
 # least as long, as strip_fences in validate-plan.py reads them.
 has_remember_line() {
@@ -61,7 +61,7 @@ has_remember_line() {
     }
     fc != "" { next }
     /^## / { s = ($0 ~ /^## Plan Changes During Execution[[:space:]]*$/) }
-    s && /^[[:space:]]*(- )?Remember:/ { f = 1; exit }
+    s && /^[[:space:]]*(- )?Remember( pass owed)?:/ { f = 1; exit }
     END { exit !f }' "$1" 2>/dev/null
 }
 MATCHED=0; REMEMBERED=0

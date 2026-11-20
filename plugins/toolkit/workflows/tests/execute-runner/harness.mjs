@@ -436,7 +436,7 @@ const cases = [
   }],
   ['blocked run skips remember:pass and returns ran false with the material', async () => {
     const { result, prompts } = await run({ 'prep:baseline': null })
-    return same({ called: 'remember:pass' in prompts, remember: result.remember }, { called: false, remember: { ran: false, material: ['The exporter streams rows (src/a.js:4).'], proposals: [], topicsUpdated: [], rememberLine: '' } })
+    return same({ called: 'remember:pass' in prompts, remember: result.remember }, { called: false, remember: { ran: false, material: ['The exporter streams rows (src/a.js:4).'], proposals: [], topicsUpdated: [], rememberLine: '', reason: '' } })
   }],
   ['FENCED_PLAN yields three steps despite a fenced Validation Steps heading', async () => {
     const { prompts } = await run({}, { ...ARGS, plan: FENCED_PLAN })
@@ -543,10 +543,15 @@ const cases = [
     const { result } = await run({ 'cold:read': coldOf(false) })
     return same({ unverified: result.coldUnverified.map((f) => f.issue), blocked: result.blocked }, { unverified: ['issue 0'], blocked: [] })
   }],
-  ['remember:pass blockers block and set ran false', async () => {
-    const { result } = await run({ 'remember:pass': { ...DEFAULTS['remember:pass'], blockers: ['The vault-fs.sh mv was denied.'] } })
-    return same({ blocked: result.blocked, ran: result.remember.ran }, { blocked: ['The implementer remember:pass reported blockers: The vault-fs.sh mv was denied.'], ran: false })
+  ['remember:pass blockers leave the run unblocked with ran false and the reason', async () => {
+    const { result } = await run({ 'remember:pass': { ...DEFAULTS['remember:pass'], blockers: ['The vault-fs.sh mv was denied.', 'The topic note changed during the run.'] } })
+    return same({ blocked: result.blocked, incomplete: result.incomplete, ran: result.remember.ran, reason: result.remember.reason }, { blocked: [], incomplete: [], ran: false, reason: 'The implementer remember:pass reported blockers: The vault-fs.sh mv was denied. The topic note changed during the run.' })
   }],
+  ['a dead remember:pass leaves the run unblocked with ran false, the material and the reason', async () => {
+    const { result } = await run({ 'remember:pass': null })
+    return same({ blocked: result.blocked, incomplete: result.incomplete, remember: result.remember }, { blocked: [], incomplete: [], remember: { ran: false, material: ['The exporter streams rows (src/a.js:4).'], proposals: [], topicsUpdated: [], rememberLine: '', reason: 'The implementer remember:pass returned nothing.' } })
+  }],
+  ['a clean run returns an empty remember.reason', async () => (await run()).result.remember.reason === ''],
   ['planChanges carry the validation fix and each fix round deviation', async () => {
     const { result } = await run({ 'verify:validation': FAIL, 'fix:validation': stepOf(['src/a.js'], { result: 'Guarded the null.', deviations: ['Also touched src/d.js.'] }), 'workflow:review-mr': reviewOf([F1]), 'fix:1': stepOf(['src/a.js'], { deviations: ['Renamed the helper.'] }), 'recheck:1': resolvedOf(F1) })
     return same(result.planChanges, ['Validation fix: Guarded the null.', 'Validation fix deviation: Also touched src/d.js.', 'Fix round 1: Renamed the helper.', 'Fix round 1 resolved: src/a.js: Null widget crashes the export'])
@@ -1655,7 +1660,7 @@ const cases = [
   ['blockedAt reads implement:2 for an implementer blocker', async () => (await run(BLOCKED_BY_STEP_2)).result.blockedAt === 'implement:2'],
   ['blockedAt reads verify:revalidation for a step that fails after one fix', async () => (await run({ 'verify:validation': FAIL, 'verify:revalidation': FAIL })).result.blockedAt === 'verify:revalidation'],
   ['blockedAt reads review for a lost reviewer', async () => (await run({ 'workflow:review-mr': reviewOf([], { dead: ['cold-read'] }) })).result.blockedAt === 'review'],
-  ['blockedAt reads remember:pass for a remember blocker', async () => (await run({ 'remember:pass': { ...DEFAULTS['remember:pass'], blockers: ['The vault-fs.sh mv was denied.'] } })).result.blockedAt === 'remember:pass'],
+  ['blockedAt is null when the remember worker reports blockers', async () => (await run({ 'remember:pass': { ...DEFAULTS['remember:pass'], blockers: ['The vault-fs.sh mv was denied.'] } })).result.blockedAt === null],
   ['blockedAt reads the dead stage label for a dead stage', async () => (await run({ 'diff:final': null })).result.blockedAt === 'diff:final'],
   ['blockedAt keeps the first halt, review, when a later stage halts too', async () => (await run({ 'workflow:review-mr': reviewOf([], { dead: ['cold-read'] }), 'diff:final': diffOf('bbbbbbbbbbbb') })).result.blockedAt === 'review'],
   ['blockedAt is null on a clean run', async () => (await run()).result.blockedAt === null],
@@ -1666,6 +1671,10 @@ const cases = [
   ['a clean run runs no diff:blocked and returns blockedTree null', async () => {
     const { result, prompts } = await run({ 'diff:blocked': diffOf('dddddddddddd') })
     return same({ capture: 'diff:blocked' in prompts, tree: result.blockedTree }, { capture: false, tree: null })
+  }],
+  ['a dead remember:pass runs no diff:blocked and returns blockedAt and blockedTree null', async () => {
+    const { result, prompts } = await run({ 'remember:pass': null, 'diff:blocked': diffOf('dddddddddddd') }, { ...ARGS, inWorktree: true })
+    return same({ capture: 'diff:blocked' in prompts, blockedAt: result.blockedAt, tree: result.blockedTree }, { capture: false, blockedAt: null, tree: null })
   }],
   ['a blocked seat run runs no diff:blocked', async () => {
     const { result, prompts } = await run({ 'verify:validation': FAIL, 'diff:red-team': diffOf('aaaaaaaaaaaa', false, ['src/a.js', 'test-results/x.png']), 'diff:blocked': diffOf('dddddddddddd') }, SEAT_ARGS)
