@@ -15,15 +15,17 @@ Status: Accepted
 
 Amended by [0015](0015-lead-and-worker-sessions.md), which replaces the bullet "A parent session may answer the ticket question but never the create confirmation", so the lead answers a worker session's ticket question by message and the create confirmation goes from the worker session to the user through AskUserQuestion.
 
+Amended when crawl replaced its route without a plan note by two direct routes, which record a plan note and ask the ticket question with the run options as the plan-guide route does. The first Decision bullet now names the two direct routes beside the plan-guide route, and the third Decision bullet now names work with no plan note where it named that former crawl route.
+
 ## Context
 
 The git-safety doctrine suggested branch names with no condition, and on the default branch it fell back to `<type>/<slug>` when there was no ticket without asking whether one existed, so a side fix found on a feature branch or a small fix on main got a branch with no ticket question. The plan-guide skill derived the plan name from the task alone when no ticket was given and left `ticket` blank, so blank meant both "never asked" and "chose none". The plan builder told the planner that the branch is `<type>/<slug>`, and the plan flow accepted a branch with no ticket. The jira skill was read-only, so a ticket for new work had to be created outside the session. A company's ticket rules, such as key prefixes, labels, and sprint links, live in that company's own plugin and reach the session only as injected project rules, so the toolkit cannot name a company host or tracker.
 
 ## Decision
 
-- The ticket question joins the run options set and is asked before a plan name or branch is derived. Crawl asks it with the run options on the plan-guide route, the plan flow asks it in its own call once its route is settled, the expedition skill asks it at ingestion, and git-safety asks it before it suggests any branch for such work, wherever HEAD is.
+- The ticket question joins the run options set and is asked before a plan name or branch is derived. Crawl asks it with the run options on the plan-guide route and on the two direct routes, the plan flow asks it in its own call once its route is settled, the expedition skill asks it at ingestion, and git-safety asks it before it suggests any branch for such work, wherever HEAD is.
 - A wayfinder parent names no branch and is never asked, and each wayfinder child is asked. The execute and ship flows and incident-investigate never ask.
-- The answer is recorded once as a key, `issue-<n>`, or `none` on the note's `ticket` key, or on the no-plan route as `ticket:` and `ticket_work:` lines in the run options cache, and it is reused only for the same work.
+- The answer is recorded once as a key, `issue-<n>`, or `none` on the note's `ticket` key, or on work with no plan note as `ticket:` and `ticket_work:` lines in the run options cache, and it is reused only for the same work.
 - The tracker follows the origin remote. An entry in `~/.claude/toolkit-trackers.json` wins. Otherwise github.com is GitHub issues, another host is Jira when the session's loaded project rules name ticket key prefixes and jira-cli is configured, and anything else has no tracker.
 - A ticket is created only on the user's explicit yes to a shown draft that names its repo or project, after a same-area search. Using a same-area ticket records its key, and the user adds the problem to that ticket by hand.
 - A parent session may answer the ticket question but never the create confirmation, which always goes to the user, as plan approval does.

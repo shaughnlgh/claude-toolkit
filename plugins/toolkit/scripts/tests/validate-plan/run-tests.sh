@@ -94,6 +94,10 @@ run "49 session_model: haiku is a violation" "$FX/2026-11-18-runopts-session-hai
 run "50 session_effort: inherit is a violation" "$FX/2026-11-18-runopts-session-badeffort/plan - runopts-session-badeffort.md" 1 "session_effort: must be one of"
 run "51 completed plan with only a Remember pass owed: line" "$FX/2026-10-18-completed-owed/plan - completed-owed.md" 1 "status completed requires a Remember: line"
 run "52 completed plan with a Remember pass owed: line after an earlier Remember: line" "$FX/2026-10-18-completed-owed-after-remember/plan - completed-owed-after-remember.md" 1 "status completed requires a Remember: line"
+run "53 direct route note in progress with no approved date" "$FX/2026-11-20-direct-route/plan - direct-route.md" 0 "OK:"
+DR="$(mktemp -d)"; trap 'rm -rf "$DR"' EXIT; mkdir "$DR/2026-11-20-direct-route"
+sed 's/^status: in-progress$/status: completed/' "$FX/2026-11-20-direct-route/plan - direct-route.md" > "$DR/2026-11-20-direct-route/plan - direct-route.md"
+run "54 completed direct note whose only Remember: line is the user's skip" "$DR/2026-11-20-direct-route/plan - direct-route.md" 0 "OK:"
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"

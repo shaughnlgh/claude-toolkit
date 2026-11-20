@@ -377,9 +377,11 @@ grep -qF 'Five carve-outs' "$P/doctrine/workflow-routing.md" && rt_miss="${rt_mi
 grep -qF 'five narrow carve-outs' "$ROOT/docs/skills.md" && rt_miss="${rt_miss} docs/skills.md still says 'five narrow carve-outs'"
 grep -qF 'Six carve-outs' "$P/doctrine/workflow-routing.md" && rt_miss="${rt_miss} workflow-routing still says 'Six carve-outs'"
 grep -qF 'six narrow carve-outs' "$ROOT/docs/skills.md" && rt_miss="${rt_miss} docs/skills.md still says 'six narrow carve-outs'"
-grep -qF 'Ten carve-outs' "$P/doctrine/workflow-routing.md" || rt_miss="${rt_miss} workflow-routing:'Ten carve-outs'"
-grep -qF 'ten narrow carve-outs' "$ROOT/docs/skills.md" || rt_miss="${rt_miss} docs/skills.md:'ten narrow carve-outs'"
-[ -z "$rt_miss" ] && ok "workflow-routing and docs/skills.md name the grill check carve-out and count ten carve-outs" || no "grill check carve-out:${rt_miss}"
+grep -qF 'Ten carve-outs' "$P/doctrine/workflow-routing.md" && rt_miss="${rt_miss} workflow-routing still says 'Ten carve-outs'"
+grep -qF 'ten narrow carve-outs' "$ROOT/docs/skills.md" && rt_miss="${rt_miss} docs/skills.md still says 'ten narrow carve-outs'"
+grep -qF 'Eleven carve-outs' "$P/doctrine/workflow-routing.md" || rt_miss="${rt_miss} workflow-routing:'Eleven carve-outs'"
+grep -qF 'eleven narrow carve-outs' "$ROOT/docs/skills.md" || rt_miss="${rt_miss} docs/skills.md:'eleven narrow carve-outs'"
+[ -z "$rt_miss" ] && ok "workflow-routing and docs/skills.md name the grill check carve-out and count eleven carve-outs" || no "grill check carve-out:${rt_miss}"
 pg_plan="$(sed -n '/^## Planning Workflow$/,/^### Plan status lifecycle$/p' "$P/skills/plan-guide/SKILL.md")"
 wf_s4="$(sed -n '/^## 4\. Emit the parent umbrella plan$/,/^## 5\. Emit child plan stubs$/p' "$P/skills/wayfinder/SKILL.md")"
 wf_s5="$(sed -n '/^## 5\. Emit child plan stubs$/,/^## 6\. Hand off$/p' "$P/skills/wayfinder/SKILL.md")"
@@ -408,6 +410,41 @@ grep -qF 'scoped deep grill where requirements are not pinned' "$P/skills/expedi
 grep -qF 'recommended a scoped grill' "$ROOT/docs/skills.md" && gs_old="${gs_old} docs/skills.md:'recommended a scoped grill'"
 for s in grill plan-guide plan-flow wayfinder; do grep -qF "User's own answer:" "$P/skills/$s/SKILL.md" && gs_old="${gs_old} ${s}:\"User's own answer:\""; done
 [ -z "$gs_old" ] && ok "crawl, grill, plan-guide, plan-flow, wayfinder, expedition and docs/skills.md carry none of the old grill wording or the grill answer relay, and no wayfinder child stub copies the grill check block" || no "old grill wording still present:${gs_old}"
+dq_miss=""
+for t in 'Direct, you drive each step' 'Direct, I run the whole chain' 'Plan first' 'Then always ask the route through one AskUserQuestion form' 'This holds for small work and after a thin-crawl skip' 'Before the answer, write nothing'
+do
+  [[ "$cg_sec" == *"$t"* ]] || dq_miss="${dq_miss} crawl section 3:'${t}'"
+done
+for t in 'route: direct-drive' 'route: direct-chain' 'skills/execution-guide/SKILL.md'
+do
+  [[ "$c4" == *"$t"* ]] || dq_miss="${dq_miss} crawl section 4:'${t}'"
+done
+for f in "$P/skills/crawl/SKILL.md" "$P/doctrine/workflow-routing.md" "$P/doctrine/orchestration.md" "$ROOT/docs/skills.md" "$ROOT/site/skills.html" "$ROOT/VERIFY.md"
+do
+  grep -qE 'no-plan route|no confirmation gate|states its routing in one sentence|near-silently|or no plan' "$f" && dq_miss="${dq_miss} ${f##*/} keeps the old no-plan wording"
+done
+[ -z "$dq_miss" ] && ok "crawl always asks the route with the four route labels, hands a direct route to execution-guide, and no skill, doctrine, doc or site page keeps the old no-plan wording" || no "route question:${dq_miss}"
+dr_sec="$(sed -n '/^## Direct route$/,/^## Runtime-Evidence Debugging$/p' "$P/skills/execution-guide/SKILL.md")"
+sf1="$(sed -n '/^## 1\. Trigger$/,/^## 2\. Run options$/p' "$P/skills/ship-flow/SKILL.md")"
+sf_fm="$(sed -n '2,/^---$/p' "$P/skills/ship-flow/SKILL.md")"
+dr_miss=""
+for t in 'Step done: <step>: <evidence>' 'Step skipped: <step>:' 'Step later: <step>:' 'Done:' 'Owed:' 'direct-drive' 'direct-chain' 'CAPTURE_PROMPT' 'skills/red-team/SKILL.md' 'Remember: skipped' 'direct-route finished:' 'so a reply that leaves a step for later starts no ship flow' 'The ship flow runs only when every step is done or carries a `Step skipped:` line' 'A `Step later:` step counts as owed here' 'Never ask it through AskUserQuestion, because the step lines quote' 'Failed: <step>: <reason>' 'A non-empty `dead` fails the step' 'no `Changed path:` line names' 'keep that record unchanged' 'whether to build on it or on a fresh branch'
+do
+  [[ "$dr_sec" == *"$t"* ]] || dr_miss="${dr_miss} execution-guide:'${t}'"
+done
+for t in 'direct-drive' 'direct-chain' 'Step skipped:'
+do
+  grep -qF -- "$t" "$P/skills/plan-guide/SKILL.md" || dr_miss="${dr_miss} plan-guide:'${t}'"
+done
+for t in 'this skill ends here, after step 6' 'every `confirmed` finding counts as accepted for the fix round with no question'
+do
+  grep -qF -- "$t" "$P/skills/red-team/SKILL.md" || dr_miss="${dr_miss} red-team:'${t}'"
+done
+[[ "$sf1" == *'direct-route finished:'* ]] || dr_miss="${dr_miss} ship-flow section 1:'direct-route finished:'"
+[[ "$sf1" == *'first load `execution-guide`'* ]] || dr_miss="${dr_miss} ship-flow section 1:'first load \`execution-guide\`'"
+grep -qF 'the heading `Direct route steps skipped`' "$P/skills/ship-flow/SKILL.md" || dr_miss="${dr_miss} ship-flow preview:'Direct route steps skipped'"
+[[ "$sf_fm" == *'direct-route finished:'* ]] || dr_miss="${dr_miss} ship-flow description:'direct-route finished:'"
+[ -z "$dr_miss" ] && ok "execution-guide defines the direct route's steps, step lines, two modes and closing record, plan-guide defines the route key and the step lines, red-team hands its doc and remember passes to the direct route, and ship-flow accepts the direct-route finished: prefix the direct route writes" || no "direct route:${dr_miss}"
 pb_doc="$(sed -n '/^## plan-builder\.js$/,/^## execute-runner\.js$/p' "$ROOT/docs/workflows.md")"
 tl_miss=""
 for t in 'a.discoveryOnly' 'a.skipDiscovery' 'a.grill' 'PLAN_CONTEXT'; do grep -qF "$t" "$P/workflows/plan-builder.js" || tl_miss="${tl_miss} plan-builder.js:'${t}'"; done
@@ -601,7 +638,7 @@ rm -rf "$onh"
 
 echo "== Plan validator =="
 out="$(bash "$P/scripts/tests/validate-plan/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "plan-validator fixture suite" "$out" 53
+suite_ok "plan-validator fixture suite" "$out" 54
 
 echo "== Topic recall =="
 out="$(bash "$P/scripts/tests/topic-recall/run-tests.sh" 2>/dev/null | tail -1)"
@@ -839,4 +876,4 @@ echo "RESULT: $pass passed, $skip skipped, $fail failed"
 # Floor, not just zero-failures: silently deleting real checks must not read green.
 # Floor on pass+skip, not pass alone: an environment-dependent skip (no claude CLI,
 # no node, no local plugin install) must not read as a vanished check.
-[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 210 ]
+[ "$fail" -eq 0 ] && [ "$((pass+skip))" -ge 212 ]
