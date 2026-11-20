@@ -41,11 +41,11 @@ The grill that runs in every planning flow, after discovery and before the plan 
 
 ### Remember guard
 
-The `remember-guard.sh` Stop hook. It warns the user when a reply has a line that begins `Suggested commit` while the session's in-progress plan note has no `Remember:` line under Plan Changes During Execution. It only warns and never blocks. `validate-plan.py` enforces the line at completion: it rejects a plan at status completed, created on or after 2026-10-18, that has no `Remember:` line there.
+The `remember-guard.sh` Stop hook. It warns the user when a reply has a line that begins `Suggested commit` while the session's in-progress plan note has no `Remember:` line and no `Remember pass owed:` line under Plan Changes During Execution. It only warns and never blocks. `validate-plan.py` enforces the line at completion: it rejects a plan at status completed, created on or after 2026-10-18, that has no `Remember:` line there, or whose `Remember pass owed:` line has no `Remember:` line after it.
 
 ### Remember pass
 
-The once-per-slice step that routes the durable facts a slice surfaced. One `implementer` stages shareable facts about the repo as proposed `docs/context/` content behind the conductor's consent gate, and folds every other fact into vault topic notes. `red-team` step 7b runs it after the doc pass, or `plan-guide` Session Closure runs it if red-team has not. A `Remember:` line records that it ran. The Doc Update Pass keeps existing docs accurate about what changed. The remember pass records what the slice learned.
+The once-per-slice step that routes the durable facts a slice surfaced. One `implementer` stages shareable facts about the repo as proposed `docs/context/` content behind the conductor's consent gate, and folds every other fact into vault topic notes. `red-team` step 7b or the execute flow runs it after the doc pass, or `plan-guide` Session Closure runs it if neither has. A `Remember:` line records that it ran. A `Remember pass owed:` line with no `Remember:` line after it records that the execute flow could not finish the pass and a later session's Session Closure owes it. The Doc Update Pass keeps existing docs accurate about what changed. The remember pass records what the slice learned.
 
 ### Seat queue
 

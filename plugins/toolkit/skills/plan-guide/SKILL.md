@@ -536,20 +536,20 @@ The record of the work is the plan note (kept current during execution), git (th
 ### What Claude must do as a session ends
 
 1. Make sure the plan note is current: decisions, gaps, and deviations recorded in "Plan Changes During Execution"; Validation, Risks, and Open Questions up to date.
-2. If Plan Changes During Execution holds no `Remember:` line for this slice, the remember pass has not run. Run it now (topic command, § Remember pass) and record its `Remember:` line there. Capture the slice diff for its brief as red-team step 2 does: `git diff HEAD` plus each untracked file.
+2. If Plan Changes During Execution holds no `Remember:` line for this slice, the remember pass has not run. Run it now (topic command, § Remember pass) and record its `Remember:` line there. Capture the slice diff for its brief as red-team step 2 does: `git diff HEAD` plus each untracked file. A `Remember pass owed: <path>` line with no `Remember:` line after it means the execute flow left the pass owed, whatever earlier `Remember:` line the section holds. The session that recorded that line does not run this step for the slice, because its own pass already tried once. A later session runs the owed pass the standard way (topic command, § Remember pass), with the lines of the file that line names, the `remember-material - <planName>.md` copy beside the plan note, as the brief's Topic note material returns. `git diff HEAD` is empty once the slice is committed, so capture the diff of an owed pass by the state the note records. With no commit sha recorded, capture `git diff HEAD` plus each untracked file, and when that capture is empty because the user committed the slice from a suggested commit, capture `bash <plugin-root>/scripts/git-ro.sh <repo> diff <default>...<branch>`. With a commit sha and no merge sha recorded, capture `bash <plugin-root>/scripts/git-ro.sh <repo> diff <default>...<branch>`. With a merge sha that equals the recorded commit sha or a recorded fix sha, which a fast-forward merge records, capture `bash <plugin-root>/scripts/git-ro.sh <repo> diff <commit sha>^1 <merge sha>`, because a fast-forward may carry several commits. With any other merge sha, capture `bash <plugin-root>/scripts/git-ro.sh <repo> diff <merge sha>^1 <merge sha>`, because `git show` prints no diff for a merge commit. Record the `Remember:` line after the owed line, which stays as history.
 3. Update this session's `sessions:` entry with the real one-line outcome (append one only if it is somehow missing — never a second entry for the same session id).
 4. Report that execution is complete.
 
 ### Finalize
 
-Mark a plan done once the MRs are merged: post a comment to the ticket, transition the ticket status, and set the plan frontmatter to `completed`. Tooling may automate these steps. validate-plan.py rejects a completed plan whose Plan Changes During Execution has no Remember: line, so run the remember pass first. Plans created before 2026-10-18 are exempt. Before the final MR merges, promote what outlives the plan as the handoff skill's "Promote what outlives the plan" item describes, so Linked Artifacts names each promoted path, or reads "Nothing to promote", before the plan is set to `completed`.
+Mark a plan done once the MRs are merged: post a comment to the ticket, transition the ticket status, and set the plan frontmatter to `completed`. Tooling may automate these steps. validate-plan.py rejects a completed plan whose Plan Changes During Execution has no Remember: line, or holds a Remember pass owed: line with no Remember: line after it, so run the remember pass first. Plans created before 2026-10-18 are exempt. Before the final MR merges, promote what outlives the plan as the handoff skill's "Promote what outlives the plan" item describes, so Linked Artifacts names each promoted path, or reads "Nothing to promote", before the plan is set to `completed`.
 
 ### Do not mark a plan complete if
 
 - There is no plan for this session, or the plan is ambiguous.
 - The vault config or vault is missing.
 - The MRs are not actually merged.
-- Plan Changes During Execution has no Remember: line, for a plan created on or after 2026-10-18.
+- Plan Changes During Execution has no Remember: line, or holds a Remember pass owed: line with no Remember: line after it, for a plan created on or after 2026-10-18.
 
 If completion is skipped, state exactly why.
 

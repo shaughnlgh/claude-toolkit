@@ -92,6 +92,8 @@ readback "47 a double-quoted session name with a space and a colon reads back un
 run "48 session_model: inherit is a violation (a worker session never inherits)" "$FX/2026-11-18-runopts-session-inherit/plan - runopts-session-inherit.md" 1 "session_model: must be opus, sonnet, fable or a model id, never haiku or inherit"
 run "49 session_model: haiku is a violation" "$FX/2026-11-18-runopts-session-haiku/plan - runopts-session-haiku.md" 1 "session_model: must be opus, sonnet, fable or a model id, never haiku or inherit"
 run "50 session_effort: inherit is a violation" "$FX/2026-11-18-runopts-session-badeffort/plan - runopts-session-badeffort.md" 1 "session_effort: must be one of"
+run "51 completed plan with only a Remember pass owed: line" "$FX/2026-10-18-completed-owed/plan - completed-owed.md" 1 "status completed requires a Remember: line"
+run "52 completed plan with a Remember pass owed: line after an earlier Remember: line" "$FX/2026-10-18-completed-owed-after-remember/plan - completed-owed-after-remember.md" 1 "status completed requires a Remember: line"
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"

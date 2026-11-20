@@ -134,20 +134,20 @@ A topic note is a claim about the world at its `verified` time. A blank `verifie
 
 ## Remember pass
 
-Runs once per implementation slice, from red-team step 7b, the execute flow's `execute-runner` workflow, or plan-guide Session Closure, whichever comes first. A `Remember:` line under the plan note's Plan Changes During Execution is the signal that the pass already ran for the slice. For a slice with no plan note, the line goes in the red-team report only, and that report is the signal. The remember pass is distinct from execution-guide's Doc Update Pass: the doc pass keeps existing docs accurate about what changed, the remember pass records what the slice learned.
+Runs once per implementation slice, from red-team step 7b, the execute flow's `execute-runner` workflow, the execute flow's conductor pass when that workflow's remember agent fails (execute-flow section 7), or plan-guide Session Closure, whichever comes first. A `Remember:` line under the plan note's Plan Changes During Execution is the signal that the pass already ran for the slice, unless a `Remember pass owed:` line follows it. A `Remember pass owed:` line with no `Remember:` line after it means the pass is owed, and a later session's plan-guide Session Closure runs it. For a slice with no plan note, the line goes in the red-team report only, and that report is the signal. The remember pass is distinct from execution-guide's Doc Update Pass: the doc pass keeps existing docs accurate about what changed, the remember pass records what the slice learned.
 
 ### Inputs
 
 The conductor gathers these before delegating:
 
-- The cumulative slice diff. Capture it by red-team step 2's method: `git diff HEAD` into a scratchpad file, plus `git diff --no-index -- /dev/null <file>` appended for each untracked file. Red-team step 7b captures it fresh after the doc pass. Session Closure captures it the same way when red-team has not run.
+- The cumulative slice diff. Capture it by red-team step 2's method: `git diff HEAD` into a scratchpad file, plus `git diff --no-index -- /dev/null <file>` appended for each untracked file. Red-team step 7b captures it fresh after the doc pass. Session Closure captures it the same way when red-team has not run, and captures an owed pass's diff as plan-guide Session Closure step 2 defines.
 - The files the slice touched.
 - Every Topic note material return from this slice.
 - The recall hits from `python3 <plugin-root>/scripts/topic-recall.py --repo <repo> --repo-root <repo root> <touched module and plan terms>`.
 
 ### Brief
 
-The conductor delegates one `implementer` worker with this brief, verbatim apart from the bracketed values.
+The conductor delegates one `implementer` worker with this brief, verbatim apart from the bracketed values. The execute flow's conductor pass is the one exception: it follows the brief itself and spawns no agent.
 
 > Objective: route the durable facts this slice surfaced. Fold the vault-bound facts into vault topic notes, and stage the repo-bound facts as proposed doc content for the conductor's consent gate.
 >

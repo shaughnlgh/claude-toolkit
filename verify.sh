@@ -248,6 +248,8 @@ else
   no "worktree install step missing from execute-flow, context-worktree-seat.md, or orchestration.md"
 fi
 if grep -qF 'Seat run passed:' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Seat run passed:' "$P/skills/ship-flow/SKILL.md"; then ok "execute-flow writes and ship-flow reads the seat run outcome line"; else no "seat run outcome line missing from execute-flow or ship-flow"; fi
+owed_miss=""; for f in skills/execute-flow/SKILL.md skills/ship-flow/SKILL.md skills/plan-guide/SKILL.md; do grep -qF 'Remember pass owed:' "$P/$f" && grep -qF 'no `Remember:` line after it' "$P/$f" || owed_miss="$owed_miss $f"; done
+if [ -z "$owed_miss" ] && grep -qF 'remember-material - <planName>' "$P/skills/execute-flow/SKILL.md" && grep -qF 'Never run the pass a second time' "$P/skills/execute-flow/SKILL.md" && grep -qF 'whatever earlier `Remember:` line the section holds: keep `status: in-progress`' "$P/skills/ship-flow/SKILL.md" && grep -qF "reason: 'The implementer remember:pass returned nothing.'" "$P/workflows/execute-runner.js" && ! grep -qF "dead('implementer', 'remember:pass')" "$P/workflows/execute-runner.js" && ! grep -qF "blockersOf('implementer', 'remember:pass'" "$P/workflows/execute-runner.js"; then ok "a failed remember pass never blocks: execute-runner returns its reason, execute-flow records Remember pass owed: ahead of its own pass, and ship-flow and plan-guide read an owed line with no later Remember: line as owed"; else no "the owed remember pass rule is missing from${owed_miss:- the execute-flow material copy or conductor pass, the ship-flow status rule, or execute-runner}, or execute-runner blocks on a failed remember:pass"; fi
 if grep -qF '[e2e]' "$P/skills/plan-guide/SKILL.md" && grep -qF 'E2E_MARK' "$P/scripts/plan-index.py" && grep -qF 'E2E_MARK.test' "$P/workflows/execute-runner.js"; then ok "plan-guide defines the [e2e] marker, and plan-index.py and execute-runner.js read it"; else no "[e2e] marker missing from plan-guide, plan-index.py or execute-runner.js"; fi
 if grep -qF 'vault-fs.sh index' "$P/workflows/execute-runner.js" && grep -qF 'vault-fs.sh sha256' "$P/workflows/execute-runner.js" && grep -qE '^  index\)' "$P/scripts/vault-fs.sh" && grep -qE '^  sha256\)' "$P/scripts/vault-fs.sh" && grep -qF '`planPath`:' "$P/skills/execute-flow/SKILL.md"; then ok "execute-runner indexes the plan note through vault-fs.sh index and sha256, and execute-flow passes planPath"; else no "plan index by path missing from execute-runner.js, vault-fs.sh or execute-flow"; fi
 if grep -qE '^  cp\)' "$P/scripts/vault-fs.sh" && grep -qE '^  attach\)' "$P/scripts/vault-fs.sh" && grep -qF 'vault-fs.sh attach' "$P/skills/execute-flow/SKILL.md" && grep -qF 'SCREENSHOT_RULE' "$P/workflows/execute-runner.js" && grep -qF 'SCREENSHOT_RULE' "$P/skills/execute-flow/SKILL.md" && grep -qF 'const MAX_SHOTS = 5' "$P/workflows/execute-runner.js" && grep -qF "the runner's \`MAX_SHOTS\`" "$P/skills/execute-flow/SKILL.md"; then ok "vault-fs.sh carries cp and attach, and execute-flow attaches screenshots under SCREENSHOT_RULE and the MAX_SHOTS cap"; else no "cp, attach, SCREENSHOT_RULE or the MAX_SHOTS cap missing from vault-fs.sh, execute-flow or execute-runner.js"; fi
@@ -599,7 +601,7 @@ rm -rf "$onh"
 
 echo "== Plan validator =="
 out="$(bash "$P/scripts/tests/validate-plan/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "plan-validator fixture suite" "$out" 51
+suite_ok "plan-validator fixture suite" "$out" 53
 
 echo "== Topic recall =="
 out="$(bash "$P/scripts/tests/topic-recall/run-tests.sh" 2>/dev/null | tail -1)"
@@ -660,7 +662,7 @@ fi
 echo "== execute-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/execute-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "execute-runner control-flow suite" "$out" 341
+  suite_ok "execute-runner control-flow suite" "$out" 344
 else
   skip "skipped: node not found; execute-runner control-flow suite"
 fi

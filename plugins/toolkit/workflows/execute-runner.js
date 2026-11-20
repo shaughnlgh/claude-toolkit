@@ -445,7 +445,7 @@ const finish = async () => {
     coldResidual,
     coldUnverified,
     docPass,
-    remember: remember || { ran: false, material, proposals: [], topicsUpdated: [], rememberLine: '' },
+    remember: remember || { ran: false, material, proposals: [], topicsUpdated: [], rememberLine: '', reason: '' },
     changedPaths: changed,
     planChanges,
     diffHashes: { redTeam: diffRed ? diffRed.hash12 : null, final: diffFinal ? diffFinal.hash12 : null, postDoc: diffPost ? diffPost.hash12 : null },
@@ -823,12 +823,13 @@ Required checks: read back every vault file you wrote and confirm it holds the f
 
 Expected return format: proposals holds one entry per proposed repo doc, with path as the ${REL_PATH}, action as created or updated, scratch as the scratch file path, and factsFrom as the [[Note]] names whose facts move into that doc. If a hand-written doc covers the subject, add one factsFrom entry that reads related <${REL_PATH}>. proposals is empty when there is no proposal. topicsUpdated lists every vault note you touched. rememberLine is exactly one draft line in one of these forms: Remember: repo docs <paths>; topics updated [[A]], [[B]] or Remember: repo docs <paths> or Remember: topics updated [[A]] or Remember: no change (<reason>). blockers holds one sentence per step you could not do and is empty otherwise. Return raw structured data only.`,
     { label: 'remember:pass', phase: 'Remember', schema: REMEMBER, agentType: 'toolkit:implementer', ...modelOpts('implementer') })
-  if (!rem) dead('implementer', 'remember:pass')
-  else if (blockersOf('implementer', 'remember:pass', rem)) remember = { ran: false, material, proposals: [], topicsUpdated: rem.topicsUpdated || [], rememberLine: '' }
+  // A failed remember pass never blocks: it writes vault notes only, so the conductor runs it from the material.
+  if (!rem) remember = { ran: false, material, proposals: [], topicsUpdated: [], rememberLine: '', reason: 'The implementer remember:pass returned nothing.' }
+  else if (rem.blockers && rem.blockers.length) remember = { ran: false, material, proposals: [], topicsUpdated: rem.topicsUpdated || [], rememberLine: '', reason: `The implementer remember:pass reported blockers: ${rem.blockers.join(' ')}` }
   else {
     const stray = underNoRoot((rem.proposals || []).map((x) => x.path))
     for (const p of stray) halt(`The remember pass proposed ${p}, which sits under no repo root.`)
-    remember = { ran: !stray.length, material, proposals: stray.length ? [] : rem.proposals, topicsUpdated: rem.topicsUpdated, rememberLine: stray.length ? '' : rem.rememberLine }
+    remember = { ran: !stray.length, material, proposals: stray.length ? [] : rem.proposals, topicsUpdated: rem.topicsUpdated, rememberLine: stray.length ? '' : rem.rememberLine, reason: '' }
   }
 }
 

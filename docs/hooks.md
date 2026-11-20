@@ -23,7 +23,7 @@ Two properties hold across all thirteen:
 | `design-rules-reminder.sh` | PreToolUse (`Edit\|Write\|NotebookEdit`) | When the target file matches a frontend pattern (extension or directory segment), injects a one-line pointer at the `rules/design.md` catalog into model context, once per session — advisory only, never blocks |
 | `agent-model.sh` | PreToolUse (`Agent`) | Adds the model and effort that `scripts/resolve-models.sh` resolves for the agent to an Agent call, per field, when the call does not carry that field. Advisory, fails open; warnings surface as a user-visible `systemMessage` |
 | `worker-spawn-mode.sh` | PreToolUse (`Bash`) | Records the session's permission mode in its scratchpad when a Bash command runs `scripts/worker-spawn.sh`, so a worker session starts in the lead's mode. Records only, prints nothing, never changes the call |
-| `remember-guard.sh` | Stop (every stop) | Warns the user, as a systemMessage, when a reply suggests a commit but the session's in-progress plan note has no Remember: line under Plan Changes During Execution. Warn-only, never blocks |
+| `remember-guard.sh` | Stop (every stop) | Warns the user, as a systemMessage, when a reply suggests a commit but the session's in-progress plan note has no Remember: line and no Remember pass owed: line under Plan Changes During Execution. Warn-only, never blocks |
 
 ## The boundary model — what enforces what
 
@@ -224,14 +224,14 @@ Each threshold fires once per crossing: the announced tier is remembered in a pe
 
 **Event:** `Stop`, no matcher. It fires each time Claude finishes a reply.
 
-The check for the remember pass that red-team step 7b and plan-guide Session Closure run once per slice. The pass records a `Remember:` line in the plan note, and this hook tells the user when a reply suggests a commit before that line exists. It prints a one-line user-visible `systemMessage` only when every condition holds:
+The check for the remember pass that red-team step 7b and plan-guide Session Closure run once per slice. The pass records a `Remember:` line in the plan note, and this hook tells the user when a reply suggests a commit before that line or a `Remember pass owed:` line exists. It prints a one-line user-visible `systemMessage` only when every condition holds:
 
 - (a) `stop_hook_active` is false, so a Stop that follows a stop-hook continuation never warns.
 - (e) The payload's `last_assistant_message` has a line that begins `Suggested commit`, matched case-insensitively, after an optional `#`, `*`, or `**` markdown prefix. The line can appear anywhere in the message, not only first. Red-team step 8 puts it directly after the Repo, Branch, and Scope header lines of its commit suggestion. The phrase in the middle of a line does not count.
 - (b) The payload's `cwd` is inside a git repo. The repo name comes from the main checkout, so a linked worktree resolves to the same name, as in `session-start.sh`.
 - (c) The vault config, `~/.claude/toolkit-vault.json` or the legacy `~/.claude/obsidian-sync.json` when that file is absent, resolves `<vault_path>/<root_folder>/Projects/<repo>` to an existing folder.
 - (d) At least one plan note in that folder has `status: in-progress` and lists this session's id under `sessions:` in its frontmatter.
-- (f) None of the plans matched in (d) has a line that starts with `Remember:` or `- Remember:` under `## Plan Changes During Execution`. Lines inside a fenced code block, fenced with backticks or tildes, never count, and a `## ` line inside a fence does not end the section.
+- (f) None of the plans matched in (d) has a line that starts with `Remember:` or `Remember pass owed:`, bare or after `- `, under `## Plan Changes During Execution`. An owed line counts, because the execute flow leaves an owed pass to a later session's Session Closure. Lines inside a fenced code block, fenced with backticks or tildes, never count, and a `## ` line inside a fence does not end the section.
 
 The hook checks the conditions in the order listed, cheapest first. It never reads the session transcript. The marker lives at `$TMPDIR/toolkit-remember-guard-<session_id>`, the same idiom `context-sentinel.sh` uses. The hook warns once per session when the marker directory is writable. If the marker write fails, it warns on every Stop that meets the conditions. If the marker path is a symlink, the hook exits silently and writes nothing. Open item: the hook warns only until the plan's first Remember: line exists, so it does not catch a later slice on the same plan, and keying the check per slice is a later change.
 
