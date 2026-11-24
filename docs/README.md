@@ -44,6 +44,8 @@ Every page under `docs/`, with what each covers. The root [`README.md`](../READM
 - [`0013`](decisions/0013-rewrite-history-in-place-before-going-public.md): Rewrite history in place before going public.
 - [`0014`](decisions/0014-versioned-releases-on-the-maintainers-decision.md): Versioned releases on the maintainer's decision.
 - [`0015`](decisions/0015-lead-and-worker-sessions.md): Lead and worker sessions.
+- [`0016`](decisions/0016-opus-model-ceiling.md): Opus model ceiling.
+- [`0017`](decisions/0017-bot-thread-modes.md): Bot thread modes. Amends [`0006`](decisions/0006-ship-flow-merges-unattended.md).
 
 ## Context notes
 

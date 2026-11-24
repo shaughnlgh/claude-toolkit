@@ -31,6 +31,10 @@ A skill whose name ends in `-guide`, the manual a session follows by hand. `plan
 
 The session the user starts. It owns the worker sessions it spawns and is the gate between their phases. It may carry the optional `lead-<name>` name that crawl suggests, with a name for the whole job, and any session name that does not start `worker-` marks a lead.
 
+### Model ceiling
+
+The strongest model any agent or worker session a lead starts may run on, Opus, unless the user named a higher model in a run option or in their own `~/.claude/toolkit-models.json`. See [ADR 0016](decisions/0016-opus-model-ceiling.md).
+
 ### Outcome line
 
 The one-line statement of the outcome as the grill understands it, always shown for the user to correct, even when nothing else needs asking.
@@ -54,6 +58,10 @@ The order in which sessions wait for a repo's main checkout, kept by `scripts/se
 ### Seat run
 
 Section 11 of the `execute-flow` skill. It runs the Validation Steps that a worktree run deferred, against the running local stack, from a session in the main checkout, which a session inside the plan's worktree reaches by waiting in the seat queue for its turn and then leaving it with ExitWorktree keep. It checks the committed plan branch out in a free and clean main checkout, runs the steps through the execute runner's fix round, panel, and cold read with the worktree run's baseline, commits its own fixes under `mr` or `merge`, and restores the branch the main checkout was on. A pass records `Seat run passed:` with the plan branch tip, which lifts the ship flow's cap at `mr`. An `[e2e]` step is a Validation Step that carries `[e2e]` directly after its number, which marks it as needing the running local stack. A worktree run defers it, and the `e2e` run option and the seat run read the same marker.
+
+### Thread mode
+
+The `thread_mode` run option, `manual` or `automatic`, which decides how the ship flow handles third-party review bot threads. Manual reports a verdict and a recommendation per thread and posts nothing. Automatic fixes the real threads, posts a pushback on the false ones, and resolves them. A note without the key reads as manual. See [ADR 0017](decisions/0017-bot-thread-modes.md).
 
 ### Ticket Adapter
 

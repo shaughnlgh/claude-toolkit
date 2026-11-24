@@ -55,7 +55,7 @@
 </div>
 <div>
 <dt><code>mr</code></dt>
-<dd>Commits, pushes, opens the pull request, watches the pipeline and works the bot review threads.</dd>
+<dd>Commits, pushes, opens the pull request, watches the pipeline and handles the bot review threads.</dd>
 </div>
 <div>
 <dt><code>merge</code></dt>
@@ -80,7 +80,7 @@
 </li>
 <li>
 <p class="types"><strong class="step-label">You type<span class="vh">:</span></strong> nothing.</p>
-<p class="does"><strong class="step-label">The flow<span class="vh">:</span></strong> The flow launches the <code>ship-runner</code> workflow. Its agents stage each listed path by name and commit, push the branch, and open the pull request with <code>gh pr create</code>, or the merge request with <code>glab mr create</code>. A verifier watches the pipeline of the pushed commit, and a failing check gets a bounded fix loop. The runner waits for a bot review, then fixes, replies to and resolves each fixable bot thread, in up to three rounds. It merges only that exact commit, on a green pipeline with no open thread, and then removes the branch and the worktree when no other session sits in them. When a pipeline or a bot review is slow, the flow waits in the background with <code>watch-mr.sh</code> and relaunches itself.</p>
+<p class="does"><strong class="step-label">The flow<span class="vh">:</span></strong> The flow launches the <code>ship-runner</code> workflow. Its agents stage each listed path by name and commit, push the branch, and open the pull request with <code>gh pr create</code>, or the merge request with <code>glab mr create</code>. A verifier watches the pipeline of the pushed commit, and a failing check gets a bounded fix loop. The runner waits for a bot review. Under the default <code>thread_mode: manual</code> it reports a verdict and a recommendation per bot thread and posts nothing. Under <code>thread_mode: automatic</code> it fixes, replies to and resolves each fixable bot thread, and pushes back on and resolves a false one, in up to three rounds. It merges only that exact commit, on a green pipeline with no open thread, and then removes the branch and the worktree when no other session sits in them. When a pipeline or a bot review is slow, the flow waits in the background with <code>watch-mr.sh</code> and relaunches itself.</p>
 </li>
 <li>
 <p class="types"><strong class="step-label">You type<span class="vh">:</span></strong> nothing yet. Read the report.</p>
@@ -93,7 +93,8 @@
 <p class="eyebrow">Variations</p>
 <h2 id="other-ceilings">Other ceilings</h2>
 </div>
-<p>Under <code>ceiling: none</code> the report is a commit handoff: the three header lines, a line that begins <code>Suggested commit</code>, and a paste-ready block that names each path. Under <code>ceiling: mr</code> the run stops once the pull request is open, its pipeline watched and its bot threads worked. Raise the note's ceiling to <code>merge</code> and ask again to merge it.</p>
+<p>Under <code>ceiling: none</code> the report is a commit handoff: the three header lines, a line that begins <code>Suggested commit</code>, and a paste-ready block that names each path. Under <code>ceiling: mr</code> the run stops once the pull request is open, its pipeline watched and its bot threads handled. Raise the note's ceiling to <code>merge</code> and ask again to merge it.</p>
+<p>Under <code>thread_mode: manual</code> an open bot thread stops a <code>merge</code> run at mr, so you settle the thread and ask again.</p>
 <p>When the execute flow deferred a Validation Step to the seat, the run stops at mr until the seat run passes on the commit it would merge.</p>
 </section>
 

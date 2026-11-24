@@ -24,7 +24,7 @@ if (typeof a === 'string') {
 if (REPLAY && a) a = { ...REPLAY.args, scratchDir: a.scratchDir, ...(a.fixBudget != null ? { fixBudget: a.fixBudget } : {}) }
 const REQUIRED = ['planName', 'repoRoot', 'repoName', 'planPath', 'recallHits', 'scratchDir', 'pluginRoot', 'vaultRoot']
 if (!a || REQUIRED.some((k) => typeof a[k] !== 'string' || !a[k])) {
-  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planPath, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, baselineFailing?, priorChangedPaths?, maxFixRounds?, fixBudget?, reviewRules?, reviewMr?, inWorktree?, models?, e2e?, nits?, seatRun?, diffBase?, repos?}')
+  throw new Error('execute-runner requires args: {planName, repoRoot, repoName, planPath, recallHits, scratchDir, pluginRoot, vaultRoot, knownEvidence?, verifyCommand?, baselineFailing?, priorChangedPaths?, maxFixRounds?, fixBudget?, reviewRules?, reviewMr?, inWorktree?, models, e2e?, nits?, seatRun?, diffBase?, repos?}')
 }
 if (a.maxFixRounds != null && !(Number.isInteger(a.maxFixRounds) && a.maxFixRounds >= 0)) {
   throw new Error(`execute-runner maxFixRounds must be a non-negative integer, got ${JSON.stringify(a.maxFixRounds)}`)
@@ -38,7 +38,7 @@ if (a.baselineFailing != null && !isStrList(a.baselineFailing)) throw new Error(
 if (a.priorChangedPaths != null && !isStrList(a.priorChangedPaths)) throw new Error(`execute-runner priorChangedPaths must be an array of strings when given, got ${JSON.stringify(a.priorChangedPaths)}`)
 if (a.inWorktree != null && typeof a.inWorktree !== 'boolean') throw new Error(`execute-runner inWorktree must be a boolean when given, got ${JSON.stringify(a.inWorktree)}`)
 const isModelEntry = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.entries(v).every(([k, x]) => (k === 'model' || k === 'effort') && typeof x === 'string')
-if (a.models != null && (typeof a.models !== 'object' || Array.isArray(a.models) || !Object.values(a.models).every(isModelEntry))) throw new Error(`execute-runner models must map agent names to {model, effort} objects when given, got ${JSON.stringify(a.models)}`)
+if (!a.models || typeof a.models !== 'object' || Array.isArray(a.models) || !Object.keys(a.models).length || !Object.values(a.models).every(isModelEntry)) throw new Error(`execute-runner requires models: the agents object scripts/resolve-models.sh prints. execute-runner models must map agent names to {model, effort} objects, got ${JSON.stringify(a.models)}`)
 const SHA = /^[0-9a-f]{7,40}$/
 if (a.e2e != null && a.e2e !== 'required' && a.e2e !== 'skip') throw new Error(`execute-runner e2e must be required or skip when given, got ${JSON.stringify(a.e2e)}`)
 if (a.nits != null && a.nits !== 'fix' && a.nits !== 'skip') throw new Error(`execute-runner nits must be fix or skip when given, got ${JSON.stringify(a.nits)}`)
@@ -253,7 +253,25 @@ const settleE2E = (v) => (v ? { ...v, results: v.results.map((r, i) => {
   return SEAT_RUN && s.status === 'pre-existing' ? { ...s, status: 'fail' } : s
 }) } : v)
 const validationCount = validationParsed.length
-const validationBlock = validationParsed.map((s, i) => `STEP ${i + 1}:\n${pointer(s)}`).join('\n\n')
+// An e2e step that runs for real gets its own verifier, because one verifier over many e2e steps can run out its context.
+const SPLIT = !E2E_OUTCOME && e2eSteps.length > 0
+const blockOf = (ns) => ns.map((n) => `STEP ${n}:\n${pointer(validationParsed[n - 1])}`).join('\n\n')
+const groupsOf = (label) => {
+  const all = validationParsed.map((_, i) => i + 1)
+  if (!SPLIT) return [[label, all]]
+  const out = []
+  for (const n of all) {
+    const last = out[out.length - 1]
+    if (e2eSteps.includes(n)) out.push([`${label}:e2e:${n}`, [n]])
+    else if (last && !last[0].includes(':e2e:')) last[1].push(n)
+    else out.push([out.length ? `${label}:${n}` : label, [n]])
+  }
+  return out
+}
+const priorOf = (results) => results.length
+  ? `EARLIER STEP RESULTS, from the verifiers that ran the earlier STEPs of this run. Reuse the paths, temp dirs, HOME dirs, logins and URLs they name. A process an earlier verifier started may have ended with that verifier, so start it again if a STEP below needs it. When a STEP below cleans up, remove what these results name as well as what you made:\n${results.map((r) => `${firstLine(r.step)}: ${r.status}: ${r.evidence}`).join('\n')}\n\n`
+  : ''
+const NAME_RULE = SPLIT ? 'The verifiers of later STEPs run in other agents, so name in each evidence every path, temp dir and process that its STEP creates. ' : ''
 const NOTE_CHANGED = 'The plan note changed mid-run'
 const INDEX_MISMATCH = 'The plan index does not match the plan note'
 const SHA_FAILED = 'The sha check on the plan note failed'
@@ -315,6 +333,7 @@ The trees under REPOS are the POST-change state this diff produces. A diff path 
 const STDIN_RULE = 'Run any verify or test suite, such as bash verify.sh, with stdin from /dev/null (bash verify.sh </dev/null), because a suite that reads stdin hangs when stdin is a pipe.'
 const BLOCKER_RULE = 'If any step, command or tool call is denied or cannot be done, do not work around it. Record it in blockers as one sentence and stop. The runner stops on any blockers entry, so blockers holds only work you could not do and is empty when the work is done.'
 const HOOK_RULE = `The dangerous-commands hook refuses any command text, including inside a heredoc, that contains a recursive force-delete of a shell variable, a bare dot or double dot, a bare glob, a path with a /../ segment, the root, the home dir, or a system dir such as /usr, /etc or /var. Remove a scratch fixture with its literal absolute path under ${S}.`
+const COMMAND_FORM_RULE = "Run a repo command in its plain form, such as <tool> exec <service> scripts/check <paths>, never wrapped in bash -c or sh -c, because the permission checks cannot read a wrapped script. The one exception is the background launch form bash -c 'set -m; <launch> ...' for a long-running local process."
 const HOOK_WRITE_RULE = "If a file you create must hold a command the hook refuses, such as a script's recursive delete of a variable, create it with the Write tool, never through a heredoc."
 const EXTERNAL_PROMPT = 'You are CodeRabbit, Copilot, or a senior engineer on another team seeing this diff with no context. List what you would flag that a panel briefed by the author would rationalize away: naming that hides intent, a test that proves nothing, a comment that contradicts the code, a config value that belongs elsewhere, a public surface with no doc.'
 const REPO_FLAGS = (a.repos || []).map((r) => ` --repo '${r.root}'`).join('')
@@ -329,7 +348,8 @@ ${DOCTRINE}
 ${GIT_RULE}
 ${BLOCKER_RULE}
 ${HOOK_RULE}
-${HOOK_WRITE_RULE}`
+${HOOK_WRITE_RULE}
+${COMMAND_FORM_RULE}`
 const RETURN_STEP = `Return changedPaths as ${REL_PATHS}, deviations as one sentence per departure from the instructions and one per caveat or follow-up you want recorded, checksRun as the checks you ran, result as one sentence, blockers as one sentence per step you could not do or empty, and topicMaterial as the durable non-obvious facts with file:line refs, or none. Return raw structured data only.`
 
 const DIMENSIONS = [
@@ -399,8 +419,8 @@ const setValidation = (v, runs) => {
   }
 }
 const covers = (v) => {
-  if (v.results.length === validationCount) return true
-  halt(`Validation returned ${v.results.length} results for ${validationCount} steps.`)
+  if (!v.short && v.results.length === validationCount) return true
+  halt(v.results.length === validationCount ? 'A validation verifier returned a result count other than its step count.' : `Validation returned ${v.results.length} results for ${validationCount} steps.`)
   return false
 }
 const HEX12 = /^[0-9a-f]{12}$/
@@ -501,7 +521,7 @@ const BASELINE_RUN = MULTI
   : `In ${a.repoRoot}, run git branch --show-current and git status --porcelain, then ${verifyLine}. ${STDIN_RULE} Return branch, status as the git status --porcelain lines, and verify with the command you ran, its exit code, and failing as the names of the checks it reported as failed.`
 baseline = await call(`${CONTEXT}
 
-${BASELINE_RUN} Change no file. ${GIT_RULE} Return raw structured data only.`,
+${BASELINE_RUN} ${COMMAND_FORM_RULE} Change no file. ${GIT_RULE} Return raw structured data only.`,
   { label: 'prep:baseline', phase: 'Prep', schema: BASELINE, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
 if (!baseline) dead('verifier', 'prep:baseline')
 else if (a.baselineFailing) baseline.verify = { ...baseline.verify, failing: a.baselineFailing }
@@ -528,26 +548,37 @@ Implement YOUR STEP in ${a.repoRoot} and nothing beyond it. STEPS lists every st
 
 phase('Verify')
 const SEAT_RULE = a.inWorktree ? `${MULTI ? "This run sits in git worktrees, and the running local stack serves each repo's main checkout, not the trees under REPOS." : `This run sits in a git worktree, and the running local stack serves the main checkout, not ${a.repoRoot}.`} Do not run a STEP that needs the running local stack: the site's URL, a browser check, a request to the local stack, or anything else that the main checkout's running services serve. Report such a STEP as deferred with needs the seat as evidence, and run every other STEP. Create nothing outside ${a.repoRoot}: no container, no database clone, no media mount, no hostname. ` : ''
-const runValidation = async (label, phaseName) => settleE2E(await call(`${CONTEXT}
+const validateGroup = (label, phaseName, ns, prior) => call(`${CONTEXT}
 
 ${planRead(FAIL)}
 
-VALIDATION STEPS:
-${validationBlock}
+${priorOf(prior)}VALIDATION STEPS:
+${blockOf(ns)}
 
 BASELINE VERIFY RESULT:
 ${baseline ? JSON.stringify(baseline.verify) : 'none, the baseline check did not run'}
 
-Run each STEP above that an agent can run here, against ${a.repoRoot}. Return exactly ${validationCount} results, one per STEP, in order, with step set to the STEP number and the step's first line, as in STEP 1: <first line>. status is pass or fail with the command output as evidence, never a guessed pass. status is manual, with the reason as evidence, for a step that needs a human or another session. status is pre-existing when a step fails only on a check that the baseline failing list already names. If a command is denied, report its step as fail with the denial as evidence. ${SEAT_RULE}${E2E_RULE}${SEAT_RUN_RULE}${SCREENSHOT_RULE} ${STDIN_RULE} ${HOOK_RULE} Change no file. ${GIT_RULE} Return raw structured data only.`,
-  { label, phase: phaseName, schema: VALIDATION, agentType: 'toolkit:verifier', ...modelOpts('verifier') }))
+Run each STEP above that an agent can run here, against ${a.repoRoot}. Return exactly ${ns.length} results, one per STEP, in order, with step set to the STEP number and the step's first line, as in STEP 1: <first line>. status is pass or fail with the command output as evidence, never a guessed pass. status is manual, with the reason as evidence, for a step that needs a human or another session. status is pre-existing when a step fails only on a check that the baseline failing list already names. If a command is denied, report its step as fail with the denial as evidence. ${NAME_RULE}${SEAT_RULE}${E2E_RULE}${SEAT_RUN_RULE}${SCREENSHOT_RULE} ${STDIN_RULE} ${HOOK_RULE} ${COMMAND_FORM_RULE} Change no file. ${GIT_RULE} Return raw structured data only.`,
+  { label, phase: phaseName, schema: VALIDATION, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
+// Groups run in written order. A stop or a short count in one group runs no later group, and a null group is recorded dead under its own label.
+const runValidation = async (label, phaseName) => {
+  const merged = []
+  for (const [l, ns] of groupsOf(label)) {
+    const v = await validateGroup(l, phaseName, ns, merged)
+    if (!v) {
+      dead('verifier', l)
+      return null
+    }
+    merged.push(...v.results)
+    if (v.results.length !== ns.length || readStop(v)) return settleE2E({ results: merged, short: true })
+  }
+  return settleE2E({ results: merged, short: false })
+}
 
 if (!hasValidation) setValidation({ results: [] }, 0)
 else {
   let v = await runValidation('verify:validation', 'Verify')
-  if (!v) {
-    dead('verifier', 'verify:validation')
-    return await finish()
-  }
+  if (!v) return await finish()
   setValidation(v, 1)
   if (readStop(v)) { halt(stopped('verify:validation', readStop(v))); return await finish() }
   if (!covers(v)) {
@@ -582,10 +613,7 @@ Fix only what makes these steps pass, in ${a.repoRoot}. ${RETURN_STEP}`,
     for (const d of fix.deviations || []) planChanges.push(`Validation fix deviation: ${d}`)
     if (blockersOf('implementer', 'fix:validation', fix)) return await finish()
     v = await runValidation('verify:revalidation', 'Verify')
-    if (!v) {
-      dead('verifier', 'verify:revalidation')
-      return await finish()
-    }
+    if (!v) return await finish()
     setValidation(v, 2)
     if (readStop(v)) { halt(stopped('verify:revalidation', readStop(v))); return await finish() }
     covers(v)
@@ -628,7 +656,7 @@ ${planRead(NONE)}
 ${MULTI ? 'Apply the project rules in the files each Rules line under REPOS names, each to the files under its own root.' : `Apply the project rules in the CLAUDE.md, AGENTS.md and .claude/rules files under ${a.repoRoot} where they exist.`} When the diff ships executable commands embedded in prose, such as a skill, a workflow script's prompts or a doc, execute those exact commands against a scratch fixture covering the awkward cases (clean tree, dirty tree, untracked directories, unusual filenames) rather than judge them by reading. ${SCRATCH_ONLY} ${GIT_RULE}${REVIEW_RULES ? `\n\nREVIEW RULES (REVIEW.md on the default branch):\n${REVIEW_RULES}` : ''}`
   try {
     lastLabel = 'review'
-    review = await workflow(REVIEW_MR, { diffPath: diffRed.diffPath, repoRoot: a.repoRoot, contextBlock, repoState: REPO_STATE, dimensions: DIMENSIONS, registryReviewers: panel, ...(a.models ? { models: a.models } : {}), ...(replaying ? { replay: REPLAY.child } : {}) })
+    review = await workflow(REVIEW_MR, { diffPath: diffRed.diffPath, repoRoot: a.repoRoot, contextBlock, repoState: REPO_STATE, dimensions: DIMENSIONS, registryReviewers: panel, models: a.models, ...(replaying ? { replay: REPLAY.child } : {}) })
     if (review == null) {
       review = null
       halt('The review-mr child workflow returned nothing.')
@@ -707,7 +735,7 @@ ${findings}
 PATHS THE FIX CHANGED:
 ${(fix.changedPaths || []).join('\n') || 'none'}
 
-Check in the tree at ${a.repoRoot} whether each finding above is resolved. Return one result per finding, file and title exactly as given, resolved true only when the tree shows the defect gone, with the evidence you checked. Change no file. ${GIT_RULE} Return raw structured data only.`,
+Check in the tree at ${a.repoRoot} whether each finding above is resolved. Return one result per finding, file and title exactly as given, resolved true only when the tree shows the defect gone, with the evidence you checked. ${COMMAND_FORM_RULE} Change no file. ${GIT_RULE} Return raw structured data only.`,
       { label: `recheck:${round}`, phase: 'Fix', schema: RECHECK, agentType: 'toolkit:verifier', ...modelOpts('verifier') })
     if (!re) {
       dead('verifier', `recheck:${round}`)
@@ -783,9 +811,8 @@ Read the section headed Doc Update Pass in ${a.pluginRoot}/skills/execution-guid
   }
   if (hasValidation && validation && (rounds.length || (docPass && docPass.changedPaths && docPass.changedPaths.length))) {
     const vf = await runValidation('verify:final', 'Doc pass')
-    if (!vf) dead('verifier', 'verify:final')
-    else if (readStop(vf)) halt(stopped('verify:final', readStop(vf)))
-    else {
+    if (vf && readStop(vf)) halt(stopped('verify:final', readStop(vf)))
+    else if (vf) {
       setValidation(vf, validation.runs + 1)
       covers(vf)
       failingOf(vf).forEach((r) => halt(`Validation step failed after the doc pass: ${firstLine(r.step)}.`))

@@ -22,6 +22,7 @@ nits:
 tests:
 e2e:
 tag_merge:
+thread_mode:
 modules:
 repos:
 sessions:

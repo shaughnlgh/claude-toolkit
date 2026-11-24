@@ -72,7 +72,7 @@
 <div id="ship-flow">
 <dt><code>ship-flow</code></dt>
 <dd>
-<p>One run that commits, pushes, opens the MR or PR, watches the pipeline, waits in the background on a slow pipeline or a pending bot review, works the bot review threads, merges, tags and cleans up a slice the execute flow reviewed. It stops at the ceiling the plan note records and asks no question.</p>
+<p>One run that commits, pushes, opens the MR or PR, watches the pipeline, waits in the background on a slow pipeline or a pending bot review, works the bot review threads, merges, tags and cleans up a slice the execute flow reviewed. It stops at the ceiling the plan note records and asks no question. By default it reports a verdict per bot thread and posts nothing. With <code>thread_mode: automatic</code> on the note it fixes the real threads and pushes back on the false ones.</p>
 <p class="ref__line"><span class="step-label">Trigger</span>You ask for the ship flow by name after an execute-flow report, or a worker session's first prompt names it, or that worker session's lead sends <code>&lt;planName&gt;: run the ship flow</code>. Never from crawl.</p>
 <p class="ref__example">Run the ship flow on the add-csv-export plan.</p>
 </dd>
@@ -92,7 +92,7 @@
 <div id="crawl">
 <dt><code>crawl</code></dt>
 <dd>
-<p>The front door for new work. It takes a brief or a ticket, checks it against the codebase, and always asks the route in one question form: a direct route you drive step by step, a direct route the session runs as one chain, plan first, or <code>wayfinder</code>. Nothing is written or built before your answer, and every route asks the run options and records them on a plan note. On a direct route the session builds the change and takes it through tests, red team, your check, docs and the remember pass, one recorded step at a time. On the plan-guide route it scaffolds the plan note and ends with an offer to run the plan flow on it.</p>
+<p>The front door for new work. It takes a brief or a ticket, checks it against the codebase, and always asks the route in one question form: a direct route you drive step by step, a direct route that a background worker session runs as one chain, plan first, or <code>wayfinder</code>. Nothing is written or built before your answer, and every route asks the run options and records them on a plan note. On a direct route the session, or in chain mode a background worker session, builds the change and takes it through tests, red team, your check, docs and the remember pass, one recorded step at a time. On the plan-guide route it scaffolds the plan note and ends with an offer to run the plan flow on it.</p>
 <p class="ref__line"><span class="step-label">Trigger</span>A session opens with a new piece of work and no plan note exists for it yet.</p>
 <p class="ref__example">Here's the ticket: &lt;link&gt;. We need bulk order editing in the admin.</p>
 </dd>
@@ -151,7 +151,7 @@
 <div id="execution-guide">
 <dt><code>execution-guide</code></dt>
 <dd>
-<p>Execution mechanics after a plan is approved: topic recall at the start, delegation to worker agents, progress reports in a fixed format, the doc update pass, and debugging with runtime evidence.</p>
+<p>Execution mechanics after a plan is approved: topic recall at the start, delegation to worker agents, progress reports in a fixed format, the doc update pass, and debugging with runtime evidence. Its direct route section runs the six recorded steps, in the lead in drive mode or in a <code>chain</code> worker session that alone resumes the chain.</p>
 <p class="ref__line"><span class="step-label">Trigger</span>Starting execution of an approved plan, or debugging a runtime or integration issue.</p>
 <p class="ref__example">The plan is approved, go ahead and implement it.</p>
 </dd>

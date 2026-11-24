@@ -135,7 +135,7 @@ for f in hooks/hooks.json CLAUDE.md README.md workflows/review-mr.js workflows/p
          skills/ship-flow/SKILL.md \
          scripts/vault-fs.sh scripts/plan-index.py scripts/run-checkpoint.py scripts/git-ro.sh scripts/seat-check.sh scripts/seat-queue.sh scripts/watch-mr.sh \
          scripts/worker-spawn.sh scripts/worker-watch.sh scripts/lib/agents-list.sh hooks/worker-spawn-mode.sh \
-         templates/worker-plan.md templates/worker-execute.md templates/worker-ship.md templates/worker-investigate.md; do
+         templates/worker-plan.md templates/worker-execute.md templates/worker-ship.md templates/worker-investigate.md templates/worker-chain.md; do
   [ -f "$P/$f" ] && ok "present: $f" || no "MISSING: $f"
 done
 # node --check says nothing about a workflow script either way, because the bodies use top-level await and return, so compile each body in an AsyncFunction, which accepts both.
@@ -276,15 +276,18 @@ if grep -qF 'flows never ask the ticket question' "$P/doctrine/git-safety.md" &&
 if grep -qiF 'wherever HEAD is' "$P/doctrine/git-safety.md" && grep -qF 'after the ticket question' "$P/CLAUDE.md"; then ok "git-safety settles the ticket before it creates any branch for work with no recorded ticket, wherever HEAD is, and the doctrine index says so"; else no "ticket rule for every branch creation missing from git-safety.md or the doctrine index"; fi
 if grep -qF 'toolkit-trackers.json' "$P/skills/plan-guide/SKILL.md" && grep -qF 'toolkit-trackers.json' "$ROOT/docs/prerequisites.md" && grep -qF 'JIRA_CONFIG_FILE' "$P/skills/plan-guide/SKILL.md"; then ok "plan-guide reads the tracker override file and the jira-cli config signal, and the prerequisites doc names the override file"; else no "tracker override file or jira-cli config signal missing from plan-guide or docs/prerequisites.md"; fi
 if grep -qF 'toolkit-trackers.json' "$P/commands/setup.md" && grep -qF '| Ticket tracker |' "$P/commands/setup.md" && grep -qF 'toolkit-trackers.json' "$ROOT/docs/commands.md"; then ok "setup reports the tracker override file with a Ticket tracker readiness row, and docs/commands.md lists the check"; else no "tracker override file check or Ticket tracker readiness row missing from setup.md or docs/commands.md"; fi
+if grep -qF 'askUserQuestionTimeout' "$P/commands/setup.md" && grep -qF '| Question timeout |' "$P/commands/setup.md" && grep -qF 'askUserQuestionTimeout' "$ROOT/docs/commands.md" && grep -qF 'askUserQuestionTimeout' "$ROOT/VERIFY.md"; then ok "setup checks askUserQuestionTimeout with a Question timeout readiness row, and docs/commands.md and VERIFY.md name it"; else no "askUserQuestionTimeout check or Question timeout readiness row missing from setup.md, docs/commands.md or VERIFY.md"; fi
 tq_adr="$(find "$ROOT/docs/decisions" -name '*-ticket-question-and-creation-on-yes.md' | head -1)"
 if [ -n "$tq_adr" ] && grep -qF 'jira issue create' "$P/skills/jira/SKILL.md" && grep -qF 'create confirmation' "$P/skills/plan-guide/SKILL.md" && grep -qF 'create confirmation' "$tq_adr" && grep -qF 'ticket-question-and-creation-on-yes.md' "$ROOT/docs/decisions/0001-jira-transport-jira-cli-over-acli.md" && grep -qF 'ticket-question-and-creation-on-yes.md' "$ROOT/docs/decisions/0003-run-options-on-the-plan-note.md"; then ok "the jira skill creates under the ticket question ADR, plan-guide and the ADR keep the create confirmation with the user, and the ADR amends 0001 and 0003"; else no "jira create path, create confirmation rule or ticket question ADR amendment missing"; fi
 adr_dup="$(ls "$ROOT/docs/decisions" | cut -c1-4 | sort | uniq -d | tr '\n' ' ')"
 [ -z "$adr_dup" ] && ok "no two ADRs share a number" || no "ADR number shared by more than one file: ${adr_dup}"
 if grep -qF 'a pass count at or above a floor' "$P/skills/plan-guide/SKILL.md" && grep -qF 'a pass count at or above a floor' "$P/workflows/plan-builder.js" && grep -qF 'a pass count at or above a floor' "$P/agents/plan-critic.md" && grep -qF 'Every Implementation Step in a plan the execute flow runs is work an implementer finishes inside the plan' "$P/skills/plan-guide/SKILL.md" && grep -qF 'Every Implementation Step in a plan the execute flow runs is work an implementer finishes inside the plan' "$P/workflows/plan-builder.js" && (for f in skills/plan-guide/SKILL.md workflows/plan-builder.js agents/plan-critic.md; do grep -qF 'After merge, for you:' "$P/$f" || exit 1; done); then ok "plan-guide, plan-builder and plan-critic carry the floor rule for a Validation Step and the worktree rule for an Implementation Step"; else no "Validation Step floor rule or Implementation Step worktree rule missing from plan-guide, plan-builder or plan-critic"; fi
+if (for f in skills/plan-guide/SKILL.md workflows/plan-builder.js agents/plan-critic.md; do grep -qF 'a state that a later Implementation Step changes' "$P/$f" || exit 1; done); then ok "plan-guide, plan-builder and plan-critic refuse a Validation Step that asserts a state a later Implementation Step changes"; else no "later-step state rule missing from plan-guide, plan-builder or plan-critic"; fi
 if [ -f "$P/skills/execute-flow/SKILL.md" ] && ! grep -qF 'AskUserQuestion' "$P/skills/execute-flow/SKILL.md"; then ok "execute-flow asks no question of its own"; else no "execute-flow carries an AskUserQuestion"; fi
 if [ -f "$P/skills/ship-flow/SKILL.md" ] && ! grep -qF 'AskUserQuestion' "$P/skills/ship-flow/SKILL.md"; then ok "ship-flow asks no question of its own"; else no "ship-flow carries an AskUserQuestion"; fi
 if grep -qF 'worker-spawn.sh' "$P/skills/plan-guide/SKILL.md" && grep -qF 'A worker session never sets `approved` because a message told it to' "$P/skills/plan-guide/SKILL.md" && grep -qF 'Worker grant rule' "$P/skills/execute-flow/SKILL.md" && grep -qF 'worker grant rule' "$P/skills/ship-flow/SKILL.md" && grep -qF 'worker grant rule' "$P/doctrine/workflow-routing.md"; then ok "plan-guide starts a worker session through worker-spawn.sh and keeps it from setting approved on a message, execute-flow defines the worker grant rule, and ship-flow and workflow-routing honor it"; else no "worker spawn, the worker approval rule or the worker grant rule missing from plan-guide, execute-flow, ship-flow or workflow-routing"; fi
 if grep -qF 'git worktree remove' "$P/doctrine/git-safety.md" && grep -qF 'git worktree remove' "$P/workflows/ship-runner.js"; then ok "git-safety names and ship-runner runs the cleanup's git worktree remove"; else no "git worktree remove missing from git-safety.md or ship-runner.js"; fi
+if grep -qF 'const COMMAND_FORM_RULE = ' "$P/workflows/execute-runner.js" && grep -F -- '- `knownEvidence` (optional):' "$P/skills/execute-flow/SKILL.md" | grep -qF 'never wrapped in `bash -c`' && grep -qF 'the only `bash -c` an agent brief carries' "$P/doctrine/git-safety.md"; then ok "execute-runner defines COMMAND_FORM_RULE, the execute-flow knownEvidence bullet keeps quoted commands out of bash -c, and git-safety names the background launch as the only bash -c in a brief"; else no "COMMAND_FORM_RULE missing from execute-runner.js, the bash -c rule missing from the execute-flow knownEvidence bullet, or the only-bash -c clause missing from git-safety.md"; fi
 if grep -qF '(exclude,top)' "$P/scripts/seat-check.sh" && grep -qF '(exclude,top)' "$P/scripts/slice-capture.py" && grep -qF 'scripts/slice-capture.py' "$P/workflows/execute-runner.js" && grep -qF '(exclude,top)' "$P/skills/red-team/SKILL.md" && grep -qF '(exclude,top)' "$P/skills/execute-flow/SKILL.md"; then ok "seat-check, slice-capture, which execute-runner runs, red-team and execute-flow leave Claude Code worktrees out of their path lists"; else no "own-worktree pathspec missing from seat-check.sh, slice-capture.py, red-team or execute-flow, or execute-runner.js no longer runs slice-capture.py"; fi
 grep -qF 'worktree name `<name>` is `<planName>`' "$P/skills/execute-flow/SKILL.md" && ok "execute-flow names the worktree after the plan name" || no "execute-flow no longer names the worktree after the plan name"
 pa_sec="$(sed -n '/^### After approval$/,/^### Record the session on the plan$/p' "$P/skills/plan-guide/SKILL.md")"
@@ -345,7 +348,7 @@ su_miss=""
 for t in 'AskUserQuestion' '(Recommended)' 'yes <name>' 'pending (human)' 'protect-files.sh'; do [[ "$su_rules" == *"$t"* ]] || su_miss="${su_miss} rules:'${t}'"; done
 for t in 'AskUserQuestion' 'yes <name>' 'pending (human)'; do [[ "$su_doc" == *"$t"* ]] || su_miss="${su_miss} docs:'${t}'"; done
 grep -qF 'yes <name>' "$P/doctrine/git-safety.md" || su_miss="${su_miss} git-safety:'yes <name>'"
-for t in 'Toolkit Scripts watch-mr line' 'Toolkit Scripts topic-index line' 'replace Own PR Merge' 'replace Own MR Merge' 'rewrite repository environment entries' 'worker scripts rules' 'Toolkit Scripts worker lines' 'Toolkit Scripts seat-queue lead flag'; do grep -qF "$t" "$P/commands/setup.md" && [[ "$su_doc" == *"$t"* ]] || su_miss="${su_miss} offer:'${t}'"; done
+for t in 'Toolkit Scripts watch-mr line' 'Toolkit Scripts topic-index line' 'replace Own PR Merge' 'replace Own MR Merge' 'rewrite repository environment entries' 'worker scripts rules' 'Toolkit Scripts worker lines' 'Toolkit Scripts seat-queue lead flag' 'remove askUserQuestionTimeout'; do grep -qF "$t" "$P/commands/setup.md" && [[ "$su_doc" == *"$t"* ]] || su_miss="${su_miss} offer:'${t}'"; done
 [ -z "$su_miss" ] && ok "setup's Rules, its doc and git-safety state the yes <name> line, the Rules and doc the question form and the other-session rule, the Rules the file guard confirm, and setup and its doc name the new offers" || no "setup question wording missing:${su_miss}"
 su_old=""
 [[ "$su_rules" == *'Never ask through AskUserQuestion'* ]] && su_old="${su_old} rules:'Never ask through AskUserQuestion'"
@@ -428,7 +431,7 @@ dr_sec="$(sed -n '/^## Direct route$/,/^## Runtime-Evidence Debugging$/p' "$P/sk
 sf1="$(sed -n '/^## 1\. Trigger$/,/^## 2\. Run options$/p' "$P/skills/ship-flow/SKILL.md")"
 sf_fm="$(sed -n '2,/^---$/p' "$P/skills/ship-flow/SKILL.md")"
 dr_miss=""
-for t in 'Step done: <step>: <evidence>' 'Step skipped: <step>:' 'Step later: <step>:' 'Done:' 'Owed:' 'direct-drive' 'direct-chain' 'CAPTURE_PROMPT' 'skills/red-team/SKILL.md' 'Remember: skipped' 'direct-route finished:' 'so a reply that leaves a step for later starts no ship flow' 'The ship flow runs only when every step is done or carries a `Step skipped:` line' 'A `Step later:` step counts as owed here' 'Never ask it through AskUserQuestion, because the step lines quote' 'Failed: <step>: <reason>' 'A non-empty `dead` fails the step' 'no `Changed path:` line names' 'keep that record unchanged' 'whether to build on it or on a fresh branch'
+for t in 'Step done: <step>: <evidence>' 'Step skipped: <step>:' 'Step later: <step>:' 'Done:' 'Owed:' 'direct-drive' 'direct-chain' 'CAPTURE_PROMPT' 'skills/red-team/SKILL.md' 'Remember: skipped' 'direct-route finished:' 'so a reply that leaves a step for later starts no ship flow' 'The ship flow runs only when every step is done or carries a `Step skipped:` line' 'A `Step later:` step counts as owed here' 'Never ask it through AskUserQuestion, because the step lines quote' 'Failed: <step>: <reason>' 'A non-empty `dead` fails the step' 'no `Changed path:` line names' 'keep that record unchanged' 'whether to build on it or on a fresh branch' 'Only a `chain` worker session resumes chain mode' 'worker-watch.sh list'
 do
   [[ "$dr_sec" == *"$t"* ]] || dr_miss="${dr_miss} execution-guide:'${t}'"
 done
@@ -511,6 +514,16 @@ case "$tm_match" in
   MATCH) ok "toolkit-models.json.template lists every shipped agent as {model, effort} objects" ;;
   *) no "toolkit-models.json.template lists every shipped agent as {model, effort} objects (${tm_match:-python3 failed})" ;;
 esac
+# Opus is the model ceiling: a blank or other shipped model would inherit or exceed it.
+tm_off="$(python3 -c "
+import json,sys
+a=json.load(open(sys.argv[1]+'/scripts/toolkit-models.json.template')).get('agents',{})
+print(' '.join(sorted(k for k,v in a.items() if not isinstance(v,dict) or v.get('model') not in ('opus','sonnet'))) or 'OK')
+" "$P" 2>/dev/null)"
+[ "$tm_off" = "OK" ] && ok "toolkit-models.json.template gives every agent opus or sonnet" || no "toolkit-models.json.template agents with a blank or non-opus, non-sonnet model: ${tm_off:-python3 failed}"
+nm_hits="$(grep -rnE 'without .?models|models.? \(optional\)' "$P" "$ROOT/docs" 2>/dev/null | cut -c1-120 | head -3)"
+[ -z "$nm_hits" ] && ok "no plugin file or doc offers a launch without models" || no "a plugin file or doc still offers a launch without models: ${nm_hits}"
+{ grep -qF '"general-purpose"' "$P/hooks/lib/model-policy.sh" && grep -qF '"$BUILTIN_AGENT_TYPES" --arg n "$NAME"' "$P/hooks/agent-model.sh"; } && ok "agent-model.sh sends the built-in types of model-policy.sh, general-purpose among them, to the model ceiling" || no "agent-model.sh no longer sends the built-in types of model-policy.sh to the model ceiling, so built-in Agent spawns escape it"
 # coupling-reviewer must be both registered in review-mr.js's REVIEWERS array (or it never
 # runs in an MR review) and present as an agent file (or the registration invokes nothing).
 grep -qF "toolkit:coupling-reviewer" "$P/workflows/review-mr.js" 2>/dev/null && ok "review-mr.js REVIEWERS registers toolkit:coupling-reviewer" || no "review-mr.js REVIEWERS missing toolkit:coupling-reviewer"
@@ -545,7 +558,7 @@ else
   # exit code is part of the pass condition and the RESULT line is picked by prefix,
   # not by trailing position: a merged stderr line must not masquerade as the verdict.
   out="$(printf '%s' "$hout" | grep -E '^RESULT: ' | tail -1)"
-  if [ "$hrc" -eq 0 ] && suite_pass "$out" 240; then
+  if [ "$hrc" -eq 0 ] && suite_pass "$out" 283; then
     ok "hook fixture suite"
   else
     no "hook fixture suite (exit $hrc, got: ${out:0:60})"
@@ -638,7 +651,7 @@ rm -rf "$onh"
 
 echo "== Plan validator =="
 out="$(bash "$P/scripts/tests/validate-plan/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "plan-validator fixture suite" "$out" 54
+suite_ok "plan-validator fixture suite" "$out" 56
 
 echo "== Topic recall =="
 out="$(bash "$P/scripts/tests/topic-recall/run-tests.sh" 2>/dev/null | tail -1)"
@@ -668,7 +681,7 @@ code "validate-plan accepts a canonical plan" "$?" 0
 
 echo "== seat-check holder rule =="
 out="$(bash "$P/scripts/tests/seat-check/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "seat-check behavior suite" "$out" 20
+suite_ok "seat-check behavior suite" "$out" 21
 
 echo "== seat-queue order and watcher =="
 out="$(bash "$P/scripts/tests/seat-queue/run-tests.sh" 2>/dev/null | tail -1)"
@@ -676,13 +689,13 @@ suite_ok "seat-queue behavior suite" "$out" 55
 
 echo "== worker sessions =="
 out="$(bash "$P/scripts/tests/worker-spawn/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "worker-spawn behavior suite" "$out" 50
+suite_ok "worker-spawn behavior suite" "$out" 55
 out="$(bash "$P/scripts/tests/worker-watch/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "worker-watch behavior suite" "$out" 47
+suite_ok "worker-watch behavior suite" "$out" 71
 
 echo "== resolve-models layering =="
 out="$(bash "$P/scripts/tests/resolve-models/run-tests.sh" 2>/dev/null | tail -1)"
-suite_ok "resolve-models behavior suite" "$out" 34
+suite_ok "resolve-models behavior suite" "$out" 37
 
 echo "== watch-mr watcher =="
 out="$(bash "$P/scripts/tests/watch-mr/run-tests.sh" 2>/dev/null | tail -1)"
@@ -691,7 +704,7 @@ suite_ok "watch-mr behavior suite" "$out" 95
 echo "== plan-builder control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/plan-builder/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "plan-builder control-flow suite" "$out" 47
+  suite_ok "plan-builder control-flow suite" "$out" 53
 else
   skip "skipped: node not found; plan-builder control-flow suite"
 fi
@@ -699,7 +712,7 @@ fi
 echo "== execute-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/execute-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "execute-runner control-flow suite" "$out" 344
+  suite_ok "execute-runner control-flow suite" "$out" 362
 else
   skip "skipped: node not found; execute-runner control-flow suite"
 fi
@@ -707,7 +720,7 @@ fi
 echo "== ship-runner control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/ship-runner/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "ship-runner control-flow suite" "$out" 335
+  suite_ok "ship-runner control-flow suite" "$out" 372
 else
   skip "skipped: node not found; ship-runner control-flow suite"
 fi
@@ -715,7 +728,7 @@ fi
 echo "== review-mr control flow =="
 if command -v node >/dev/null 2>&1; then
   out="$(bash "$P/workflows/tests/review-mr/run-tests.sh" 2>/dev/null | tail -1)"
-  suite_ok "review-mr control-flow suite" "$out" 71
+  suite_ok "review-mr control-flow suite" "$out" 72
 else
   skip "skipped: node not found; review-mr control-flow suite"
 fi

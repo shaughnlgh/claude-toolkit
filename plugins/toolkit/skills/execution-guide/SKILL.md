@@ -83,7 +83,7 @@ Each project defines its commonly impacted docs and any project-specific doc-upd
 
 ## Direct route
 
-A direct route builds work that the user chose at `crawl`'s route question to build without a plan first. The plan note is its one record. Its `route` frontmatter value is `direct-drive` or `direct-chain` (`plan-guide` § Required plan frontmatter), the route answer is the user's go-ahead for the build, and the note needs no filled Implementation Steps and no approval. `crawl` section 4 hands off here, and so does every session that opens a note with one of those two values. Load `plan-guide` for every note write, write by its atomic write rule, and run `validate-plan.py` after each write, requiring exit 0. The lead session runs every step through agents and the review workflow. It edits no file itself and starts no worker session for the steps.
+A direct route builds work that the user chose at `crawl`'s route question to build without a plan first. The plan note is its one record. Its `route` frontmatter value is `direct-drive` or `direct-chain` (`plan-guide` § Required plan frontmatter), the route answer is the user's go-ahead for the build, and the note needs no filled Implementation Steps and no approval. The lead runs `direct-drive`, and a `chain` worker session runs `direct-chain`. `crawl` section 4 hands off here for `direct-drive`, and so does every session that opens a `direct-drive` note. A `chain` worker session comes here on its own `direct-chain` note. A lead that opens a `direct-chain` note follows Resume below and runs no step. Load `plan-guide` for every note write, write by its atomic write rule, and run `validate-plan.py` after each write, requiring exit 0. The session that runs the steps runs every step through agents and the review workflow. It edits no file itself and starts no worker session for the steps.
 
 ### Steps
 
@@ -120,7 +120,7 @@ Never ask it through AskUserQuestion, because the step lines quote the user's ty
 
 ### Chain mode
 
-Under `route: direct-chain`, run the same steps in the same order with no offer between them. Stop only when a step fails or needs a decision that is the user's: a failing test or check, changes in the tree that are not this session's work, a red team unverified entry or open question, the user's own check under `e2e: skip`, or the consent gate of the remember pass. In the `red team` step every confirmed finding takes the fix round with no question, as the red-team skill's Adjudicate and fix section states for a `direct-chain` note. On a stop, print `Stopped at <step>: <reason>`, the `Done:` and `Owed:` lines, and the one question the user must answer, then go on from that step once the user answers. With no stop, end with the `Done:` and `Owed:` lines and the ship question.
+Under `route: direct-chain`, run the same steps in the same order with no offer between them. Stop only when a step fails or needs a decision that is the user's: a failing test or check, changes in the tree that are not this session's work, a red team unverified entry or open question, the user's own check under `e2e: skip`, or the consent gate of the remember pass. In the `red team` step every confirmed finding takes the fix round with no question, as the red-team skill's Adjudicate and fix section states for a `direct-chain` note. On a stop, print `Stopped at <step>: <reason>`, the `Done:` and `Owed:` lines, and the one question the user must answer, then go on from that step once the user answers. With no stop, end with the `Done:` and `Owed:` lines and the ship question. The `chain` worker session asks the user's own check under `e2e: skip` and the consent gate of the remember pass through AskUserQuestion, because those answers must be the user's own. It sends every other stop, and the closing `Done:` and `Owed:` lines with the ship question, to the lead by message, and goes on from the stopped step once the lead answers with the user's words.
 
 ### Out of order
 
@@ -128,7 +128,9 @@ The user may ask for any step or skill by name at any time, such as the red team
 
 ### Resume
 
-A session that opens a note whose `route` is `direct-drive` or `direct-chain`, and the same session after a compaction, reads the step lines before anything else. It opens with the `Done:` and `Owed:` lines and the next offer: the next owed step in drive mode, one line that names the step the chain goes on from in chain mode, the question about the later steps when only later steps remain, and the ship question when every step is done or skipped and the last summary does not begin `ship-flow finished:`.
+A session that opens a `direct-drive` note, and the same session after a compaction, reads the step lines before anything else. It opens with the `Done:` and `Owed:` lines and the next offer: the next owed step, the question about the later steps when only later steps remain, and the ship question when every step is done or skipped and the last summary does not begin `ship-flow finished:`.
+
+Only a `chain` worker session resumes chain mode, unless no worker session can start. The `chain` worker session, and the same worker session after a compaction, reads the step lines and goes on from the first owed step. A lead that opens a `direct-chain` note runs no step while a `chain` worker session can start. When the `crawl` section 4 spawn prints `NOBG` or exits 2 or 3, the lead offers to run the chain in its own session as that section does, and on the user's yes it reads the step lines and goes on from the first owed step. It runs `bash <plugin-root>/scripts/worker-watch.sh list --scratchpad '<scratchpad>'` and reads its own `<scratchpad>/workers` record for a `chain` worker session of that plan. When one is live, the lead reports its state and the note's `Done:` and `Owed:` lines, and forwards the user's words to it with SendMessage. When none is live, the lead offers in one question to start one with the `crawl` section 4 spawn command, and starts nothing before the user's yes. When every step is done or skipped and the last summary does not begin `ship-flow finished:`, the lead asks the ship question below.
 
 ### Closing record and the ship question
 
@@ -144,7 +146,7 @@ The ship question is plain text and ends the turn:
     - `run the ship flow` or `yes`: ships the slice up to that ceiling (recommended).
     - `no`: nothing ships. Ask for the ship flow by name when you are ready.
 
-A typed `run the ship flow` or bare `yes` is the user asking for the ship flow by name: load `ship-flow` (`<plugin-root>/skills/ship-flow/SKILL.md`) and follow it from its section 1 on this note. The lead never commits, pushes, or opens an MR or PR itself on a direct route.
+A typed `run the ship flow` or bare `yes` is the user asking for the ship flow by name: load `ship-flow` (`<plugin-root>/skills/ship-flow/SKILL.md`) and follow it from its section 1 on this note. On a `direct-chain` note the lead asks the ship question that the `chain` worker session reports, in plain text and never through AskUserQuestion, and on that typed reply it messages the worker session `<planName>: run the ship flow` in place of loading `ship-flow` itself. The lead never commits, pushes, or opens an MR or PR itself on a direct route.
 
 ## Runtime-Evidence Debugging
 

@@ -20,6 +20,9 @@ mkdir -p "$T/bin"
 SELF=lead-sid-1
 SP="$T/$SELF/scratchpad"; mkdir -p "$SP"
 ST="$SP/worker-watch.state"
+export TOOLKIT_PROJECTS_DIR="$T/projects"
+FIX="$HERE/fixtures/limit-line.json"
+LEAD=lead-full-sid-1
 
 # The stub answers agents.<n> before agents for the n-th agents call.
 cat > "$T/bin/claude" <<'STUB'
@@ -35,7 +38,8 @@ A=a1a1a1a1 B=b2b2b2b2 C=c3c3c3c3 D=d4d4d4d4
 N=0
 case_() {
   N=$((N + 1)); export CASE="$T/case.$N"; mkdir -p "$CASE"
-  rm -f "$SP/workers" "$ST" "$SP/worker-watch.lock/pid"; rmdir "$SP/worker-watch.lock" 2>/dev/null
+  rm -f "$SP/workers" "$ST" "$SP/worker-watch-self" "$SP/worker-watch.lock/pid"; rmdir "$SP/worker-watch.lock" 2>/dev/null
+  rm -rf "$T/projects"
   export TOOLKIT_AGENTS_FILE="$CASE/agents"; echo '[]' > "$CASE/agents"
 }
 worker() { printf '%s\tworker-execute-%s\texecute\tp-%s\t%s\n' "$1" "$1" "$1" "${2:-$(date +%s)}" >> "$SP/workers"; }
@@ -51,6 +55,13 @@ run() { OUT="$(bash "$WATCH" "$@" 2>"$CASE/err")"; RC=$?; ERR="$(cat "$CASE/err"
 watch() { run wait --scratchpad "$SP" --interval 1 --bound "${BOUND:-3s}" "$@"; }
 ago() { local e=$(( $(date +%s) - $1 )); date -r "$e" +%Y%m%d%H%M.%S 2>/dev/null || date -d "@$e" +%Y%m%d%H%M.%S; }
 sig_of() { awk -F'\t' -v id="$1" '$1 == id { print $2 }' "$ST" 2>/dev/null; }
+# $1 sessionId, $2 seconds since the reset (negative for a future reset), $3 line uuid, $4 project folder. Sets LAT to the reset.
+limit() {
+  LAT=$(( $(date +%s) - $2 )); mkdir -p "$T/projects/${4:--repo-a}"
+  jq -c --argjson at "$LAT" --arg u "${3:-u-1}" --arg s "$1" \
+    '.quotaLimits.resetsAt = $at | .apiErrorParams.rate_limit_info.resetsAt = $at | .uuid = $u | .sessionId = $s' "$FIX" >> "$T/projects/${4:--repo-a}/$1.jsonl"
+}
+said() { printf '{"type":"assistant","uuid":"r-1","message":{"model":"claude-opus-5-5"}}\n' >> "$T/projects/-repo-a/$1.jsonl"; }
 BUSY() { row "$1" busy working; }
 IDLE_DONE() { row "$1" idle done; }
 
@@ -178,6 +189,82 @@ agents "$(row "$A" waiting blocked 'input needed')"; BOUND=6s watch
 { [ "$RC" -eq 3 ] && [[ $ERR == error:* ]]; } && ok "three failed reads in a row exit 3 with an error line" || no "three bad reads (rc=$RC): $OUT $ERR"
 [ "$(cat "$ST")" = "$before" ] && ok "three failed reads leave the state file unchanged" || no "state changed: $(cat "$ST")"
 
+WAITING() { row "$1" waiting blocked 'input needed'; }
+case_; worker "$A"; stored "$A" busy; agents "$(WAITING "$A")"; limit "sess-$A" -600; watch
+{ [ "$RC" -eq 10 ] && [ "$OUT" = BOUND ] && [ "$(sig_of "$A")" = limit ]; } && ok "a future reset holds a waiting worker with no NEEDS until the bound" || no "limit hold (rc=$RC): $OUT $ERR"
+
+case_; worker "$A"; stored "$A" busy; agents "$(WAITING "$A")"; limit "sess-$A" 120; watch
+{ [ "$RC" -eq 0 ] && [ "$OUT" = "LIMIT worker-execute-$A $A $LAT sess-$A" ]; } && ok "a reset more than 60 seconds past gives one LIMIT with the session id" || no "limit (rc=$RC): $OUT $ERR"
+watch
+{ [ "$RC" -eq 10 ] && [ "$OUT" = BOUND ]; } && ok "a second watch on the same limit line and waiting row gives no LIMIT" || no "limit repeat (rc=$RC): $OUT"
+agents "$(IDLE_DONE "$A")"; watch
+{ [ "$RC" -eq 0 ] && [ "$OUT" = "IDLE worker-execute-$A $A done" ]; } && ok "a worker idle after LIMIT with the same stale line ends by the idle rules" || no "limit then idle (rc=$RC): $OUT"
+agents "$(WAITING "$A")"; limit "sess-$A" 120 u-2; watch
+{ [ "$RC" -eq 0 ] && [ "$OUT" = "LIMIT worker-execute-$A $A $LAT sess-$A" ]; } && ok "a new limit line after an announced one gives one new LIMIT" || no "second limit (rc=$RC): $OUT"
+
+case_; worker "$A"; stored "$A" busy; agents "$(WAITING "$A")"; limit "sess-$A" 30; watch
+{ [ "$RC" -eq 10 ] && [ "$OUT" = BOUND ]; } && ok "a reset 30 seconds past stays held inside the margin" || no "limit margin (rc=$RC): $OUT"
+
+case_; worker "$A"; stored "$A" busy; agents "$(WAITING "$A" | jq -c '.cwd = "/repo/a/.claude/worktrees/x"')"; limit "sess-$A" 120 u-1 -elsewhere; watch
+[ "$OUT" = "LIMIT worker-execute-$A $A $LAT sess-$A" ] && ok "a transcript in a project folder that differs from the row cwd is found" || no "limit moved (rc=$RC): $OUT"
+
+case_; worker "$A"; stored "$A" busy; agents "$(WAITING "$A")"; limit "sess-$A" 120; said "sess-$A"; watch
+[ "$OUT" = "NEEDS worker-execute-$A $A input" ] && ok "a newest assistant line that is no error keeps the old events" || no "limit superseded (rc=$RC): $OUT"
+
+case_; worker "$A"; stored "$A" busy; agents "$(WAITING "$A")"; limit "sess-$A" 120; echo '{"type":"assistant",' >> "$T/projects/-repo-a/sess-$A.jsonl"; watch
+[ "$OUT" = "LIMIT worker-execute-$A $A $LAT sess-$A" ] && ok "a malformed transcript line is skipped" || no "limit malformed (rc=$RC): $OUT"
+
+case_; worker "$A"; stored "$A" busy; agents "$(WAITING "$A")"; mkdir -p "$T/projects/-repo-a"
+jq -c 'del(.quotaLimits.resetsAt, .apiErrorParams.rate_limit_info.resetsAt) | .sessionId = "x"' "$FIX" > "$T/projects/-repo-a/sess-$A.jsonl"; watch
+[ "$OUT" = "LIMIT worker-execute-$A $A 0 sess-$A" ] && ok "a limit line with no resetsAt gives LIMIT at once with 0" || no "limit no reset (rc=$RC): $OUT"
+
+case_; worker "$A"; stored "$A" busy; agents "$(WAITING "$A")"; mkdir -p "$T/projects/-repo-a"
+printf '{"type":"user","pad":"%s"}\n' "$(head -c 70000 /dev/zero | tr '\0' x)" > "$T/projects/-repo-a/sess-$A.jsonl"; limit "sess-$A" 120; watch
+[ "$OUT" = "LIMIT worker-execute-$A $A $LAT sess-$A" ] && ok "a tail that starts mid-line still finds the limit line" || no "limit partial tail (rc=$RC): $OUT"
+
+case_; worker "$A"; stored "$A" input; agents "$(WAITING "$A")"; watch
+{ [ "$RC" -eq 10 ] && [ "$(awk -F'\t' '{ print NF }' "$ST")" = 5 ]; } && ok "a four-field state file from the old watch loads and is written with five fields" || no "old state (rc=$RC): $OUT $(cat "$ST")"
+
+# A fake clock whose every date +%s reads one day later than the one before, so any default bound passes within one round.
+mkdir -p "$T/clock"
+cat > "$T/clock/date" <<'CLOCK'
+#!/usr/bin/env bash
+[ "$1" = +%s ] || exec /bin/date "$@"
+n=$(( $(cat "$CASE/.clock" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$CASE/.clock"
+echo $(( $(/bin/date +%s) + n * 86400 ))
+CLOCK
+chmod +x "$T/clock/date"
+case_; worker "$A"; stored "$A" busy; agents "$(BUSY "$A")"
+OUT="$(PATH="$T/clock:$PATH" bash "$WATCH" wait --scratchpad "$SP" --interval 1 --bound 60 2>&1)"; RC=$?
+{ [ "$RC" -eq 10 ] && [ "$OUT" = BOUND ]; } && ok "under the fake clock a watch with --bound 60 ends BOUND" || no "fake clock bound (rc=$RC): $OUT"
+case_; worker "$A"; stored "$A" busy; agents "$(BUSY "$A")"
+PATH="$T/clock:$PATH" bash "$WATCH" wait --scratchpad "$SP" --interval 1 >/dev/null 2>&1 & WPID=$!
+sleep 4; kill -0 "$WPID" 2>/dev/null && ok "under the fake clock a watch with no --bound over a busy row still runs after days" || no "no bound watch ended"
+kill "$WPID" 2>/dev/null; wait "$WPID" 2>/dev/null
+
+case_; worker "$A"; stored "$A" busy; agents "$(WAITING "$A")"; limit "sess-$A" 120; limit "$LEAD" -600; watch --self "$LEAD"
+{ [ "$RC" -eq 10 ] && [ "$OUT" = BOUND ]; } && ok "a held lead limit keeps a passed worker LIMIT back" || no "lead held (rc=$RC): $OUT"
+
+case_; worker "$A"; stored "$A" busy; agents "$(WAITING "$A")"; limit "$LEAD" 120; limit "sess-$A" 120; watch --self "$LEAD"
+{ [ "$RC" -eq 0 ] && [ "$OUT" = "LIMIT self - $LAT $LEAD"$'\n'"LIMIT worker-execute-$A $A $LAT sess-$A" ]; } && ok "passed lead and worker limits give LIMIT self and then the worker LIMIT" || no "both limits (rc=$RC): $OUT"
+watch --self "$LEAD"
+{ [ "$RC" -eq 10 ] && [ "$OUT" = BOUND ]; } && ok "a second watch after both limits were reported gives no LIMIT" || no "both limits repeat (rc=$RC): $OUT"
+
+case_; worker "$A"; stored "$A" busy; agents "$(BUSY "$A")"; limit "$SELF" 120; watch
+{ [ "$RC" -eq 0 ] && [ "$OUT" = "LIMIT self - $LAT $SELF" ]; } && ok "with no --self the watch reads the lead's limit by the scratchpad's session id" || no "default self (rc=$RC): $OUT $ERR"
+
+case_; worker "$A"; stored "$A" busy; agents "$(BUSY "$A")"; limit "$LEAD" 120; watch --self "$LEAD"
+{ [ "$RC" -eq 0 ] && [ "$OUT" = "LIMIT self - $LAT $LEAD" ]; } && ok "a passed lead limit with no worker limit gives LIMIT self" || no "lead limit (rc=$RC): $OUT $ERR"
+watch --self "$LEAD"
+{ [ "$RC" -eq 10 ] && [ "$OUT" = BOUND ]; } && ok "a second watch on the same lead limit line gives no LIMIT self" || no "lead repeat (rc=$RC): $OUT"
+
+case_; worker "$A"; stored "$A" busy; agents "$(IDLE_DONE "$A")"; limit "$LEAD" 50; watch --self "$LEAD"
+{ [ "$RC" -eq 10 ] && [ "$OUT" = BOUND ] && [ "$(sig_of "$A")" = busy ]; } && ok "a worker gone idle while the lead limit holds gives no IDLE and no state change" || no "lead hold idle (rc=$RC): $OUT"
+BOUND=20s watch --self "$LEAD"
+{ [ "$RC" -eq 0 ] && [ "$OUT" = "IDLE worker-execute-$A $A done"$'\n'"LIMIT self - $LAT $LEAD" ]; } && ok "the held IDLE fires once the lead hold ends" || no "lead hold ends (rc=$RC): $OUT"
+
+case_; watch --self 'bad id'
+[ "$RC" -eq 2 ] && ok "a bad --self id exits 2" || no "bad self (rc=$RC): $ERR"
 case_; watch --hold A1A1A1A1
 { [ "$RC" -eq 2 ]; } && ok "a bad --hold id exits 2" || no "bad hold (rc=$RC): $ERR"
 case_; run wait --interval 1

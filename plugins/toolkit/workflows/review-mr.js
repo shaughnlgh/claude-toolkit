@@ -1,7 +1,7 @@
 export const meta = {
   name: 'review-mr',
   description: 'Multi-dimension diff review: fan out global reviewer agents + custom dimensions, each finding self-scored and cited, then one batched verifier per dimension in chunks of eight',
-  whenToUse: 'Invoked by the gitlab-mr-review skill (fetched MR diffs, target-branch checkout) or the red-team skill (local uncommitted slice diffs), or as a child workflow by the execute-runner workflow (the slice diff of the execute flow), with args = {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?, models?, replay?}. Reviews a saved unified diff against the local code at repoRoot whose state repoState declares.',
+  whenToUse: 'Invoked by the gitlab-mr-review skill (fetched MR diffs, target-branch checkout) or the red-team skill (local uncommitted slice diffs), or as a child workflow by the execute-runner workflow (the slice diff of the execute flow), with args = {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?, models, replay?}. Reviews a saved unified diff against the local code at repoRoot whose state repoState declares.',
   phases: [
     { title: 'Review', detail: 'registry reviewer agents + custom prompt dimensions over the diff' },
     { title: 'Verify', detail: 'one batched adversarial verifier per dimension in chunks of eight, owning the final tag, score and reproduction' },
@@ -21,7 +21,7 @@ export const meta = {
 //   fall-through. Default: the toolkit's reviewer agents.
 // repoState (optional) sentence describing the state of the tree at repoRoot, substituted into
 //   the reviewer and verifier prompts; defaults to the current MR target-branch sentence.
-// models (optional) the resolver's agents object keyed by short agent name (e.g. 'verifier'),
+// models the resolver's agents object keyed by short agent name (e.g. 'verifier'),
 //   each {model, effort}; a custom dimension takes the 'code-reviewer' entry, and a blank value
 //   and a missing entry inherit the session.
 // replay (optional) recorded results keyed by agent label, each a list in call order; a label
@@ -35,11 +35,11 @@ if (typeof a === 'string') {
 }
 
 if (!a || !a.diffPath || !a.repoRoot || !a.contextBlock) {
-  throw new Error('review-mr requires args: {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?, models?, replay?}')
+  throw new Error('review-mr requires args: {diffPath, repoRoot, contextBlock, dimensions?, registryReviewers?, repoState?, models, replay?}')
 }
 const isModelEntry = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.entries(v).every(([k, x]) => (k === 'model' || k === 'effort') && typeof x === 'string')
-if (a.models != null && (typeof a.models !== 'object' || Array.isArray(a.models) || !Object.values(a.models).every(isModelEntry))) {
-  throw new Error(`review-mr models must map agent names to {model, effort} objects when given, got ${JSON.stringify(a.models)}`)
+if (!a.models || typeof a.models !== 'object' || Array.isArray(a.models) || !Object.keys(a.models).length || !Object.values(a.models).every(isModelEntry)) {
+  throw new Error(`review-mr requires models: the agents object scripts/resolve-models.sh prints. review-mr models must map agent names to {model, effort} objects, got ${JSON.stringify(a.models)}`)
 }
 if (a.replay != null && (typeof a.replay !== 'object' || Array.isArray(a.replay) || !Object.values(a.replay).every(Array.isArray))) {
   throw new Error('review-mr replay must map labels to lists of results when given')

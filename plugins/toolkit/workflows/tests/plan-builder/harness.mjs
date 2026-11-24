@@ -5,7 +5,8 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const source = readFileSync(process.argv[2], 'utf8').replace(/^export const meta/m, 'const meta')
 const flow = new AsyncFunction('args', 'agent', 'pipeline', 'phase', 'log', source)
 
-const ARGS = { brief: 'Add a widget export.', repoRoot: '/repo', repoName: 'demo', planName: 'widget-export', recallHits: 'none' }
+const MODELS = { verifier: { model: 'opus', effort: 'xhigh' }, implementer: { model: 'opus', effort: 'high' }, 'code-reviewer': { model: 'opus', effort: 'high' }, planner: { model: 'opus', effort: 'high' }, 'plan-critic': { model: 'opus', effort: 'high' } }
+const ARGS = { brief: 'Add a widget export.', repoRoot: '/repo', repoName: 'demo', planName: 'widget-export', recallHits: 'none', models: MODELS }
 const SECTION_KEYS = ['objective', 'plainLanguageSummary', 'currentContext', 'assumptions', 'affectedFiles', 'implementationSteps', 'validationSteps', 'risks', 'rollbackNotes', 'openQuestions', 'relatedTopics']
 const draft = (tag) => ({ plan: Object.fromEntries(SECTION_KEYS.map((k) => [k, `${k} ${tag}`])), branch: 'feat/widget-export', relatedTopics: ['widgets'] })
 const objection = (claim, isMaterial) => ({ section: 'Risks', claim, evidence: 'src/widget.js:10', fix: 'Add a guard.', material: isMaterial })
@@ -189,9 +190,13 @@ const cases = [
     const { error } = await run({}, { ...ARGS, models: { planner: 'opus' } })
     return String(error && error.message).includes('plan-builder models must map agent names to {model, effort} objects')
   }],
-  ['a missing models map passes neither key to any call', async () => {
-    const { agents } = await run({}, { ...ARGS, approveIf: 'Exports widgets as CSV.' })
-    return Object.values(agents).every((x) => x.model === undefined && x.effort === undefined)
+  ['a missing models map throws the requires models sentence', async () => {
+    const { error } = await run({}, { ...ARGS, models: undefined })
+    return String(error && error.message).includes('plan-builder requires models')
+  }],
+  ['an empty models map throws', async () => {
+    const { error } = await run({}, { ...ARGS, models: {} })
+    return String(error && error.message).includes('plan-builder requires models')
   }],
   ['discoveryOnly returns the evidence of every area', async () => {
     const { result } = await run({}, { ...ARGS, discoveryOnly: true })

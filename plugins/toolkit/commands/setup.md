@@ -42,7 +42,7 @@ Read `~/.claude/toolkit-vault.json`, or the legacy `~/.claude/obsidian-sync.json
 ### 5. Other tooling
 
 - `gh` present? (Optional; the SSH-based install path and read-only GitHub checks use it.)
-- `jq` present? (Required by the ship flow's `watch-mr.sh` watcher; other scripts prefer it and degrade without it.)
+- `jq` 1.6 or later present? Run `jq --version`. Required by every plan, execute, ship, red-team and gitlab-mr-review launch, because the model resolver needs it and those flows stop without it, and by `watch-mr.sh`.
 - `python3` present? (Required by the planning workflow's scripts.)
 - `claude --bg` available? Run `claude --help` and look for `--bg`. Without it the lead runs every flow in its own session and starts no worker sessions.
 
@@ -86,7 +86,7 @@ Optional additions, each shown verbatim, explained in one line, and asked as the
       - `bash <plugin-root>/scripts/worker-spawn.sh --scratchpad <dir> --type <type> --key <key> --plan <planName|-> --note <plan note|-> --lead-name <name> --model <model> --effort <level> --task-file <path> [--worktree <name>] [--cwd <dir>]` -
         starts a worker session with `claude --bg` from the plugin's template for its type and records it in the lead's scratchpad.
       - `bash <plugin-root>/scripts/worker-watch.sh <wait|list|name> ...` -
-        the lead's bounded watch over its worker sessions; exits with one line per event. The lead starts `wait` in the background.
+        the lead's watch over its worker sessions; exits with one line per event. The lead starts `wait` in the background.
 
   When the global CLAUDE.md already holds this block and the block lacks `use the plugin root it names`, show its resolution lines beside the new ones and offer to replace only those lines. As an offer of its own, when the block is present and its vault-fs entry lacks `cp`, show that entry beside the new one and offer to replace only that entry, as the offer named `Toolkit Scripts vault-fs line`. A block that lacks both `use the plugin root it names` and `cp` gets both offers. As another offer of its own, when the block is present and its vault-fs entry holds `cp` but lacks `topic-index`, show that entry beside the new one and offer to replace only that entry, as the offer named `Toolkit Scripts topic-index line`. An entry that lacks `cp` gets only the `Toolkit Scripts vault-fs line` offer, because that replacement already carries `topic-index`. As another offer of its own, when the block is present and the usage line of its `watch-mr.sh` entry lacks `pipeline|threads|review`, show that entry beside the `watch-mr.sh` entry of the block above and offer to replace only that entry, as the offer named `Toolkit Scripts watch-mr line`. As another offer of its own, when the block is present and lacks a `seat-queue.sh` entry, show the new seat-queue entry and offer to append only that entry to the block, as the offer named `Toolkit Scripts seat-queue line`. As another offer of its own, when the block is present and its `seat-queue.sh` entry holds `--parent`, show that entry beside the new one and offer to replace only that entry, as the offer named `Toolkit Scripts seat-queue lead flag`. As another offer of its own, when the block is present and lacks a `worker-spawn.sh` or a `worker-watch.sh` entry, show the two new worker entries and offer to append only the missing ones to the block, as the offer named `Toolkit Scripts worker lines`. Never write this command's own substituted plugin root into the block, because the user's file would then pin one version's path.
 - **Read-only command allowlist.** The workflows lean on read-only `gh`/`glab`/`jira` calls that otherwise prompt on every new machine. Offer these `permissions.allow` rules (all inherently read-only subcommands — never offer mutating ones like `gh api -X`, `gh pr merge`, or `glab mr merge`, which must keep prompting):
@@ -272,6 +272,15 @@ The ticket question in the `plan-guide` skill's Run options section picks a repo
 - Present: check that it parses as a JSON object whose keys match `^[A-Za-z0-9.-]+(/[A-Za-z0-9._-]+)*$`, a host or a host plus remote path, and whose values are `github`, `jira`, or `none`. Flag any other entry and report `needs fix`, because the ticket question reads it as no entry. A file that does not parse also reports `needs fix`, because the ticket question then uses the origin defaults for every repo. Report `configured` when every entry passes.
 - Never write or rewrite the file. Name each flagged entry and why it fails, and leave the edit to the user.
 
+### 12. Question timeout (optional)
+
+Run `jq -r '.askUserQuestionTimeout // empty' ~/.claude/settings.json`.
+
+- It prints nothing: report `absent` and ask nothing.
+- It prints a value: explain in plain words that the toolkit asks its route, run options and consent questions through question forms. When the timer runs out while the window does not have focus, the form closes, submits whatever options were selected, and the session goes on by its own judgment, so a toolkit question can pass with no answer from the user. The timer never runs while the window has focus and never starts in a `claude --bg` session. Make the offer named `remove askUserQuestionTimeout` as the Rules section describes. It removes the line `"askUserQuestionTimeout": "<value>"` from `~/.claude/settings.json`.
+
+On that answer, remove only that key with the Edit tool, mind the trailing comma when it is the last entry of the object, and require `jq empty ~/.claude/settings.json` to exit 0 afterwards. Report `removed` after the write and `kept` when the user declines. Read, change and offer no other key, other dialog timers included.
+
 ## Readiness report
 
 End with a table:
@@ -280,6 +289,7 @@ End with a table:
 |---|---|---|
 | Agents | always ready | — |
 | Review capability (reviewer agents, testing-gate skill) | always ready | — |
+| Flow launches | ready / not ready | jq 1.6 or later |
 | gitlab-mr-review | ready / not ready | glab auth |
 | jira skill (ticket to brief and ticket creation) | ready / not ready | jira-cli + JIRA_API_TOKEN |
 | Planning workflow (plan-guide, topic) | ready / not ready | vault config |
@@ -295,8 +305,9 @@ End with a table:
 | Worker model routing | default (template) / configured / needs fix | check 8 |
 | Ship flow bot threads on GitLab | configured / not configured / no GitLab host | check 9 |
 | Ticket tracker | origin defaults / configured / needs fix | check 11 |
+| Question timeout | absent / removed / kept / pending (human) | check 12 |
 
-One line of verdict at the end: fully ready, or the single next action to get there.
+One line of verdict at the end: fully ready, or the single next action to get there. If jq is missing or older than 1.6, that action is installing jq 1.6 or later.
 
 ## Rules
 
@@ -305,7 +316,7 @@ One line of verdict at the end: fully ready, or the single next action to get th
 - The recommended answer accepts the offer. Two offers differ: at check 10 it leaves the override off, and for a modified local copy at check 7 it keeps the copy.
 - Ask for input in the user's own words as a prose question: the vault path at check 2, each host and group at check 6, the agents to re-route at check 8, and the bot logins at check 9.
 - Auto mode. The run is under auto mode when `permissions.defaultMode` in `~/.claude/settings.json` is `auto`, when the user says they switch to auto mode, and from the first classifier refusal of the run. A classifier-judged offer is one whose write lands in `~/.claude/settings.json`, `~/.claude/CLAUDE.md` or check 10's `.claude/settings.local.json`.
-- Form offers. Outside auto mode every offer is a form offer. Under auto mode every offer that is not classifier-judged is one. Ask a form offer through AskUserQuestion. Ask check 2's offer when check 2 ends, because check 6 reads the file it writes. Collect every other form offer and ask after check 11, before the readiness report, in the order this command lists them, at most four questions per form. Finish a form's writes before the next form. An offer that waits on an earlier answer, or on input the user gives in their own words, joins the next form after that answer. The form answer is the user's consent for the write its question names, and for no other write.
+- Form offers. Outside auto mode every offer is a form offer. Under auto mode every offer that is not classifier-judged is one. Ask a form offer through AskUserQuestion. Ask check 2's offer when check 2 ends, because check 6 reads the file it writes. Collect every other form offer and ask after check 12, before the readiness report, in the order this command lists them, at most four questions per form. Finish a form's writes before the next form. An offer that waits on an earlier answer, or on input the user gives in their own words, joins the next form after that answer. The form answer is the user's consent for the write its question names, and for no other write.
 - Typed-line offers. Under auto mode a classifier-judged offer asks no form, because the classifier reads the user's typed messages and never a form answer. After the form offers and their writes, end the reply with one numbered list of every classifier-judged offer, in the order this command lists them. Each item is a question: the offer's name, the exact entry beside the entry it replaces, the recommended answer first, and the one-line reason. Say once above the list why these answers are typed. After the list, show one fenced block that holds the line `yes <name>` of every offer whose recommended answer accepts it, one line per offer, in list order. Say that pasting the block as it is takes every recommended answer, and that deleting a line declines that offer. An offer whose recommended answer declines it shows its `yes <name>` line inside its own item and stays out of the block. Write each offer on its typed line, in list order, and never before that line. An offer that waits on an earlier write joins a second list with its own block after that write. An offer that waits on input the user gives in their own words, such as the host and group at check 6, joins the list only after that answer.
 - A `yes <name>` line counts only when the human types or pastes it in this session and it names the offer. One message may hold several such lines. A bare yes, or a yes that names no listed offer, makes setup show the block again and write nothing.
 - Write `~/.claude/settings.json` with the Edit or Write tool, never through a Bash command. `protect-files.sh` then asks the user to confirm each such write, under auto mode too. That confirm is part of the write. When the user rejects it, write nothing and report the offer as declined.

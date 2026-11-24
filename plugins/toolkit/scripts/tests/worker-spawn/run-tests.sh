@@ -96,6 +96,8 @@ case_; run "${BASE[@]}" --model 'claude-opus-4-7[1m]'
 [ "$(argv_pair --model)" = 'claude-opus-4-7[1m]' ] && ok "a model with the [1m] suffix spawns" || no "[1m] model (rc=$RC): $ERR"
 case_; run "${BASE[@]}" --plan -
 { [ "$RC" -eq 2 ] && no_stub; } && ok "an execute worker with --plan - exits 2 with no stub call" || no "execute plan - (rc=$RC): $ERR"
+case_; run "${BASE[@]}" --type chain --plan -
+{ [ "$RC" -eq 2 ] && grep -qF 'takes a plan name in --plan' "$CASE/err" && no_stub; } && ok "a chain worker with --plan - exits 2 naming --plan with no stub call" || no "chain plan - (rc=$RC): $ERR"
 case_; OUT="$(cd "$T" && bash "$SPAWN" "${BASE[@]}" --note "notes/plan - proj-12.md" 2>"$CASE/err")"; RC=$?
 grep -qxF "Plan note: $NOTE" "$CASE/prompt" && ok "a relative --note reaches the prompt as an absolute path" || no "relative note (rc=$RC): $(grep '^Plan note' "$CASE/prompt" 2>&1) $(cat "$CASE/err")"
 QUOTED="$T/quoted/plan - proj-12.md"; mkdir -p "$T/quoted"
@@ -103,6 +105,11 @@ printf -- '---\r\nstatus: approved\r\nceiling: "merge" \r\nsession_model: opus\r
 case_; run "${BASE[@]}" --note "$QUOTED"
 { [ "$RC" -eq 0 ] && grep -qF "Run options recorded for this task: ceiling: merge, session_model: opus. " "$CASE/prompt"; } \
   && ok "a quoted ceiling with trailing space in a CRLF note reads as validate-plan reads it" || no "quoted ceiling (rc=$RC): $ERR $(grep '^Run options' "$CASE/prompt" 2>&1)"
+THREADED="$T/threaded/plan - proj-12.md"; mkdir -p "$T/threaded"
+printf -- '---\nstatus: approved\nceiling: merge\nthread_mode: automatic\n---\n' > "$THREADED"
+case_; run "${BASE[@]}" --type ship --note "$THREADED"
+{ [ "$RC" -eq 0 ] && grep -qF "Run options recorded for this task: ceiling: merge, thread_mode: automatic. " "$CASE/prompt"; } \
+  && ok "a note's thread_mode reaches the template's run options" || no "thread_mode (rc=$RC): $ERR $(grep '^Run options' "$CASE/prompt" 2>&1)"
 
 case_ default; run "${BASE[@]}"
 [ "$(argv_pair --permission-mode)" = manual ] && ok "a default record spawns with --permission-mode manual" || no "default mode: $(argv_pair --permission-mode) rc=$RC"
@@ -132,7 +139,7 @@ case_; echo 'not json' > "$CASE/agents.1"; run "${BASE[@]}"
 case_; echo 'not json' > "$CASE/agents"; run "${BASE[@]}"
 { [ "$RC" -eq 3 ] && no_spawn; } && ok "three failed agents reads exit 3 with no spawn" || no "three bad reads (rc=$RC): $OUT"
 
-for ty in plan execute ship investigate; do
+for ty in plan execute ship chain investigate; do
   case_
   if [ "$ty" = investigate ]; then run "${BASE[@]}" --type "$ty" --note - --plan -; want=none; else run "${BASE[@]}" --type "$ty"; want=$NOTE; fi
   P="$CASE/prompt"
@@ -144,6 +151,11 @@ grep -qF 'The ceiling none is' "$CASE/prompt" && ok "an investigate prompt holds
 
 case_; run "${BASE[@]}" --note "$BARE"
 { [ "$RC" -eq 2 ] && no_stub; } && ok "an execute note with no ceiling exits 2 with no stub call" || no "no ceiling (rc=$RC): $ERR"
+case_; run "${BASE[@]}" --type chain --note "$BARE"
+{ [ "$RC" -eq 2 ] && no_stub; } && ok "a chain note with no ceiling exits 2 with no stub call" || no "chain no ceiling (rc=$RC): $ERR"
+case_; run "${BASE[@]}" --type chain
+{ [ "$RC" -eq 0 ] && [ "$OUT" = "STARTED a1b2c3d4 worker-chain-proj-12" ] && grep -qF 'in chain mode on the plan note' "$CASE/prompt"; } \
+  && ok "a chain spawn loads worker-chain.md and names the session worker-chain-<key>" || no "chain spawn (rc=$RC): $OUT $ERR"
 
 C="$T/copy"; mkdir -p "$C/scripts" "$C/templates" "$C/hooks"; cp "$SPAWN" "$C/scripts/"; cp -R "$TOOLKIT/scripts/lib" "$C/scripts/"; cp -R "$TOOLKIT/hooks/lib" "$C/hooks/"
 printf 'You are {{worker_name}} with {{unknown}}.\n' > "$C/templates/worker-execute.md"

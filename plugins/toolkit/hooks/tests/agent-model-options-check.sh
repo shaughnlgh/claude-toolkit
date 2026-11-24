@@ -155,7 +155,7 @@ run_agent_model_options_checks() {
   ok=1
   if mkdir -p "$AMO_BASE/plugin/hooks/lib" "$AMO_BASE/plugin/scripts" \
     && cp "$ROOT/agent-model.sh" "$AMO_BASE/plugin/hooks/agent-model.sh" \
-    && cp "$ROOT/lib/session-scratchpad.sh" "$AMO_BASE/plugin/hooks/lib/session-scratchpad.sh" \
+    && cp "$ROOT/lib/session-scratchpad.sh" "$ROOT/lib/model-policy.sh" "$AMO_BASE/plugin/hooks/lib/" \
     && cp "$ROOT/../scripts/resolve-models.sh" "$AMO_BASE/plugin/scripts/resolve-models.sh" \
     && printf '{"agents":' > "$AMO_BASE/plugin/scripts/toolkit-models.json.template"; then
     out="$(_amo_hook "$sid" toolkit:implementer "" "$AMO_BASE/plugin/hooks/agent-model.sh")"
@@ -176,7 +176,7 @@ run_agent_model_options_checks() {
 
   ok=1
   if mkdir -p "$AMO_BASE/nonames/hooks/lib" && cp "$ROOT/agent-model.sh" "$AMO_BASE/nonames/hooks/agent-model.sh" \
-    && cp "$ROOT/lib/session-scratchpad.sh" "$AMO_BASE/nonames/hooks/lib/session-scratchpad.sh"; then
+    && cp "$ROOT/lib/session-scratchpad.sh" "$ROOT/lib/model-policy.sh" "$AMO_BASE/nonames/hooks/lib/"; then
     out="$(_amo_hook "$sid" verifier "" "$AMO_BASE/nonames/hooks/agent-model.sh")"
     [[ "$out" == *'component-names.sh not found'* && "$out" != *'updatedInput'* ]] || ok=0
   else

@@ -4,15 +4,17 @@ summary: How the toolkit resolves each agent's model and effort for Agent-tool s
 type: context
 status: active
 owner: Shaughn
-last_reviewed: 2026-11-17
+last_reviewed: 2026-11-24
 source_refs:
   - plugins/toolkit/scripts/resolve-models.sh
   - plugins/toolkit/scripts/toolkit-models.json.template
   - plugins/toolkit/hooks/agent-model.sh
   - plugins/toolkit/hooks/session-start.sh
   - plugins/toolkit/hooks/lib/session-scratchpad.sh
+  - plugins/toolkit/hooks/lib/model-policy.sh
   - plugins/toolkit/hooks/tests/agent-model-options-check.sh
   - plugins/toolkit/hooks/tests/agent-model-list-check.sh
+  - plugins/toolkit/hooks/tests/agent-model-ceiling-check.sh
   - plugins/toolkit/hooks/tests/fixtures/agent-model/
   - plugins/toolkit/skills/plan-guide/SKILL.md
   - https://code.claude.com/docs/en/sub-agents
@@ -27,7 +29,8 @@ source_refs:
 
 - The Agent tool's `model` input takes only a model alias (`sonnet`, `opus`, `haiku`, `fable`), never a full model ID or `inherit`, per the [Claude Code subagents docs](https://code.claude.com/docs/en/sub-agents). `inherit` exists only in agent definition frontmatter. No hook can therefore route an Agent-tool spawn to the parent session's model. The hook can only leave the field out, and the spawn then falls to the agent definition's model, a configured default subagent model, and the parent session's model, in that order.
 - The resolver accepts a full model ID and an `[1m]` suffix, and the workflow runners pass either one unchanged. The hook sends such a value to the Agent tool as the one family alias it names (`opus`, `sonnet`, `haiku` or `fable`), adds no model when it names none or several, and names the original value in a `systemMessage` either way. The mapping lives once, in the resolver behind `--alias`, which the hook and `--list` use and the workflow launchers do not, so the workflow path keeps the full value and the session-start list matches what the hook adds. Fixtures `12` and `15` in `fixtures/agent-model/` pin both outcomes.
-- For that reason the resolver turns `inherit` into a blank field, the hook adds no blank field, and the template leaves `planner` blank.
+- For that reason the resolver turns `inherit` into a blank field and the hook adds no blank field. The template gives every agent `opus` or `sonnet`, the `planner` included, so the planner runs on Opus by default and only a user's `inherit` routes it to the session model.
+- A call with no `subagent_type`, or with a bare `general-purpose`, `Plan`, `Explore` or `claude` that no project or user agent file shadows, takes the `ceiling` branch of `agent-model.sh`, because those built-in types run on the parent session's model and the resolver holds no entry for them. The branch reads the session model from the newest assistant line in the last 256 KB of `transcript_path` whose `message.model` is not `<synthetic>`, and adds `model: opus` when that model names none of Opus, Sonnet and Haiku. It adds nothing when the call carries a `model`, when `CLAUDE_CODE_SUBAGENT_MODEL` is set for a type other than `Plan` and `Explore`, which that variable does not reach, or when `~/.claude/toolkit-models.json` names `inherit` for the type, keyed `general-purpose` for a call with no type. A model and effort that file names for the type apply under any session model, the model sent as its family alias. A Haiku value, or one that names no single family, is refused with a `systemMessage` and sent as `opus` when the session model is above the ceiling. The built-in type list and the family mapping live once in `hooks/lib/model-policy.sh`, which `agent-model.sh` and `resolve-models.sh` both source, so a new inheriting built-in type is not covered until that list names it.
 - The shipped agent files pin no `model` or `effort`, so the template is the only default layer. The orchestration invariants check in `verify.sh` fails when an agent file's frontmatter carries a `model:` or `effort:` line.
 - Check 8 in `commands/setup.md` is the only place that states the Claude Code version the hook's `effort` field was tested on. [commands.md](../commands.md) and [hooks.md](../hooks.md) point to it, so a newly tested version changes that one line.
 
@@ -38,6 +41,7 @@ source_refs:
 - The `--agent` filter keys on the warning text. A warning about one agent's value starts with `[<agent>]` and ends with `; ignored`. `--agent <name>` prints the bracketed warnings for that name and every warning that has no bracket. A new value warning that leaves out the bracket prints for every agent, so the hook relays it on every Agent-tool spawn.
 - The header comment on line 2 of `resolve-models.sh` lists every exit-2 case. A new error case adds itself there.
 - The model and effort value checks mirror `MODEL_RE` and `EFFORTS` in `validate-plan.py`, as [context-plan-note-section-checks.md](context-plan-note-section-checks.md) states.
+- `hooks/lib/model-policy.sh` is the one definition of the built-in Agent types, the family-alias jq function and the effort values, and both `agent-model.sh` and `resolve-models.sh` source it. A change to the built-in type list changes which user file entries the resolver drops without a warning and which calls take the hook's `ceiling` branch at once.
 
 ## Session scratchpad library
 
@@ -47,8 +51,8 @@ source_refs:
 
 ## Launchers
 
-- The resolver launch procedure lives once, in plan-guide § Run options. It covers one flag per non-blank value, the repo copy of the resolver when `repoRoot` holds one, stderr reported to the user on exit 0, and a launch without `models` when the resolver is missing or fails. Each flag value is single-quoted, because zsh reads an unquoted `[1m]` suffix as a glob and aborts the command with `no matches found`. `plan-flow`, `execute-flow`, and `ship-flow` point to that procedure.
-- `gitlab-mr-review` and `red-team` read no run options, so they run the resolver with no flags and carry their own copy of the repo-copy, stderr, and fail-open sentences. A change to that part of the procedure must be made in plan-guide and in both skills.
+- The resolver launch procedure lives once, in plan-guide § Run options. It covers one flag per non-blank value, the repo copy of the resolver when `repoRoot` holds one, stderr reported to the user on exit 0, and a stop that reports the stderr and launches nothing when the resolver is missing or fails. Each flag value is single-quoted, because zsh reads an unquoted `[1m]` suffix as a glob and aborts the command with `no matches found`. `plan-flow`, `execute-flow`, and `ship-flow` point to that procedure.
+- `gitlab-mr-review` and `red-team` read no run options, so they run the resolver with no flags and carry their own copy of the repo-copy, stderr, and stop sentences. A change to that part of the procedure must be made in plan-guide and in both skills.
 - The `models` arg is named in five places: the plan-flow args sentence, the execute-flow and ship-flow args lists, the gitlab-mr-review args block, and the red-team launch sentence.
 
 ## Testing
@@ -56,5 +60,6 @@ source_refs:
 - Every `agent-model` fixture except `08` and `11` sets `TOOLKIT_MODELS_TEMPLATE` to `fixtures/agent-model/aux/template.json`, and `11` is the empty-stdin case. Fixture `08` is therefore the only hook fixture that checks the shipped template's values, so a template edit changes its expectations and no other fixture's.
 - `agent-model-list-check.sh` builds the expected list from what `agent-model.sh` adds per agent, for the shipped template and for the full model id fixture, so the list and the hook cannot drift apart unnoticed.
 - Check 1 in `agent-model-options-check.sh` reads the shipped template's `implementer` effort instead of a literal, so a template edit does not break it.
-- The resolver-failure check copies the hook, the resolver, and a broken template into a scratch plugin tree. The copy must include `hooks/lib/session-scratchpad.sh`. Without it the hook stops at the source with the library message, never runs the resolver, and the check fails for the wrong reason.
+- The resolver-failure check copies the hook, the resolver, and a broken template into a scratch plugin tree. The copy must include `hooks/lib/session-scratchpad.sh` and `hooks/lib/model-policy.sh`. Without it the hook stops at the source with the library message, never runs the resolver, and the check fails for the wrong reason.
+- The resolver suite runs copies of `resolve-models.sh` from case directories under its temp root, so it copies `hooks/lib/model-policy.sh` to `<temp>/hooks/lib/`, the path a copy one level down reaches as `../hooks/lib`.
 - The no-jq check runs the hook with a `PATH` that holds only a symlink to `cat`, because the hook reads stdin with `cat` before it tests for `jq`.

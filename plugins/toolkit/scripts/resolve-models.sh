@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Resolves each shipped agent's model and effort: template defaults, then the user file, then the plan note options. Prints {"agents":{...}}, or with --list one line per agent in the form a session passes on an Agent-tool call. --alias, which --list implies, turns a model that is not an Agent-tool alias into the one family alias it names, or blank, with a warning. Exit 0, or 2 on an unknown option, a flag with no value, a missing jq, a missing template, a template that is not valid JSON or has no "agents" object, or a failed resolution or alias conversion.
+# Resolves each shipped agent's model and effort: template defaults, then the user file, then the plan note options. Prints {"agents":{...}}, or with --list one line per agent in the form a session passes on an Agent-tool call. --alias, which --list implies, turns a model that is not an Agent-tool alias into the one family alias it names, or blank, with a warning. Exit 0, or 2 on an unknown option, a flag with no value, a missing jq, a missing hooks/lib/model-policy.sh, a missing template, a template that is not valid JSON or has no "agents" object, or a failed resolution or alias conversion.
 set -uo pipefail
 
 die() { printf 'error: %s\n' "$1" >&2; exit 2; }
@@ -22,6 +22,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 command -v jq >/dev/null 2>&1 || die "jq not found"
+. "$HERE/../hooks/lib/model-policy.sh" 2>/dev/null || die "hooks/lib/model-policy.sh not found"
 [ -f "$TEMPLATE" ] || die "template not found: $TEMPLATE"
 
 # The options file is the plan-guide run options cache. Only its three model and effort lines are read, never its plan: line, and a flag wins over a line.
@@ -44,11 +45,11 @@ if [ -f "$USER_FILE" ]; then
 fi
 NOTE=$(jq -nc --arg wm "$worker_model" --arg vm "$verifier_model" --arg ve "$verifier_effort" '{implementer: {model: $wm, effort: ""}, verifier: {model: $vm, effort: $ve}}')
 
-OUT=$(jq -nc --argjson tmpl "$TMPL" --argjson user "$USER_AGENTS" --argjson note "$NOTE" '
+OUT=$(jq -nc --argjson tmpl "$TMPL" --argjson user "$USER_AGENTS" --argjson note "$NOTE" --argjson builtins "$BUILTIN_AGENT_TYPES" --argjson efforts "$EFFORT_VALUES" '
   # A value that is neither a string nor an object reads as null, and pick warns on any field that is not a string.
   def field($f): if type == "string" then (if $f == "model" then . else "" end) elif type == "object" then (if has($f) then .[$f] else "" end) elif type == "null" then "" else null end;
   def model_ok: test("^[A-Za-z][A-Za-z0-9.:_-]*(\\[1m\\])?$");
-  def effort_ok: IN("low", "medium", "high", "xhigh", "max");  # mirrors EFFORTS in validate-plan.py, minus inherit
+  def effort_ok: IN($efforts[]);
   def pick($name; $field; $layers):
     reduce ($layers[] | {layer, raw: .agents[$name]} | .value = (.raw | field($field))) as $c ({value: "", warnings: []};
       (if $field == "model" and ($c.raw | type) == "object" then [$c.raw | keys[] | select(IN("model", "effort") | not)] else [] end) as $unknown
@@ -62,10 +63,9 @@ OUT=$(jq -nc --argjson tmpl "$TMPL" --argjson user "$USER_AGENTS" --argjson note
   [{layer: "template", agents: $tmpl}, {layer: "user file", agents: $user}, {layer: "plan note", agents: $note}] as $layers
   | ($tmpl | keys_unsorted) as $names
   | {agents: ([$names[] | {key: ., value: {model: pick(.; "model"; $layers).value, effort: pick(.; "effort"; $layers).value}}] | from_entries),
-     warnings: ([($user | keys) - $names | .[] | "unknown agent \(.) in the user file layer; ignored"] + [$names[] as $n | ("model", "effort") as $f | pick($n; $f; $layers).warnings[]])}') || die "resolution failed"
+     warnings: ([($user | keys) - $names - $builtins | .[] | "unknown agent \(.) in the user file layer; ignored"] + [$names[] as $n | ("model", "effort") as $f | pick($n; $f; $layers).warnings[]])}') || die "resolution failed"
 if [ -n "$alias" ]; then
-  OUT=$(printf '%s\n' "$OUT" | jq -c '
-    def family: [scan("opus|sonnet|haiku|fable")] | unique | if length == 1 then .[0] else "" end;
+  OUT=$(printf '%s\n' "$OUT" | jq -c "$MODEL_FAMILY_JQ"'
     reduce (.agents | to_entries[] | select(.value.model | IN("", "sonnet", "opus", "haiku", "fable") | not)) as $a (.;
       ($a.value.model | family) as $f
       | .agents[$a.key].model = $f
