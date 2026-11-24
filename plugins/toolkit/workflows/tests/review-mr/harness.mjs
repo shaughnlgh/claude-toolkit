@@ -5,7 +5,8 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const source = readFileSync(process.argv[2], 'utf8').replace(/^export const meta/m, 'const meta')
 const flow = new AsyncFunction('args', 'agent', 'pipeline', 'phase', 'log', source)
 
-const ARGS = { diffPath: '/scratch/x.diff', repoRoot: '/repo', contextBlock: 'CTX\nREVIEW RULES: nit cap five' }
+const MODELS = { verifier: { model: 'opus', effort: 'xhigh' }, implementer: { model: 'opus', effort: 'high' }, 'code-reviewer': { model: 'opus', effort: 'high' }, planner: { model: 'opus', effort: 'high' }, 'plan-critic': { model: 'opus', effort: 'high' } }
+const ARGS = { diffPath: '/scratch/x.diff', repoRoot: '/repo', contextBlock: 'CTX\nREVIEW RULES: nit cap five', models: MODELS }
 const SIX = ['toolkit:code-reviewer', 'toolkit:security-reviewer', 'toolkit:silent-failure-hunter', 'toolkit:performance-reviewer', 'toolkit:pr-test-analyzer', 'toolkit:coupling-reviewer']
 const KEYS = SIX.map((n) => n.split(':').pop())
 const RETURN_KEYS = ['confirmed', 'nits', 'preExisting', 'refuted', 'unverified', 'dropped', 'openQuestions', 'dead', 'verifierDead', 'panel', 'dimensions']
@@ -82,9 +83,13 @@ const cases = [
     const { agents } = await run({}, { ...ARGS, models: { 'code-reviewer': { model: 'sonnet', effort: 'medium' } }, dimensions: [{ key: 'cold-read', prompt: 'Read cold.', cold: true }] })
     return same(pick(agents['review:cold-read'], ['model', 'effort']), { model: 'sonnet', effort: 'medium' })
   }],
-  ['a missing models map passes neither key to any call', async () => {
-    const { agents } = await run(ONE_EACH)
-    return Object.values(agents).every((x) => x.model === undefined && x.effort === undefined)
+  ['a missing models map throws the requires models sentence', async () => {
+    const { error } = await run({}, { ...ARGS, models: undefined })
+    return String(error && error.message).includes('review-mr requires models')
+  }],
+  ['an empty models map throws', async () => {
+    const { error } = await run({}, { ...ARGS, models: {} })
+    return String(error && error.message).includes('review-mr requires models')
   }],
   ['a non-object models arg throws the models sentence', async () => {
     const { error } = await run({}, { ...ARGS, models: 'opus' })

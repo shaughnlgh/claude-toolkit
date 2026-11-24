@@ -5,7 +5,7 @@ set -uo pipefail
 die() { printf 'error: %s\n' "$1" >&2; exit 2; }
 fail() { printf 'error: %s\n' "$1" >&2; exit 3; }
 finish() { printf '%s\n' "$2"; exit "$1"; }
-USAGE="usage: worker-spawn.sh --scratchpad <dir> --type <investigate|plan|execute|ship> --key <key> --plan <planName|-> --note <plan note path|-> --lead-name <name> --model <model> --effort <level> --task-file <path> [--worktree <name>] [--cwd <dir>]"
+USAGE="usage: worker-spawn.sh --scratchpad <dir> --type <investigate|plan|execute|ship|chain> --key <key> --plan <planName|-> --note <plan note path|-> --lead-name <name> --model <model> --effort <level> --task-file <path> [--worktree <name>] [--cwd <dir>]"
 
 scratchpad="" type="" key="" plan="" note="" lead_name="" model="" effort="" task_file="" wt="" cwd=.
 while [ $# -gt 0 ]; do
@@ -30,10 +30,10 @@ done
 [ -d "$scratchpad" ] && [ "$(basename "$scratchpad")" = scratchpad ] || die "bad --scratchpad: $scratchpad. $USAGE"
 self=$(basename "$(dirname "$scratchpad")")
 [[ $self =~ ^[A-Za-z0-9-]{1,64}$ ]] || die "bad --scratchpad: its parent is no session id"
-case $type in investigate | plan | execute | ship) ;; *) die "bad --type: $type. $USAGE" ;; esac
+case $type in investigate | plan | execute | ship | chain) ;; *) die "bad --type: $type. $USAGE" ;; esac
 [[ $key =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]] || die "bad --key: $key"
 [ "$plan" = - ] || [[ $plan =~ ^[a-z0-9][a-z0-9-]{0,99}$ ]] || die "bad --plan: $plan"
-case $type:$plan in execute:- | ship:-) die "an $type worker takes a plan name in --plan" ;; esac  # its ship trigger names the plan
+case $type:$plan in execute:- | ship:- | chain:-) die "--type $type takes a plan name in --plan" ;; esac  # its ship trigger names the plan
 if [ "$type" = investigate ]; then
   [ "$note" = - ] || die "an investigate worker takes --note -"
 else
@@ -57,7 +57,7 @@ ROOT=$(cd "$HERE/.." && pwd -P)
 . "$HERE/lib/agents-list.sh" 2>/dev/null || die "scripts/lib/agents-list.sh not found"
 . "$ROOT/hooks/lib/session-scratchpad.sh" 2>/dev/null || die "hooks/lib/session-scratchpad.sh not found"
 shopt -u patsub_replacement 2>/dev/null   # bash 5.2 reads & in a ${x//p/r} replacement as the match
-tmpl="$ROOT/templates/worker-$type.md"
+tmpl="$ROOT/templates/worker-$type.md"  # --type chain runs a direct-chain note's route in a worker session
 [ -s "$tmpl" ] || fail "templates/worker-$type.md not found"
 ceiling="" run_opts="" note_text=none
 if [ "$note" != - ]; then
@@ -69,7 +69,7 @@ if [ "$note" != - ]; then
     printf '%s' "$v"
   }
   ceiling=$(fmv ceiling)
-  for k in ceiling nits tests e2e tag_merge worker_model verifier_model verifier_effort session_model session_effort; do
+  for k in ceiling nits tests e2e tag_merge thread_mode worker_model verifier_model verifier_effort session_model session_effort; do
     v=$(fmv "$k"); [ -n "$v" ] && run_opts+="${run_opts:+, }$k: $v"
   done
 fi

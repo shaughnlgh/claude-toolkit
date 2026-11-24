@@ -16,10 +16,12 @@ const G3 = '3'.repeat(40)
 const PR_URL = 'https://github.com/o/r/pull/7'
 const MR_URL = 'https://gitlab.com/g/r/-/merge_requests/7'
 const MESSAGE = 'feat(widgets): export CSV\n\nAdds the exporter.'
+const MODELS = { verifier: { model: 'opus', effort: 'xhigh' }, implementer: { model: 'opus', effort: 'high' }, 'code-reviewer': { model: 'opus', effort: 'high' }, planner: { model: 'opus', effort: 'high' }, 'plan-critic': { model: 'opus', effort: 'high' } }
 const ARGS = {
+  models: MODELS,
   planName: 'widget-export', repoRoot: '/repo', repoName: 'demo', host: 'github', remotePath: 'o/r', defaultBranch: 'main', branch: 'feat/x',
   commitMessage: MESSAGE, mrTitle: 'feat(widgets): export CSV', mrBody: 'Adds the exporter.\n\nPlan: widget-export', ceiling: 'merge', tag: true,
-  scratchDir: '/scratch', pluginRoot: '/plugin', paths: ['src/a.js', 'src/b.js'], tagName: 'v1.2.0', tagMessage: 'Release 1.2.0',
+  scratchDir: '/scratch', pluginRoot: '/plugin', paths: ['src/a.js', 'src/b.js'], tagName: 'v1.2.0', tagMessage: 'Release 1.2.0', threadMode: 'automatic',
 }
 const GL_ARGS = { ...ARGS, host: 'gitlab', remotePath: 'g/r' }
 const WT = '/main/.claude/worktrees/widget-export'
@@ -36,6 +38,8 @@ const rule = (allowed, dir = '/repo') => `SHIP GIT RULE. In ${dir} run only thes
 const GH_THREADS_QUERY = 'query($owner:String!,$name:String!,$number:Int!,$after:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100,after:$after){pageInfo{hasNextPage endCursor} nodes{id isResolved path line comments(first:50){nodes{databaseId body author{login __typename}}}}}}}}'
 const GH_REPLY = "gh api graphql -f query='mutation($id:ID!,$body:String!){addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$id,body:$body}){comment{id}}}' -f id=T1 -f body='Fixed in <short sha>: <what changed>', then gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -f id=T1"
 const GL_API = 'glab api projects/g%2Fr/merge_requests/7'
+const GH_PUSHBACK = "gh api graphql -f query='mutation($id:ID!,$body:String!){addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$id,body:$body}){comment{id}}}' -f id=T1 -F body=@/scratch/ship-pushback-1.md, then gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -f id=T1"
+const GL_PUSHBACK = 'glab api --method POST "projects/g%2Fr/merge_requests/7/discussions/T1/notes" --field body=@/scratch/ship-pushback-1.md, then glab api --method PUT "projects/g%2Fr/merge_requests/7/discussions/T1" --field resolved=true'
 const GL_REPLY = 'glab api --method POST "projects/g%2Fr/merge_requests/7/discussions/T1/notes" --field body=@/scratch/ship-reply-1.md, after writing the body Fixed in <short sha>: <what changed> to that file with the Write tool, then glab api --method PUT "projects/g%2Fr/merge_requests/7/discussions/T1" --field resolved=true'
 
 const ok = { blockers: [], deniedCommand: '' }
@@ -45,6 +49,10 @@ const watchOf = (state, sha) => ({ state, sha, failingLines: state === 'red' ? [
 const BOT = { id: 'T1', author: 'coderabbitai', isBot: true, hasHumanComment: false, resolved: false, file: 'src/a.js', line: 4, summary: 'Guard the null widget', fixable: true, fix: 'Return early when the widget is null.', commentId: '11' }
 const HUMAN = { ...BOT, id: 'T2', author: 'alice', isBot: false, hasHumanComment: true, fixable: false }
 const threadsOf = (...threads) => ({ threads, ...ok })
+const verdictOf = (id, verdict, evidence = 'src/a.js:4 has no null guard.') => ({ id, verdict, evidence, recommendation: 'Act on the thread.' })
+const verdictsOf = (...verdicts) => ({ verdicts, ...ok })
+// Every bot thread id the cases use reads as real unless a case overrides the verdict stage.
+const REAL = verdictsOf(verdictOf('T1', 'real'), verdictOf('T3', 'real'))
 const threadFixOf = (changedPaths) => ({ sha: E, shortSha: 'eeeeeee', pushed: true, changedPaths, replied: true, resolved: true, ...ok })
 
 // A green run through release with no fix. The fix labels run only when an override makes the pipeline red or a bot thread fixable.
@@ -62,6 +70,10 @@ const DEFAULTS = {
   'threads:settle:3': { outcome: 'quiet', login: '', ...ok },
   'threads:settle:4': { outcome: 'quiet', login: '', ...ok },
   'threads:fetch:1': threadsOf(),
+  'threads:verdict:1': REAL,
+  'threads:verdict:2': REAL,
+  'threads:verdict:3': REAL,
+  'threads:verdict:4': REAL,
   'threads:fix:1': threadFixOf(['src/a.js']),
   'pipeline:watch:threads': watchOf('green', E),
   'threads:fetch:2': threadsOf(),
@@ -99,8 +111,8 @@ const glMerge = (kind) => ({ 'merge:mr': { state: 'merged', mergedSha: M, kind, 
 const GL = { 'mr:create': { url: MR_URL, number: 7, reviewDecision: '', ...ok }, ...glMerge('merge') }
 const V = 'toolkit:verifier'
 const I = 'toolkit:implementer'
-const AGENT_TYPES = { 'cleanup:run': I, 'cleanup:state': V, 'commit:paths': I, 'merge:mr': I, 'merge:paths': V,'mr:create': I, 'pipeline:fix:1': I, 'pipeline:watch:1': V, 'pipeline:watch:2': V, 'pipeline:watch:threads': V, 'prep:state': V, 'push:branch': I, 'release:tag': I, 'threads:fetch:1': V, 'threads:fetch:2': V, 'threads:fix:1': I, 'threads:settle': V, 'threads:settle:2': V, 'threads:wait': V }
-const PHASES = { 'cleanup:run': 'Cleanup', 'cleanup:state': 'Cleanup', 'commit:paths': 'Commit', 'merge:mr': 'Merge', 'merge:paths': 'Merge','mr:create': 'MR', 'pipeline:fix:1': 'Pipeline', 'pipeline:watch:1': 'Pipeline', 'pipeline:watch:2': 'Pipeline', 'pipeline:watch:threads': 'Threads', 'prep:state': 'Prep', 'push:branch': 'Push', 'release:tag': 'Release', 'threads:fetch:1': 'Threads', 'threads:fetch:2': 'Threads', 'threads:fix:1': 'Threads', 'threads:settle': 'Threads', 'threads:settle:2': 'Threads', 'threads:wait': 'Threads' }
+const AGENT_TYPES = { 'cleanup:run': I, 'cleanup:state': V, 'commit:paths': I, 'merge:mr': I, 'merge:paths': V,'mr:create': I, 'pipeline:fix:1': I, 'pipeline:watch:1': V, 'pipeline:watch:2': V, 'pipeline:watch:threads': V, 'prep:state': V, 'push:branch': I, 'release:tag': I, 'threads:fetch:1': V, 'threads:fetch:2': V, 'threads:fix:1': I, 'threads:settle': V, 'threads:settle:2': V, 'threads:verdict:1': V, 'threads:wait': V }
+const PHASES = { 'cleanup:run': 'Cleanup', 'cleanup:state': 'Cleanup', 'commit:paths': 'Commit', 'merge:mr': 'Merge', 'merge:paths': 'Merge','mr:create': 'MR', 'pipeline:fix:1': 'Pipeline', 'pipeline:watch:1': 'Pipeline', 'pipeline:watch:2': 'Pipeline', 'pipeline:watch:threads': 'Threads', 'prep:state': 'Prep', 'push:branch': 'Push', 'release:tag': 'Release', 'threads:fetch:1': 'Threads', 'threads:fetch:2': 'Threads', 'threads:fix:1': 'Threads', 'threads:settle': 'Threads', 'threads:settle:2': 'Threads', 'threads:verdict:1': 'Threads', 'threads:wait': 'Threads' }
 const RETURN_KEYS = ['stoppedAt', 'stopStage', 'commitSha', 'headSha', 'pushed', 'mr', 'pipeline', 'threads', 'fixShas', 'carried', 'merged', 'mergeReady', 'mergeRefusal', 'tag', 'cleanup', 'handoff', 'blocked', 'incomplete']
 const MERGE_CMD = (sha) => `gh pr merge 7 --merge --match-head-commit ${sha}`
 const GH_WATCH = `bash /plugin/scripts/watch-mr.sh github o/r 7 pipeline --sha ${C} --bound 9`
@@ -119,6 +131,11 @@ const settleOf = (outcome, login = '') => ({ outcome, login, ...ok })
 const ROUND2 = { ...BOT_THREAD, 'threads:fetch:2': threadsOf(BOT2), 'threads:fix:2': fixAt(G2) }
 // The bot thread stays open on every fetch, so each round fixes it again until the budget runs out.
 const STALE = { ...BOT_THREAD, 'threads:fetch:2': threadsOf(BOT), 'threads:fetch:3': threadsOf(BOT), 'threads:fetch:4': threadsOf(BOT), 'threads:fix:2': fixAt(G2), 'threads:fix:3': fixAt(G3) }
+// T1 reads as false with a citation of its own file, so automatic mode pushes back on it.
+const falseOn = (evidence) => ({ ...BOT_THREAD, 'threads:verdict:1': verdictsOf(verdictOf('T1', 'false', evidence)) })
+const PUSHED = { ...falseOn('src/a.js:4 already returns early on a null widget.'), 'threads:pushback:1': { missing: false, replied: true, resolved: true, ...ok } }
+const MANUAL = { ...ARGS, threadMode: 'manual' }
+const reasons = (r) => r.threads.pushedBackNeeded.map((t) => t.reason)
 const before = (order, first, second) => order.indexOf(first) + 1 === order.indexOf(second)
 
 // Runs the flow with per-label overrides. A null override is a dead stage.
@@ -202,7 +219,12 @@ const STAGES = [
     gl: { allowed: 'glab api --paginate "projects/g%2Fr/merge_requests/7/discussions"' } },
   { label: 'merge:paths', who: 'verifier', stage: 'merge', overrides: RED, before: [...WATCHED, 'pipeline:fix:1', 'pipeline:watch:2', 'threads:settle', 'threads:fetch:1'], own: [],
     allowed: `git -c core.quotePath=false diff --name-only ${C} ${D}`, gl: {} },
-  { label: 'threads:fix:1', who: 'implementer', stage: 'threads', overrides: BOT_THREAD, before: FETCHED, own: ['git add --', 'git commit -F -', 'git push origin feat/x', 'addPullRequestReviewThreadReply', 'resolveReviewThread'],
+  { label: 'threads:verdict:1', who: 'verifier', stage: 'threads', overrides: BOT_THREAD, before: FETCHED, own: [],
+    allowed: `git show ${C}:<file>, and git grep -n <pattern> ${C}`, gl: {} },
+  { label: 'threads:pushback:1', who: 'implementer', stage: 'threads', overrides: PUSHED, before: [...FETCHED, 'threads:verdict:1'], own: ['addPullRequestReviewThreadReply', 'resolveReviewThread'],
+    allowed: `git cat-file -e ${C}:src/a.js, ${GH_PUSHBACK}`,
+    gl: { allowed: `git cat-file -e ${C}:src/a.js, ${GL_PUSHBACK}`, own: ['--method POST', '--method PUT'] } },
+  { label: 'threads:fix:1', who: 'implementer', stage: 'threads', overrides: BOT_THREAD, before: [...FETCHED, 'threads:verdict:1'], own: ['git add --', 'git commit -F -', 'git push origin feat/x', 'addPullRequestReviewThreadReply', 'resolveReviewThread'],
     allowed: `edits inside src/a.js only, ${FIX_GIT}, ${GH_REPLY}`,
     gl: { allowed: `edits inside src/a.js only, ${FIX_GIT}, ${GL_REPLY}`, own: ['git add --', 'git commit -F -', 'git push origin feat/x', '--method POST', '--method PUT'] } },
   { label: 'merge:mr', who: 'implementer', stage: 'merge', overrides: {}, before: FETCHED, own: ['gh pr merge'],
@@ -258,6 +280,7 @@ const cases = [
   ['maxFixRounds -1 throws', () => throwsWith({ ...ARGS, maxFixRounds: -1 }, 'ship-runner maxFixRounds must be a non-negative integer, got -1')],
   ['botAuthors that is not an array throws', () => throwsWith({ ...ARGS, botAuthors: 'coderabbitai' }, 'ship-runner botAuthors must be an array of strings, got "coderabbitai"')],
   ['a botAuthors entry that is not a host login throws', () => throwsWith({ ...ARGS, botAuthors: ['coderabbitai', 'x; rm -rf /'] }, 'ship-runner botAuthors must be host logins, got "x; rm -rf /"')],
+  ['a threadMode other than manual or automatic throws', () => throwsWith({ ...ARGS, threadMode: 'sometimes' }, 'ship-runner threadMode must be one of manual, automatic, got "sometimes"')],
   ['a nits value other than fix or skip throws', () => throwsWith({ ...ARGS, nits: 'some' }, 'ship-runner nits must be one of fix, skip, got "some"')],
   ['botLogins that is not an array throws', () => throwsWith({ ...ARGS, botLogins: 'CodeRabbitAI' }, 'ship-runner botLogins must be an array of strings, got "CodeRabbitAI"')],
   ['a botLogins entry that is not a host login throws', () => throwsWith({ ...ARGS, botLogins: ['CodeRabbitAI', 'x y'] }, 'ship-runner botLogins must be host logins, got "x y"')],
@@ -271,6 +294,8 @@ const cases = [
   ['protectedPaths that is not an array throws', () => throwsWith({ ...ARGS, protectedPaths: 'plugins/' }, 'ship-runner protectedPaths must be an array of strings, got "plugins/"')],
   ['a models map wrapped in agents throws', () => throwsWith({ ...ARGS, models: { agents: { verifier: { model: 'opus', effort: 'xhigh' } } } }, 'ship-runner models must map agent names to {model, effort} objects')],
   ['a models map with a bare string entry throws', () => throwsWith({ ...ARGS, models: { verifier: 'opus' } }, 'ship-runner models must map agent names to {model, effort} objects')],
+  ['a missing models map throws the requires models sentence', () => throwsWith({ ...ARGS, models: undefined }, 'ship-runner requires models')],
+  ['an empty models map throws', () => throwsWith({ ...ARGS, models: {} }, 'ship-runner requires models')],
   ['a branch with shell syntax throws', () => throwsWith({ ...ARGS, branch: 'feat/x; echo x' }, 'ship-runner branch must be a ref name, got "feat/x; echo x"')],
   ['a defaultBranch with $( throws', () => throwsWith({ ...ARGS, defaultBranch: '$(id)' }, 'ship-runner defaultBranch must be a ref name, got "$(id)"')],
   ['a defaultBranch that starts with - throws', () => throwsWith({ ...ARGS, defaultBranch: '-main' }, 'ship-runner defaultBranch must be a ref name, got "-main"')],
@@ -1016,6 +1041,89 @@ const cases = [
     const p = prompts['threads:fix:1']
     return same({ data: p.includes(`summary: ${BOT.summary}\nfix: ${BOT.fix}\n`), summary: p.includes(INJECTED_SUMMARY), fix: p.includes(INJECTED_FIX) }, { data: true, summary: false, fix: false })
   }],
+  ['manual mode makes no threads:fix or threads:pushback call and returns a verdict per open bot thread', async () => {
+    const { result, prompts } = await run({ 'threads:fetch:1': threadsOf(BOT, BOT2, HUMAN) }, { ...MANUAL, ceiling: 'mr' })
+    return same({ posted: labels(prompts).filter((k) => /^threads:(fix|pushback):/.test(k)), verdicts: result.threads.verdicts.map((v) => [v.id, v.verdict]), mode: result.threads.mode, human: ids(result.threads.human) },
+      { posted: [], verdicts: [['T1', 'real'], ['T3', 'real']], mode: 'manual', human: ['T2'] })
+  }],
+  ['manual mode under ceiling merge with an open thread runs no merge and stops at mr', async () => {
+    const { result, prompts } = await run(BOT_THREAD, MANUAL)
+    return same({ merge: 'merge:mr' in prompts, stoppedAt: result.stoppedAt, blocked: result.blocked }, { merge: false, stoppedAt: 'mr', blocked: [] })
+  }],
+  ['manual mode with no open thread merges', async () => {
+    const { result } = await run({}, MANUAL)
+    return same({ stoppedAt: result.stoppedAt, merged: result.merged }, { stoppedAt: 'release', merged: { sha: M, kind: 'merge' } })
+  }],
+  ['manual mode under mergeCheck with an open thread reads no merge refusal', async () => {
+    const { result, prompts } = await run(BOT_THREAD, { ...MERGE_CHECK, threadMode: 'manual' })
+    return same({ ready: result.mergeReady, paths: 'merge:paths' in prompts }, { ready: null, paths: false })
+  }],
+  ['a missing threadMode runs manual mode', async () => {
+    const { result, prompts } = await run(BOT_THREAD, { ...ARGS, threadMode: undefined })
+    return same({ mode: result.threads.mode, fix: 'threads:fix:1' in prompts, merge: 'merge:mr' in prompts, stoppedAt: result.stoppedAt }, { mode: 'manual', fix: false, merge: false, stoppedAt: 'mr' })
+  }],
+  ['automatic mode posts a pushback on a false verdict that cites the thread file', async () => {
+    const { result, prompts } = await run(PUSHED)
+    return same({ back: ids(result.threads.pushedBack), cite: result.threads.pushedBack[0].cite, fix: 'threads:fix:1' in prompts, merged: result.merged },
+      { back: ['T1'], cite: { file: 'src/a.js', line: 4 }, fix: false, merged: { sha: M, kind: 'merge' } })
+  }],
+  ['a false verdict whose evidence is a clock time stays unsettled', async () => {
+    const { result, prompts } = await run(falseOn('fixed at 12:30'))
+    return same({ reasons: reasons(result), push: 'threads:pushback:1' in prompts }, { reasons: ['verdict unsettled: fixed at 12:30'], push: false })
+  }],
+  ['a false verdict whose evidence is a url with a port stays unsettled', async () => {
+    const { result, prompts } = await run(falseOn('see https://host:443/x'))
+    return same({ reasons: reasons(result), push: 'threads:pushback:1' in prompts }, { reasons: ['verdict unsettled: see https://host:443/x'], push: false })
+  }],
+  ['a false verdict that cites Makefile:3 on a src/a.js thread stays unsettled', async () => {
+    const { result } = await run(falseOn('Makefile:3 already guards the widget.'))
+    return same(result.threads.verdicts.map((v) => v.verdict), ['unsettled'])
+  }],
+  ['a false verdict that cites a root Makefile in the plan paths, which has no separator or extension, stays unsettled', async () => {
+    const { result, prompts } = await run({ ...prepWith({ porcelain: [...PREP.porcelain, ' M Makefile'] }), 'threads:fetch:1': threadsOf({ ...BOT, file: 'Makefile', line: 3 }), 'threads:verdict:1': verdictsOf(verdictOf('T1', 'false', 'Makefile:3 already guards the widget.')) }, { ...ARGS, paths: [...ARGS.paths, 'Makefile'] })
+    return same({ verdict: result.threads.verdicts[0].verdict, push: 'threads:pushback:1' in prompts }, { verdict: 'unsettled', push: false })
+  }],
+  ['a false verdict that cites line 0 of the thread file stays unsettled', async () => {
+    const { result, prompts } = await run(falseOn('src/a.js:0 already guards the widget.'))
+    return same({ verdict: result.threads.verdicts[0].verdict, push: 'threads:pushback:1' in prompts }, { verdict: 'unsettled', push: false })
+  }],
+  ['a false verdict whose only citation sits past its first line stays unsettled', async () => {
+    const { result, prompts } = await run(falseOn('The code already handles this.\nsrc/a.js:4 checks the null case.'))
+    return same({ verdict: result.threads.verdicts[0].verdict, push: 'threads:pushback:1' in prompts }, { verdict: 'unsettled', push: false })
+  }],
+  ['a thread the verifier returned no verdict for stays unsettled and says so', async () => {
+    const { result, prompts } = await run({ ...PUSHED, 'threads:fetch:1': threadsOf(BOT, BOT2) })
+    return same({ needed: result.threads.pushedBackNeeded.map((t) => [t.id, t.reason]), posted: labels(prompts).filter((k) => /^threads:(fix|pushback):/.test(k)) },
+      { needed: [['T3', 'verdict unsettled: the verifier returned no verdict for this thread id']], posted: ['threads:pushback:1'] })
+  }],
+  ['a pushback that replied but did not resolve blocks', async () => {
+    const { result } = await run({ ...PUSHED, 'threads:pushback:1': { missing: false, replied: true, resolved: false, ...ok } })
+    return same({ blocked: result.blocked, back: ids(result.threads.pushedBack) }, { blocked: ['The pushback threads:pushback:1 did not reply or resolve thread T1.'], back: [] })
+  }],
+  ['a round with a pushback and a fix posts the pushback before the fix commit', async () => {
+    const { prompts } = await run({ ...PUSHED, 'threads:fetch:1': threadsOf(BOT, BOT2), 'threads:verdict:1': verdictsOf(verdictOf('T1', 'false', 'src/a.js:4 already returns early on a null widget.'), verdictOf('T3', 'real')) })
+    return before(labels(prompts).filter((k) => /^threads:(fix|pushback):/.test(k)), 'threads:pushback:1', 'threads:fix:1')
+  }],
+  ['manual mode with only a human thread open reaches the merge and refuses it', async () => {
+    const { result } = await run({ 'threads:fetch:1': threadsOf(HUMAN) }, MANUAL)
+    return same(result.blocked, [`The merge was refused because 1 review threads are open, and the merge command is ${MERGE_CMD(C)}.`])
+  }],
+  ['a false verdict that cites a plan path by a path with a separator keeps its cite', async () => {
+    const { result } = await run({ ...PUSHED, 'threads:verdict:1': verdictsOf(verdictOf('T1', 'false', 'src/b.js:2 guards the widget first.')) })
+    return same({ cite: result.threads.pushedBack[0].cite, back: ids(result.threads.pushedBack) }, { cite: { file: 'src/b.js', line: 2 }, back: ['T1'] })
+  }],
+  ['a false verdict that cites a path outside the plan paths and the thread file stays unsettled', async () => {
+    const { result } = await run(falseOn('lib/c.js:5 guards the widget first.'))
+    return same({ verdict: result.threads.verdicts[0].verdict, back: ids(result.threads.pushedBackNeeded) }, { verdict: 'unsettled', back: ['T1'] })
+  }],
+  ['the pushback prompt checks the cited file at the head with git cat-file -e', async () => {
+    const { prompts } = await run(PUSHED)
+    return prompts['threads:pushback:1'].includes(`run git cat-file -e ${C}:src/a.js first`)
+  }],
+  ['a pushback that finds the cited file missing leaves the thread in pushedBackNeeded and out of pushedBack', async () => {
+    const { result } = await run({ ...PUSHED, 'threads:pushback:1': { missing: true, replied: false, resolved: false, ...ok } })
+    return same({ back: ids(result.threads.pushedBack), needed: ids(result.threads.pushedBackNeeded) }, { back: [], needed: ['T1'] })
+  }],
   ['a thread fix that changes a second file blocks', async () => {
     const { result } = await run({ ...BOT_THREAD, 'threads:fix:1': threadFixOf(['src/a.js', 'src/c.js']) })
     return same(result.blocked, ['The implementer threads:fix:1 changed src/a.js, src/c.js, not only src/a.js.'])
@@ -1140,10 +1248,6 @@ const cases = [
     const roles = Object.fromEntries(['prep:state', 'commit:paths'].map((k) => [k, { model: agents[k].model, effort: agents[k].effort }]))
     return same(roles, { 'prep:state': models.verifier, 'commit:paths': models.implementer })
   }],
-  ['a missing models map passes neither key to any call', async () => {
-    const { agents } = await run()
-    return Object.values(agents).every((x) => x.model === undefined && x.effort === undefined)
-  }],
   ['with mainRoot the run reaches cleanup:state then cleanup:run after the merge', async () => {
     const { prompts } = await run(WT_RAN, CLEANUP_ARGS)
     return same(labels(prompts).slice(-3), ['merge:mr', 'cleanup:state', 'cleanup:run'])
@@ -1153,6 +1257,12 @@ const cases = [
     const p = prompts['cleanup:state']
     return same({ reads: p.includes(`${SEAT}, and ${SEAT} --worktree '${WT}'`), own: p.includes('Run the worktree check, the seat-check.sh command with --worktree, as its own call after the seat check.') }, { reads: true, own: true })
   }],
+  ['a leadSessionId adds a second --self to the cleanup seat check', async () => {
+    const lead = '4567cdef-0000-4000-8000-000000000000'
+    const { prompts } = await run(MAIN_RAN, { ...CLEANUP_ARGS, worktree: undefined, leadSessionId: lead })
+    return prompts['cleanup:state'].includes(`${SEAT} --self ${lead}`)
+  }],
+  ['a leadSessionId with no mainRoot throws', () => throwsWith({ ...ARGS, leadSessionId: '4567cdef-0000-4000-8000-000000000000' }, 'ship-runner leadSessionId must be a session id passed with mainRoot')],
   ['with no mainRoot the run makes no cleanup call and cleanup is null', async () => {
     const { result, prompts } = await run({}, { ...ARGS, tag: false })
     return same({ calls: labels(prompts).filter((k) => k.startsWith('cleanup:')), cleanup: result.cleanup }, { calls: [], cleanup: null })

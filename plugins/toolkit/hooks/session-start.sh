@@ -243,7 +243,7 @@ fi
 if { [ "$SOURCE" = resume ] || [ "$SOURCE" = compact ]; } && [ -z "${SCRATCHPAD_LIB_MISSING:-}" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
   WF=$(session_workers_file "$SESSION_ID")
   if [ -s "$WF" ]; then
-    REARM="Re-arm the worker watch unless one runs: start bash $(printf '%q' "${CLAUDE_PLUGIN_ROOT}/scripts/worker-watch.sh") wait --scratchpad $(printf '%q' "$(dirname "$WF")") with run_in_background."
+    REARM="Re-arm the worker watch unless one runs: start bash $(printf '%q' "${CLAUDE_PLUGIN_ROOT}/scripts/worker-watch.sh") wait --scratchpad $(printf '%q' "$(dirname "$WF")") --self $(printf '%q' "$SESSION_ID") with run_in_background."
     if WL=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/worker-watch.sh" list --scratchpad "$(dirname "$WF")" 2>/dev/null); then
       # Re-sent every request: three workers, names cut to 32 chars.
       WN=$(printf '%s' "$WL" | sed -n 's/^worker: //p' | head -3 | awk -F'\t' '{printf "%s%s (%s, %s)", (NR>1?", ":""), substr($1, 1, 32), $2, $6}')

@@ -24,14 +24,14 @@ inside() {  # $1 session cwd, $2 resolved dir. True when cwd is that dir or unde
 repo=""; self=""; wt=""; occupants=""; want_live=""; live=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --self) [ $# -ge 2 ] || die "--self needs a session id"; self=$2; shift 2 ;;
+    --self) [ $# -ge 2 ] || die "--self needs a session id"; self+=" $2 "; shift 2 ;;
     --worktree) [ $# -ge 2 ] || die "--worktree needs a path"; wt=$2; shift 2 ;;
     --live) want_live=1; shift ;;
     -*) die "unknown option: $1" ;;
     *) [ -z "$repo" ] || die "one repo path only"; repo=$1; shift ;;
   esac
 done
-[ -n "$repo" ] || die "usage: seat-check.sh <repo path> [--self <sessionId>] [--worktree <path>] [--live]"
+[ -n "$repo" ] || die "usage: seat-check.sh <repo path> [--self <sessionId>]... [--worktree <path>] [--live]"
 command -v jq >/dev/null 2>&1 || die "jq not found"
 main=$(main_of "$repo") || die "not a git repo: $repo"
 wt_dir=""; [ -z "$wt" ] || wt_dir=$(cd "$wt" 2>/dev/null && pwd -P) || die "not a directory: $wt"
@@ -47,7 +47,7 @@ while IFS=$'\x1f' read -r pid sid cwd name status kind; do
   case "$pid" in ''|*[!0-9]*) continue ;; esac
   kill -0 "$pid" 2>/dev/null || continue
   [ -n "$want_live" ] && live+="live: $name"$'\t'"$status"$'\t'"$kind"$'\t'"$sid"$'\t'"$cwd"$'\n'
-  [ -n "$self" ] && [ "$sid" = "$self" ] && continue
+  [ -n "$sid" ] && [[ $self == *" $sid "* ]] && continue
   [ -n "$wt_dir" ] && inside "$cwd" "$wt_dir" && occupants+="occupant: $name"$'\t'"$status"$'\t'"$kind"$'\t'"$sid"$'\t'"$cwd"$'\n'
   holds "$cwd" "$main" || continue
   holders+="holder: $name"$'\t'"$status"$'\t'"$kind"$'\t'"$sid"$'\t'"$cwd"$'\n'

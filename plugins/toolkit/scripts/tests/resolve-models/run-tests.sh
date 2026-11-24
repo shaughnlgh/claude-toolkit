@@ -12,6 +12,8 @@ no() { printf '  FAIL  %s\n' "$1"; FAIL=$((FAIL+1)); }
 
 T="$(mktemp -d -t resolve-models.XXXXXX)"
 trap 'rm -rf "$T"' EXIT
+# A resolver copied to $T/<case>/ sources its lib from $T/hooks/lib.
+mkdir -p "$T/hooks/lib"; cp "$HERE/../../../hooks/lib/model-policy.sh" "$T/hooks/lib/"
 export TOOLKIT_MODELS_FILE="$T/user.json"
 user() { printf '%s' "$1" > "$TOOLKIT_MODELS_FILE"; }
 nouser() { rm -f "$TOOLKIT_MODELS_FILE"; }
@@ -26,7 +28,10 @@ nouser; run
 [ "$(field verifier model)/$(field verifier effort)" = "opus/xhigh" ] && ok "missing user file: verifier opus xhigh" || no "verifier default: $OUT"
 
 nouser; run
-[ "$(field planner model)/$(field planner effort)" = "/" ] && ok "missing user file: planner blank blank" || no "planner default: $OUT"
+[ "$(field planner model)/$(field planner effort)" = "opus/high" ] && ok "missing user file: planner opus high" || no "planner default: $OUT"
+
+nouser; run
+[ "$(printf '%s' "$OUT" | jq -r '[.agents[].model | select(. != "opus" and . != "sonnet")] | length')" = "0" ] && ok "missing user file: every agent model is opus or sonnet" || no "non-opus or sonnet default: $OUT"
 
 nouser; run
 [ "$(printf '%s' "$OUT" | jq -r '.agents | keys_unsorted | join(",")')" = "$(jq -r '.agents | keys_unsorted | join(",")' "$TEMPLATE")" ] \
@@ -49,6 +54,13 @@ user '{"agents":{"no-such-agent":{"model":"opus","effort":"high"}}}'; run
 
 user '{"agents":{"implmenter":{"model":"sonnet"}}}'; run --agent implementer
 { [ "$(field implementer model)" = "opus" ] && printf '%s' "$ERR" | grep -q '^toolkit resolve-models: unknown agent implmenter in the user file layer; ignored$'; } && ok "an unknown user agent name warns, also under --agent" || no "unknown agent name: $OUT / $ERR"
+
+nouser; run; BASE_AGENTS="$(printf '%s' "$OUT" | jq -c .agents)"
+user '{"agents":{"general-purpose":{"model":"inherit"},"Plan":"inherit","Explore":"sonnet","claude":"opus"}}'; run
+{ [ -z "$ERR" ] && [ "$(printf '%s' "$OUT" | jq -c .agents)" = "$BASE_AGENTS" ]; } && ok "user entries for the four built-in types warn nothing and leave the agents map unchanged" || no "built-in entries: $OUT / $ERR"
+
+user '{"agents":{"implementer":"Sonnet"}}'; run --alias
+{ [ "$(field implementer model)" = "sonnet" ] && printf '%s' "$ERR" | grep -q 'model Sonnet is not an Agent-tool alias, sent as sonnet'; } && ok "--alias maps a capitalized family name to its alias" || no "capitalized alias: $OUT / $ERR"
 
 user '{"agents":{"explorer":"haiku"}}'; run
 { [ "$(field explorer model)" = "sonnet" ] && printf '%s' "$ERR" | grep -q 'haiku is refused'; } && ok "haiku in the user file falls to the template and warns" || no "user haiku: $OUT / $ERR"

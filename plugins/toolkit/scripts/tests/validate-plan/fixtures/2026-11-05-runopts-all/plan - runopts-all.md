@@ -22,6 +22,7 @@ nits: fix
 tests: required
 e2e: skip
 tag_merge: true
+thread_mode: automatic
 modules:
 repos:
 sessions:

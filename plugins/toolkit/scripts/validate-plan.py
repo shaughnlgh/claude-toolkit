@@ -64,6 +64,7 @@ RUN_OPTION_VALUES = {
     "tests": {"required", "manual"},
     "e2e": {"required", "skip"},
     "tag_merge": {"true", "false"},
+    "thread_mode": {"manual", "automatic"},
 }
 MODEL_KEYS = ("worker_model", "verifier_model")
 # Mirrors the model value regex in scripts/resolve-models.sh.

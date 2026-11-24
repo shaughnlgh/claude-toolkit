@@ -20,7 +20,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved.
 | `seat-check.sh` | Reports which live Claude sessions hold a repo's main checkout, with its branch and dirty count | Read-only; never writes a file; reads sessions through `claude agents --json`; needs only `jq` and `git` |
 | `seat-queue.sh` | Keeps the queue of sessions that wait for a repo's main checkout, and waits for a session's turn | Writes only `toolkit-seat-queue/` in the git common dir: one file per joined session, empty while the session waits and holding `seated` once its turn came, one `.miss-<sessionId>` marker per session that one read missed, the `.grant` lock directory while a grant step or a leave runs, and `.grant.break` while a contender removes a stale lock; removes only its own entry and the entries of sessions that two reads missed; reads liveness and the seat through `seat-check.sh`; needs `git`, `stat`, and the `jq` that `seat-check.sh` needs |
 | `worker-spawn.sh` | Fills a worker type's template from `templates/`, starts the worker session with `claude --bg`, and records it in the lead's scratchpad | Requires `--model` and `--effort` with no default; refuses an unfilled placeholder, a lead name with a double quote, a backslash or a control character, and a note with no ceiling; starts the worker only in the mode the `worker-spawn-mode.sh` hook recorded; writes only one line to `<scratchpad>/workers`; needs `jq` |
-| `worker-watch.sh` | The lead's bounded watch over its worker sessions, which exits with one line per event, plus `list` and `name` | Reads the session list and the lead's scratchpad; writes only `worker-watch.state` and the `worker-watch.lock` directory in that scratchpad; never stops or messages a session; needs `jq` |
+| `worker-watch.sh` | The lead's watch over its worker sessions, which exits with one line per event, plus `list` and `name` | Reads the session list, the lead's scratchpad and the tail of each watched session's transcript; writes only `worker-watch.state`, `worker-watch-self` and the `worker-watch.lock` directory in that scratchpad; never stops or messages a session; needs `jq` |
 | `watch-mr.sh` | Waits on one GitLab MR or GitHub PR until its pipeline settles, a bot review lands, or a bot review in progress ends, then prints one status line | Reads only, through `gh` and `glab`, which hold their own auth; never reads or prints a token; validates every argument; exits on a wall-clock bound |
 | `override.sh` | Copy a plugin doctrine, rule, agent, or skill into `~/.claude/` to override it (drives `/toolkit:override`) | Name only (no paths); refuses unknown/ambiguous names; won't clobber an existing override |
 | `merge-conflict-overview.py` | Overview + side-by-side of git conflict markers | Read-only — never edits, stages, or commits |
@@ -31,7 +31,7 @@ Each entry below assumes `$PLUGIN_ROOT` is already resolved.
 | `topic-recall.py` | Lexical topic search over the vault index, with a frontmatter fallback and an optional repo `docs/` source | Read-only against the vault and the repo, stdlib only, skips symlinks and non-regular files, INDEX.md included, reads at most 64 KiB of each scanned note or doc, stops at a 3-second deadline |
 | `vault-index.py` | Writes the topic index `INDEX.md` at the vault root from the `type: topic` notes, run through `vault-fs.sh topic-index` | Stdlib only, reuses the scan and row parser of `topic-recall.py`, writes only `INDEX.md` through a temporary file and a rename, refuses an `INDEX.md` that is not a regular file, and leaves an `INDEX.md` without its marker line untouched |
 | `toolkit-vault.json.template` | Vault config template `setup` instantiates to `~/.claude/toolkit-vault.json` | n/a — config, not an executable |
-| `resolve-models.sh` | Resolves each shipped agent's model and effort from the template, the user file, and the plan note's run options, and prints one JSON map, or one line per agent with `--list` | Read-only; never writes a file; refuses Haiku and invalid values with a stderr warning; needs only `jq` |
+| `resolve-models.sh` | Resolves each shipped agent's model and effort from the template, the user file, and the plan note's run options, and prints one JSON map, or one line per agent with `--list` | Read-only; never writes a file; refuses Haiku and invalid values with a stderr warning; needs `jq` 1.6 or later, and a flow launch stops when it fails |
 | `toolkit-models.json.template` | Default layer of per-agent model and effort routing for Agent-tool spawns and Workflow `agent()` calls | n/a, config, not an executable |
 | `design-detector/` | Deterministic, no-LLM detector for AI-generated frontend anti-patterns (most of 46 rules) | Vendored from Impeccable (Apache-2.0, attributed); read-only; zero-dep by default |
 
@@ -90,12 +90,12 @@ Reports which live Claude sessions hold a repo's seat, the main checkout. The se
 Invoke:
 
 ```bash
-bash "$PLUGIN_ROOT/scripts/seat-check.sh" <repo path> [--self <sessionId>] [--worktree <path>] [--live]
+bash "$PLUGIN_ROOT/scripts/seat-check.sh" <repo path> [--self <sessionId>]... [--worktree <path>] [--live]
 ```
 
 The repo path can be the main checkout, a directory under it, or a linked worktree of it. The script resolves the main checkout through the git common dir and resolves every path with `pwd -P`, so a symlinked path matches its target.
 
-The holder rule: a session from `claude agents --json` holds the seat when it has a non-null `pid` that `kill -0` accepts, a `sessionId` other than the `--self` value, and a `cwd` that is the main checkout or a directory under it but not under `<main>/.claude/worktrees/`. A session in a linked worktree holds no seat. The script prints `status` and `kind` and never tests them.
+The holder rule: a session from `claude agents --json` holds the seat when it has a non-null `pid` that `kill -0` accepts, a `sessionId` other than each `--self` value, which can repeat, and a `cwd` that is the main checkout or a directory under it but not under `<main>/.claude/worktrees/`. A session in a linked worktree holds no seat. The script prints `status` and `kind` and never tests them.
 
 `--worktree <path>` lists the live sessions that work in that worktree. A session is an occupant when it passes the same `pid` and `--self` tests and its `cwd` is that path or a directory under it. A session whose `cwd` is the main checkout is a holder and not an occupant. A path that is not a directory is an error. The execute flow reads it before section 1 re-enters or adopts a worktree, before section 2a enters one that `test -d` found, before the seat run detaches the plan's worktree, and before the release returns to the worktree it left. The ship flow's cleanup reads it before it removes the worktree.
 
@@ -119,7 +119,7 @@ A caller inside a worktree session must invoke the script by a path and argument
 
 `scripts/lib/agents-list.sh` is the one reader of `claude agents --json`. `seat-check.sh`, `worker-spawn.sh` and `worker-watch.sh` source it, so the 3 second cap and the `TOOLKIT_AGENTS_FILE` seam live in one place.
 
-Tests: `bash plugins/toolkit/scripts/tests/seat-check/run-tests.sh` (20 behavior cases in a temporary repo with one linked worktree and no ignore entry for it; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/seat-check/run-tests.sh` (21 behavior cases in a temporary repo with one linked worktree and no ignore entry for it; also run by `verify.sh`).
 
 ## seat-queue.sh
 
@@ -177,7 +177,7 @@ Starts one worker session for a lead. The lead runs it after the user's typed ye
 Invoke:
 
 ```bash
-bash "$PLUGIN_ROOT/scripts/worker-spawn.sh" --scratchpad <dir> --type <investigate|plan|execute|ship> --key <key> --plan <planName|-> --note <plan note|-> --lead-name <name> --model <model> --effort <level> --task-file <path> [--worktree <name>] [--cwd <dir>]
+bash "$PLUGIN_ROOT/scripts/worker-spawn.sh" --scratchpad <dir> --type <investigate|plan|execute|ship|chain> --key <key> --plan <planName|-> --note <plan note|-> --lead-name <name> --model <model> --effort <level> --task-file <path> [--worktree <name>] [--cwd <dir>]
 ```
 
 - `--scratchpad` is the lead's own scratchpad, a directory named `scratchpad` whose parent is the lead's session id. The script takes the lead's session id from that parent.
@@ -186,9 +186,9 @@ bash "$PLUGIN_ROOT/scripts/worker-spawn.sh" --scratchpad <dir> --type <investiga
 - `--lead-name` is 1 to 80 characters with no double quote, backslash, control character or `{{`. `--task-file` is a non-empty file of at most 4000 bytes with no `{{`, which the lead writes with the Write tool before each spawn.
 - `--worktree <name>` passes `-w <name>` to `claude --bg`, and only then. Claude Code creates `.claude/worktrees/<name>` on `worktree-<name>`, or opens that worktree when it exists, so a rerun lands in the plan's worktree. `--cwd` is the directory the worker session starts in, by default the current one.
 
-Templates. The first prompt is `templates/worker-<type>.md` from the plugin root, one file per type: `worker-investigate.md`, `worker-plan.md`, `worker-execute.md` and `worker-ship.md`. The script fills `{{worker_name}}`, `{{lead_name}}`, `{{lead_session_id}}`, `{{key}}`, `{{plan_name}}`, `{{plan_note}}`, `{{ceiling}}`, `{{run_options}}`, `{{plugin_root}}` and `{{task}}`, and exits 2 on any `{{...}}` placeholder left after the fill, because no filled value may hold `{{`.
+Templates. The first prompt is `templates/worker-<type>.md` from the plugin root, one file per type: `worker-investigate.md`, `worker-plan.md`, `worker-execute.md`, `worker-ship.md` and `worker-chain.md`. The script fills `{{worker_name}}`, `{{lead_name}}`, `{{lead_session_id}}`, `{{key}}`, `{{plan_name}}`, `{{plan_note}}`, `{{ceiling}}`, `{{run_options}}`, `{{plugin_root}}` and `{{task}}`, and exits 2 on any `{{...}}` placeholder left after the fill, because no filled value may hold `{{`.
 
-Run options. The script reads the plan note's frontmatter, strips and unquotes each value as `validate-plan.py` does, puts every one of the ten run option keys that holds a value into `{{run_options}}`, and takes `ceiling` for `{{ceiling}}`. A plan or investigate worker session with no ceiling gets `none`. An execute or ship worker session whose note records no ceiling of `none`, `mr` or `merge` exits 2, because the ceiling is the user's permission given in advance.
+Run options. The script reads the plan note's frontmatter, strips and unquotes each value as `validate-plan.py` does, puts every one of the eleven run option keys that holds a value into `{{run_options}}`, and takes `ceiling` for `{{ceiling}}`. A plan or investigate worker session with no ceiling gets `none`. An execute, ship or chain worker session whose note records no ceiling of `none`, `mr` or `merge` exits 2, because the ceiling is the user's permission given in advance.
 
 Mode. The script reads `<scratchpad>/worker-spawn-mode`, which the `worker-spawn-mode.sh` hook writes when the spawn command runs, and passes its mode as `--permission-mode`, with `default` passed as `manual`. A missing record, a record older than the task file, or an unknown mode stops the spawn with `NOMODE`, because the lead writes the task file before each spawn call, so an older record came from an earlier spawn.
 
@@ -204,30 +204,32 @@ Status lines and exit codes:
 | `NOBG` | 12 | `claude --help` lists no `--bg`, so this Claude Code cannot start a worker session |
 | `NOMODE` | 13 | no mode record newer than the task file, or an unknown mode |
 | `UNRECORDED <name>` | 14 | the worker session started, but no 8-hex id was printed or the `workers` write failed, so the watch does not cover it, with one `error:` line on stderr |
-| none | 2 | error: a bad or missing argument, a missing `--model` or `--effort`, a note with no ceiling, `--plan -` for an execute or ship worker session, an unfilled placeholder, or a missing `jq`, `scripts/lib/agents-list.sh` or `hooks/lib/session-scratchpad.sh`, with one `error:` line on stderr |
+| none | 2 | error: a bad or missing argument, a missing `--model` or `--effort`, a note with no ceiling, `--plan -` for an execute, ship or chain worker session, an unfilled placeholder, or a missing `jq`, `scripts/lib/agents-list.sh` or `hooks/lib/session-scratchpad.sh`, with one `error:` line on stderr |
 | none | 3 | failure: a missing template, three failed agents reads, no free name after `-9`, or a non-zero `claude --bg` exit with its first line, with one `error:` line on stderr |
 
-Tests: `bash plugins/toolkit/scripts/tests/worker-spawn/run-tests.sh` (50 behavior cases against a stub `claude` first on the `PATH` that answers `--help`, the agents read and the spawn and records each spawn's argv, working directory and prompt; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/worker-spawn/run-tests.sh` (55 behavior cases against a stub `claude` first on the `PATH` that answers `--help`, the agents read and the spawn and records each spawn's argv, working directory and prompt; also run by `verify.sh`).
 
 ## worker-watch.sh
 
-The lead's bounded watch over the worker sessions that its `<scratchpad>/workers` file records. The lead starts `wait` in the background, tells the user one line per event when it exits, and starts it again.
+The lead's watch over the worker sessions that its `<scratchpad>/workers` file records. The lead starts `wait` in the background, tells the user one line per event when it exits, and starts it again.
 
 Invoke:
 
 ```bash
-bash "$PLUGIN_ROOT/scripts/worker-watch.sh" wait --scratchpad <dir> [--bound <n>] [--interval <seconds>] [--push-after <seconds>] [--start-grace <seconds>] [--hold <id>]...
+bash "$PLUGIN_ROOT/scripts/worker-watch.sh" wait --scratchpad <dir> [--self <sessionId>] [--bound <n>] [--interval <seconds>] [--push-after <seconds>] [--start-grace <seconds>] [--hold <id>]...
 bash "$PLUGIN_ROOT/scripts/worker-watch.sh" list --scratchpad <dir>
 bash "$PLUGIN_ROOT/scripts/worker-watch.sh" name <sessionId>
 ```
 
-`--bound` takes minutes, or seconds with a trailing `s`, default 60. `--interval` takes seconds between rounds, default 15, floor 1. `--push-after` defaults to 120 seconds and `--start-grace` to 300 seconds. `--hold <id>` can repeat.
+`--bound` takes minutes, or seconds with a trailing `s`, and has no default, so a watch without it runs until an event. `--self` takes the lead's own full session id and defaults to the session id that names the scratchpad's parent directory. `--interval` takes seconds between rounds, default 15, floor 1. `--push-after` defaults to 120 seconds and `--start-grace` to 300 seconds. `--hold <id>` can repeat.
 
 Each round reads the `workers` file and `claude agents --json --all` through `scripts/lib/agents-list.sh`, and reads each owned worker session's row. A row that waits on a permission prompt or a sandbox request reads as needing permission, and a row with any other `waitingFor`, a `waiting` status or a `blocked` state reads as needing input. A row that is missing, `failed` or `stopped` reads as gone, and a gone worker session is read again each round, so one read that misses a live row or a restarted worker session never ends its watch, a `working` row that is not idle reads as busy, and any other row reads as idle with its state. A row with no pid is read by its `state`, because Claude Code's supervisor ends the process of a worker session left unattached for about an hour and keeps its row.
 
 Pending and settled. A worker session the watch has not yet seen busy or waiting stays pending with no event while it reads idle or is not listed, because a new worker session reads idle before it starts work. Once `--start-grace` seconds have passed since its spawn, the watch reports it with `NOSTART`. A worker session that sits idle in the same state as its last event, or is gone, is settled. When every owned worker session is settled or gone, `wait` exits `NONE`. `--hold <id>` keeps that worker session watched while it still reads as it did at the watch start, so a worker session that the lead just sent a continue message does not read settled before it turns busy.
 
-The state file `<scratchpad>/worker-watch.state` keeps each worker session's last reading, the time it began, and whether a push went out, so a re-armed watch never repeats an event. The `worker-watch.lock` directory in the scratchpad lets one watcher run at a time, and a lock untouched for three intervals counts as stale and is removed. The watch also reads the `workers` file of every live session, found through `hooks/lib/session-scratchpad.sh`, so a background session that another lead owns never reads as unowned.
+Usage limits. Each round reads the last 64 KB of each owned worker session's transcript, found as `<projects>/*/<sessionId>.jsonl` so a worker session that moved into a worktree is still found, where `<projects>` is `TOOLKIT_PROJECTS_DIR` or `~/.claude/projects`. When the newest assistant line is a `usage_limit_reached` error, the watch holds that worker session with no event until its `resetsAt` plus a 60 second margin for clock skew has passed, then reports `LIMIT` once for that line. A line with no `resetsAt` counts as reset at once. The watch reads the lead's own transcript, by the `--self` session id, the same way, and while the lead's limit holds it skips the session list and the worker transcripts and reports and stores nothing, so every held event fires on the first round after the hold. `<scratchpad>/worker-watch-self` keeps the key of the lead's last announced limit line.
+
+The state file `<scratchpad>/worker-watch.state` keeps each worker session's last reading, the time it began, whether a push went out, and the key of the last limit line it announced, five tab fields per line, so a re-armed watch never repeats an event. A line of four fields from an older watch still loads. The `worker-watch.lock` directory in the scratchpad lets one watcher run at a time, and a lock untouched for three intervals counts as stale and is removed. The watch also reads the `workers` file of every live session, found through `hooks/lib/session-scratchpad.sh`, so a background session that another lead owns never reads as unowned.
 
 Events, one line each, in this order within one exit:
 
@@ -237,6 +239,7 @@ Events, one line each, in this order within one exit:
 - `NOSTART <name> <id>` when a pending worker session passes `--start-grace`
 - `GONE <name> <id>` when a worker session disappears or stops mid-task. A worker session that was idle before it went gives no `GONE`.
 - `UNOWNED <count>: <name> (<id>), ...` when the set of live background sessions that no live session's `workers` file records, other than the lead, changes and is not empty
+- `LIMIT <name> <id> <resetsAt> <sessionId>` once per limit line of a worker session, after its reset and the lead's have passed, with the full session id to resume, and `LIMIT self - <resetsAt> <sessionId>` once per limit line of the lead, first among the `LIMIT` lines of its round
 
 A round whose agents read fails is skipped. After `MAX_BAD_ROUNDS`, three failed reads in a row, `wait` exits 3 and leaves the state file unchanged, so one stalled call does not end the watch.
 
@@ -247,17 +250,17 @@ Status lines and exit codes:
 | Line | Exit | Meaning |
 |---|---|---|
 | one event line per event | 0 | `wait`: one or more events; `list` and `name`: success |
-| `BOUND` | 10 | `wait`: the bound ran out with no event |
+| `BOUND` | 10 | `wait`: the `--bound` the caller passed ran out with no event |
 | `NONE` | 11 | `wait`: every owned worker session is settled or gone; `name`: no live session has that session id |
 | `RUNNING` | 12 | `wait`: another watcher holds the lock |
-| none | 2 | error: a bad subcommand, option, duration, `--hold` id or session id, or a scratchpad whose parent is not a session id, with one `error:` line on stderr |
+| none | 2 | error: a bad subcommand, option, duration, `--hold` id, `--self` id or session id, or a scratchpad whose parent is not a session id, with one `error:` line on stderr |
 | none | 3 | failure: a missing `jq` or library, three failed agents reads in a row, one failed read in `list` or `name`, or a failed state write, with one `error:` line on stderr |
 
-Tests: `bash plugins/toolkit/scripts/tests/worker-watch/run-tests.sh` (47 behavior cases against per-case agents JSON through `TOOLKIT_AGENTS_FILE`, and a stub `claude` for the read failure cases; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/worker-watch/run-tests.sh` (behavior cases against per-case agents JSON through `TOOLKIT_AGENTS_FILE`, fixture transcripts through `TOOLKIT_PROJECTS_DIR`, and a stub `claude` for the read failure cases; also run by `verify.sh`, which holds a floor on the pass count).
 
 ## resolve-models.sh
 
-Resolves the model and effort of every shipped agent, so the `agent-model.sh` hook and the workflow launchers apply one map.
+Resolves the model and effort of every shipped agent, so the `agent-model.sh` hook and the workflow launchers apply one map. Every workflow runner requires its `models` arg and throws `<script> requires models: ...` without it, so a skill that launches a runner stops and reports the resolver's stderr when the resolver is missing or exits non-zero, and launches nothing.
 
 Invoke:
 
@@ -273,7 +276,7 @@ The script reads three layers in order:
 
 `--options <file>` names the plan-guide run options cache. The script reads its `worker_model`, `verifier_model` and `verifier_effort` lines and ignores its `plan:` line, and a flag wins over a line. With no flag and no options file, the script resolves the template and the user file only.
 
-The per-field rule: the script picks `model` and `effort` separately for each agent, and a later layer wins over an earlier one. A blank value never overrides. `inherit` overrides the layers below and prints blank. A blank field is not passed on, so a Workflow `agent()` call inherits the session value, and an Agent-tool spawn with no model uses the agent definition's model, then a configured default subagent model, then the parent session's model. A user value can be a `{model, effort}` object or a bare string, which sets the model only. A model that contains `haiku`, a model that fails the model ID pattern, an effort outside `low`, `medium`, `high`, `xhigh`, `max`, a field that is not a string, and a value that is neither a string nor an object are each ignored with a warning, so the field keeps what the earlier layers set, and the field is blank when the template holds that value. A user key that is not a template agent is dropped with a warning. A key other than `model` and `effort` inside a user object is ignored with a warning.
+The per-field rule: the script picks `model` and `effort` separately for each agent, and a later layer wins over an earlier one. A blank value never overrides. `inherit` overrides the layers below and prints blank. A blank field is not passed on, so a Workflow `agent()` call inherits the session value, and an Agent-tool spawn with no model uses the agent definition's model, then a configured default subagent model, then the parent session's model. A user value can be a `{model, effort}` object or a bare string, which sets the model only. A model that contains `haiku`, a model that fails the model ID pattern, an effort outside `low`, `medium`, `high`, `xhigh`, `max`, a field that is not a string, and a value that is neither a string nor an object are each ignored with a warning, so the field keeps what the earlier layers set, and the field is blank when the template holds that value. A user key that is not a template agent is dropped with a warning, except the built-in types `general-purpose`, `Plan`, `Explore` and `claude`, which `agent-model.sh` reads from the user file and the resolver drops with no warning. A key other than `model` and `effort` inside a user object is ignored with a warning.
 
 Output: one line on stdout, `{"agents":{"<name>":{"model":"...","effort":"..."},...}}`, with one entry per template agent in template order.
 
@@ -281,9 +284,9 @@ Output: one line on stdout, `{"agents":{"<name>":{"model":"...","effort":"..."},
 
 Warnings go to stderr, one `toolkit resolve-models:` line each. A warning about a value names its agent in square brackets, and `--agent <name>` prints only that agent's value warnings. A warning about a whole file or about a user agent name that matches no template agent names no agent and always prints. `--agent` filters warnings only: stdout still lists every agent. The script warns on a refused or invalid value, an unknown key inside a user object, a user agent name that matches no template agent, a malformed user file, a user file with no `agents` object, and a missing options file, and still exits 0 with the layers it could read.
 
-Exit codes: 0 resolved, 2 error. An error prints one `error:` line to stderr. The script errors on an unknown option, a missing `jq`, and a missing or invalid template or one with no `agents` object.
+Exit codes: 0 resolved, 2 error. An error prints one `error:` line to stderr. The script errors on an unknown option, a missing `jq`, a missing `hooks/lib/model-policy.sh`, and a missing or invalid template or one with no `agents` object.
 
-Tests: `bash plugins/toolkit/scripts/tests/resolve-models/run-tests.sh` (34 behavior cases with per-case user files and crafted templates in a temporary directory; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/resolve-models/run-tests.sh` (37 behavior cases with per-case user files and crafted templates in a temporary directory; also run by `verify.sh`).
 
 ## watch-mr.sh
 
@@ -369,7 +372,7 @@ Exit codes: `0` valid, `1` contract violation(s) (each printed as `VIOLATION: ..
 
 When it runs: the `plan-guide` skill requires a passing validation after every plan-note write, before presenting a plan for approval, before starting execution, and at session closure.
 
-Tests: `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` (52 behavior cases over 50 fixtures plus a direct nonexistent-path case; also run by `verify.sh`).
+Tests: `bash plugins/toolkit/scripts/tests/validate-plan/run-tests.sh` (56 behavior cases over 53 fixture notes plus a direct nonexistent-path case; also run by `verify.sh`).
 
 ## topic-recall.py
 
@@ -487,7 +490,7 @@ Fields, by what each observably does: `vault_path` (per-machine, set during setu
 
 The default layer of per-agent model and effort routing. It is config, not an executable. `resolve-models.sh` reads it first, then the user file `~/.claude/toolkit-models.json`, then the plan note's run options. The result routes Agent-tool spawns through the `agent-model.sh` PreToolUse hook (see `docs/hooks.md`) and Workflow `agent()` calls through the runner scripts, without shadowing the agent files. The user file lists only the agents it re-routes, in the same shape, so later template defaults still reach every other agent.
 
-Fields: `agents` (one key per shipped agent name, each value a `{"model": ..., "effort": ...}` object; model is any Claude Code model alias or full model ID, and the Agent-tool path sends a full ID as the one family alias it names, effort is `low`, `medium`, `high`, `xhigh` or `max`; an empty string leaves the layers below in place; `haiku` is refused) and `_readme` (human guidance only, read by nothing). A user file value can also be a bare string, which sets the model only. An explicit per-call model or effort, or `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, wins over every layer.
+Fields: `agents` (one key per shipped agent name, each value a `{"model": ..., "effort": ...}` object; model is any Claude Code model alias or full model ID, and the Agent-tool path sends a full ID as the one family alias it names, effort is `low`, `medium`, `high`, `xhigh` or `max`; an empty string leaves the layers below in place; `haiku` is refused) and `_readme` (human guidance only, read by nothing). Every shipped entry names Opus or Sonnet, so no shipped agent inherits the session model, and only the user file or the plan note names another model. A user file value can also be a bare string, which sets the model only. An explicit per-call model or effort, or `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, wins over every layer.
 
 ## design-detector/
 

@@ -94,22 +94,28 @@ const SECTIONED_PLAN = PLAN.replace('## Assumptions', '## Current Context\n\nThe
 const E2E_PLAN = plan(THREE_STEPS, ['1. Run the unit tests.', '2. [e2e] Load the widget page.'])
 const SHOTS_PLAN = plan(THREE_STEPS, ['1. Run the unit tests.', '2. [e2e] [shots] Load the widget page.', '3. [e2e] Load the list page.'])
 const INTRO_PLAN = plan(THREE_STEPS, ['Run these against the local site.', '', '1. [e2e] Load the widget page.', '2. Run the unit tests.'])
+const SPLIT_LINES = ['1. Run the unit tests.', '2. [e2e] Load the widget page.', '3. Run the lint check.']
+const HOME_1 = 'unit tests: pass, made /scratch/home-1'
+const SPLIT_PASS = { results: SPLIT_LINES.map((step, i) => ({ step, status: 'pass', evidence: i ? `${step}: pass` : HOME_1 })) }
+const verifyLabels = (seq) => seq.map(([k]) => k).filter((k) => k.startsWith('verify:'))
 
-const ARGS = { planName: 'widget-export', repoRoot: '/repo', repoName: 'demo', planPath: PLAN_PATH, recallHits: 'none', scratchDir: '/scratch', pluginRoot: '/plugin', vaultRoot: '/vault/AI' }
+const MODELS = { verifier: { model: 'opus', effort: 'xhigh' }, implementer: { model: 'sonnet', effort: 'high' }, 'code-reviewer': { model: 'fable', effort: 'medium' } }
+const ARGS = { planName: 'widget-export', repoRoot: '/repo', repoName: 'demo', planPath: PLAN_PATH, recallHits: 'none', scratchDir: '/scratch', pluginRoot: '/plugin', vaultRoot: '/vault/AI', models: MODELS }
 const SEAT_ARGS = { ...ARGS, plan: E2E_PLAN, seatRun: true, baselineFailing: [], diffBase: '0123abcd4567' }
 const SEAT_PANEL = { ...SEAT_ARGS, priorChangedPaths: ['src/a.js'] }
+const SPLIT_ARGS = { ...ARGS, plan: plan(THREE_STEPS, SPLIT_LINES), seatRun: true, baselineFailing: [], diffBase: '0123abcd4567' }
 const GIT_RULE = 'In /repo, git is read-only: git status, git diff, git log, git ls-files, git branch --show-current, git remote get-url, git symbolic-ref with one ref argument, and git merge-base --is-ancestor only. A -c core.quotePath=false prefix on one of these commands keeps it read-only. Never run git stash, add, commit, checkout, switch, reset, clean, rebase, merge or push there. Mutating git is allowed only inside a fresh fixture you create under /scratch.'
 const SCRATCH_ONLY = 'Run embedded commands only against scratch fixtures you create under /scratch, never against /repo.'
 const HOOK_SENTENCE = 'Remove a scratch fixture with its literal absolute path under /scratch.'
 const HOOK_REFUSAL = 'a bare dot or double dot, a bare glob, a path with a /../ segment, the root, the home dir'
 const HOOK_WRITE = "must hold a command the hook refuses, such as a script's recursive delete of a variable, create it with the Write tool"
 const BLOCKERS_ONLY = 'The runner stops on any blockers entry, so blockers holds only work you could not do and is empty when the work is done.'
+const COMMAND_FORM_RULE = "Run a repo command in its plain form, such as <tool> exec <service> scripts/check <paths>, never wrapped in bash -c or sh -c, because the permission checks cannot read a wrapped script. The one exception is the background launch form bash -c 'set -m; <launch> ...' for a long-running local process."
 const STDIN_RULE = 'Run any verify or test suite, such as bash verify.sh, with stdin from /dev/null (bash verify.sh </dev/null), because a suite that reads stdin hangs when stdin is a pipe.'
 const REPO_STATE = "The tree at repoRoot is the POST-change state this diff produces. There is no pre-change checkout. Reconstruct the pre-change state from the diff's context and removed lines. A defect the diff introduces is in scope even though it is present in the tree."
 const STANDING = ['toolkit:code-reviewer', 'toolkit:silent-failure-hunter', 'toolkit:pr-test-analyzer']
 const FULL = STANDING.concat(['toolkit:security-reviewer', 'toolkit:performance-reviewer', 'toolkit:coupling-reviewer'])
 const DOCS_ONLY = ['toolkit:code-reviewer']
-const MODELS = { verifier: { model: 'opus', effort: 'xhigh' }, implementer: { model: 'sonnet', effort: 'high' }, 'code-reviewer': { model: 'fable', effort: 'medium' } }
 
 const stepOf = (changedPaths, extra = {}) => ({ changedPaths, deviations: [], checksRun: ['unit tests'], result: 'Done.', blockers: [], topicMaterial: 'none', ...extra })
 const resultOf = (status) => ({ step: '1. Run the unit tests.', status, evidence: `unit tests: ${status}` })
@@ -173,6 +179,20 @@ const SHA_FAILED_LINE = 'The sha check on the plan note failed: vault-fs: cannot
 const shotsValidationOf = (status2, shots2, shots3 = []) => ({ results: [resultOf('pass'), { step: '2. [e2e] [shots] Load the widget page.', status: status2, evidence: `widget page: ${status2}`, screenshots: shots2 }, { step: '3. [e2e] Load the list page.', status: 'pass', evidence: 'list page: pass', screenshots: shots3 }] })
 const rulesOf = (bullet) => `# Review rules\n## Paths to skip\n- LICENSE\n## High-risk paths\n- ${bullet}\n## Always check\n- docs/x.md`
 
+// A split verify label maps to its base label, as in verify:validation:e2e:2 to verify:validation.
+const baseOf = (label) => label.replace(/^(verify:(?:validation|revalidation|final)):.+$/, '$1')
+const typeOf = (label) => AGENT_TYPES[baseOf(label)]
+const phaseOf = (label) => PHASES[baseOf(label)]
+const stepsIn = (prompt) => [...prompt.matchAll(/^STEP (\d+):$/gm)].map((m) => Number(m[1]))
+// A base verify fixture answers each verifier group with its results for the STEPs that group's prompt names, as a real verifier does. A fixture keyed by the split label answers as given.
+const answerOf = (script, label, prompt, total) => {
+  if (label !== baseOf(label) && label in script) return script[label]
+  const v = script[baseOf(label)]
+  const ns = stepsIn(prompt)
+  if (!v || !Array.isArray(v.results) || !ns.length || ns.length >= total) return v
+  return { ...v, results: v.results.filter((_, i) => ns.includes(i + 1)) }
+}
+
 // Runs the flow with per-label overrides. A null override is a dead stage, an Error makes the child workflow throw.
 async function run(overrides = {}, args = ARGS, fn = flow) {
   const { plan: text = PLAN, ...flowArgs } = args
@@ -181,11 +201,12 @@ async function run(overrides = {}, args = ARGS, fn = flow) {
   const agents = {}
   const calls = []
   const seq = []
+  const total = indexOf(text).validationSteps.length
   const agent = async (prompt, opts) => {
     prompts[opts.label] = prompt
     seq.push([opts.label, prompt])
     agents[opts.label] = { agentType: opts.agentType, phase: opts.phase, schema: opts.schema, model: opts.model, effort: opts.effort }
-    return script[opts.label] ?? null
+    return answerOf(script, opts.label, prompt, total) ?? null
   }
   const workflow = async (ref, wfArgs) => {
     calls.push({ ref, args: wfArgs })
@@ -340,14 +361,17 @@ const cases = [
     const { error } = await run({}, { ...ARGS, models: { verifier: 'opus' } })
     return String(error && error.message).includes('execute-runner models must map agent names to {model, effort} objects')
   }],
-  ['a missing models map passes neither key to any call', async () => {
-    const { agents } = await run(FULL_RUN)
-    return Object.values(agents).every((x) => x.model === undefined && x.effort === undefined)
+  ['a missing models map throws the requires models sentence', async () => {
+    const { error } = await run({}, { ...ARGS, models: undefined })
+    return String(error && error.message).includes('execute-runner requires models')
   }],
-  ['the models map is forwarded to the review-mr child and omitted when absent', async () => {
-    const given = await run({}, { ...ARGS, models: MODELS })
-    const absent = await run()
-    return same({ given: given.calls[0].args.models, absent: 'models' in absent.calls[0].args }, { given: MODELS, absent: false })
+  ['an empty models map throws', async () => {
+    const { error } = await run({}, { ...ARGS, models: {} })
+    return String(error && error.message).includes('execute-runner requires models')
+  }],
+  ['the models map is forwarded to the review-mr child', async () => {
+    const { calls } = await run()
+    return same(calls[0].args.models, MODELS)
   }],
   ['dead verify:validation blocks and skips the child', async () => {
     const { result, calls } = await run({ 'verify:validation': null })
@@ -401,6 +425,11 @@ const cases = [
   ['verified cold finding lands in coldResidual, does not block, and doc:pass runs', async () => {
     const { result, prompts } = await run({ 'cold:read': coldOf(true, false) })
     return same({ residual: result.coldResidual.length, unverified: result.coldUnverified.length, blocked: result.blocked, doc: 'doc:pass' in prompts, remember: 'remember:pass' in prompts }, { residual: 1, unverified: 1, blocked: [], doc: true, remember: true })
+  }],
+  ['COMMAND_FORM_RULE reaches every implementer and verifier prompt that picks its own repo commands', async () => {
+    const { prompts, agents } = await run(FULL_RUN)
+    const missing = Object.keys(prompts).filter((k) => [I, V].includes(agents[k].agentType) && !prompts[k].includes(COMMAND_FORM_RULE)).sort()
+    return same(missing, ['diff:final', 'diff:post-doc', 'diff:red-team', 'plan:index', 'remember:pass'])
   }],
   ['SHARED prompts and verify:validation carry the hook rule, the Write-tool sentence goes to SHARED only', async () => {
     const { prompts } = await run(FULL_RUN)
@@ -1114,6 +1143,80 @@ const cases = [
     const { prompts } = await run({}, { ...SEAT_ARGS, e2e: 'skip' })
     return same({ included: prompts['verify:validation'].includes('the end-to-end STEPs included'), apart: prompts['verify:validation'].includes('apart from the end-to-end STEPs named above') }, { included: false, apart: true })
   }],
+  ['a seat run over unit, e2e and unit steps calls one verifier per group in written order', async () => {
+    const { seq } = await run({ 'verify:validation': SPLIT_PASS }, SPLIT_ARGS)
+    return same(verifyLabels(seq), ['verify:validation', 'verify:validation:e2e:2', 'verify:validation:3'])
+  }],
+  ['a later verifier group carries the evidence of step 1', async () => {
+    const { prompts } = await run({ 'verify:validation': SPLIT_PASS }, SPLIT_ARGS)
+    return same(['verify:validation:e2e:2', 'verify:validation:3'].filter((k) => prompts[k].includes(`EARLIER STEP RESULTS`) && prompts[k].includes(`1. Run the unit tests: pass: ${HOME_1}`)), ['verify:validation:e2e:2', 'verify:validation:3'])
+  }],
+  ['the first verifier group carries no earlier step results', async () => {
+    const { prompts } = await run({ 'verify:validation': SPLIT_PASS }, SPLIT_ARGS)
+    return !prompts['verify:validation'].includes('EARLIER STEP RESULTS')
+  }],
+  ['each verifier group names only its own STEPs and their count', async () => {
+    const { prompts } = await run({ 'verify:validation': SPLIT_PASS }, SPLIT_ARGS)
+    return same(['verify:validation', 'verify:validation:e2e:2', 'verify:validation:3'].map((k) => [stepsIn(prompts[k]), prompts[k].includes('Return exactly 1 results')]), [[[1], true], [[2], true], [[3], true]])
+  }],
+  ['a seat run with two e2e steps calls one verifier per e2e step and one per run of other steps', async () => {
+    const lines = ['1. Run the unit tests.', '2. [e2e] Load the widget page.', '3. [e2e] Load the list page.', '4. Run the lint check.']
+    const v = { results: lines.map((step) => ({ step, status: 'pass', evidence: 'ok' })) }
+    const { seq } = await run({ 'verify:validation': v }, { ...SPLIT_ARGS, plan: plan(THREE_STEPS, lines) })
+    return same(verifyLabels(seq), ['verify:validation', 'verify:validation:e2e:2', 'verify:validation:e2e:3', 'verify:validation:4'])
+  }],
+  ['split verifier results land in step order', async () => {
+    const { result } = await run({ 'verify:validation': SPLIT_PASS }, SPLIT_ARGS)
+    return same(result.validation.results.map((r) => r.step), SPLIT_LINES)
+  }],
+  ['a null verifier group ends the run as a dead verifier under its own label and runs no later group', async () => {
+    const { result, seq } = await run({ 'verify:validation': SPLIT_PASS, 'verify:validation:e2e:2': null }, SPLIT_ARGS)
+    return same({ blocked: result.blocked, incomplete: result.incomplete, labels: verifyLabels(seq) }, { blocked: ['The verifier verify:validation:e2e:2 returned nothing.'], incomplete: ['verify:validation:e2e:2'], labels: ['verify:validation', 'verify:validation:e2e:2'] })
+  }],
+  ['a verifier group that returns too few results halts before the panel and runs no later group', async () => {
+    const { result, calls, seq } = await run({ 'verify:validation': SPLIT_PASS, 'verify:validation:e2e:2': { results: [] } }, SPLIT_ARGS)
+    return same({ blocked: result.blocked, child: calls.length, labels: verifyLabels(seq) }, { blocked: ['Validation returned 1 results for 3 steps.'], child: 0, labels: ['verify:validation', 'verify:validation:e2e:2'] })
+  }],
+  ['a group miscount that still totals the step count halts before the panel and runs no later group', async () => {
+    const two = { results: SPLIT_PASS.results.slice(1) }
+    const { result, calls, seq } = await run({ 'verify:validation': SPLIT_PASS, 'verify:validation:e2e:2': two }, SPLIT_ARGS)
+    return same({ blocked: result.blocked, child: calls.length, labels: verifyLabels(seq) }, { blocked: ['A validation verifier returned a result count other than its step count.'], child: 0, labels: ['verify:validation', 'verify:validation:e2e:2'] })
+  }],
+  ['a stop in a later verifier group halts the run with no later group called', async () => {
+    const why = 'The plan note changed mid-run: sha256 x, expected y.'
+    const { result, seq } = await run({ 'verify:validation': SPLIT_PASS, 'verify:validation:e2e:2': { results: [{ step: SPLIT_LINES[1], status: 'fail', evidence: why }] } }, SPLIT_ARGS)
+    return same({ blocked: result.blocked, labels: verifyLabels(seq) }, { blocked: [`The verifier verify:validation ran no Validation Step: ${why}`], labels: ['verify:validation', 'verify:validation:e2e:2'] })
+  }],
+  ['a worktree run with e2e steps keeps one verifier', async () => {
+    const { seq } = await run({ 'verify:validation': SPLIT_PASS }, { ...ARGS, plan: SPLIT_ARGS.plan, inWorktree: true })
+    return same(verifyLabels(seq), ['verify:validation'])
+  }],
+  ['the group after the e2e group carries the e2e step evidence', async () => {
+    const made = 'page loaded, made /scratch/home-2 and pid 4242'
+    const v = { results: SPLIT_PASS.results.map((r, i) => (i === 1 ? { ...r, evidence: made } : r)) }
+    const { prompts } = await run({ 'verify:validation': v }, SPLIT_ARGS)
+    return prompts['verify:validation:3'].includes(made)
+  }],
+  ['split verifier prompts tell each verifier to name what it creates, and an e2e skip prompt does not', async () => {
+    const rule = 'name in each evidence every path, temp dir and process'
+    const split = (await run({ 'verify:validation': SPLIT_PASS }, SPLIT_ARGS)).prompts
+    const skip = (await run({ 'verify:validation': SPLIT_PASS }, { ...ARGS, plan: SPLIT_ARGS.plan, e2e: 'skip' })).prompts
+    return same([split['verify:validation'].includes(rule), skip['verify:validation'].includes(rule)], [true, false])
+  }],
+  ['a stop in the first verifier group halts the run with no e2e group called', async () => {
+    const why = 'The plan note changed mid-run: sha256 x, expected y.'
+    const { result, seq } = await run({ 'verify:validation': { results: SPLIT_LINES.map((step) => ({ step, status: 'fail', evidence: why })) } }, SPLIT_ARGS)
+    return same({ blocked: result.blocked, e2e: verifyLabels(seq).filter((k) => k.includes(':e2e:')) }, { blocked: [`The verifier verify:validation ran no Validation Step: ${why}`], e2e: [] })
+  }],
+  ['split verify labels run as verifiers in their base label phase', async () => {
+    const { agents } = await run({ 'verify:validation': { ...SPLIT_PASS, results: SPLIT_PASS.results.map((r, i) => (i === 1 ? { ...r, status: 'fail' } : r)) } }, SPLIT_ARGS)
+    const labels = Object.keys(agents).filter((k) => k.startsWith('verify:') && k !== baseOf(k))
+    return same({ labels, wrong: labels.filter((k) => agents[k].agentType !== typeOf(k) || agents[k].phase !== phaseOf(k)) }, { labels: ['verify:validation:e2e:2', 'verify:validation:3', 'verify:revalidation:e2e:2', 'verify:revalidation:3'], wrong: [] })
+  }],
+  ['an e2e skip run keeps one verifier and no earlier results block', async () => {
+    const { prompts, seq } = await run({ 'verify:validation': SPLIT_PASS }, { ...ARGS, plan: SPLIT_ARGS.plan, e2e: 'skip' })
+    return same({ labels: verifyLabels(seq), earlier: prompts['verify:validation'].includes('EARLIER STEP RESULTS'), steps: stepsIn(prompts['verify:validation']) }, { labels: ['verify:validation'], earlier: false, steps: [1, 2, 3] })
+  }],
   ['a capture whose hash12 is not 12 hex characters reads as a dead capture', async () => {
     const { result } = await run({ 'diff:final': diffOf('not-a-hash') })
     return same({ blocked: result.blocked, final: result.diffHashes.final }, { blocked: ['The verifier diff:final returned nothing.'], final: null })
@@ -1436,7 +1539,7 @@ const cases = [
   ['a stop result on a [shots] step returns no screenshots', async () => {
     const why = 'The plan note changed mid-run: sha256 x, expected y.'
     const v = shotsValidationOf('fail', ['shots/1.png'])
-    const { result } = await run({ 'verify:validation': { results: v.results.map((r) => ({ ...r, status: 'fail', evidence: why })) } }, { ...ARGS, plan: SHOTS_PLAN })
+    const { result } = await run({ 'verify:validation': { results: v.results.map((r, i) => (i ? { ...r, status: 'fail', evidence: why } : r)) } }, { ...ARGS, plan: SHOTS_PLAN })
     return same(result.validation.results[1].screenshots, [])
   }],
   ['a replay makes no agent call for a recorded label', async () => {

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# The lead's bounded watch over the worker sessions its scratchpad's workers file records. Exit codes in docs/scripts.md.
+# The lead's watch over the worker sessions its scratchpad's workers file records. Exit codes in docs/scripts.md.
 set -uo pipefail
 
 die() { printf 'error: %s\n' "$1" >&2; exit 2; }
 fail() { printf 'error: %s\n' "$1" >&2; exit 3; }
 finish() { printf '%s\n' "$2"; exit "$1"; }
-USAGE="usage: worker-watch.sh wait --scratchpad <dir> [--bound <n>] [--interval <seconds>] [--push-after <seconds>] [--start-grace <seconds>] [--hold <id>]... | list --scratchpad <dir> | name <sessionId>"
+USAGE="usage: worker-watch.sh wait --scratchpad <dir> [--self <sessionId>] [--bound <n>] [--interval <seconds>] [--push-after <seconds>] [--start-grace <seconds>] [--hold <id>]... | list --scratchpad <dir> | name <sessionId>"
 # Minutes by default, seconds with a trailing s, as in watch-mr.sh.
 to_secs() {
   [[ $2 =~ ^([0-9]+)(s?)$ ]] || die "bad duration: $2"
@@ -34,8 +34,8 @@ def dash: if . == null or . == "" then "-" else clean end;'
 OWNED='def owned: $ws | split("\n") | map(split("\t") | select(length >= 2 and (.[0] | test("^[0-9a-f]{8}$")))
   | {id: .[0], name: (.[1] | clean), type: (.[2] | dash), plan: (.[3] | dash), epoch: (.[4] // "")})
   | reduce .[] as $w ([]; if any(.[]; .id == $w.id) then . else . + [$w] end);'
-STORED='def stored: $st | split("\n") | map(split("\t") | select(length == 4 and .[0] != "unowned")
-  | {key: .[0], value: {sig: .[1], since: (.[2] | tonumber? // $now), pushed: (.[3] | tonumber? // 0)}}) | from_entries;
+STORED='def stored: $st | split("\n") | map(split("\t") | select((length == 4 or length == 5) and .[0] != "unowned")
+  | {key: .[0], value: {sig: .[1], since: (.[2] | tonumber? // $now), pushed: (.[3] | tonumber? // 0), reset: (.[4] // "")}}) | from_entries;
 def stored_unowned: [$st | split("\n")[] | split("\t") | select(.[0] == "unowned") | .[1] // ""] | first // "";'
 # A row with no pid keeps its state after Claude Code ends an unattached worker, so state is read, never kill -0.
 SIG='def sig($id): (map(objects | select(.id == $id)) | first) as $r
@@ -56,12 +56,13 @@ if [ "$sub" = name ]; then
   finish 0 "name: $n"
 fi
 
-scratchpad="" bound=60 interval=15 push_after=120 grace=300 holds=""
+scratchpad="" bound="" interval=15 push_after=120 grace=300 holds="" self_sid=""
 while [ $# -gt 0 ]; do
   [ $# -ge 2 ] || die "$1 needs a value"
   case $sub:$1 in
     *:--scratchpad) scratchpad=$2 ;;
     wait:--bound) bound=$2 ;;
+    wait:--self) [[ $2 =~ ^[A-Za-z0-9-]{1,64}$ ]] || die "bad --self: $2"; self_sid=$2 ;;
     wait:--interval) interval=$(secs --interval "$2") || exit 2 ;;
     wait:--push-after) push_after=$(secs --push-after "$2") || exit 2 ;;
     wait:--start-grace) grace=$(secs --start-grace "$2") || exit 2 ;;
@@ -73,11 +74,26 @@ done
 [ -d "$scratchpad" ] && [ "$(basename "$scratchpad")" = scratchpad ] || die "bad or missing --scratchpad: $scratchpad. $USAGE"
 self=$(basename "$(dirname "$scratchpad")")
 [[ $self =~ ^[A-Za-z0-9-]{1,64}$ ]] || die "bad --scratchpad: its parent is no session id"
-to_secs bound_s "$bound"
+[ -n "$self_sid" ] || self_sid=$self
+[ -z "$bound" ] || to_secs bound_s "$bound"
 [ "$interval" -ge 1 ] || interval=1
 command -v jq >/dev/null 2>&1 || fail "jq not found"
 W="$scratchpad/$WORKERS_FILE"
 read_workers() { [ -e "$W" ] || return 0; cat "$W" 2>/dev/null; }
+PROJECTS="${TOOLKIT_PROJECTS_DIR:-$HOME/.claude/projects}"
+# Prints '<resetsAt> <line uuid>' when a session's newest assistant line is a usage-limit error, nothing otherwise.
+limit_of() {
+  [[ $1 =~ ^[A-Za-z0-9-]{1,64}$ ]] || return 0
+  local f; for f in "$PROJECTS"/*/"$1".jsonl; do [ -f "$f" ] && break; done
+  [ -f "$f" ] || return 0
+  local t; t=$(tail -c 65536 "$f") || return 0
+  grep -q usage_limit_reached <<<"$t" || return 0
+  jq -Rrn '[inputs | fromjson? | objects | select(.type == "assistant")] | last
+    | select(. != null and .apiError == "usage_limit_reached")
+    | ((.quotaLimits.resetsAt // .apiErrorParams.rate_limit_info.resetsAt // 0) | tostring) + " " + ((.uuid // .timestamp // "none") | tostring | gsub("[^A-Za-z0-9-]"; ""))' <<<"$t" 2>/dev/null
+}
+# Turns one '<at> <key>' string into {at, key}; an empty key reads as none, so it never matches an empty stored reset.
+LIMIT_OBJ='split(" ") | {at: (.[0] | tonumber? // 0), key: (.[1] // "" | if . == "" then "none" else . end)}'
 
 if [ "$sub" = list ]; then
   ws=$(read_workers) || fail "cannot read $W"
@@ -100,29 +116,38 @@ trap 'exit 130' INT TERM HUP
 echo $$ > "$L/pid" || fail "cannot write $L/pid"
 
 S="$scratchpad/worker-watch.state"
+SELF_F="$scratchpad/worker-watch-self"
 start=$(date +%s)
 old=$(cat "$S" 2>/dev/null)
 held=$(jq -cn --arg st "$old" --arg h "$holds" --argjson now "$start" "$STORED"' stored as $o
   | [$h | split(" ")[] | select(length > 0) | {(.): ($o[.].sig // "")}] | add // {}') || fail "cannot read $S"
 
-# Event order within one exit: NEEDS permission 0, NEEDS input 1, PUSH 2, IDLE 3, NOSTART 4, GONE 5, UNOWNED 6.
+# Event order within one exit: NEEDS permission 0, NEEDS input 1, PUSH 2, IDLE 3, NOSTART 4, GONE 5, UNOWNED 6, LIMIT 7.
+# A limit counts from its reset time plus a 60 second margin for clock skew.
 ROUND="$CLEAN$OWNED$STORED$SIG"'
 def ev($r; $i; $line): .ev += [{r: $r, i: $i, line: $line}];
 def needs($n; $w; $i): ev(if $n == "permission" then 0 else 1 end; $i; "NEEDS \($w.name) \($w.id) \($n)");
 . as $rows | stored as $old
+| ($self != null and $self.key != $selfKey) as $selfNew
 | ([$listed | split("\n")[] | select(length > 0) | {(.): true}] | add // {}) as $lst
 | reduce (owned | to_entries[]) as $e ({state: {}, ev: [], held: $held, open: false};
     # A gone worker is read again each round, because one read can miss a live row and a stopped worker can restart.
     $e.key as $i | $e.value as $w | $old[$w.id] as $s
-      | ($rows | sig($w.id)) as $n
-      | (if $s == null then
+      | ($rows | sig($w.id)) as $n | ($s.reset // "") as $rs | $limits[$w.id] as $l
+      | (if $l != null and $l.key != $rs and $l.at + 60 > $now then
+          .state[$w.id] = (if $s.sig == "limit" then $s else {sig: "limit", since: $now, pushed: 0, reset: $rs} end)
+        elif $l != null and $l.key != $rs then
+          ($rows | map(objects | select(.id == $w.id)) | first) as $r
+          | .state[$w.id] = {sig: $n, since: $now, pushed: 0, reset: $l.key}
+          | ev(7; $i; "LIMIT \($w.name) \($w.id) \($l.at | tostring) \($r.sessionId | clean)")
+        elif $s == null then
           if $n == "busy" or $n == "permission" or $n == "input" then
-            .state[$w.id] = {sig: $n, since: $now, pushed: 0} | if $n == "busy" then . else needs($n; $w; $i) end
+            .state[$w.id] = {sig: $n, since: $now, pushed: 0, reset: $rs} | if $n == "busy" then . else needs($n; $w; $i) end
           elif $now - (($w.epoch | tonumber?) // $start) >= $grace then
-            .state[$w.id] = {sig: $n, since: $now, pushed: 0} | ev(4; $i; "NOSTART \($w.name) \($w.id)")
+            .state[$w.id] = {sig: $n, since: $now, pushed: 0, reset: $rs} | ev(4; $i; "NOSTART \($w.name) \($w.id)")
           else . end
         elif $s.sig != $n then
-          .state[$w.id] = {sig: $n, since: $now, pushed: 0}
+          .state[$w.id] = {sig: $n, since: $now, pushed: 0, reset: $rs}
           | if $n == "permission" or $n == "input" then needs($n; $w; $i)
             elif $n | startswith("idle:") then ev(3; $i; "IDLE \($w.name) \($w.id) \($n[5:])")
             elif $n == "gone" and ($s.sig | startswith("idle:") | not) then ev(5; $i; "GONE \($w.name) \($w.id)")
@@ -133,20 +158,27 @@ def needs($n; $w; $i): ev(if $n == "permission" then 0 else 1 end; $i; "NEEDS \(
       | .state[$w.id].sig as $k
       | (if $k == "gone" or ($k != null and ($k | startswith("idle:")) and $k == $n) then . else .open = true end)
       | if .held | has($w.id) then (if .held[$w.id] == $n then .open = true else del(.held[$w.id]) end) else . end)
-| ($rows | map(objects | select(.kind == "background" and .pid != null and .sessionId != $self
+| ($rows | map(objects | select(.kind == "background" and .pid != null and .sessionId != $me
     and ($lst[(.id // "") | tostring] | not))) | sort_by(.id | tostring)) as $u
 | ($u | map(.id | clean) | join(",")) as $uids
 | if $uids != stored_unowned and ($u | length) > 0
   then ev(6; 0; "UNOWNED \($u | length): \($u | map("\(.name | dash) (\(.id | clean))") | join(", "))") else . end
-| {events: (.ev | sort_by([.r, .i]) | map(.line)), held, open,
-   text: ([owned[] as $w | .state[$w.id] // empty | "\($w.id)\t\(.sig)\t\(.since)\t\(.pushed)"]
+| if $selfNew then ev(7; -1; "LIMIT self - \($self.at | tostring) \($selfId)") else . end
+| {events: (.ev | sort_by([.r, .i]) | map(.line)), held, open, selfDone: (if $selfNew then $self.key else null end),
+   text: ([owned[] as $w | .state[$w.id] // empty | "\($w.id)\t\(.sig)\t\(.since)\t\(.pushed)\t\(.reset // "")"]
      + (if $uids == "" then [] else ["unowned\t\($uids)"] end) | join("\n"))}'
 
-MAX_BAD_ROUNDS=3   # one stalled claude agents call must not end a 60 minute watch
+MAX_BAD_ROUNDS=3   # one stalled claude agents call must not end the watch
 bad=0
-pause() { [ $(($(date +%s) - start)) -lt "$bound_s" ] || finish 10 BOUND; sleep "$interval"; }
+pause() { [ -z "$bound" ] || [ $(($(date +%s) - start)) -lt "$bound_s" ] || finish 10 BOUND; sleep "$interval"; }
 while :; do
   touch "$L/pid"
+  selfl=null
+  l=$(limit_of "$self_sid"); [ -z "$l" ] || selfl=$(jq -cRn "input | $LIMIT_OBJ" <<<"$l") || fail "cannot read the lead's usage limit"
+  selfkey=$(head -n 1 "$SELF_F" 2>/dev/null)
+  # While the lead's own limit holds the round reads and stores nothing, so each event fires on the first round after.
+  [ "$selfl" = null ] || jq -en --argjson s "$selfl" --arg k "$selfkey" --argjson now "$(date +%s)" '$s.key == $k or $s.at + 60 <= $now' >/dev/null \
+    || { pause; continue; }
   ws=$(read_workers) || fail "cannot read $W"
   rows=$(read_rows) || {
     bad=$((bad + 1)); [ "$bad" -lt "$MAX_BAD_ROUNDS" ] || fail "agents source gave no JSON array in $MAX_BAD_ROUNDS rounds in a row"
@@ -159,7 +191,15 @@ while :; do
     f=$(session_workers_file "$sid")
     [ -z "$f" ] || listed+=$'\n'"$(cut -f1 "$f" 2>/dev/null)"
   done < <(jq -r '.[] | objects | select(.pid != null) | .sessionId | strings | select(test("^[A-Za-z0-9_-]+$"))' <<<"$rows")
-  res=$(jq -c --arg ws "$ws" --arg st "$old" --arg listed "$listed" --arg self "$self" --argjson held "$held" \
+  lim=""
+  while IFS=$'\t' read -r wid wsid; do
+    l=$(limit_of "$wsid"); [ -z "$l" ] || lim+="$wid $l"$'\n'
+  done < <(jq -r --arg ws "$ws" "$CLEAN$OWNED"' . as $rows | owned[] | .id as $id
+    | ($rows | map(objects | select(.id == $id)) | first | .sessionId | strings) as $sid | "\($id)\t\($sid)"' <<<"$rows")
+  limits=$(jq -cRn '[inputs | select(length > 0) | (index(" ")) as $c
+    | {(.[:$c]): (.[$c + 1:] | '"$LIMIT_OBJ"')}] | add // {}' <<<"$lim") || fail "cannot read the usage limits"
+  res=$(jq -c --arg ws "$ws" --arg st "$old" --arg listed "$listed" --arg me "$self" --argjson held "$held" \
+    --argjson limits "$limits" --argjson self "$selfl" --arg selfKey "$selfkey" --arg selfId "$self_sid" \
     --argjson now "$(date +%s)" --argjson start "$start" --argjson grace "$grace" --argjson pa "$push_after" "$ROUND" <<<"$rows") \
     || fail "the watch round could not read the agents rows"
   text=$(jq -r .text <<<"$res"); held=$(jq -c .held <<<"$res")
@@ -167,6 +207,8 @@ while :; do
     tmp=$(mktemp "$scratchpad/.worker-watch.state.XXXXXX") && printf '%s\n' "$text" > "$tmp" && mv "$tmp" "$S" || fail "cannot write $S"
     old=$text
   fi
+  done_key=$(jq -r '.selfDone // empty' <<<"$res")
+  [ -z "$done_key" ] || printf '%s\n' "$done_key" > "$SELF_F" || fail "cannot write $SELF_F"
   out=$(jq -r '.events[]' <<<"$res")
   [ -z "$out" ] || finish 0 "$out"
   [ "$(jq -r .open <<<"$res")" = true ] || finish 11 NONE

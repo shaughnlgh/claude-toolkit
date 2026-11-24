@@ -49,12 +49,14 @@ run_session_start_workers_checks() {
   fi
 
   ctx="$(_ssw_hook resume "$sid" "$agents" "$work")"
-  ok=0; [[ "$ctx" == *"$SSW_LINE"* && "$ctx" == *"worker-watch.sh wait --scratchpad $SSW_BASE/$sid/scratchpad with run_in_background."* ]] && ok=1
+  ok=0; [[ "$ctx" == *"$SSW_LINE"* && "$ctx" == *"worker-watch.sh wait --scratchpad $SSW_BASE/$sid/scratchpad "* ]] && ok=1
   _ssw_report "resume lists the owned live worker and the re-arm command" "$ok"
+  ok=0; [[ "$ctx" == *"--scratchpad $SSW_BASE/$sid/scratchpad --self $sid with run_in_background."* ]] && ok=1
+  _ssw_report "the re-arm command passes the session id as --self" "$ok"
 
   ctx="$(_ssw_hook compact "$sid" "$agents" "$work")"
-  ok=0; [[ "$ctx" == *"$SSW_LINE"* && "$ctx" == *"worker-watch.sh wait --scratchpad $SSW_BASE/$sid/scratchpad with run_in_background."* ]] && ok=1
-  _ssw_report "compact lists the owned live worker and the re-arm command" "$ok"
+  ok=0; [[ "$ctx" == *"$SSW_LINE"* && "$ctx" == *"worker-watch.sh wait --scratchpad $SSW_BASE/$sid/scratchpad --self $sid with run_in_background."* ]] && ok=1
+  _ssw_report "compact lists the owned live worker and the full re-arm command" "$ok"
 
   ctx="$(_ssw_hook startup "$sid" "$agents" "$work")"
   ok=0; [[ -n "$ctx" && "$ctx" != *"Worker sessions this session owns"* ]] && ok=1
@@ -66,8 +68,8 @@ run_session_start_workers_checks() {
 
   printf 'not json\n' > "$SSW_BASE/bad-agents.json"
   ctx="$(_ssw_hook resume "$sid" "$SSW_BASE/bad-agents.json" "$work")"
-  ok=0; [[ "$ctx" == *"Worker sessions this session owns could not be listed"* && "$ctx" == *"worker-watch.sh wait --scratchpad $SSW_BASE/$sid/scratchpad with run_in_background."* ]] && ok=1
-  _ssw_report "a failed agents read still gives the re-arm command" "$ok"
+  ok=0; [[ "$ctx" == *"Worker sessions this session owns could not be listed"* && "$ctx" == *"worker-watch.sh wait --scratchpad $SSW_BASE/$sid/scratchpad --self $sid with run_in_background."* ]] && ok=1
+  _ssw_report "a failed agents read still gives the full re-arm command" "$ok"
 
   rm -rf "$SSW_BASE"
   [[ -n "$made_tmp" ]] && rmdir "$tmp" 2>/dev/null

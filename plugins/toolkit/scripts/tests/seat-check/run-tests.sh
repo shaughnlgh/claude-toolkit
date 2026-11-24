@@ -48,6 +48,9 @@ agents "$(entry "$DEAD" s1 "$MAIN")"; run "$MAIN" --self me
 agents "$(entry "$LIVE" me "$MAIN")"; run "$MAIN" --self me
 [ "$(holder_count)" -eq 0 ] && ok "own session is not a holder" || no "own session held: $OUT"
 
+agents "[$(row "$LIVE" lead "$MAIN"),$(row "$LIVE" s1 "$MAIN")]"; run "$MAIN" --self me --self lead
+{ [ "$(holder_count)" -eq 1 ] && printf '%s\n' "$OUT" | grep -q $'^holder: .*\ts1\t'; } && ok "a repeated --self leaves out each named session and no other" || no "repeated self: $OUT"
+
 agents "$(entry null s1 "$MAIN")"; run "$MAIN" --self me
 [ "$(holder_count)" -eq 0 ] && ok "null pid is not a holder" || no "null pid held: $OUT"
 

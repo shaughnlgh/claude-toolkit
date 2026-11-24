@@ -115,7 +115,7 @@
 <div id="agent-model">
 <dt><code>agent-model.sh</code><span class="ref__meta"><span class="tag">Adds context</span></span></dt>
 <dd>
-<p>Adds the model and effort that <code>scripts/resolve-models.sh</code> resolves for an agent to an Agent call that does not carry them. A field the call already carries wins. A bare name that one of your own agents shadows gets nothing added. It never blocks or asks.</p>
+<p>Adds the model and effort that <code>scripts/resolve-models.sh</code> resolves for an agent to an Agent call that does not carry them. A field the call already carries wins. A bare name that one of your own agents shadows gets nothing added. A built-in agent type that would run on a session model above Opus is sent to Opus, unless your models file names a model or <code>inherit</code> for that type. It never blocks or asks.</p>
 <p class="ref__line"><span class="step-label">Matcher</span><code>Agent</code></p>
 <p class="ref__line"><span class="step-label">Setting</span><code>TOOLKIT_MODELS_FILE</code> points at a models file in place of <code>~/.claude/toolkit-models.json</code>.</p>
 </dd>

@@ -64,4 +64,4 @@ Recommend a merge when every thread is resolved and the pipeline is green, or wh
 
 ## Boundary
 
-`gitlab-mr-review` reviews an MR from scratch. `red-team` reviews the local uncommitted slice. This skill runs after push and works the reviewer's threads. It never stages, commits, pushes, or merges. The ship flow works bot threads itself through the ship-runner script. This skill still never mutates git. Posting a reply is an external side effect and follows the execution guardrails: preview, then post only on the user's request.
+`gitlab-mr-review` reviews an MR from scratch. `red-team` reviews the local uncommitted slice. This skill runs after push and works the reviewer's threads. It never stages, commits, pushes, or merges. The ship flow works bot threads itself through the ship-runner script. Its automatic thread mode posts and resolves pushbacks as the user's advance choice through the `thread_mode` run option, and this skill's own push-back rules above stay as written. This skill still never mutates git. Posting a reply is an external side effect and follows the execution guardrails: preview, then post only on the user's request.

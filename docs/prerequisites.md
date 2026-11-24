@@ -98,7 +98,7 @@ Never commit or print the token; the toolkit references it by name only.
 
 ### jq
 
-Required by `watch-mr.sh`, the ship flow's pipeline and review watcher. Some hooks and other scripts prefer it and degrade gracefully without it. Without it, `agent-model.sh` and `resolve-models.sh` add no model or effort, so an Agent-tool spawn with no model uses the agent definition's model, then a configured default subagent model, then the parent session's model, and a workflow launched without `models` inherits the session model and effort. The hook then says so in a `systemMessage`. `resolve-models.sh` needs jq 1.6 or later, the release that added `IN`.
+jq 1.6 or later, the release that added `IN`, is required. `resolve-models.sh` needs it, and every plan, execute, ship, red-team and gitlab-mr-review launch stops with the resolver's error when the resolver cannot run. `watch-mr.sh`, the ship flow's pipeline and review watcher, needs it too. Without jq, `agent-model.sh` adds no model or effort to an Agent-tool spawn and says so in a `systemMessage`.
 
 ```sh
 brew install jq
